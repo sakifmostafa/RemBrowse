@@ -19,7 +19,11 @@ object UrlResolver {
     private val DOMAIN_LIKE_REGEX =
         Regex("^[\\p{L}\\p{N}-]+(\\.[\\p{L}\\p{N}-]+)*\\.\\p{L}{2,}(:\\d+)?([/?#].*)?$")
 
-    fun resolveInput(rawInput: String): String {
+    /**
+     * Turns what was typed into an address: a URL is kept, a bare host gets a scheme, and
+     * anything else becomes a search sent to [searchUrlPrefix].
+     */
+    fun resolveInput(rawInput: String, searchUrlPrefix: String = DEFAULT_SEARCH_ENGINE_PREFIX): String {
         val trimmed = rawInput.trim()
         if (trimmed.isEmpty()) return BrowserTab.NEW_TAB_URL
 
@@ -37,7 +41,7 @@ object UrlResolver {
         }
 
         val encoded = URLEncoder.encode(trimmed, StandardCharsets.UTF_8.name())
-        return "$DEFAULT_SEARCH_ENGINE_PREFIX$encoded"
+        return "$searchUrlPrefix$encoded"
     }
 
     fun extractDisplayHost(url: String): String {

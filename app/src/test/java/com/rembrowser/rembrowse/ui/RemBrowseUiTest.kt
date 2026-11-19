@@ -7,7 +7,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
@@ -25,6 +27,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
+import androidx.compose.ui.text.TextRange
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
@@ -35,6 +38,8 @@ import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.SearchEngine
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
@@ -269,9 +274,62 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("more_button").performClick()
         composeRule.onNodeWithTag("menu_extensions").performClick()
 
-        composeRule.onNodeWithTag("extensions_dialog").assertIsDisplayed()
+        // Extensions live in the settings page, which opens in a tab with its own address
+        composeRule.onNodeWithTag("settings_page").assertIsDisplayed()
+        composeRule.onNodeWithTag("extensions_panel").assertIsDisplayed()
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/extensions"))
         composeRule.onNodeWithText("No extensions yet").assertIsDisplayed()
-        composeRule.onNodeWithTag("extensions_tab_discover_amo").assertIsDisplayed()
+
+        // The Firefox Add-ons catalog is one tab away
+        composeRule.onNodeWithTag("extensions_tab_discover_amo").performClick()
+        composeRule.onNodeWithTag("extensions_search").assertIsDisplayed()
+    }
+
+    @Test
+    fun addressBar_keepsItsCaretAtTheStartWhenThePageChangesUnderIt() {
+        launch()
+        val caret = SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange.Zero)
+
+        // A text field scrolls to its caret. Left at the end of a long address, it would show
+        // the tail of the path and hide the site the page comes from.
+        loadPage(
+            browserVm.uiState.value.activeTabId!!,
+            "https://example.org/a/long/path/that/does/not/fit/in/the/address/bar/of/a/narrow/window",
+            "Example"
+        )
+        composeRule.onNodeWithTag("omnibox_input").assert(caret)
+
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.EXTENSIONS) }
+        composeRule.onNodeWithTag("omnibox_input")
+            .assert(hasText("rem://settings/extensions"))
+            .assert(caret)
+    }
+
+    @Test
+    fun settingsPage_opensInATabAndEachSectionHasItsOwnAddress() {
+        loadPage(browserVm.uiState.value.activeTabId!!, "https://example.org/", "Example")
+        launch()
+
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_settings").performClick()
+
+        composeRule.onNodeWithTag("settings_page").assertIsDisplayed()
+        assertEquals("Settings opened in a tab of its own", 2, browserVm.uiState.value.tabs.size)
+        assertEquals("Settings", browserVm.uiState.value.activeTab?.displayTitle)
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/appearance"))
+        composeRule.onNodeWithTag("settings_section_appearance").assertIsSelected()
+
+        composeRule.onNodeWithTag("settings_section_search").performClick()
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/search"))
+        composeRule.onNodeWithTag("search_engine_duckduckgo").assertIsSelected()
+        composeRule.onNodeWithTag("search_engine_google").performClick()
+        assertEquals(SearchEngine.GOOGLE, browserVm.uiState.value.settings.searchEngine)
+        composeRule.onNodeWithTag("search_engine_google").assertIsSelected()
+
+        // Asking for settings again goes back to the same tab instead of opening another
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_settings").performClick()
+        assertEquals(2, browserVm.uiState.value.tabs.size)
     }
 
     @Test
@@ -321,12 +379,9 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("command_palette_input").performTextInput("settings")
         composeRule.onNodeWithTag("palette_settings").performClick()
         composeRule.onNodeWithTag("command_palette").assertDoesNotExist()
-        composeRule.onNodeWithTag("settings_dialog").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_page").assertIsDisplayed()
 
-        composeRule.runOnUiThread {
-            chrome.showSettings = false
-            chrome.showCommandPalette = true
-        }
+        composeRule.runOnUiThread { chrome.showCommandPalette = true }
         composeRule.onNodeWithTag("command_palette_input").performTextInput("mozilla.org")
         composeRule.onNodeWithTag("palette_go").performClick()
         assertEquals("https://mozilla.org", browserVm.uiState.value.activeTab?.url)
@@ -362,9 +417,8 @@ class RemBrowseUiTest {
                 enabled = true
             )
         )
+        browserVm.openSettings(SettingsSection.PRIVACY)
         launch()
-        composeRule.runOnUiThread { chrome.showSettings = true }
-        composeRule.onNodeWithTag("settings_section_privacy").performClick()
 
         composeRule.onNodeWithTag("setting_ad_blocker").assertIsOn()
         composeRule.onNodeWithTag("setting_ad_blocker").performClick()

@@ -8,6 +8,7 @@ import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SplitRatios
 import org.json.JSONArray
 import org.json.JSONObject
@@ -80,6 +81,7 @@ class SharedPrefsBrowserStateRepository(
                 JSONObject().apply {
                     put("useDarkTheme", state.settings.useDarkTheme)
                     put("accent", state.settings.accent.name)
+                    put("searchEngine", state.settings.searchEngine.name)
                     put(KEY_ENHANCED_PRIVACY, state.settings.enhancedPrivacy)
                 }
             )
@@ -148,6 +150,7 @@ class SharedPrefsBrowserStateRepository(
                 BrowserSettings(
                     useDarkTheme = settingsObj.optBoolean("useDarkTheme", defaults.useDarkTheme),
                     accent = AccentColor.fromNameOrDefault(settingsObj.optString("accent", "")),
+                    searchEngine = SearchEngine.fromNameOrDefault(settingsObj.optString("searchEngine", "")),
                     enhancedPrivacy = settingsObj.optBoolean(KEY_ENHANCED_PRIVACY, defaults.enhancedPrivacy)
                 )
             }

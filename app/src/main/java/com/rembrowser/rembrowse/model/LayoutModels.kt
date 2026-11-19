@@ -37,9 +37,45 @@ enum class AccentColor(val label: String) {
     }
 }
 
+/** Where searches typed into the address bar are sent. */
+enum class SearchEngine(val label: String, val queryUrl: String) {
+    DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q="),
+    GOOGLE("Google", "https://www.google.com/search?q="),
+    BING("Bing", "https://www.bing.com/search?q="),
+    BRAVE("Brave Search", "https://search.brave.com/search?q="),
+    STARTPAGE("Startpage", "https://www.startpage.com/sp/search?query=");
+
+    companion object {
+        fun fromNameOrDefault(name: String?): SearchEngine {
+            return entries.firstOrNull { it.name == name } ?: DUCKDUCKGO
+        }
+    }
+}
+
+/** The sections of the settings page. [path] is the last part of its `rem://settings/…` address. */
+enum class SettingsSection(val path: String, val label: String) {
+    APPEARANCE("appearance", "Appearance"),
+    SEARCH("search", "Search"),
+    PRIVACY("privacy", "Privacy"),
+    EXTENSIONS("extensions", "Extensions"),
+    ABOUT("about", "About");
+
+    val url: String
+        get() = "${BrowserTab.SETTINGS_URL}/$path"
+
+    companion object {
+        /** The section a settings address points at; unknown paths open Appearance. */
+        fun fromUrl(url: String): SettingsSection {
+            val path = url.trim().lowercase().removePrefix(BrowserTab.SETTINGS_URL).trim('/').substringBefore('/')
+            return entries.firstOrNull { it.path == path } ?: APPEARANCE
+        }
+    }
+}
+
 data class BrowserSettings(
     val useDarkTheme: Boolean = true,
     val accent: AccentColor = AccentColor.MAROON,
+    val searchEngine: SearchEngine = SearchEngine.DUCKDUCKGO,
     /**
      * Also block known fingerprinters, cryptominers and email trackers. Off by default: the
      * standard level is what keeps every site working.
@@ -86,10 +122,22 @@ data class BrowserTab(
     val isNewTabPage: Boolean
         get() = !openedByPage && (url.isBlank() || url == NEW_TAB_URL)
 
+    /** One of RemBrowse's own pages (`rem://…`), drawn by the app rather than the web engine. */
+    val isInternalPage: Boolean
+        get() = url.startsWith(INTERNAL_SCHEME, ignoreCase = true)
+
+    val isSettingsPage: Boolean
+        get() = url.startsWith(SETTINGS_URL, ignoreCase = true)
+
+    /** True when the tab shows a page from the web (not the start page or an internal page). */
+    val isWebPage: Boolean
+        get() = !isNewTabPage && !isInternalPage
+
     /** Title to show in the tab rail, pane headers and tab lists. Never blank. */
     val displayTitle: String
         get() = when {
             isNewTabPage -> NEW_TAB_TITLE
+            isSettingsPage -> SETTINGS_TITLE
             title.isNotBlank() -> title
             else -> UrlResolver.extractDisplayHost(url)
         }
@@ -97,6 +145,9 @@ data class BrowserTab(
     companion object {
         const val NEW_TAB_URL = "about:blank"
         const val NEW_TAB_TITLE = "New tab"
+        const val INTERNAL_SCHEME = "rem://"
+        const val SETTINGS_URL = "rem://settings"
+        const val SETTINGS_TITLE = "Settings"
     }
 }
 

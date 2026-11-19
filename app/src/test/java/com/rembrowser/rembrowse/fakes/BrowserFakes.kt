@@ -59,6 +59,14 @@ class FakeSessionHandle(
         )
     }
 
+    /** The user moved through this tab's history (back or forward) and landed on [url]. */
+    fun simulateHistoryMove(url: String, canGoBack: Boolean, canGoForward: Boolean) {
+        listener.onSessionUpdated(
+            tabId,
+            SessionNavigationUpdate(url = url, isLoading = false, canGoBack = canGoBack, canGoForward = canGoForward)
+        )
+    }
+
     fun simulatePageStart(url: String) {
         listener.onSessionUpdated(
             tabId,

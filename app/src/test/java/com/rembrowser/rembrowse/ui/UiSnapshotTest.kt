@@ -28,11 +28,15 @@ import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AccentColor
+import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.DefaultAdBlocker
+import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
@@ -88,7 +92,8 @@ class UiSnapshotTest {
     private fun launch(
         settings: BrowserSettings = BrowserSettings(),
         layout: LayoutMode = LayoutMode.SINGLE_1X1,
-        startOnNewTab: Boolean = false
+        startOnNewTab: Boolean = false,
+        withExtensions: Boolean = false
     ) {
         val tabs = listOf(
             BrowserTab(id = "arch", url = "https://www.archdaily.com/", title = "ArchDaily"),
@@ -116,7 +121,36 @@ class UiSnapshotTest {
                 )
             )
         )
-        extVm = ExtensionsViewModel(FakeExtensionManager(), FakeAmoApiClient(), uiScope)
+        val extensionManager = FakeExtensionManager()
+        val amo = FakeAmoApiClient()
+        if (withExtensions) {
+            extensionManager.installedExtensions.value = listOf(
+                InstalledExtension(
+                    id = DefaultAdBlocker.ID,
+                    name = DefaultAdBlocker.NAME,
+                    version = "5.2.1",
+                    description = "Blocks ads and trackers on the sites you visit.",
+                    enabled = true,
+                    hasBrowserAction = true
+                ),
+                InstalledExtension(
+                    id = "addon@darkreader.org",
+                    name = "Dark Reader",
+                    version = "4.9.110",
+                    description = "Dark mode for every website.",
+                    enabled = false
+                )
+            )
+            amo.featuredResult = Result.success(
+                listOf(
+                    sampleAddon(DefaultAdBlocker.ID, "AdGuard AdBlocker", "Adguard Software Ltd", 4.7, "Blocks ads, trackers and annoyances on every site."),
+                    sampleAddon("uBlock0@raymondhill.net", "uBlock Origin", "Raymond Hill", 4.8, "An efficient wide-spectrum content blocker."),
+                    sampleAddon("{446900e4-71c2-419f-a6a7-df9c091e268b}", "Bitwarden Password Manager", "Bitwarden Inc.", 4.6, "A secure password manager for all of your devices."),
+                    sampleAddon("sponsorBlocker@ajay.app", "SponsorBlock", "Ajay Ramachandran", 4.7, "Skips sponsored segments in videos.")
+                )
+            )
+        }
+        extVm = ExtensionsViewModel(extensionManager, amo, uiScope)
         engine.sessions.values.forEach { it.simulateSecurityChange(true) }
 
         composeRule.setContent {
@@ -126,7 +160,7 @@ class UiSnapshotTest {
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
                         chrome = chrome,
-                        versionName = "0.02",
+                        versionName = "0.05",
                         onPickLocalXpi = {},
                         paneViewport = { tab, modifier -> PlaceholderPage(tab, modifier) },
                         extensionPopupContent = { Box(it) }
@@ -201,7 +235,7 @@ class UiSnapshotTest {
     @Test
     fun settings() {
         launch()
-        composeRule.runOnUiThread { chrome.showSettings = true }
+        composeRule.runOnUiThread { browserVm.openSettings() }
         save("07-settings")
     }
 
@@ -227,8 +261,67 @@ class UiSnapshotTest {
     @Test
     fun extensionsManager() {
         launch()
-        composeRule.runOnUiThread { chrome.showExtensions = true }
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.EXTENSIONS) }
         save("11-extensions")
+    }
+
+    @Test
+    fun settingsSearch() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.SEARCH) }
+        save("07b-settings-search")
+    }
+
+    @Test
+    fun settingsPrivacy() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.PRIVACY) }
+        save("07c-settings-privacy")
+    }
+
+    @Test
+    fun extensionsInstalled() {
+        launch(withExtensions = true)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.EXTENSIONS) }
+        save("11b-extensions-installed")
+    }
+
+    @Test
+    fun extensionsFirefoxAddons() {
+        launch(withExtensions = true)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.EXTENSIONS) }
+        composeRule.onNodeWithTag("extensions_tab_discover_amo").performClick()
+        save("11c-extensions-firefox-addons")
+    }
+
+    @Test
+    fun settingsLightTheme() {
+        launch(settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.TEAL), withExtensions = true)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.PRIVACY) }
+        save("07d-settings-light")
+    }
+
+    @Test
+    fun settingsAbout() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.ABOUT) }
+        save("07e-settings-about")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun compactSettings() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings() }
+        save("15-compact-settings")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun compactExtensions() {
+        launch(withExtensions = true)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.EXTENSIONS) }
+        save("16-compact-extensions")
     }
 
     @Test
@@ -245,6 +338,19 @@ class UiSnapshotTest {
         save("13-compact-browsing")
     }
 }
+
+private fun sampleAddon(id: String, name: String, author: String, rating: Double, summary: String) = AmoAddon(
+    id = id,
+    slug = name.lowercase().replace(' ', '-'),
+    name = name,
+    summary = summary,
+    iconUrl = null,
+    author = author,
+    rating = rating,
+    weeklyDownloads = 0,
+    version = "1.0",
+    xpiUrl = "https://addons.mozilla.org/firefox/downloads/file/1/addon.xpi"
+)
 
 /** Stand-in for web content: enough structure to judge how the chrome frames a page. */
 @androidx.compose.runtime.Composable

@@ -105,7 +105,8 @@ fun BrowserTopBar(
     modifier: Modifier = Modifier
 ) {
     val activeTab = uiState.activeTab
-    val isNewTabPage = activeTab?.isNewTabPage != false
+    // True for anything that is not a web page: the start page and RemBrowse's own pages
+    val noWebPage = activeTab?.isWebPage != true
     var showMoreMenu by remember { mutableStateOf(false) }
     var showLayoutMenu by remember { mutableStateOf(false) }
 
@@ -130,7 +131,7 @@ fun BrowserTopBar(
                 onClick = onForward
             )
         }
-        val isLoading = activeTab?.isLoading == true && !isNewTabPage
+        val isLoading = activeTab?.isLoading == true && !noWebPage
         // On a phone-width window reload and bookmark live in the menu, so the address keeps
         // enough room to be read.
         if (!compact) {
@@ -138,7 +139,7 @@ fun BrowserTopBar(
                 icon = if (isLoading) Icons.Outlined.Close else Icons.Outlined.Refresh,
                 label = if (isLoading) "Stop loading" else "Reload",
                 onClick = onReloadOrStop,
-                enabled = !isNewTabPage
+                enabled = !noWebPage
             )
         }
 
@@ -164,8 +165,8 @@ fun BrowserTopBar(
                 icon = if (bookmarked) Icons.Filled.Star else Icons.Outlined.StarBorder,
                 label = if (bookmarked) "Remove bookmark" else "Bookmark this page",
                 onClick = onToggleBookmark,
-                enabled = !isNewTabPage,
-                tint = if (bookmarked && !isNewTabPage) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                enabled = !noWebPage,
+                tint = if (bookmarked && !noWebPage) MaterialTheme.colorScheme.primary else Color.Unspecified,
                 modifier = Modifier.testTag("bookmark_button")
             )
         }
@@ -181,7 +182,7 @@ fun BrowserTopBar(
                 expanded = showMoreMenu,
                 onDismiss = { showMoreMenu = false },
                 compact = compact,
-                pageActionsEnabled = !isNewTabPage,
+                pageActionsEnabled = !noWebPage,
                 isLoading = isLoading,
                 isBookmarked = bookmarked,
                 onReloadOrStop = onReloadOrStop,
@@ -279,7 +280,9 @@ private fun AddressPill(
     }
     LaunchedEffect(shown) {
         if (value.text != shown) {
-            value = TextFieldValue(shown, TextRange(shown.length))
+            // Unfocused, the caret goes to the start: a text field scrolls to its caret, and an
+            // address too long for the bar must show its site, not the tail of its path.
+            value = TextFieldValue(shown, if (isFocused) TextRange(shown.length) else TextRange.Zero)
         }
     }
 

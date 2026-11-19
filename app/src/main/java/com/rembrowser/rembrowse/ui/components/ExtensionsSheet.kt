@@ -77,32 +77,35 @@ import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import java.util.Locale
 
+/** Everything the extensions panel can ask for. */
+class ExtensionsPanelActions(
+    val onSelectTab: (ExtensionsTab) -> Unit,
+    val onSearchQueryChange: (String) -> Unit,
+    val onSubmitSearch: () -> Unit,
+    val onInstallAddon: (AmoAddon) -> Unit,
+    val onInstallUri: (String) -> Unit,
+    val onPickLocalXpi: () -> Unit,
+    val onSetEnabled: (String, Boolean) -> Unit,
+    val onUninstall: (String) -> Unit,
+    val onOpenAction: (String) -> Unit,
+    val onClearMessages: () -> Unit
+)
+
+/**
+ * Extension management as it appears in Settings: what is installed, the Firefox Add-ons
+ * catalog, and installing a package from a link or a file.
+ */
 @Composable
-fun ExtensionsManagerDialog(
+fun ExtensionsPanel(
     uiState: ExtensionsUiState,
-    onDismiss: () -> Unit,
-    onSelectTab: (ExtensionsTab) -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onSubmitSearch: () -> Unit,
-    onInstallAddon: (AmoAddon) -> Unit,
-    onInstallUri: (String) -> Unit,
-    onPickLocalXpi: () -> Unit,
-    onSetEnabled: (String, Boolean) -> Unit,
-    onUninstall: (String) -> Unit,
-    onOpenAction: (String) -> Unit,
-    onClearMessages: () -> Unit
+    actions: ExtensionsPanelActions,
+    modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
-    RemDialog(
-        title = "Extensions",
-        onDismiss = onDismiss,
-        maxWidth = 640.dp,
-        maxHeight = 680.dp,
-        testTag = "extensions_dialog"
-    ) {
+    Column(modifier = modifier.testTag("extensions_panel")) {
         val tabs = listOf(
             ExtensionsTab.INSTALLED to "Installed",
-            ExtensionsTab.DISCOVER_AMO to "Discover",
+            ExtensionsTab.DISCOVER_AMO to "Firefox Add-ons",
             ExtensionsTab.INSTALL_XPI to "From file"
         )
         val selectedIndex = tabs.indexOfFirst { it.first == uiState.selectedTab }.coerceAtLeast(0)
@@ -122,7 +125,7 @@ fun ExtensionsManagerDialog(
                 val selected = uiState.selectedTab == tab
                 Tab(
                     selected = selected,
-                    onClick = { onSelectTab(tab) },
+                    onClick = { actions.onSelectTab(tab) },
                     selectedContentColor = colors.primary,
                     unselectedContentColor = colors.onSurfaceVariant,
                     text = { Text(text = label, style = MaterialTheme.typography.labelLarge) },
@@ -134,39 +137,35 @@ fun ExtensionsManagerDialog(
         StatusBanner(
             status = uiState.statusMessage,
             error = uiState.errorMessage,
-            onDismiss = onClearMessages
+            onDismiss = actions.onClearMessages
         )
 
         Box(
             modifier = Modifier
-                .weight(1f, fill = false)
+                .weight(1f)
                 .fillMaxWidth()
-                .heightIn(min = 280.dp)
-                .padding(16.dp)
+                .padding(top = 16.dp)
         ) {
             when (uiState.selectedTab) {
                 ExtensionsTab.INSTALLED -> InstalledExtensionsList(
                     extensions = uiState.installedExtensions,
-                    onSetEnabled = onSetEnabled,
-                    onUninstall = onUninstall,
-                    onOpenAction = { id ->
-                        onDismiss()
-                        onOpenAction(id)
-                    },
-                    onGoToDiscover = { onSelectTab(ExtensionsTab.DISCOVER_AMO) }
+                    onSetEnabled = actions.onSetEnabled,
+                    onUninstall = actions.onUninstall,
+                    onOpenAction = actions.onOpenAction,
+                    onGoToDiscover = { actions.onSelectTab(ExtensionsTab.DISCOVER_AMO) }
                 )
 
                 ExtensionsTab.DISCOVER_AMO -> DiscoverAmoTab(
                     uiState = uiState,
-                    onSearchQueryChange = onSearchQueryChange,
-                    onSubmitSearch = onSubmitSearch,
-                    onInstallAddon = onInstallAddon
+                    onSearchQueryChange = actions.onSearchQueryChange,
+                    onSubmitSearch = actions.onSubmitSearch,
+                    onInstallAddon = actions.onInstallAddon
                 )
 
                 ExtensionsTab.INSTALL_XPI -> InstallXpiTab(
                     isInstalling = uiState.isInstalling,
-                    onInstallUri = onInstallUri,
-                    onPickLocalXpi = onPickLocalXpi
+                    onInstallUri = actions.onInstallUri,
+                    onPickLocalXpi = actions.onPickLocalXpi
                 )
             }
         }
@@ -274,8 +273,8 @@ private fun InstalledExtensionsList(
     if (extensions.isEmpty()) {
         EmptyState(
             title = "No extensions yet",
-            message = "Add content blockers, password managers and more from addons.mozilla.org.",
-            actionLabel = "Discover extensions",
+            message = "Add content blockers, password managers and more from Firefox Add-ons.",
+            actionLabel = "Browse Firefox Add-ons",
             onAction = onGoToDiscover
         )
         return
@@ -387,7 +386,7 @@ private fun DiscoverAmoTab(
         OutlinedTextField(
             value = uiState.searchQuery,
             onValueChange = onSearchQueryChange,
-            label = { Text("Search add-ons") },
+            label = { Text("Search Firefox Add-ons") },
             placeholder = { Text("uBlock Origin, Dark Reader, Bitwarden…") },
             leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
             singleLine = true,
