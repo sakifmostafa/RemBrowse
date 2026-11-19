@@ -59,13 +59,42 @@ class FakeSessionHandle(
         )
     }
 
+    fun simulatePageStart(url: String) {
+        listener.onSessionUpdated(
+            tabId,
+            SessionNavigationUpdate(url = url, isLoading = true, progress = 10, isSecure = false, isPageStart = true)
+        )
+    }
+
+    fun simulateSecurityChange(isSecure: Boolean) {
+        listener.onSessionUpdated(tabId, SessionNavigationUpdate(isSecure = isSecure))
+    }
+
+    fun simulateCrashLoop() {
+        listener.onSessionUpdated(tabId, SessionNavigationUpdate(isLoading = false, crashed = true))
+    }
+
+    /** A page in this tab opened a new window (`window.open` / `target=_blank`). */
     fun simulateNewTab(url: String) {
-        listener.onNewTabRequested(url)
+        listener.onNewTabRequested(url, tabId)
+    }
+
+    fun simulatePrompt(prompt: com.rembrowser.rembrowse.model.PagePrompt) {
+        listener.onPromptRequested(prompt)
+    }
+
+    fun simulatePromptWithdrawn(promptId: String) {
+        listener.onPromptDismissed(promptId)
     }
 }
 
 class FakeBrowserEngine : BrowserEngine {
     val sessions = linkedMapOf<String, FakeSessionHandle>()
+    var enhancedPrivacy: Boolean? = null
+
+    override fun setEnhancedPrivacy(enabled: Boolean) {
+        enhancedPrivacy = enabled
+    }
 
     override fun createSession(
         tabId: String,
@@ -108,7 +137,13 @@ class FakeAmoApiClient : AmoApiClient {
     var searchResult: Result<List<AmoAddon>> = Result.success(emptyList())
     val searchedQueries = mutableListOf<String>()
 
-    override suspend fun fetchFeaturedExtensions(pageSize: Int): Result<List<AmoAddon>> = featuredResult
+    /** When set, the featured request suspends until this is completed. */
+    var featuredGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    override suspend fun fetchFeaturedExtensions(pageSize: Int): Result<List<AmoAddon>> {
+        featuredGate?.await()
+        return featuredResult
+    }
 
     override suspend fun searchExtensions(query: String, pageSize: Int): Result<List<AmoAddon>> {
         searchedQueries.add(query)
@@ -122,6 +157,9 @@ class FakeExtensionManager : ExtensionManager {
     override val activePopup = MutableStateFlow<ExtensionPopupState?>(null)
 
     var nextInstallResult: Result<InstalledExtension>? = null
+
+    /** When set, installs suspend until this is completed, to exercise in-flight behaviour. */
+    var installGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
     val installedUris = mutableListOf<String>()
     val triggeredActionIds = mutableListOf<String>()
     var lastPromptDecision: Boolean? = null
@@ -132,6 +170,7 @@ class FakeExtensionManager : ExtensionManager {
 
     override suspend fun installFromUri(uri: String): Result<InstalledExtension> {
         installedUris.add(uri)
+        installGate?.await()
         val result = nextInstallResult ?: Result.success(
             InstalledExtension(
                 id = "ext-${installedUris.size}@rembrowse",

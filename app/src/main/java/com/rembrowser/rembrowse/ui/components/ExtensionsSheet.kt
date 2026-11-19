@@ -1,48 +1,49 @@
 package com.rembrowser.rembrowse.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,31 +54,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
+import com.rembrowser.rembrowse.model.ExtensionPromptKind
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
-import com.rembrowser.rembrowse.ui.theme.RemAccentAmber
-import com.rembrowser.rembrowse.ui.theme.RemAccentCyan
-import com.rembrowser.rembrowse.ui.theme.RemAccentEmerald
-import com.rembrowser.rembrowse.ui.theme.RemBackground
-import com.rembrowser.rembrowse.ui.theme.RemBorder
-import com.rembrowser.rembrowse.ui.theme.RemDanger
-import com.rembrowser.rembrowse.ui.theme.RemSurface
-import com.rembrowser.rembrowse.ui.theme.RemSurfaceElevated
-import com.rembrowser.rembrowse.ui.theme.RemTextPrimary
-import com.rembrowser.rembrowse.ui.theme.RemTextSecondary
 import java.util.Locale
 
 @Composable
@@ -85,7 +82,6 @@ fun ExtensionsManagerDialog(
     uiState: ExtensionsUiState,
     onDismiss: () -> Unit,
     onSelectTab: (ExtensionsTab) -> Unit,
-    onRefreshInstalled: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSubmitSearch: () -> Unit,
     onInstallAddon: (AmoAddon) -> Unit,
@@ -96,152 +92,171 @@ fun ExtensionsManagerDialog(
     onOpenAction: (String) -> Unit,
     onClearMessages: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    val colors = MaterialTheme.colorScheme
+    RemDialog(
+        title = "Extensions",
+        onDismiss = onDismiss,
+        maxWidth = 640.dp,
+        maxHeight = 680.dp,
+        testTag = "extensions_dialog"
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .fillMaxHeight(0.86f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(RemSurface)
-                .border(1.dp, RemBorder, RoundedCornerShape(16.dp))
-                .testTag("extensions_dialog")
-        ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(RemSurfaceElevated)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Extension,
-                    contentDescription = null,
-                    tint = RemAccentAmber,
-                    modifier = Modifier.size(22.dp)
+        val tabs = listOf(
+            ExtensionsTab.INSTALLED to "Installed",
+            ExtensionsTab.DISCOVER_AMO to "Discover",
+            ExtensionsTab.INSTALL_XPI to "From file"
+        )
+        val selectedIndex = tabs.indexOfFirst { it.first == uiState.selectedTab }.coerceAtLeast(0)
+        TabRow(
+            selectedTabIndex = selectedIndex,
+            containerColor = Color.Transparent,
+            contentColor = colors.primary,
+            indicator = { positions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(positions[selectedIndex]),
+                    color = colors.primary
                 )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "RemBrowse WebExtensions",
-                        color = RemTextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Mozilla GeckoView native .xpi runtime",
-                        color = RemTextSecondary,
-                        fontSize = 12.sp
-                    )
-                }
-                IconButton(onClick = onRefreshInstalled) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh Extensions",
-                        tint = RemTextSecondary
-                    )
-                }
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close Extensions",
-                        tint = RemTextPrimary
-                    )
-                }
-            }
-
-            // Tabs
-            val tabs = listOf(
-                ExtensionsTab.INSTALLED to "Installed (${uiState.installedExtensions.size})",
-                ExtensionsTab.DISCOVER_AMO to "Browse AMO",
-                ExtensionsTab.INSTALL_XPI to "Install .xpi"
-            )
-            TabRow(
-                selectedTabIndex = tabs.indexOfFirst { it.first == uiState.selectedTab }.coerceAtLeast(0),
-                containerColor = RemSurface,
-                contentColor = RemAccentCyan
-            ) {
-                tabs.forEach { (tab, label) ->
-                    Tab(
-                        selected = uiState.selectedTab == tab,
-                        onClick = { onSelectTab(tab) },
-                        text = {
-                            Text(
-                                text = label,
-                                fontSize = 13.sp,
-                                fontWeight = if (uiState.selectedTab == tab) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                }
-            }
-
-            // Status / Error Banner
-            if (!uiState.statusMessage.isNullOrBlank() || !uiState.errorMessage.isNullOrBlank()) {
-                val isError = !uiState.errorMessage.isNullOrBlank()
-                val text = uiState.errorMessage ?: uiState.statusMessage.orEmpty()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            if (isError) RemDanger.copy(alpha = 0.16f)
-                            else RemAccentEmerald.copy(alpha = 0.16f)
-                        )
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = text,
-                        color = if (isError) RemDanger else RemAccentEmerald,
-                        fontSize = 12.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "Dismiss",
-                        color = RemTextSecondary,
-                        fontSize = 11.sp,
-                        modifier = Modifier.clickable(onClick = onClearMessages)
-                    )
-                }
-            }
-
-            // Body
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(14.dp)
-            ) {
-                when (uiState.selectedTab) {
-                    ExtensionsTab.INSTALLED -> InstalledExtensionsList(
-                        extensions = uiState.installedExtensions,
-                        onSetEnabled = onSetEnabled,
-                        onUninstall = onUninstall,
-                        onOpenAction = { id ->
-                            onDismiss()
-                            onOpenAction(id)
-                        },
-                        onGoToDiscover = { onSelectTab(ExtensionsTab.DISCOVER_AMO) }
-                    )
-
-                    ExtensionsTab.DISCOVER_AMO -> DiscoverAmoTab(
-                        uiState = uiState,
-                        onSearchQueryChange = onSearchQueryChange,
-                        onSubmitSearch = onSubmitSearch,
-                        onInstallAddon = onInstallAddon
-                    )
-
-                    ExtensionsTab.INSTALL_XPI -> InstallXpiTab(
-                        isInstalling = uiState.isInstalling,
-                        onInstallUri = onInstallUri,
-                        onPickLocalXpi = onPickLocalXpi
-                    )
-                }
+            },
+            divider = { HorizontalDivider(color = colors.outlineVariant) }
+        ) {
+            tabs.forEach { (tab, label) ->
+                val selected = uiState.selectedTab == tab
+                Tab(
+                    selected = selected,
+                    onClick = { onSelectTab(tab) },
+                    selectedContentColor = colors.primary,
+                    unselectedContentColor = colors.onSurfaceVariant,
+                    text = { Text(text = label, style = MaterialTheme.typography.labelLarge) },
+                    modifier = Modifier.testTag("extensions_tab_${tab.name.lowercase()}")
+                )
             }
         }
+
+        StatusBanner(
+            status = uiState.statusMessage,
+            error = uiState.errorMessage,
+            onDismiss = onClearMessages
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .fillMaxWidth()
+                .heightIn(min = 280.dp)
+                .padding(16.dp)
+        ) {
+            when (uiState.selectedTab) {
+                ExtensionsTab.INSTALLED -> InstalledExtensionsList(
+                    extensions = uiState.installedExtensions,
+                    onSetEnabled = onSetEnabled,
+                    onUninstall = onUninstall,
+                    onOpenAction = { id ->
+                        onDismiss()
+                        onOpenAction(id)
+                    },
+                    onGoToDiscover = { onSelectTab(ExtensionsTab.DISCOVER_AMO) }
+                )
+
+                ExtensionsTab.DISCOVER_AMO -> DiscoverAmoTab(
+                    uiState = uiState,
+                    onSearchQueryChange = onSearchQueryChange,
+                    onSubmitSearch = onSubmitSearch,
+                    onInstallAddon = onInstallAddon
+                )
+
+                ExtensionsTab.INSTALL_XPI -> InstallXpiTab(
+                    isInstalling = uiState.isInstalling,
+                    onInstallUri = onInstallUri,
+                    onPickLocalXpi = onPickLocalXpi
+                )
+            }
+        }
+    }
+}
+
+/** Success and error feedback, announced to screen readers and marked by icon as well as colour. */
+@Composable
+private fun StatusBanner(status: String?, error: String?, onDismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val isError = !error.isNullOrBlank()
+    val text = error?.takeIf { it.isNotBlank() } ?: status?.takeIf { it.isNotBlank() } ?: return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isError) colors.errorContainer else colors.surfaceContainerHigh)
+            .semantics { liveRegion = LiveRegionMode.Polite }
+            .padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (isError) Icons.Outlined.ErrorOutline else Icons.Outlined.CheckCircle,
+            contentDescription = if (isError) "Error" else null,
+            tint = if (isError) colors.onErrorContainer else colors.primary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isError) colors.onErrorContainer else colors.onSurface,
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 8.dp)
+        )
+        RemIconButton(
+            icon = Icons.Outlined.Close,
+            label = "Dismiss message",
+            onClick = onDismiss,
+            tint = if (isError) colors.onErrorContainer else colors.onSurfaceVariant,
+            iconSize = 18.dp
+        )
+    }
+}
+
+@Composable
+private fun EmptyState(
+    title: String,
+    message: String,
+    actionLabel: String? = null,
+    onAction: () -> Unit = {}
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Extension,
+            contentDescription = null,
+            tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(32.dp)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(text = title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        if (actionLabel != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            PrimaryDialogButton(label = actionLabel, onClick = onAction)
+        }
+    }
+}
+
+@Composable
+private fun ExtensionCard(content: @Composable () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        content()
     }
 }
 
@@ -253,113 +268,106 @@ private fun InstalledExtensionsList(
     onOpenAction: (String) -> Unit,
     onGoToDiscover: () -> Unit
 ) {
+    val colors = MaterialTheme.colorScheme
+    var pendingRemoval by remember { mutableStateOf<InstalledExtension?>(null) }
+
     if (extensions.isEmpty()) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Extension,
-                contentDescription = null,
-                tint = RemTextSecondary.copy(alpha = 0.5f),
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "No WebExtensions installed yet",
-                color = RemTextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Browse addons.mozilla.org or install a signed .xpi file.",
-                color = RemTextSecondary,
-                fontSize = 13.sp
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Button(
-                onClick = onGoToDiscover,
-                colors = ButtonDefaults.buttonColors(containerColor = RemAccentCyan, contentColor = RemBackground)
-            ) {
-                Text("Browse Add-ons (AMO)", fontWeight = FontWeight.Bold)
-            }
-        }
+        EmptyState(
+            title = "No extensions yet",
+            message = "Add content blockers, password managers and more from addons.mozilla.org.",
+            actionLabel = "Discover extensions",
+            onAction = onGoToDiscover
+        )
         return
     }
 
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(extensions, key = { it.id }) { ext ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(RemSurfaceElevated)
-                    .border(1.dp, RemBorder, RoundedCornerShape(10.dp))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+            ExtensionCard {
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = ext.name,
-                            color = RemTextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "v${ext.version}",
-                            color = RemTextSecondary,
-                            fontSize = 11.sp
+                            text = "Version ${ext.version}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                        if (ext.description.isNotBlank()) {
+                            Text(
+                                text = ext.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (ext.hasBrowserAction && ext.enabled) {
+                        RemIconButton(
+                            icon = Icons.AutoMirrored.Outlined.OpenInNew,
+                            label = "Open ${ext.name}",
+                            onClick = { onOpenAction(ext.id) }
                         )
                     }
-                    if (ext.description.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = ext.description,
-                            color = RemTextSecondary,
-                            fontSize = 12.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                if (ext.hasBrowserAction && ext.enabled) {
-                    IconButton(onClick = { onOpenAction(ext.id) }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = "Open Extension Popup",
-                            tint = RemAccentCyan
-                        )
-                    }
-                }
-
-                Switch(
-                    checked = ext.enabled,
-                    onCheckedChange = { onSetEnabled(ext.id, it) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = RemBackground,
-                        checkedTrackColor = RemAccentCyan
+                    Switch(
+                        checked = ext.enabled,
+                        onCheckedChange = { onSetEnabled(ext.id, it) },
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = colors.primaryContainer,
+                            checkedThumbColor = colors.onPrimaryContainer,
+                            checkedBorderColor = colors.primaryContainer
+                        ),
+                        modifier = Modifier.semantics {
+                            contentDescription = if (ext.enabled) "Disable ${ext.name}" else "Enable ${ext.name}"
+                        }
                     )
-                )
-
-                IconButton(onClick = { onUninstall(ext.id) }) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Uninstall Extension",
-                        tint = RemDanger
+                    RemIconButton(
+                        icon = Icons.Outlined.DeleteOutline,
+                        label = "Remove ${ext.name}",
+                        onClick = { pendingRemoval = ext }
                     )
                 }
             }
         }
+    }
+
+    // Removing an extension deletes its data, so it is confirmed first
+    pendingRemoval?.let { ext ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = null },
+            title = { Text("Remove ${ext.name}?", style = MaterialTheme.typography.titleMedium) },
+            text = {
+                Text(
+                    text = "The extension and the data it stored will be deleted.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingRemoval = null
+                        onUninstall(ext.id)
+                    },
+                    modifier = Modifier.testTag("confirm_remove_extension")
+                ) {
+                    Text("Remove", color = colors.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoval = null }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -370,168 +378,177 @@ private fun DiscoverAmoTab(
     onSubmitSearch: () -> Unit,
     onInstallAddon: (AmoAddon) -> Unit
 ) {
+    val colors = MaterialTheme.colorScheme
     val installedIds = remember(uiState.installedExtensions) {
         uiState.installedExtensions.map { it.id }.toSet()
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = { Text("Search uBlock Origin, Dark Reader, Bitwarden...", fontSize = 13.sp) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = RemAccentCyan,
-                    unfocusedBorderColor = RemBorder,
-                    focusedTextColor = RemTextPrimary,
-                    unfocusedTextColor = RemTextPrimary
-                ),
-                modifier = Modifier.weight(1f)
-            )
-            Button(
-                onClick = onSubmitSearch,
-                colors = ButtonDefaults.buttonColors(containerColor = RemAccentCyan, contentColor = RemBackground)
-            ) {
-                Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(18.dp))
-            }
-        }
+    Column {
+        OutlinedTextField(
+            value = uiState.searchQuery,
+            onValueChange = onSearchQueryChange,
+            label = { Text("Search add-ons") },
+            placeholder = { Text("uBlock Origin, Dark Reader, Bitwarden…") },
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("extensions_search")
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (uiState.isLoadingCatalog) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = RemAccentCyan)
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()
+        when {
+            uiState.isLoadingCatalog -> Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp),
+                contentAlignment = Alignment.Center
             ) {
+                CircularProgressIndicator(
+                    color = colors.primary,
+                    modifier = Modifier.semantics { contentDescription = "Loading add-ons" }
+                )
+            }
+
+            uiState.catalogError != null -> EmptyState(
+                title = "Couldn't load add-ons",
+                message = uiState.catalogError,
+                actionLabel = "Try again",
+                onAction = onSubmitSearch
+            )
+
+            uiState.catalogAddons.isEmpty() -> EmptyState(
+                title = "No add-ons found",
+                message = "Try a different search term."
+            )
+
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(uiState.catalogAddons, key = { it.id }) { addon ->
-                    val isInstalled = addon.id in installedIds
-                    val isCurrentlyInstalling = uiState.isInstalling && uiState.installingIdOrUrl == addon.id
+                    AddonRow(
+                        addon = addon,
+                        isInstalled = addon.id in installedIds,
+                        isInstalling = uiState.isInstalling && uiState.installingIdOrUrl == addon.id,
+                        canInstall = !uiState.isInstalling,
+                        onInstall = { onInstallAddon(addon) }
+                    )
+                }
+            }
+        }
+    }
+}
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(RemSurfaceElevated)
-                            .border(1.dp, RemBorder, RoundedCornerShape(10.dp))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (!addon.iconUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = addon.iconUrl,
-                                contentDescription = addon.name,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(RemSurface)
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(RemSurface),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Extension, contentDescription = null, tint = RemAccentAmber)
-                            }
-                        }
+@Composable
+private fun AddonRow(
+    addon: AmoAddon,
+    isInstalled: Boolean,
+    isInstalling: Boolean,
+    canInstall: Boolean,
+    onInstall: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    ExtensionCard {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(colors.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!addon.iconUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = addon.iconUrl,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp)
+                    )
+                } else {
+                    Icon(Icons.Outlined.Extension, contentDescription = null, tint = colors.onSurfaceVariant)
+                }
+            }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = addon.name,
-                                color = RemTextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "${addon.author} • v${addon.version}",
-                                color = RemTextSecondary,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (addon.summary.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = addon.summary,
-                                    color = RemTextSecondary,
-                                    fontSize = 12.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (addon.rating > 0.0) {
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = null,
-                                        tint = RemAccentAmber,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = String.format(Locale.US, "%.1f", addon.rating),
-                                        color = RemTextSecondary,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-                        }
-
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = addon.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = addon.author,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (addon.rating > 0.0) {
+                        val rating = String.format(Locale.US, "%.1f", addon.rating)
                         Spacer(modifier = Modifier.width(8.dp))
-
-                        if (isInstalled) {
-                            Text(
-                                text = "Installed",
-                                color = RemAccentEmerald,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        } else {
-                            Button(
-                                onClick = { onInstallAddon(addon) },
-                                enabled = !uiState.isInstalling,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = RemAccentCyan,
-                                    contentColor = RemBackground
-                                )
-                            ) {
-                                if (isCurrentlyInstalling) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
-                                        color = RemBackground
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Add", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.Outlined.Star,
+                            contentDescription = null,
+                            tint = colors.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = rating,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(start = 2.dp)
+                                .semantics { contentDescription = "Rated $rating out of 5" }
+                        )
                     }
                 }
+                if (addon.summary.isNotBlank()) {
+                    Text(
+                        text = addon.summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            when {
+                isInstalled -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "Added", style = MaterialTheme.typography.labelLarge, color = colors.primary)
+                }
+
+                isInstalling -> CircularProgressIndicator(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .semantics { contentDescription = "Adding ${addon.name}" },
+                    strokeWidth = 2.dp,
+                    color = colors.primary
+                )
+
+                else -> PrimaryDialogButton(
+                    label = "Add",
+                    enabled = canInstall,
+                    onClick = onInstall,
+                    modifier = Modifier.semantics { contentDescription = "Add ${addon.name}" }
+                )
             }
         }
     }
@@ -543,69 +560,44 @@ private fun InstallXpiTab(
     onInstallUri: (String) -> Unit,
     onPickLocalXpi: () -> Unit
 ) {
+    val colors = MaterialTheme.colorScheme
     var xpiUrlInput by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(
-            text = "Install from Direct .xpi URL",
-            color = RemTextPrimary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = "Paste a Mozilla-signed .xpi download link from addons.mozilla.org or another HTTPS source.",
-            color = RemTextSecondary,
-            fontSize = 12.sp
-        )
-
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text = "From a link", style = MaterialTheme.typography.titleSmall)
         OutlinedTextField(
             value = xpiUrlInput,
             onValueChange = { xpiUrlInput = it },
-            placeholder = { Text("https://addons.mozilla.org/.../extension.xpi", fontSize = 13.sp) },
+            label = { Text("Extension link") },
+            placeholder = { Text("https://…/extension.xpi") },
+            supportingText = { Text("Must be an https:// link to a Mozilla-signed .xpi file.") },
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = RemAccentCyan,
-                unfocusedBorderColor = RemBorder,
-                focusedTextColor = RemTextPrimary,
-                unfocusedTextColor = RemTextPrimary
-            ),
-            modifier = Modifier.fillMaxWidth()
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (!isInstalling && xpiUrlInput.isNotBlank()) onInstallUri(xpiUrlInput) }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("xpi_url_input")
         )
-
-        Button(
-            onClick = { onInstallUri(xpiUrlInput) },
+        PrimaryDialogButton(
+            label = if (isInstalling) "Installing…" else "Install from link",
             enabled = !isInstalling && xpiUrlInput.isNotBlank(),
-            colors = ButtonDefaults.buttonColors(containerColor = RemAccentCyan, contentColor = RemBackground)
-        ) {
-            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(if (isInstalling) "Installing..." else "Install from URL", fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = "Install Local .xpi Package",
-            color = RemTextPrimary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = "Select a Mozilla-signed .xpi file saved on your device.",
-            color = RemTextSecondary,
-            fontSize = 12.sp
+            onClick = { onInstallUri(xpiUrlInput) }
         )
 
-        OutlinedButton(
-            onClick = onPickLocalXpi,
-            enabled = !isInstalling
-        ) {
-            Icon(Icons.Default.FolderOpen, contentDescription = null, tint = RemAccentAmber)
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(color = colors.outlineVariant)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(text = "From this device", style = MaterialTheme.typography.titleSmall)
+        Text(
+            text = "Choose a Mozilla-signed .xpi file you have already downloaded.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant
+        )
+        OutlinedButton(onClick = onPickLocalXpi, enabled = !isInstalling) {
+            Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Choose .xpi File from Device", color = RemTextPrimary)
+            Text("Choose file")
         }
     }
 }
@@ -615,59 +607,57 @@ fun ExtensionInstallPromptDialog(
     prompt: ExtensionInstallPrompt,
     onDecision: (Boolean) -> Unit
 ) {
+    val colors = MaterialTheme.colorScheme
+    val (title, intro, confirmLabel) = when (prompt.kind) {
+        ExtensionPromptKind.INSTALL -> Triple(
+            "Add ${prompt.extensionName}?",
+            "Version ${prompt.version} will be able to:",
+            "Add"
+        )
+        ExtensionPromptKind.UPDATE -> Triple(
+            "Update ${prompt.extensionName}?",
+            "Version ${prompt.version} needs new permissions:",
+            "Update"
+        )
+        ExtensionPromptKind.OPTIONAL_PERMISSIONS -> Triple(
+            "Allow ${prompt.extensionName}?",
+            "It is asking for additional permissions:",
+            "Allow"
+        )
+    }
     AlertDialog(
         onDismissRequest = { onDecision(false) },
-        containerColor = RemSurfaceElevated,
-        title = {
-            Text(
-                text = "Add \"${prompt.extensionName}\"?",
-                color = RemTextPrimary,
-                fontWeight = FontWeight.Bold
-            )
-        },
+        title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Version ${prompt.version} requests the following permissions:",
-                    color = RemTextSecondary,
-                    fontSize = 13.sp
+                    text = if (prompt.permissions.isEmpty()) {
+                        "It doesn't ask for any special permissions."
+                    } else {
+                        intro
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant
                 )
-                if (prompt.permissions.isEmpty()) {
+                prompt.permissions.take(10).forEach { permission ->
                     Text(
-                        text = "• No special permissions requested",
-                        color = RemTextPrimary,
-                        fontSize = 12.sp
+                        text = "•  $permission",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurface
                     )
-                } else {
-                    prompt.permissions.take(10).forEach { perm ->
-                        Text(
-                            text = "• $perm",
-                            color = RemTextPrimary,
-                            fontSize = 12.sp
-                        )
-                    }
-                    if (prompt.permissions.size > 10) {
-                        Text(
-                            text = "• ...and ${prompt.permissions.size - 10} more",
-                            color = RemTextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
+                }
+                if (prompt.permissions.size > 10) {
+                    Text(
+                        text = "and ${prompt.permissions.size - 10} more",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant
+                    )
                 }
             }
         },
-        confirmButton = {
-            Button(
-                onClick = { onDecision(true) },
-                colors = ButtonDefaults.buttonColors(containerColor = RemAccentCyan, contentColor = RemBackground)
-            ) {
-                Text("Add Extension", fontWeight = FontWeight.Bold)
-            }
-        },
+        confirmButton = { PrimaryDialogButton(label = confirmLabel, onClick = { onDecision(true) }) },
         dismissButton = {
-            TextButton(onClick = { onDecision(false) }) {
-                Text("Cancel", color = RemTextSecondary)
-            }
+            TextButton(onClick = { onDecision(false) }) { Text("Cancel") }
         }
     )
 }
@@ -678,55 +668,56 @@ fun ExtensionPopupDialog(
     onDismiss: () -> Unit,
     popupContent: @Composable (Modifier) -> Unit
 ) {
+    val colors = MaterialTheme.colorScheme
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
+        Surface(
             modifier = Modifier
-                .fillMaxWidth(0.86f)
-                .fillMaxHeight(0.75f)
-                .clip(RoundedCornerShape(14.dp))
-                .background(RemSurface)
-                .border(1.dp, RemAccentAmber, RoundedCornerShape(14.dp))
+                .padding(16.dp)
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .heightIn(max = 620.dp),
+            shape = MaterialTheme.shapes.large,
+            color = colors.surface,
+            contentColor = colors.onSurface,
+            border = BorderStroke(1.dp, colors.outlineVariant),
+            shadowElevation = 12.dp
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(RemSurfaceElevated)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Extension,
-                    contentDescription = null,
-                    tint = RemAccentAmber,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = popup.extensionName,
-                    color = RemTextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+            Column {
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close Extension Popup",
-                        tint = RemTextPrimary
+                        imageVector = Icons.Outlined.Extension,
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = popup.extensionName,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    RemIconButton(
+                        icon = Icons.Outlined.Close,
+                        label = "Close ${popup.extensionName}",
+                        onClick = onDismiss
                     )
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                popupContent(Modifier.fillMaxSize())
+                HorizontalDivider(color = colors.outlineVariant)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(520.dp)
+                ) {
+                    popupContent(Modifier.fillMaxSize())
+                }
             }
         }
     }

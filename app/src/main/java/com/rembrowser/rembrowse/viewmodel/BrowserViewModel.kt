@@ -2,12 +2,15 @@ package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.data.BrowserStateRepository
 import com.rembrowser.rembrowse.engine.BrowserEngine
+import com.rembrowser.rembrowse.engine.BrowserSessionHandle
 import com.rembrowser.rembrowse.engine.SessionEventListener
 import com.rembrowser.rembrowse.engine.SessionNavigationUpdate
+import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.util.UrlResolver
@@ -16,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.UUID
+import kotlin.math.abs
 
 class BrowserViewModel(
     private val engine: BrowserEngine,
@@ -32,19 +36,26 @@ class BrowserViewModel(
                     if (tab.id != tabId) {
                         tab
                     } else {
+                        // A new document is loading: drop the previous page's title so a page
+                        // without a <title> does not keep showing the old one.
+                        val startsNewPage = update.isPageStart && update.url != null && update.url != tab.url
+                        val title = update.title?.takeIf { it.isNotBlank() }
+                            ?: if (startsNewPage) "" else tab.title
                         tab.copy(
                             url = update.url ?: tab.url,
-                            title = update.title?.takeIf { it.isNotBlank() } ?: tab.title,
+                            title = title,
                             isLoading = update.isLoading ?: tab.isLoading,
                             progress = update.progress ?: tab.progress,
                             canGoBack = update.canGoBack ?: tab.canGoBack,
-                            canGoForward = update.canGoForward ?: tab.canGoForward
+                            canGoForward = update.canGoForward ?: tab.canGoForward,
+                            isSecure = update.isSecure ?: tab.isSecure,
+                            crashed = update.crashed ?: tab.crashed
                         )
                     }
                 }
                 val newState = state.copy(tabs = updatedTabs)
                 val syncedInput = if (!newState.isAddressBarFocused && newState.activeTabId == tabId && update.url != null) {
-                    update.url
+                    addressTextFor(newState.activeTab)
                 } else {
                     newState.addressBarInput
                 }
@@ -55,8 +66,24 @@ class BrowserViewModel(
             }
         }
 
-        override fun onNewTabRequested(url: String) {
-            openNewTab(url = url, assignToPane = _uiState.value.activePaneIndex)
+        override fun onNewTabRequested(url: String, openerTabId: String?) {
+            val state = _uiState.value
+            val opener = state.tabs.firstOrNull { it.id == openerTabId }
+            val openerPane = opener?.let { state.paneIndexOf(it.id) }?.takeIf { it >= 0 }
+            openNewTab(
+                url = url,
+                assignToPane = openerPane ?: state.activePaneIndex,
+                desktopMode = opener?.desktopMode,
+                openedByPage = true
+            )
+        }
+
+        override fun onPromptRequested(prompt: PagePrompt) {
+            _uiState.update { it.copy(pendingPrompts = it.pendingPrompts + prompt) }
+        }
+
+        override fun onPromptDismissed(promptId: String) {
+            resolvePrompt(promptId)
         }
     }
 
@@ -68,7 +95,7 @@ class BrowserViewModel(
         val persisted = repository.loadState()
         val initialTabs = persisted.tabs.toMutableList()
         if (initialTabs.isEmpty()) {
-            initialTabs.add(createTabModel(BrowserTab.DEFAULT_HOME_URL))
+            initialTabs.add(createTabModel(BrowserTab.NEW_TAB_URL))
         }
 
         val layout = persisted.layoutMode
@@ -77,14 +104,10 @@ class BrowserViewModel(
 
         ensurePaneSlotsFilled(layout.paneCount, initialTabs, paneTabIds)
 
-        initialTabs.forEach { tab ->
-            ensureSessionCreated(tab)
-        }
-
         val activePane = persisted.activePaneIndex.coerceIn(0, layout.paneCount - 1)
-        val activeUrl = initialTabs.firstOrNull { it.id == paneTabIds.getOrNull(activePane) }?.url
-            ?: BrowserTab.DEFAULT_HOME_URL
+        val activeTab = initialTabs.firstOrNull { it.id == paneTabIds.getOrNull(activePane) }
 
+        engine.setEnhancedPrivacy(persisted.settings.enhancedPrivacy)
         _uiState.value = BrowserUiState(
             layoutMode = layout,
             splitRatios = persisted.splitRatios.clamped(),
@@ -92,9 +115,12 @@ class BrowserViewModel(
             paneTabIds = paneTabIds.take(layout.paneCount),
             activePaneIndex = activePane,
             bookmarks = persisted.bookmarks,
-            addressBarInput = activeUrl
+            addressBarInput = addressTextFor(activeTab),
+            settings = persisted.settings
         )
-        syncActiveSessionFlags()
+        // Only tabs that are on screen get a live engine session here. Background tabs are
+        // restored the first time they are shown, so launching with many tabs stays cheap.
+        syncSessions()
         persistCurrentState()
     }
 
@@ -105,7 +131,6 @@ class BrowserViewModel(
         val previouslyFocusedTabId = current.activeTabId
 
         ensurePaneSlotsFilled(mode.paneCount, tabs, paneIds)
-        tabs.forEach { ensureSessionCreated(it) }
 
         val targetPaneIds = paneIds.take(mode.paneCount).toMutableList()
         var newActivePane = if (current.activePaneIndex < mode.paneCount) {
@@ -115,7 +140,7 @@ class BrowserViewModel(
         }
 
         // When shrinking layouts (e.g. 2x2 -> 1x1), keep the user's focused tab visible
-        // while all other tabs remain available in the top tab bar.
+        // while all other tabs stay open in the tab rail.
         if (previouslyFocusedTabId != null && previouslyFocusedTabId !in targetPaneIds) {
             targetPaneIds[0] = previouslyFocusedTabId
             newActivePane = 0
@@ -123,31 +148,41 @@ class BrowserViewModel(
             newActivePane = targetPaneIds.indexOf(previouslyFocusedTabId).coerceAtLeast(0)
         }
 
-        val activeTabUrl = tabs.firstOrNull { it.id == targetPaneIds.getOrNull(newActivePane) }?.url
-            ?: current.addressBarInput
+        val activeTab = tabs.firstOrNull { it.id == targetPaneIds.getOrNull(newActivePane) }
 
         _uiState.value = current.copy(
             layoutMode = mode,
             tabs = tabs,
             paneTabIds = targetPaneIds,
             activePaneIndex = newActivePane,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else activeTabUrl
+            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(activeTab)
         )
-        syncActiveSessionFlags()
+        syncSessions()
         persistCurrentState()
     }
 
     fun selectTab(tabId: String) {
         val current = _uiState.value
         if (current.tabs.none { it.id == tabId }) return
-        val existingPane = current.paneTabIds.indexOf(tabId)
-        if (existingPane in 0 until current.layoutMode.paneCount) {
+        val existingPane = current.paneIndexOf(tabId)
+        if (existingPane >= 0) {
             focusPane(existingPane)
         } else {
             assignTabToPane(current.activePaneIndex, tabId)
         }
     }
 
+    /** Moves focus to the next ([delta] = 1) or previous ([delta] = -1) tab, wrapping around. */
+    fun selectAdjacentTab(delta: Int) {
+        val current = _uiState.value
+        if (current.tabs.size < 2) return
+        val index = current.tabs.indexOfFirst { it.id == current.activeTabId }
+        if (index < 0) return
+        val next = Math.floorMod(index + delta, current.tabs.size)
+        selectTab(current.tabs[next].id)
+    }
+
+    /** Live resize while a divider is dragged. Call [commitSplitRatios] when the drag ends. */
     fun updateHorizontalSplit(deltaFraction: Float) {
         _uiState.update { state ->
             val updated = state.splitRatios.copy(
@@ -155,7 +190,6 @@ class BrowserViewModel(
             ).clamped()
             state.copy(splitRatios = updated)
         }
-        persistCurrentState()
     }
 
     fun updateVerticalSplit(deltaFraction: Float) {
@@ -165,6 +199,10 @@ class BrowserViewModel(
             ).clamped()
             state.copy(splitRatios = updated)
         }
+    }
+
+    /** Saves the split once per drag instead of on every pointer move. */
+    fun commitSplitRatios() {
         persistCurrentState()
     }
 
@@ -176,16 +214,17 @@ class BrowserViewModel(
     fun focusPane(paneIndex: Int) {
         val current = _uiState.value
         if (paneIndex !in 0 until current.layoutMode.paneCount) return
+        if (paneIndex == current.activePaneIndex) return
         val paneTab = current.tabForPane(paneIndex)
         _uiState.value = current.copy(
             activePaneIndex = paneIndex,
             addressBarInput = if (current.isAddressBarFocused) {
                 current.addressBarInput
             } else {
-                paneTab?.url ?: current.addressBarInput
+                addressTextFor(paneTab)
             }
         )
-        syncActiveSessionFlags()
+        syncSessions()
         persistCurrentState()
     }
 
@@ -195,13 +234,18 @@ class BrowserViewModel(
 
     fun onAddressBarFocusChange(focused: Boolean) {
         _uiState.update { state ->
-            val input = if (!focused) state.activeTab?.url ?: state.addressBarInput else state.addressBarInput
+            val input = if (!focused) addressTextFor(state.activeTab) else state.addressBarInput
             state.copy(isAddressBarFocused = focused, addressBarInput = input)
         }
     }
 
     fun submitAddressBar() {
         val state = _uiState.value
+        if (state.addressBarInput.isBlank()) {
+            // Nothing typed: just leave edit mode and show the current address again.
+            _uiState.update { it.copy(isAddressBarFocused = false, addressBarInput = addressTextFor(it.activeTab)) }
+            return
+        }
         val resolved = UrlResolver.resolveInput(state.addressBarInput)
         _uiState.update { it.copy(isAddressBarFocused = false, addressBarInput = resolved) }
         navigatePane(state.activePaneIndex, resolved)
@@ -215,23 +259,31 @@ class BrowserViewModel(
 
         _uiState.update { state ->
             val updatedTabs = state.tabs.map {
-                if (it.id == tab.id) it.copy(url = resolvedUrl) else it
+                if (it.id == tab.id) it.copy(url = resolvedUrl, isSecure = false, crashed = false) else it
             }
+            val updated = state.copy(tabs = updatedTabs)
             val updatedAddress = if (paneIndex == state.activePaneIndex && !state.isAddressBarFocused) {
-                resolvedUrl
+                addressTextFor(updated.activeTab)
             } else {
                 state.addressBarInput
             }
-            state.copy(tabs = updatedTabs, addressBarInput = updatedAddress)
+            updated.copy(addressBarInput = updatedAddress)
         }
 
         session.loadUrl(resolvedUrl)
         persistCurrentState()
     }
 
-    fun openNewTab(url: String? = null, assignToPane: Int? = null): String {
-        val resolved = url?.let { UrlResolver.resolveInput(it) } ?: BrowserTab.DEFAULT_HOME_URL
-        val newTab = createTabModel(resolved)
+    fun openNewTab(
+        url: String? = null,
+        assignToPane: Int? = null,
+        desktopMode: Boolean? = null,
+        openedByPage: Boolean = false
+    ): String {
+        val resolved = url?.let { UrlResolver.resolveInput(it) } ?: BrowserTab.NEW_TAB_URL
+        val newTab = createTabModel(resolved, desktopMode ?: true).copy(openedByPage = openedByPage)
+        // Created before anything else so the engine can hand this exact session back to a
+        // page that asked for a new window.
         ensureSessionCreated(newTab)
 
         val current = _uiState.value
@@ -247,51 +299,61 @@ class BrowserViewModel(
             tabs = updatedTabs,
             paneTabIds = updatedPaneIds,
             activePaneIndex = targetPane,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else newTab.url
+            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(newTab)
         )
-        syncActiveSessionFlags()
+        syncSessions()
         persistCurrentState()
         return newTab.id
     }
 
     fun closeTab(tabId: String) {
         val current = _uiState.value
-        if (current.tabs.none { it.id == tabId }) return
+        val closedIndex = current.tabs.indexOfFirst { it.id == tabId }
+        if (closedIndex < 0) return
 
         engine.closeSession(tabId)
         val remainingTabs = current.tabs.filterNot { it.id == tabId }.toMutableList()
-
-        if (remainingTabs.isEmpty()) {
-            val freshTab = createTabModel(BrowserTab.DEFAULT_HOME_URL)
-            remainingTabs.add(freshTab)
-            ensureSessionCreated(freshTab)
-        }
-
         val updatedPaneIds = current.paneTabIds.toMutableList()
+
+        // Refill the closed tab's pane in place. Every other pane keeps its tab, so the rest of
+        // the layout does not reshuffle (and its web views do not have to re-attach).
         for (index in updatedPaneIds.indices) {
-            if (updatedPaneIds[index] == tabId) {
-                val unassigned = remainingTabs.firstOrNull { candidate ->
-                    candidate.id !in updatedPaneIds
+            if (updatedPaneIds[index] != tabId) continue
+            val replacement = current.tabs
+                .filter { it.id != tabId && it.id !in updatedPaneIds }
+                .minByOrNull { candidate ->
+                    val distance = current.tabs.indexOf(candidate) - closedIndex
+                    // Prefer the neighbour just after the closed tab, then the one before it
+                    abs(distance) * 2 - if (distance > 0) 1 else 0
                 }
-                updatedPaneIds[index] = unassigned?.id ?: remainingTabs.first().id
-            }
+                ?: createTabModel(BrowserTab.NEW_TAB_URL).also { remainingTabs.add(it) }
+            updatedPaneIds[index] = replacement.id
         }
         ensurePaneSlotsFilled(current.layoutMode.paneCount, remainingTabs, updatedPaneIds)
-        remainingTabs.forEach { ensureSessionCreated(it) }
 
         val finalPaneIds = updatedPaneIds.take(current.layoutMode.paneCount)
         val activePane = current.activePaneIndex.coerceIn(0, current.layoutMode.paneCount - 1)
-        val activeUrl = remainingTabs.firstOrNull { it.id == finalPaneIds[activePane] }?.url
-            ?: BrowserTab.DEFAULT_HOME_URL
+        val activeTab = remainingTabs.firstOrNull { it.id == finalPaneIds[activePane] }
 
         _uiState.value = current.copy(
             tabs = remainingTabs,
             paneTabIds = finalPaneIds,
             activePaneIndex = activePane,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else activeUrl
+            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(activeTab),
+            pendingPrompts = current.pendingPrompts.filterNot { it.tabId == tabId }
         )
-        syncActiveSessionFlags()
+        syncSessions()
         persistCurrentState()
+    }
+
+    /** Closes every background tab except [tabId]. Tabs shown in a pane are left alone. */
+    fun closeOtherTabs(tabId: String) {
+        val current = _uiState.value
+        val visible = current.visibleTabIds.toSet()
+        current.tabs
+            .map { it.id }
+            .filter { it != tabId && it !in visible }
+            .forEach { closeTab(it) }
     }
 
     fun assignTabToPane(paneIndex: Int, tabId: String) {
@@ -310,9 +372,9 @@ class BrowserViewModel(
         _uiState.value = current.copy(
             paneTabIds = updatedPaneIds,
             activePaneIndex = paneIndex,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else tab.url
+            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(tab)
         )
-        syncActiveSessionFlags()
+        syncSessions()
         persistCurrentState()
     }
 
@@ -327,14 +389,13 @@ class BrowserViewModel(
         updated[firstPaneIndex] = updated[secondPaneIndex]
         updated[secondPaneIndex] = tmp
 
-        val newActiveUrl = current.tabs.firstOrNull { it.id == updated[current.activePaneIndex] }?.url
-            ?: current.addressBarInput
+        val newActiveTab = current.tabs.firstOrNull { it.id == updated[current.activePaneIndex] }
 
         _uiState.value = current.copy(
             paneTabIds = updated,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else newActiveUrl
+            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(newActiveTab)
         )
-        syncActiveSessionFlags()
+        syncSessions()
         persistCurrentState()
     }
 
@@ -345,9 +406,9 @@ class BrowserViewModel(
             layoutMode = LayoutMode.SINGLE_1X1,
             paneTabIds = listOf(tab.id),
             activePaneIndex = 0,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else tab.url
+            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(tab)
         )
-        syncActiveSessionFlags()
+        syncSessions()
         persistCurrentState()
     }
 
@@ -363,6 +424,7 @@ class BrowserViewModel(
 
     fun reloadOrStop(paneIndex: Int = _uiState.value.activePaneIndex) {
         val tab = _uiState.value.tabForPane(paneIndex) ?: return
+        if (tab.isNewTabPage) return
         val session = engine.getSession(tab.id) ?: return
         if (tab.isLoading) {
             session.stop()
@@ -391,17 +453,15 @@ class BrowserViewModel(
     fun toggleBookmarkForActiveTab() {
         val current = _uiState.value
         val activeTab = current.activeTab ?: return
-        val existing = current.bookmarks.firstOrNull {
-            it.url.equals(activeTab.url, ignoreCase = true)
-        }
+        if (activeTab.isNewTabPage) return
+        val existing = current.bookmarks.firstOrNull { it.url == activeTab.url }
         val updatedBookmarks = if (existing != null) {
             current.bookmarks.filterNot { it.id == existing.id }
         } else {
-            val title = activeTab.title.ifBlank { UrlResolver.extractDisplayHost(activeTab.url) }
             listOf(
                 BookmarkItem(
                     id = idGenerator(),
-                    title = title,
+                    title = activeTab.displayTitle,
                     url = activeTab.url
                 )
             ) + current.bookmarks
@@ -417,8 +477,37 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
-    fun openBookmarkInActivePane(url: String) {
-        navigatePane(_uiState.value.activePaneIndex, url)
+    /** Opens a saved page: in place when the active tab is still empty, otherwise in a new tab. */
+    fun openBookmark(url: String) {
+        val current = _uiState.value
+        if (current.activeTab?.isNewTabPage == true) {
+            navigatePane(current.activePaneIndex, url)
+        } else {
+            openNewTab(url)
+        }
+    }
+
+    fun setDarkTheme(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(useDarkTheme = enabled)) }
+        persistCurrentState()
+    }
+
+    fun setAccentColor(accent: AccentColor) {
+        _uiState.update { it.copy(settings = it.settings.copy(accent = accent)) }
+        persistCurrentState()
+    }
+
+    fun setEnhancedPrivacy(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(enhancedPrivacy = enabled)) }
+        engine.setEnhancedPrivacy(enabled)
+        persistCurrentState()
+    }
+
+    /** Removes a page dialog once the UI has answered it (or the page withdrew it). */
+    fun resolvePrompt(promptId: String) {
+        _uiState.update { state ->
+            state.copy(pendingPrompts = state.pendingPrompts.filterNot { it.id == promptId })
+        }
     }
 
     fun shutdown() {
@@ -426,16 +515,16 @@ class BrowserViewModel(
         engine.closeAll()
     }
 
-    private fun createTabModel(url: String): BrowserTab {
-        return BrowserTab(
-            id = idGenerator(),
-            url = url,
-            title = UrlResolver.extractDisplayHost(url),
-            desktopMode = true
-        )
+    /** What the address bar shows for [tab]; the start page shows an empty field. */
+    private fun addressTextFor(tab: BrowserTab?): String {
+        return tab?.takeUnless { it.isNewTabPage }?.url.orEmpty()
     }
 
-    private fun ensureSessionCreated(tab: BrowserTab) =
+    private fun createTabModel(url: String, desktopMode: Boolean = true): BrowserTab {
+        return BrowserTab(id = idGenerator(), url = url, desktopMode = desktopMode)
+    }
+
+    private fun ensureSessionCreated(tab: BrowserTab): BrowserSessionHandle =
         engine.getSession(tab.id) ?: engine.createSession(
             tabId = tab.id,
             initialUrl = tab.url,
@@ -457,20 +546,29 @@ class BrowserViewModel(
             if (unusedExisting != null) {
                 paneTabIds.add(unusedExisting.id)
             } else {
-                val newTab = createTabModel(BrowserTab.DEFAULT_HOME_URL)
+                val newTab = createTabModel(BrowserTab.NEW_TAB_URL)
                 tabs.add(newTab)
                 paneTabIds.add(newTab.id)
             }
         }
     }
 
-    private fun syncActiveSessionFlags() {
+    /**
+     * Makes the engine match the UI state: tabs shown in a pane get a live session and stay
+     * painted, background tabs are paused, and extensions learn which single tab has focus.
+     */
+    private fun syncSessions() {
         val state = _uiState.value
-        val visibleIds = state.paneTabIds.take(state.layoutMode.paneCount).toSet()
+        val visibleIds = state.visibleTabIds.toSet()
         val activeId = state.activeTabId
         state.tabs.forEach { tab ->
-            val session = engine.getSession(tab.id) ?: return@forEach
-            session.setVisible(tab.id in visibleIds)
+            val isVisible = tab.id in visibleIds
+            val session = if (isVisible) {
+                ensureSessionCreated(tab)
+            } else {
+                engine.getSession(tab.id) ?: return@forEach
+            }
+            session.setVisible(isVisible)
             session.setFocusedForExtensions(tab.id == activeId)
         }
     }
@@ -484,7 +582,8 @@ class BrowserViewModel(
                 tabs = state.tabs,
                 paneTabIds = state.paneTabIds,
                 activePaneIndex = state.activePaneIndex,
-                bookmarks = state.bookmarks
+                bookmarks = state.bookmarks,
+                settings = state.settings
             )
         )
     }

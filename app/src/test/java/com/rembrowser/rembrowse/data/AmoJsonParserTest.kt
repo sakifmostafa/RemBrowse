@@ -89,4 +89,57 @@ class AmoJsonParserTest {
 
         assertTrue(AmoJsonParser.parseSearchResponse("""{"results":[]}""").isEmpty())
     }
+
+    @Test
+    fun parseSearchResponse_handlesRequestedLanguageMissingWithDefaultPointer() {
+        // Shape returned when ?lang=en-US is requested but only another translation exists
+        val json = """
+            {
+              "results": [
+                {
+                  "guid": "addon@example",
+                  "slug": "addon",
+                  "name": { "fr": "Bloqueur", "en-US": null, "_default": "fr" },
+                  "summary": { "en-US": null, "_default": "fr", "fr": "Bloque les pubs" },
+                  "icon_url": null,
+                  "authors": [ { "name": null } ],
+                  "current_version": {
+                    "version": "2.0",
+                    "file": { "url": "https://addons.mozilla.org/addon.xpi" }
+                  }
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val addon = AmoJsonParser.parseSearchResponse(json).single()
+        assertEquals("Bloqueur", addon.name)
+        assertEquals("Bloque les pubs", addon.summary)
+        assertEquals("A JSON null must not become the text \"null\"", null, addon.iconUrl)
+        assertEquals("Unknown author", addon.author)
+    }
+
+    @Test
+    fun parseSearchResponse_skipsDuplicatesMissingIdsAndInsecureDownloads() {
+        fun entry(guid: String?, url: String) = """
+            {
+              ${if (guid != null) "\"guid\": \"$guid\"," else ""}
+              "name": "Addon",
+              "current_version": { "version": "1", "file": { "url": "$url" } }
+            }
+        """.trimIndent()
+        val json = """
+            { "results": [
+              ${entry("one@example", "https://addons.mozilla.org/one.xpi")},
+              ${entry("one@example", "https://addons.mozilla.org/one-again.xpi")},
+              ${entry(null, "https://addons.mozilla.org/no-id.xpi")},
+              ${entry("plain@example", "http://addons.example/plain.xpi")}
+            ] }
+        """.trimIndent()
+
+        val parsed = AmoJsonParser.parseSearchResponse(json)
+        // Duplicate ids would crash the list (it is keyed by id); the rest are unusable
+        assertEquals(listOf("one@example"), parsed.map { it.id })
+        assertEquals("https://addons.mozilla.org/one.xpi", parsed.single().xpiUrl)
+    }
 }

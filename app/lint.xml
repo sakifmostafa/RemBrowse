@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Reported against ExoPlayer's notification helper bundled inside GeckoView.
+         RemBrowse itself never posts notifications, so it does not request the permission. -->
+    <issue id="NotificationPermission" severity="ignore" />
+</lint>

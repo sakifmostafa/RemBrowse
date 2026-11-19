@@ -1,28 +1,30 @@
-# RemBrowse (`v0.01`)
+# RemBrowse (`v0.02`)
 
-**RemBrowse** (`com.rembrowser.rembrowse`) is a native Kotlin + Jetpack Compose Android & Googlebook OS web browser powered by **Mozilla GeckoView**, featuring **native WebExtensions (`.xpi`)** and **customizable, resizable tiled tab layouts (`1x1`, `1x2`, `2x1`, `2x2`)**.
+**RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
+
+## Download latest
+
+**Version 0.02** — pick the file that matches your device's processor, open it on the device and confirm the install.
+
+| Your device | Download |
+| :--- | :--- |
+| Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](build/RemBrowse-x86_64.apk?raw=true)** · 90 MB |
+| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](build/RemBrowse-arm64-v8a.apk?raw=true)** · 84 MB |
+
+Requires Android 8.0 or newer. If Android refuses to install over an existing copy, uninstall the old one first: builds signed with different keys cannot update each other (see the [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md#5-signing--versioning-rules)).
 
 ---
 
-## Key Features
+## What it does
 
-* **Real Native WebExtensions (`.xpi`)**:
-  * Built on Mozilla GeckoView's `WebExtensionController` (`GeckoView 138.0`).
-  * Live **addons.mozilla.org (AMO)** v5 API browser & search for 1-tap extension installation (e.g., *uBlock Origin*, *Dark Reader*, *Tampermonkey*, *Bitwarden*).
-  * Direct `.xpi` URL install and local device `.xpi` file import via Android Storage Access Framework.
-  * Interactive Material 3 permission review prompts, enable/disable toggles, uninstall, and toolbar extension action popups.
-* **Customizable Resizable Tiled Layouts**:
-  * Instant switching between **`1x1`**, **`1x2`** (side-by-side), **`2x1`** (top/bottom), and **`2x2`** (quad grid) layouts.
-  * Draggable split dividers (clamped 20%–80%) with **double-tap to reset** to 50/50.
-  * All visible panes stay compositor-active simultaneously with zero dark/black inactive panes.
-  * Per-pane controls: back, reload, swap with any other pane, maximize to `1x1`, and close tab.
-* **Desktop Tab Bar & Session Persistence**:
-  * Persistent top Tab Bar showing every open tab (with `P1`–`P4` pane badges in multi-pane mode).
-  * Collapsing from `2x2` → `1x1` keeps your focused tab on screen and keeps all other open tabs right in the Tab Bar.
-  * Tabs, layout mode, split ratios, desktop/mobile user-agent mode, and bookmarks persist across restarts.
-* **Googlebook OS / Desktop Ready**:
-  * Freeform window resizing (`android:resizeableActivity="true"`) without restarting active sessions.
-  * Hardware keyboard shortcuts (`Ctrl+T`, `Ctrl+W`, `Ctrl+L`, `Ctrl+R`, `Ctrl+1`–`4`).
+* **Quiet, single-row chrome**: a tab rail on the left (pinned sites, open tabs, new tab) and one toolbar (back, reload, address, bookmark, menu, split view). Dark by default, with a light theme and six accent colours.
+* **Split view**: one, two (side by side or stacked) or four live panes with draggable dividers. Every visible pane keeps rendering; the focused one is outlined.
+* **Tab switcher**: a searchable grid of every open tab.
+* **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
+* **Native start page**: an instant, offline new tab with a clock, instead of loading a website.
+* **Real WebExtensions**: browse and install add-ons from addons.mozilla.org, or install a signed `.xpi` from a link or a file. Permission requests are reviewed on install, on update and when an extension asks for more.
+* **Built for a laptop**: freeform window resizing, hardware keyboard shortcuts, pointer hover states and resize cursors, with a compact layout for phone-sized windows.
+* **Private by default**: strict tracking protection, no cloud backup of the browser profile, and only ordinary web links are accepted from other apps.
 
 ---
 
@@ -32,53 +34,55 @@
 RemBrowser/
 ├── README.md
 ├── CHANGELOG.md
+├── build/                      # Published APKs (./gradlew publishApk) linked from "Download latest"
 ├── docs/
-│   ├── ARCHITECTURE.md         # MVVM, GeckoView compositor & WebExtension architecture
-│   ├── BUILD_AND_TEST_GUIDE.md # Toolchain, Gradle ext4 cache, TDD & signing guide
-│   └── USER_GUIDE.md           # Layouts, tab bar, extensions & keyboard shortcuts
+│   ├── ARCHITECTURE.md         # State, engine lifecycle, extensions and design tokens
+│   ├── BUILD_AND_TEST_GUIDE.md # Toolchain, tests, UI renders, publishing and signing
+│   └── USER_GUIDE.md           # The interface, split view, extensions and shortcuts
 ├── app/
-│   ├── build.gradle.kts        # Android app config (compileSdk/targetSdk 35, v0.01)
+│   ├── build.gradle.kts        # Android app config (compileSdk/targetSdk 35)
 │   └── src/
-│       ├── main/
-│       │   ├── AndroidManifest.xml
-│       │   ├── res/            # Custom 2x2 tiled adaptive launcher icon & dark theme
-│       │   └── java/com/rembrowser/rembrowse/
-│       │       ├── RemBrowseApplication.kt
-│       │       ├── MainActivity.kt
-│       │       ├── model/      # LayoutModels, ExtensionModels
-│       │       ├── util/       # UrlResolver
-│       │       ├── engine/     # BrowserEngine interfaces + GeckoBrowserEngine
-│       │       ├── data/       # OkHttpAmoApiClient, SharedPrefsBrowserStateRepository
-│       │       ├── viewmodel/  # BrowserViewModel, ExtensionsViewModel
-│       │       └── ui/         # RemBrowseScreen, BrowserTopBar, TiledBrowserGrid, ExtensionsSheet, TabsAndBookmarksDrawer
-│       └── test/               # 28 automated JVM unit, Robolectric & Compose UI tests
-├── signing/                    # Persistent 4096-bit RSA signing keystore
+│       ├── main/java/com/rembrowser/rembrowse/
+│       │   ├── RemBrowseApplication.kt
+│       │   ├── MainActivity.kt # Activity + BrowserSessionHolder (retains live tabs)
+│       │   ├── model/          # Layout, tab, settings, extension and page-prompt models
+│       │   ├── util/           # UrlResolver, KeyboardShortcuts, ErrorPages
+│       │   ├── engine/         # BrowserEngine interfaces + GeckoView implementations
+│       │   ├── data/           # AMO catalog client, SharedPreferences state store
+│       │   ├── viewmodel/      # BrowserViewModel, ExtensionsViewModel
+│       │   └── ui/             # RemBrowseScreen, theme tokens and components
+│       └── test/               # JVM unit, Robolectric and headless Compose UI tests
+├── signing/                    # Your signing keystore (not committed)
 ├── gradle/                     # Gradle 8.11.1 wrapper
 ├── build.gradle.kts
 ├── settings.gradle.kts
-├── gradle.properties
-└── local.properties
+└── gradle.properties
 ```
 
 ---
 
 ## Documentation & Guides
 
-* [User Guide](docs/USER_GUIDE.md) — Tiled layouts, Tab Bar, installing `.xpi` extensions, and keyboard shortcuts.
-* [Architecture Guide](docs/ARCHITECTURE.md) — Engine abstractions, multi-pane GeckoView lifecycle, and WebExtension popups.
-* [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md) — Setting up JDK 21 + Android CLI, building signed APKs, and running all 28 tests.
-* [Changelog](CHANGELOG.md) — Release history starting at `v0.01`.
+* [User Guide](docs/USER_GUIDE.md) — the interface, split view, tab switcher, command palette, extensions and keyboard shortcuts.
+* [Architecture Guide](docs/ARCHITECTURE.md) — engine abstraction, tab lifecycle, extensions and the design tokens.
+* [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md) — toolchain setup, running the tests, rendering the UI without a device, publishing the APKs.
+* [Changelog](CHANGELOG.md) — release history.
 
 ---
 
 ## Quick Build Commands
 
 ```bash
-# Run all 28 automated tests (unit + Robolectric + headless Compose UI)
-./gradlew testDebugUnitTest --no-daemon \
-  --project-cache-dir="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum | cut -c1-8)/gradle"
+# Run the automated tests (unit + Robolectric + headless Compose UI)
+./gradlew testDebugUnitTest
+```
 
-# Build signed debug APK (outputs app/build/outputs/apk/debug/RemBrowse-v0.01-debug.apk)
-./gradlew assembleDebug --no-daemon \
-  --project-cache-dir="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum | cut -c1-8)/gradle"
+```bash
+# Build the installable APKs and copy them to build/ for the "Download latest" links
+./gradlew publishApk
+```
+
+```bash
+# Build debug APKs (app/build/outputs/apk/debug/, one per processor type)
+./gradlew assembleDebug
 ```

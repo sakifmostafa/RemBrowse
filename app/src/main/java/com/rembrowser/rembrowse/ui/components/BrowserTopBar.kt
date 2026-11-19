@@ -1,12 +1,10 @@
 package com.rembrowser.rembrowse.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,62 +13,76 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Smartphone
-import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
-import com.rembrowser.rembrowse.ui.theme.RemAccentAmber
-import com.rembrowser.rembrowse.ui.theme.RemAccentCyan
-import com.rembrowser.rembrowse.ui.theme.RemAccentIndigo
-import com.rembrowser.rembrowse.ui.theme.RemBackground
-import com.rembrowser.rembrowse.ui.theme.RemBorder
-import com.rembrowser.rembrowse.ui.theme.RemSurface
-import com.rembrowser.rembrowse.ui.theme.RemSurfaceElevated
-import com.rembrowser.rembrowse.ui.theme.RemTextPrimary
-import com.rembrowser.rembrowse.ui.theme.RemTextSecondary
+import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
 
+/**
+ * The single toolbar row: back, reload, address pill, bookmark, more, split view.
+ * On compact windows the split-view button moves into the menu and a tab counter appears.
+ */
 @Composable
 fun BrowserTopBar(
     uiState: BrowserUiState,
+    compact: Boolean,
     installedExtensions: List<InstalledExtension>,
     addressBarFocusRequester: FocusRequester,
     onAddressBarChange: (String) -> Unit,
@@ -79,440 +91,489 @@ fun BrowserTopBar(
     onBack: () -> Unit,
     onForward: () -> Unit,
     onReloadOrStop: () -> Unit,
-    onToggleDesktopMode: () -> Unit,
     onToggleBookmark: () -> Unit,
+    onToggleDesktopMode: () -> Unit,
     onSelectLayout: (LayoutMode) -> Unit,
-    onSelectTab: (String) -> Unit,
-    onCloseTab: (String) -> Unit,
+    onSwapPanes: (Int, Int) -> Unit,
+    onResetSplit: () -> Unit,
     onNewTab: () -> Unit,
-    onOpenTabsDrawer: () -> Unit,
+    onCloseActiveTab: () -> Unit,
+    onOpenTabSwitcher: () -> Unit,
+    onOpenCommandPalette: () -> Unit,
+    onOpenBookmarks: () -> Unit,
     onOpenExtensions: () -> Unit,
+    onOpenSettings: () -> Unit,
     onTriggerExtensionAction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val activeTab = uiState.activeTab
-    val activeTabId = uiState.activeTabId
-    val enabledExtensions = installedExtensions.filter { it.enabled }
+    val isNewTabPage = activeTab?.isNewTabPage != false
+    var showMoreMenu by remember { mutableStateOf(false) }
+    var showLayoutMenu by remember { mutableStateOf(false) }
 
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(RemSurface)
+            .height(RemDimens.ToolbarHeight)
+            .padding(start = if (compact) 4.dp else 0.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Desktop Tab Bar Strip — shows all open tabs (including tabs collapsed from 2x2 -> 1x1)
-        Row(
+        RemIconButton(
+            icon = Icons.AutoMirrored.Outlined.ArrowBack,
+            label = "Back",
+            onClick = onBack,
+            enabled = activeTab?.canGoBack == true
+        )
+        // Forward only takes up room when there is somewhere to go forward to
+        if (activeTab?.canGoForward == true) {
+            RemIconButton(
+                icon = Icons.AutoMirrored.Outlined.ArrowForward,
+                label = "Forward",
+                onClick = onForward
+            )
+        }
+        val isLoading = activeTab?.isLoading == true && !isNewTabPage
+        // On a phone-width window reload and bookmark live in the menu, so the address keeps
+        // enough room to be read.
+        if (!compact) {
+            RemIconButton(
+                icon = if (isLoading) Icons.Outlined.Close else Icons.Outlined.Refresh,
+                label = if (isLoading) "Stop loading" else "Reload",
+                onClick = onReloadOrStop,
+                enabled = !isNewTabPage
+            )
+        }
+
+        AddressPill(
+            activeTab = activeTab,
+            input = uiState.addressBarInput,
+            isFocused = uiState.isAddressBarFocused,
+            focusRequester = addressBarFocusRequester,
+            onChange = onAddressBarChange,
+            onFocusChange = onAddressBarFocusChange,
+            onSubmit = onSubmitAddressBar,
             modifier = Modifier
-                .fillMaxWidth()
-                .background(RemBackground)
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            uiState.tabs.forEach { tab ->
-                val isFocusedTab = tab.id == activeTabId
-                val paneIndex = uiState.paneTabIds
-                    .take(uiState.layoutMode.paneCount)
-                    .indexOf(tab.id)
-                val isVisibleInPane = paneIndex >= 0
+                .weight(1f)
+                .padding(horizontal = 4.dp)
+        )
 
-                val tabBg = when {
-                    isFocusedTab -> RemSurfaceElevated
-                    isVisibleInPane -> RemSurface
-                    else -> RemBackground
-                }
-                val tabBorder = when {
-                    isFocusedTab -> RemAccentCyan
-                    isVisibleInPane -> RemBorder
-                    else -> RemBorder.copy(alpha = 0.55f)
-                }
+        val bookmarked = uiState.isActiveTabBookmarked
+        if (compact) {
+            TabCountButton(count = uiState.tabs.size, onClick = onOpenTabSwitcher)
+        } else {
+            RemIconButton(
+                icon = if (bookmarked) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                label = if (bookmarked) "Remove bookmark" else "Bookmark this page",
+                onClick = onToggleBookmark,
+                enabled = !isNewTabPage,
+                tint = if (bookmarked && !isNewTabPage) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                modifier = Modifier.testTag("bookmark_button")
+            )
+        }
 
-                Row(
-                    modifier = Modifier
-                        .widthIn(min = 120.dp, max = 210.dp)
-                        .height(30.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(tabBg)
-                        .border(
-                            width = if (isFocusedTab) 1.2.dp else 1.dp,
-                            color = tabBorder,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .clickable { onSelectTab(tab.id) }
-                        .testTag("tab_bar_item_${tab.id}")
-                        .padding(start = 8.dp, end = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    if (uiState.layoutMode.paneCount > 1 && isVisibleInPane) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(
-                                    if (isFocusedTab) RemAccentCyan
-                                    else RemAccentIndigo.copy(alpha = 0.35f)
-                                )
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = "P${paneIndex + 1}",
-                                color = if (isFocusedTab) RemBackground else RemTextPrimary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(if (isFocusedTab) RemAccentCyan else RemTextSecondary.copy(alpha = 0.5f))
-                        )
-                    }
-
-                    Text(
-                        text = tab.title.ifBlank { UrlResolver.extractDisplayHost(tab.url) },
-                        color = if (isFocusedTab) RemTextPrimary else RemTextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = if (isFocusedTab) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .clickable { onCloseTab(tab.id) }
-                            .testTag("tab_bar_close_${tab.id}"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close ${tab.title}",
-                            tint = RemTextSecondary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
-                }
-            }
-
-            // Compact '+' New Tab button right next to tabs
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(7.dp))
-                    .background(RemSurfaceElevated)
-                    .border(1.dp, RemBorder, RoundedCornerShape(7.dp))
-                    .clickable(onClick = onNewTab)
-                    .testTag("new_tab_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "New Tab",
-                    tint = RemAccentCyan,
-                    modifier = Modifier.size(16.dp)
+        Box {
+            RemIconButton(
+                icon = Icons.Outlined.MoreHoriz,
+                label = "More",
+                onClick = { showMoreMenu = true },
+                modifier = Modifier.testTag("more_button")
+            )
+            MoreMenu(
+                expanded = showMoreMenu,
+                onDismiss = { showMoreMenu = false },
+                compact = compact,
+                pageActionsEnabled = !isNewTabPage,
+                isLoading = isLoading,
+                isBookmarked = bookmarked,
+                onReloadOrStop = onReloadOrStop,
+                onToggleBookmark = onToggleBookmark,
+                desktopMode = activeTab?.desktopMode != false,
+                extensions = installedExtensions.filter { it.enabled && it.hasBrowserAction },
+                onNewTab = onNewTab,
+                onCloseActiveTab = onCloseActiveTab,
+                onOpenCommandPalette = onOpenCommandPalette,
+                onOpenBookmarks = onOpenBookmarks,
+                onOpenExtensions = onOpenExtensions,
+                onOpenSettings = onOpenSettings,
+                onOpenSplitView = { showLayoutMenu = true },
+                onToggleDesktopMode = onToggleDesktopMode,
+                onTriggerExtensionAction = onTriggerExtensionAction
+            )
+            if (compact) {
+                LayoutMenu(
+                    expanded = showLayoutMenu,
+                    onDismiss = { showLayoutMenu = false },
+                    uiState = uiState,
+                    onSelectLayout = onSelectLayout,
+                    onSwapPanes = onSwapPanes,
+                    onResetSplit = onResetSplit
                 )
             }
         }
 
-        // Primary Omnibox & Navigation Row
-        Row(
+        if (!compact) {
+            Box {
+                RemIconButton(
+                    icon = Icons.AutoMirrored.Outlined.ViewSidebar,
+                    label = "Split view",
+                    onClick = { showLayoutMenu = true },
+                    selected = uiState.layoutMode != LayoutMode.SINGLE_1X1,
+                    modifier = Modifier.testTag("split_button")
+                )
+                LayoutMenu(
+                    expanded = showLayoutMenu,
+                    onDismiss = { showLayoutMenu = false },
+                    uiState = uiState,
+                    onSelectLayout = onSelectLayout,
+                    onSwapPanes = onSwapPanes,
+                    onResetSplit = onResetSplit
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddressPill(
+    activeTab: BrowserTab?,
+    input: String,
+    isFocused: Boolean,
+    focusRequester: FocusRequester,
+    onChange: (String) -> Unit,
+    onFocusChange: (Boolean) -> Unit,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MaterialTheme.colorScheme
+    val focusManager = LocalFocusManager.current
+
+    // Unfocused: the tidy display form. Focused: the full address, selected, ready to replace.
+    val shown = if (isFocused) input else UrlResolver.toDisplayUrl(input)
+    var value by remember { mutableStateOf(TextFieldValue(shown)) }
+    LaunchedEffect(isFocused) {
+        value = if (isFocused) {
+            TextFieldValue(input, TextRange(0, input.length))
+        } else {
+            TextFieldValue(shown)
+        }
+    }
+    LaunchedEffect(shown) {
+        if (value.text != shown) {
+            value = TextFieldValue(shown, TextRange(shown.length))
+        }
+    }
+
+    val borderColor by animateColorAsState(
+        targetValue = if (isFocused) colors.primary else colors.outlineVariant,
+        label = "addressBorder"
+    )
+
+    Row(
+        modifier = modifier
+            .height(RemDimens.ControlSize)
+            .clip(CircleShape)
+            .background(colors.surface)
+            .border(if (isFocused) 1.5.dp else 1.dp, borderColor, CircleShape)
+            .padding(start = 14.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AddressStatusIcon(activeTab = activeTab, isEditing = isFocused)
+        Spacer(modifier = Modifier.width(10.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = { newValue ->
+                value = newValue
+                if (newValue.text != input) onChange(newValue.text)
+            },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface),
+            cursorBrush = SolidColor(colors.primary),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Go,
+                autoCorrectEnabled = false
+            ),
+            keyboardActions = KeyboardActions(
+                onGo = {
+                    onSubmit()
+                    focusManager.clearFocus()
+                }
+            ),
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            IconButton(
-                onClick = onBack,
-                enabled = activeTab?.canGoBack == true,
-                modifier = Modifier.size(34.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = if (activeTab?.canGoBack == true) RemTextPrimary else RemTextSecondary.copy(alpha = 0.4f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            IconButton(
-                onClick = onForward,
-                enabled = activeTab?.canGoForward == true,
-                modifier = Modifier.size(34.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "Forward",
-                    tint = if (activeTab?.canGoForward == true) RemTextPrimary else RemTextSecondary.copy(alpha = 0.4f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            IconButton(
-                onClick = onReloadOrStop,
-                modifier = Modifier.size(34.dp)
-            ) {
-                Icon(
-                    imageVector = if (activeTab?.isLoading == true) Icons.Default.Close else Icons.Default.Refresh,
-                    contentDescription = if (activeTab?.isLoading == true) "Stop" else "Reload",
-                    tint = RemTextPrimary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            // Omnibox input
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(RemSurfaceElevated)
-                    .border(
-                        width = 1.dp,
-                        color = if (uiState.isAddressBarFocused) RemAccentCyan else RemBorder,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (uiState.layoutMode.paneCount > 1) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(RemAccentCyan.copy(alpha = 0.2f))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
+                .weight(1f)
+                .testTag("omnibox_input")
+                .semantics { contentDescription = "Address and search bar" }
+                .focusRequester(focusRequester)
+                .onFocusChanged { onFocusChange(it.isFocused) }
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                        // Abandon the edit and show the current page's address again
+                        focusManager.clearFocus()
+                        true
+                    } else {
+                        false
+                    }
+                },
+            decorationBox = { innerTextField ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (value.text.isEmpty()) {
                         Text(
-                            text = "P${uiState.activePaneIndex + 1}",
-                            color = RemAccentCyan,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "Search or enter a web address",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    innerTextField()
                 }
+            }
+        )
+    }
+}
 
-                BasicTextField(
-                    value = uiState.addressBarInput,
-                    onValueChange = onAddressBarChange,
-                    singleLine = true,
-                    textStyle = TextStyle(
-                        color = RemTextPrimary,
-                        fontSize = 14.sp
-                    ),
-                    cursorBrush = SolidColor(RemAccentCyan),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Go
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onGo = { onSubmitAddressBar() }
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("omnibox_input")
-                        .focusRequester(addressBarFocusRequester)
-                        .onFocusChanged { onAddressBarFocusChange(it.isFocused) },
-                    decorationBox = { innerTextField ->
-                        if (uiState.addressBarInput.isEmpty()) {
-                            Text(
-                                text = "Search or enter URL...",
-                                color = RemTextSecondary,
-                                fontSize = 14.sp
-                            )
-                        }
-                        innerTextField()
-                    }
-                )
+/** Search glyph while typing; otherwise the connection state, by shape as well as colour. */
+@Composable
+private fun AddressStatusIcon(activeTab: BrowserTab?, isEditing: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val iconModifier = Modifier.size(18.dp)
+    when {
+        isEditing || activeTab == null || activeTab.isNewTabPage -> Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = null,
+            tint = colors.onSurfaceVariant,
+            modifier = iconModifier
+        )
+        activeTab.isSecure -> Icon(
+            imageVector = Icons.Outlined.Lock,
+            contentDescription = "Connection is secure",
+            tint = colors.onSurfaceVariant,
+            modifier = iconModifier
+        )
+        UrlResolver.isHttpUrl(activeTab.url) -> Icon(
+            imageVector = Icons.Outlined.LockOpen,
+            contentDescription = "Connection is not secure",
+            tint = colors.error,
+            modifier = iconModifier
+        )
+        else -> Icon(
+            imageVector = Icons.Outlined.Info,
+            contentDescription = null,
+            tint = colors.onSurfaceVariant,
+            modifier = iconModifier
+        )
+    }
+}
 
-                IconButton(
-                    onClick = onToggleBookmark,
-                    modifier = Modifier.size(28.dp)
-                ) {
+@Composable
+private fun TabCountButton(count: Int, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val label = if (count == 1) "1 open tab. Show tabs" else "$count open tabs. Show tabs"
+    Box(
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .size(RemDimens.ControlSize)
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label }
+            .testTag("tab_switcher_button"),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .border(1.5.dp, colors.onSurfaceVariant, MaterialTheme.shapes.extraSmall),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (count > 99) "99" else count.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    compact: Boolean,
+    pageActionsEnabled: Boolean,
+    isLoading: Boolean,
+    isBookmarked: Boolean,
+    onReloadOrStop: () -> Unit,
+    onToggleBookmark: () -> Unit,
+    desktopMode: Boolean,
+    extensions: List<InstalledExtension>,
+    onNewTab: () -> Unit,
+    onCloseActiveTab: () -> Unit,
+    onOpenCommandPalette: () -> Unit,
+    onOpenBookmarks: () -> Unit,
+    onOpenExtensions: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenSplitView: () -> Unit,
+    onToggleDesktopMode: () -> Unit,
+    onTriggerExtensionAction: (String) -> Unit
+) {
+    val divider = @Composable { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
+    fun run(action: () -> Unit): () -> Unit = {
+        onDismiss()
+        action()
+    }
+
+    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        if (compact) {
+            DropdownMenuItem(
+                text = { Text(if (isLoading) "Stop loading" else "Reload") },
+                enabled = pageActionsEnabled,
+                onClick = run(onReloadOrStop),
+                modifier = Modifier.testTag("menu_reload")
+            )
+            DropdownMenuItem(
+                text = { Text(if (isBookmarked) "Remove bookmark" else "Bookmark this page") },
+                enabled = pageActionsEnabled,
+                onClick = run(onToggleBookmark),
+                modifier = Modifier.testTag("bookmark_button")
+            )
+            divider()
+        }
+        DropdownMenuItem(
+            text = { Text("New tab") },
+            trailingIcon = { ShortcutHint("Ctrl+T") },
+            onClick = run(onNewTab),
+            modifier = Modifier.testTag("menu_new_tab")
+        )
+        DropdownMenuItem(
+            text = { Text("Close tab") },
+            trailingIcon = { ShortcutHint("Ctrl+W") },
+            onClick = run(onCloseActiveTab)
+        )
+        DropdownMenuItem(
+            text = { Text("Command palette") },
+            trailingIcon = { ShortcutHint("Ctrl+K") },
+            onClick = run(onOpenCommandPalette),
+            modifier = Modifier.testTag("menu_command_palette")
+        )
+        if (compact) {
+            DropdownMenuItem(
+                text = { Text("Split view") },
+                onClick = run(onOpenSplitView),
+                modifier = Modifier.testTag("split_button")
+            )
+        }
+        divider()
+        DropdownMenuItem(
+            text = { Text("Bookmarks") },
+            onClick = run(onOpenBookmarks),
+            modifier = Modifier.testTag("menu_bookmarks")
+        )
+        DropdownMenuItem(
+            text = { Text("Extensions") },
+            onClick = run(onOpenExtensions),
+            modifier = Modifier.testTag("menu_extensions")
+        )
+        // Toolbar buttons of enabled extensions, e.g. a content blocker's popup
+        extensions.forEach { extension ->
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = extension.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 220.dp)
+                    )
+                },
+                trailingIcon = {
+                    val badge = extension.badgeText
+                    if (!badge.isNullOrBlank()) ShortcutHint(badge)
+                },
+                onClick = run { onTriggerExtensionAction(extension.id) },
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
+        divider()
+        DropdownMenuItem(
+            text = { Text("Desktop site") },
+            trailingIcon = {
+                if (desktopMode) {
                     Icon(
-                        imageVector = if (uiState.isActiveTabBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = "Bookmark",
-                        tint = if (uiState.isActiveTabBookmarked) RemAccentAmber else RemTextSecondary,
+                        imageVector = Icons.Outlined.Check,
+                        contentDescription = "On",
                         modifier = Modifier.size(18.dp)
                     )
                 }
-            }
+            },
+            onClick = run(onToggleDesktopMode)
+        )
+        DropdownMenuItem(
+            text = { Text("Settings") },
+            trailingIcon = { ShortcutHint("Ctrl+,") },
+            onClick = run(onOpenSettings),
+            modifier = Modifier.testTag("menu_settings")
+        )
+    }
+}
 
-            // Desktop / Mobile UA quick toggle
-            IconButton(
-                onClick = onToggleDesktopMode,
-                modifier = Modifier.size(34.dp)
-            ) {
-                val isDesktop = activeTab?.desktopMode != false
-                Icon(
-                    imageVector = if (isDesktop) Icons.Default.Computer else Icons.Default.Smartphone,
-                    contentDescription = if (isDesktop) "Desktop Mode On" else "Mobile Mode On",
-                    tint = if (isDesktop) RemAccentCyan else RemTextSecondary,
-                    modifier = Modifier.size(18.dp)
+@Composable
+private fun LayoutMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    uiState: BrowserUiState,
+    onSelectLayout: (LayoutMode) -> Unit,
+    onSwapPanes: (Int, Int) -> Unit,
+    onResetSplit: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        LayoutMode.entries.forEachIndexed { index, mode ->
+            val selected = uiState.layoutMode == mode
+            DropdownMenuItem(
+                text = { Text(mode.description) },
+                leadingIcon = {
+                    LayoutGlyph(mode = mode, color = if (selected) colors.primary else colors.onSurfaceVariant)
+                },
+                trailingIcon = {
+                    if (selected) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    } else {
+                        ShortcutHint("Ctrl+${index + 1}")
+                    }
+                },
+                onClick = {
+                    onDismiss()
+                    onSelectLayout(mode)
+                },
+                modifier = Modifier
+                    .testTag("layout_${mode.label}")
+                    .semantics { this.selected = selected }
+            )
+        }
+        val paneCount = uiState.layoutMode.paneCount
+        if (paneCount > 1) {
+            HorizontalDivider(color = colors.outlineVariant)
+            val active = uiState.activePaneIndex
+            for (other in 0 until paneCount) {
+                if (other == active) continue
+                DropdownMenuItem(
+                    text = { Text("Swap with pane ${other + 1}") },
+                    onClick = {
+                        onDismiss()
+                        onSwapPanes(active, other)
+                    }
                 )
             }
-
-            // Extensions button with badge
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(RemSurfaceElevated)
-                    .border(1.dp, RemBorder, RoundedCornerShape(8.dp))
-                    .clickable(onClick = onOpenExtensions)
-                    .testTag("extensions_button")
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Extension,
-                        contentDescription = "Extensions",
-                        tint = RemAccentAmber,
-                        modifier = Modifier.size(17.dp)
-                    )
-                    if (enabledExtensions.isNotEmpty()) {
-                        Text(
-                            text = enabledExtensions.size.toString(),
-                            color = RemTextPrimary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+            DropdownMenuItem(
+                text = { Text("Reset split") },
+                onClick = {
+                    onDismiss()
+                    onResetSplit()
                 }
-            }
-
-            // Tabs / Bookmarks manager button
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(RemSurfaceElevated)
-                    .border(1.dp, RemBorder, RoundedCornerShape(8.dp))
-                    .clickable(onClick = onOpenTabsDrawer)
-                    .testTag("tabs_drawer_button")
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tab,
-                        contentDescription = "Tabs and Bookmarks",
-                        tint = RemAccentIndigo,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = uiState.tabs.size.toString(),
-                        color = RemTextPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // Layout Switcher & Quick Extension Action Strip
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(start = 10.dp, end = 10.dp, bottom = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.GridView,
-                contentDescription = "Layouts",
-                tint = RemTextSecondary,
-                modifier = Modifier.size(14.dp)
-            )
-            LayoutMode.entries.forEach { mode ->
-                val selected = uiState.layoutMode == mode
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (selected) RemAccentCyan else RemSurfaceElevated)
-                        .border(
-                            width = 1.dp,
-                            color = if (selected) RemAccentCyan else RemBorder,
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                        .clickable { onSelectLayout(mode) }
-                        .testTag("layout_${mode.label}")
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = mode.label,
-                        color = if (selected) RemSurface else RemTextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            val actionableExtensions = enabledExtensions.filter { it.hasBrowserAction }
-            if (actionableExtensions.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(6.dp))
-                actionableExtensions.forEach { ext ->
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(RemAccentAmber.copy(alpha = 0.14f))
-                            .border(1.dp, RemAccentAmber.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
-                            .clickable { onTriggerExtensionAction(ext.id) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(RemAccentAmber)
-                        )
-                        Text(
-                            text = ext.name.take(16),
-                            color = RemTextPrimary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        if (!ext.badgeText.isNullOrBlank()) {
-                            Text(
-                                text = ext.badgeText,
-                                color = RemAccentAmber,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Loading progress hairline
-        if (activeTab?.isLoading == true) {
-            LinearProgressIndicator(
-                progress = { (activeTab.progress.coerceIn(5, 100)) / 100f },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp),
-                color = RemAccentCyan,
-                trackColor = RemSurfaceElevated
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(RemBorder)
             )
         }
     }

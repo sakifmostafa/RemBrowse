@@ -1,12 +1,14 @@
 package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.data.AmoApiClient
+import com.rembrowser.rembrowse.engine.ExtensionInstallCancelledException
 import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.util.UrlResolver
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +24,9 @@ class ExtensionsViewModel(
 ) {
     private val _uiState = MutableStateFlow(ExtensionsUiState())
     val uiState: StateFlow<ExtensionsUiState> = _uiState.asStateFlow()
+
+    // Only the newest catalog request may publish results; a slow earlier one is cancelled.
+    private var catalogJob: Job? = null
 
     init {
         extensionManager.installedExtensions
@@ -46,8 +51,8 @@ class ExtensionsViewModel(
     }
 
     fun selectTab(tab: ExtensionsTab) {
-        _uiState.update { it.copy(selectedTab = tab, errorMessage = null) }
-        if (tab == ExtensionsTab.DISCOVER_AMO && _uiState.value.catalogAddons.isEmpty()) {
+        _uiState.update { it.copy(selectedTab = tab, errorMessage = null, statusMessage = null) }
+        if (tab == ExtensionsTab.DISCOVER_AMO && _uiState.value.catalogAddons.isEmpty() && !_uiState.value.isLoadingCatalog) {
             loadFeaturedAddons()
         } else if (tab == ExtensionsTab.INSTALLED) {
             refreshInstalled()
@@ -66,25 +71,8 @@ class ExtensionsViewModel(
     }
 
     fun loadFeaturedAddons() {
-        scope.launch {
-            _uiState.update { it.copy(isLoadingCatalog = true, errorMessage = null) }
+        loadCatalog(fallbackError = "Couldn't reach addons.mozilla.org") {
             amoApiClient.fetchFeaturedExtensions()
-                .onSuccess { addons ->
-                    _uiState.update {
-                        it.copy(
-                            catalogAddons = addons,
-                            isLoadingCatalog = false
-                        )
-                    }
-                }
-                .onFailure { err ->
-                    _uiState.update {
-                        it.copy(
-                            isLoadingCatalog = false,
-                            errorMessage = err.message ?: "Failed to reach addons.mozilla.org"
-                        )
-                    }
-                }
         }
     }
 
@@ -98,23 +86,24 @@ class ExtensionsViewModel(
             loadFeaturedAddons()
             return
         }
-        scope.launch {
-            _uiState.update { it.copy(isLoadingCatalog = true, errorMessage = null) }
+        loadCatalog(fallbackError = "Extension search failed") {
             amoApiClient.searchExtensions(query)
+        }
+    }
+
+    private fun loadCatalog(fallbackError: String, request: suspend () -> Result<List<AmoAddon>>) {
+        catalogJob?.cancel()
+        catalogJob = scope.launch {
+            _uiState.update { it.copy(isLoadingCatalog = true, catalogError = null) }
+            request()
                 .onSuccess { addons ->
                     _uiState.update {
-                        it.copy(
-                            catalogAddons = addons,
-                            isLoadingCatalog = false
-                        )
+                        it.copy(catalogAddons = addons, isLoadingCatalog = false, catalogError = null)
                     }
                 }
                 .onFailure { err ->
                     _uiState.update {
-                        it.copy(
-                            isLoadingCatalog = false,
-                            errorMessage = err.message ?: "Extension search failed"
-                        )
+                        it.copy(isLoadingCatalog = false, catalogError = err.message ?: fallbackError)
                     }
                 }
         }
@@ -124,51 +113,82 @@ class ExtensionsViewModel(
         installFromUriInternal(addon.xpiUrl, displayLabel = addon.name, key = addon.id)
     }
 
-    fun installFromUri(uri: String) {
+    /**
+     * @param onFinished runs once the install attempt is over, whatever the outcome. Used to
+     *   delete the temporary copy of a locally picked `.xpi`.
+     */
+    fun installFromUri(uri: String, onFinished: (() -> Unit)? = null) {
         val trimmed = uri.trim()
         if (!UrlResolver.isValidExtensionUri(trimmed)) {
             _uiState.update {
                 it.copy(
-                    errorMessage = "Enter a valid https://, http://, or file:// .xpi extension URI.",
+                    errorMessage = "Enter a secure https:// link to an .xpi file, or choose a file from this device.",
                     statusMessage = null
                 )
             }
+            onFinished?.invoke()
             return
         }
-        installFromUriInternal(trimmed, displayLabel = trimmed.substringAfterLast('/'), key = trimmed)
+        installFromUriInternal(
+            uri = trimmed,
+            displayLabel = trimmed.substringAfterLast('/').ifBlank { "extension" },
+            key = trimmed,
+            onFinished = onFinished
+        )
     }
 
-    private fun installFromUriInternal(uri: String, displayLabel: String, key: String) {
+    /** Surfaces a problem that happened outside the view model (for example reading a file). */
+    fun reportError(message: String) {
+        _uiState.update { it.copy(errorMessage = message, statusMessage = null) }
+    }
+
+    private fun installFromUriInternal(
+        uri: String,
+        displayLabel: String,
+        key: String,
+        onFinished: (() -> Unit)? = null
+    ) {
+        if (_uiState.value.isInstalling) {
+            // One install at a time: a second request would race the first one's permission prompt.
+            onFinished?.invoke()
+            return
+        }
         scope.launch {
             _uiState.update {
                 it.copy(
                     isInstalling = true,
                     installingIdOrUrl = key,
                     errorMessage = null,
-                    statusMessage = "Installing $displayLabel..."
+                    statusMessage = "Installing $displayLabel…"
                 )
             }
-            extensionManager.installFromUri(uri)
-                .onSuccess { installed ->
-                    _uiState.update {
-                        it.copy(
-                            isInstalling = false,
-                            installingIdOrUrl = null,
-                            statusMessage = "Installed ${installed.name} (${installed.version})",
-                            errorMessage = null
-                        )
+            try {
+                extensionManager.installFromUri(uri)
+                    .onSuccess { installed ->
+                        _uiState.update {
+                            it.copy(
+                                isInstalling = false,
+                                installingIdOrUrl = null,
+                                statusMessage = "Added ${installed.name} ${installed.version}",
+                                errorMessage = null
+                            )
+                        }
                     }
-                }
-                .onFailure { err ->
-                    _uiState.update {
-                        it.copy(
-                            isInstalling = false,
-                            installingIdOrUrl = null,
-                            statusMessage = null,
-                            errorMessage = err.message ?: "Extension installation failed"
-                        )
+                    .onFailure { err ->
+                        // Backing out of the permission prompt is a choice, not a failure.
+                        val cancelled = err is ExtensionInstallCancelledException
+                        _uiState.update {
+                            it.copy(
+                                isInstalling = false,
+                                installingIdOrUrl = null,
+                                statusMessage = null,
+                                errorMessage = if (cancelled) null else err.message ?: "Extension installation failed"
+                            )
+                        }
                     }
-                }
+            } finally {
+                onFinished?.invoke()
+            }
         }
     }
 

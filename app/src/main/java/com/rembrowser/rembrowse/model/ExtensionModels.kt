@@ -23,11 +23,24 @@ data class InstalledExtension(
     val badgeText: String? = null
 )
 
+/** Why the engine is asking the user to review an extension's permissions. */
+enum class ExtensionPromptKind {
+    /** A new extension is about to be installed. */
+    INSTALL,
+
+    /** An installed extension updated and the new version needs more permissions. */
+    UPDATE,
+
+    /** A running extension is requesting optional permissions. */
+    OPTIONAL_PERMISSIONS
+}
+
 data class ExtensionInstallPrompt(
     val extensionId: String,
     val extensionName: String,
     val version: String,
     val permissions: List<String>,
+    val kind: ExtensionPromptKind = ExtensionPromptKind.INSTALL,
     val onDecision: (Boolean) -> Unit
 )
 
@@ -49,6 +62,8 @@ data class ExtensionsUiState(
     val catalogAddons: List<AmoAddon> = emptyList(),
     val searchQuery: String = "",
     val isLoadingCatalog: Boolean = false,
+    /** The last catalog request failed; shown inline with a retry action. */
+    val catalogError: String? = null,
     val isInstalling: Boolean = false,
     val installingIdOrUrl: String? = null,
     val statusMessage: String? = null,
