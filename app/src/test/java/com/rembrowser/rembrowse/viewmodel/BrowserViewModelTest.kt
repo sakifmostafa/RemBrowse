@@ -2,9 +2,12 @@ package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
+import com.rembrowser.rembrowse.fakes.TrackedInputStream
 import com.rembrowser.rembrowse.model.AccentColor
+import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PersistedBrowserState
@@ -696,5 +699,182 @@ class BrowserViewModelTest {
         val restored = newViewModel()
         assertEquals(AccentColor.TEAL, restored.uiState.value.settings.accent)
         assertEquals(true, engine.enhancedPrivacy)
+    }
+
+    @Test
+    fun startup_restoresTheLastSessionUnlessToldToStartFresh() {
+        val bookmark = BookmarkItem(id = "b1", title = "Docs", url = "https://docs.example/", createdAtMillis = 0L)
+        val lastSession = PersistedBrowserState(
+            layoutMode = LayoutMode.SPLIT_1X2,
+            tabs = listOf(
+                BrowserTab(id = "a", url = "https://a.example/"),
+                BrowserTab(id = "b", url = "https://b.example/"),
+                BrowserTab(id = "c", url = "https://c.example/")
+            ),
+            paneTabIds = listOf("b", "c"),
+            activePaneIndex = 1,
+            bookmarks = listOf(bookmark),
+            settings = BrowserSettings(accent = AccentColor.GREEN)
+        )
+
+        // Default: everything comes back
+        repository.storedState = lastSession
+        engine = FakeBrowserEngine()
+        var state = newViewModel().uiState.value
+        assertEquals(listOf("a", "b", "c"), state.tabs.map { it.id })
+        assertEquals(LayoutMode.SPLIT_1X2, state.layoutMode)
+        assertEquals("c", state.activeTabId)
+
+        // "Open a new tab": one start page in a single pane, nothing loaded from last time
+        repository.storedState = lastSession.copy(
+            settings = lastSession.settings.copy(restoreTabsOnStartup = false)
+        )
+        engine = FakeBrowserEngine()
+        state = newViewModel().uiState.value
+        assertEquals(1, state.tabs.size)
+        assertTrue(state.activeTab!!.isNewTabPage)
+        assertEquals(LayoutMode.SINGLE_1X1, state.layoutMode)
+        assertEquals("", state.addressBarInput)
+        assertTrue(engine.sessions.values.none { session -> session.loadedUrls.any { it.contains("example") } })
+        // What is not a tab is kept
+        assertEquals(listOf(bookmark), state.bookmarks)
+        assertEquals(AccentColor.GREEN, state.settings.accent)
+        assertFalse(state.settings.restoreTabsOnStartup)
+        assertEquals("The old tabs are gone from storage too", 1, repository.storedState.tabs.size)
+    }
+
+    @Test
+    fun newTabs_goToTheEndOrNextToTheCurrentTab() {
+        viewModel.openNewTab("https://b.example")
+        viewModel.openNewTab("https://c.example")
+        viewModel.selectTab("tab-1")
+
+        viewModel.openNewTab("https://end.example")
+        assertEquals(listOf("tab-1", "tab-2", "tab-3", "tab-4"), viewModel.uiState.value.tabs.map { it.id })
+
+        viewModel.setOpenNewTabsNextToCurrent(true)
+        assertTrue(repository.storedState.settings.openNewTabsNextToCurrent)
+        viewModel.selectTab("tab-1")
+        viewModel.openNewTab("https://next.example")
+        assertEquals(
+            listOf("tab-1", "tab-5", "tab-2", "tab-3", "tab-4"),
+            viewModel.uiState.value.tabs.map { it.id }
+        )
+        assertEquals("tab-5", viewModel.uiState.value.activeTabId)
+
+        // A window a page opens lands beside the page that opened it, even when that page
+        // is not the tab on screen
+        engine.sessions.getValue("tab-3").simulateNewTab("https://popup.example/")
+        assertEquals(
+            listOf("tab-1", "tab-5", "tab-2", "tab-3", "tab-6", "tab-4"),
+            viewModel.uiState.value.tabs.map { it.id }
+        )
+        viewModel.selectTab("tab-2")
+        engine.sessions.getValue("tab-2").simulateNewTab("https://popup2.example/")
+        assertEquals(
+            listOf("tab-1", "tab-5", "tab-2", "tab-7", "tab-3", "tab-6", "tab-4"),
+            viewModel.uiState.value.tabs.map { it.id }
+        )
+    }
+
+    @Test
+    fun desktopSiteDefault_appliesToNewTabsAndToTabsWithNoSiteYet() {
+        viewModel.openNewTab("https://loaded.example")
+        engine.sessions.getValue("tab-2").simulatePageLoad("https://loaded.example/", "Loaded")
+        viewModel.selectTab("tab-1")
+        assertTrue(viewModel.uiState.value.tabs.all { it.desktopMode })
+
+        viewModel.setDesktopSiteByDefault(false)
+
+        val tabs = viewModel.uiState.value.tabs.associateBy { it.id }
+        assertFalse("The empty start page follows the setting", tabs.getValue("tab-1").desktopMode)
+        assertFalse(engine.sessions.getValue("tab-1").desktopModeEnabled)
+        assertTrue("A tab already on a site keeps its own choice", tabs.getValue("tab-2").desktopMode)
+        assertTrue(engine.sessions.getValue("tab-2").desktopModeEnabled)
+        assertFalse(repository.storedState.settings.desktopSiteByDefault)
+
+        val newTabId = viewModel.openNewTab("https://mobile.example")
+        assertFalse(viewModel.uiState.value.tabs.first { it.id == newTabId }.desktopMode)
+        assertFalse(engine.sessions.getValue(newTabId).desktopModeEnabled)
+
+        // The per-tab switch still works on top of the default
+        viewModel.toggleDesktopMode()
+        assertTrue(viewModel.uiState.value.activeTab!!.desktopMode)
+
+        // A window opened by a page keeps asking for what its opener asks for
+        engine.sessions.getValue("tab-2").simulateNewTab("https://popup.example/")
+        assertTrue(viewModel.uiState.value.tabs.last().desktopMode)
+
+        // And a fresh start uses the saved default for its first tab
+        repository.storedState = PersistedBrowserState(settings = repository.storedState.settings)
+        engine = FakeBrowserEngine()
+        assertFalse(newViewModel().uiState.value.activeTab!!.desktopMode)
+    }
+
+    @Test
+    fun downloads_areHandedToWhoeverSavesFilesOrReleasedWhenNobodyDoes() {
+        val session = engine.sessions.getValue("tab-1")
+
+        val dropped = session.simulateDownload("https://example.org/a.zip", "a.zip", ByteArray(4))
+        assertTrue("Without a handler the connection is let go", (dropped.body as TrackedInputStream).isClosed)
+
+        val received = mutableListOf<DownloadRequest>()
+        viewModel.downloadHandler = { received += it }
+        val kept = session.simulateDownload("https://example.org/b.zip", "b.zip", ByteArray(4))
+
+        assertEquals(listOf(kept), received)
+        assertEquals("tab-1", kept.tabId)
+        assertFalse("The handler owns the body now", (kept.body as TrackedInputStream).isClosed)
+
+        assertTrue(viewModel.uiState.value.settings.askBeforeDownloading)
+        viewModel.setAskBeforeDownloading(false)
+        assertFalse(repository.storedState.settings.askBeforeDownloading)
+    }
+
+    @Test
+    fun closeTabLeftBehindByDownload_closesOnlyATabThatWasOpenedForTheFile() {
+        val opener = engine.sessions.getValue("tab-1")
+        opener.simulatePageLoad("https://example.org/", "Example")
+
+        // A link with target=_blank that turns out to be a file: its tab never loads a page
+        opener.simulateNewTab("https://example.org/files/report.pdf")
+        val downloadTab = viewModel.uiState.value.activeTab!!
+        val fromNewTab = engine.sessions.getValue(downloadTab.id)
+            .simulateDownload("https://example.org/files/report.pdf", "report.pdf")
+        assertEquals(2, viewModel.uiState.value.tabs.size)
+
+        viewModel.closeTabLeftBehindByDownload(fromNewTab)
+        assertEquals(listOf("tab-1"), viewModel.uiState.value.tabs.map { it.id })
+        assertEquals("tab-1", viewModel.uiState.value.activeTabId)
+
+        // The same when the link redirects: the engine reports the new session's blank page
+        // and the start of a load, but the file arrives from a different address and no
+        // document is ever shown
+        opener.simulateNewTab("https://example.org/get?id=7")
+        val redirectedTab = viewModel.uiState.value.activeTab!!
+        val redirected = engine.sessions.getValue(redirectedTab.id)
+        redirected.simulateHistoryMove("about:blank", canGoBack = false, canGoForward = false)
+        redirected.simulatePageStart("https://example.org/get?id=7")
+        val fromCdn = redirected.simulateDownload("https://cdn.example.net/builds/app.zip", "app.zip")
+        viewModel.closeTabLeftBehindByDownload(fromCdn)
+        assertEquals(listOf("tab-1"), viewModel.uiState.value.tabs.map { it.id })
+
+        // A download started from an ordinary page leaves that page alone
+        val fromPage = opener.simulateDownload("https://example.org/files/report.pdf", "report.pdf")
+        viewModel.closeTabLeftBehindByDownload(fromPage)
+        assertEquals(listOf("tab-1"), viewModel.uiState.value.tabs.map { it.id })
+
+        // So does one from a pop-up that did load a page of its own
+        opener.simulateNewTab("https://popup.example/")
+        val popup = viewModel.uiState.value.activeTab!!
+        engine.sessions.getValue(popup.id).simulatePageLoad("https://popup.example/", "Pop-up", canGoBack = false)
+        val fromPopup = engine.sessions.getValue(popup.id).simulateDownload("https://popup.example/x.zip", "x.zip")
+        viewModel.closeTabLeftBehindByDownload(fromPopup)
+        assertEquals(2, viewModel.uiState.value.tabs.size)
+
+        // A request whose tab is already gone is simply ignored
+        viewModel.closeTab(popup.id)
+        viewModel.closeTabLeftBehindByDownload(fromPopup)
+        assertEquals(listOf("tab-1"), viewModel.uiState.value.tabs.map { it.id })
     }
 }

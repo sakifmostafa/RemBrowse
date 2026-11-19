@@ -15,11 +15,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
+import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
+import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
+import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +47,12 @@ class CompactWindowUiTest {
     private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val browserVm = BrowserViewModel(FakeBrowserEngine(), FakeBrowserStateRepository())
     private val extVm = ExtensionsViewModel(FakeExtensionManager(), FakeAmoApiClient(), uiScope)
+    private val downloadsVm = DownloadsViewModel(
+        storage = FakeDownloadStorage(),
+        history = FakeDownloadHistoryStore(),
+        scope = uiScope,
+        ioDispatcher = Dispatchers.Unconfined
+    )
 
     @After
     fun tearDown() {
@@ -57,6 +66,7 @@ class CompactWindowUiTest {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
+                        downloadsViewModel = downloadsVm,
                         onPickLocalXpi = {},
                         paneViewport = { tab, modifier -> Box(modifier) { Text(tab.displayTitle) } },
                         extensionPopupContent = { Box(it) }
@@ -101,6 +111,12 @@ class CompactWindowUiTest {
         composeRule.onNodeWithTag("settings_section_about").assertIsDisplayed().assertIsSelected()
         composeRule.onNodeWithTag("settings_section_appearance").performScrollTo().performClick()
         composeRule.onNodeWithTag("setting_dark_theme").assertIsDisplayed()
+
+        // Downloads sits in the middle of the row: its chip is brought into view as well
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_downloads").performClick()
+        composeRule.onNodeWithTag("settings_section_downloads").assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithTag("downloads_panel").assertIsDisplayed()
     }
 
     @Test

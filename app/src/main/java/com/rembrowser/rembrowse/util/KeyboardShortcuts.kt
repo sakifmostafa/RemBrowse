@@ -14,6 +14,7 @@ enum class BrowserShortcut {
     TOGGLE_BOOKMARK,
     COMMAND_PALETTE,
     OPEN_SETTINGS,
+    OPEN_DOWNLOADS,
     TOGGLE_SPLIT_VIEW,
     LAYOUT_SINGLE,
     LAYOUT_SIDE_BY_SIDE,
@@ -64,6 +65,7 @@ object KeyboardShortcuts {
             KeyEvent.KEYCODE_D -> BrowserShortcut.TOGGLE_BOOKMARK
             KeyEvent.KEYCODE_K -> BrowserShortcut.COMMAND_PALETTE
             KeyEvent.KEYCODE_COMMA -> BrowserShortcut.OPEN_SETTINGS
+            KeyEvent.KEYCODE_J -> BrowserShortcut.OPEN_DOWNLOADS
             KeyEvent.KEYCODE_BACKSLASH -> BrowserShortcut.TOGGLE_SPLIT_VIEW
             KeyEvent.KEYCODE_1 -> BrowserShortcut.LAYOUT_SINGLE
             KeyEvent.KEYCODE_2 -> BrowserShortcut.LAYOUT_SIDE_BY_SIDE

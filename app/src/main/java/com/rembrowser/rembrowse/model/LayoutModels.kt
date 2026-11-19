@@ -59,7 +59,9 @@ enum class SearchEngine(val label: String, val queryUrl: String) {
 enum class SettingsSection(val path: String, val label: String) {
     APPEARANCE("appearance", "Appearance"),
     SEARCH("search", "Search"),
+    TABS("tabs", "Tabs"),
     PRIVACY("privacy", "Privacy"),
+    DOWNLOADS("downloads", "Downloads"),
     EXTENSIONS("extensions", "Extensions"),
     ABOUT("about", "About");
 
@@ -83,7 +85,15 @@ data class BrowserSettings(
      * Also block known fingerprinters, cryptominers and email trackers. Off by default: the
      * standard level is what keeps every site working.
      */
-    val enhancedPrivacy: Boolean = false
+    val enhancedPrivacy: Boolean = false,
+    /** Reopen the previous tabs at launch. When off, the browser starts on one new tab. */
+    val restoreTabsOnStartup: Boolean = true,
+    /** Put a new tab right after the current one instead of at the end of the list. */
+    val openNewTabsNextToCurrent: Boolean = false,
+    /** New tabs ask sites for their desktop version. A tab can still be switched on its own. */
+    val desktopSiteByDefault: Boolean = true,
+    /** Show a file's name, size and site, and wait for a yes, before saving it. */
+    val askBeforeDownloading: Boolean = true
 )
 
 data class SplitRatios(

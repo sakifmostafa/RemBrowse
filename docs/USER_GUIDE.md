@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.05`)
+# RemBrowse User Guide (`v0.06`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -19,7 +19,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, close tab, command palette, bookmarks, extensions, desktop site, settings.
+* **More (⋯)** — new tab, close tab, command palette, bookmarks, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one, or picks another layout.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark and split view move into the **More** menu.
@@ -74,7 +74,7 @@ Press `Ctrl+K` (or **More → Command palette**), then type:
 
 * words to **search the web**, or an address to **open it**;
 * part of a tab's title to **switch to that tab**;
-* a command name: new tab, close tab, split view, bookmarks, extensions, settings.
+* a command name: new tab, close tab, split view, bookmarks, downloads, extensions, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
@@ -88,13 +88,18 @@ Sections are listed down the left side (across the top on a phone-sized window):
 
 * **Appearance** — theme colour (six choices) and **Use dark theme**.
 * **Search** — the search engine used when you type words into the address bar or the command palette: Google (the default), DuckDuckGo, Bing, Brave Search or Startpage.
+* **Tabs**
+  * **When RemBrowse starts** — **Continue where you left off** (the default) reopens last time's tabs and layout. **Open a new tab** starts on a single empty tab instead: the previous tabs are closed, including when Android stopped the browser in the background. Bookmarks and settings are kept either way.
+  * **Open new tabs** — **At the end of the tab list** (the default) or **Next to the current tab**. A tab that a page opens goes next to that page.
+  * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**.
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#6-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
+* **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#8-downloads).
 * **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#7-extensions-xpi).
 * **About** — version information.
 
-Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/privacy`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
+Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/downloads`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
 
 Back, reload and bookmark do nothing on the settings page. Typing a web address or a search into the address bar while on it loads that page in the same tab.
 
@@ -128,7 +133,25 @@ You are asked again whenever an update needs **new permissions** or an extension
 
 ---
 
-## 8. Keyboard shortcuts
+## 8. Downloads
+
+When a page offers a file the browser cannot show (an archive, an installer, a document), RemBrowse asks **Download this file?** and names the file, its size and the site it comes from. Choose **Download** to save it or **Cancel** to drop it. Nothing is fetched until you answer. A PDF's own save button skips the question, since you have already chosen to save.
+
+* **Where files go**: the device's **Downloads** folder. If a file with the same name is already there, the new one is numbered (`report (1).pdf`); nothing is overwritten. On Android 9 and older, files go to RemBrowse's own Download folder instead.
+* **While it downloads**: a line at the bottom of the window says the download has started, and again when it has finished, with **Open**. It disappears by itself after a few seconds.
+* **The list**: **More → Downloads** (`Ctrl+J`) opens **Settings → Downloads**, which shows recent downloads with their progress. From there you can **cancel** one that is running (what was saved so far is removed), **Open** a finished one, or take an entry off the list. **Clear list** removes every finished entry. Removing an entry never deletes the file.
+* **Open folder** shows the device's downloaded files (Android 10 and newer).
+* **Turn the question off**: **Settings → Downloads → Ask before downloading**. Files are then saved as soon as a page offers them.
+
+Good to know:
+
+* Downloads run while RemBrowse is open. If you close it, or Android stops it in the background, a download that was still running ends and is marked **Couldn't download**; start it again from the page.
+* A download that receives nothing for 30 seconds is treated as failed.
+* A link that opens an empty tab only to hand over a file has that tab closed once the download is over.
+
+---
+
+## 9. Keyboard shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |
@@ -141,5 +164,6 @@ You are asked again whenever an update needs **new permissions** or an extension
 | `Alt + ←` / `Alt + →` | Back / forward |
 | `Ctrl + D` | Bookmark this page |
 | `Ctrl + ,` | Settings |
+| `Ctrl + J` | Downloads |
 | `Ctrl + \` | Toggle split view |
 | `Ctrl + 1` … `Ctrl + 4` | Single pane, side by side, stacked, grid |

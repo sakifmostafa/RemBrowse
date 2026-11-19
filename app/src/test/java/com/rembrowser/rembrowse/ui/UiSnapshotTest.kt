@@ -26,6 +26,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
+import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
+import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.AmoAddon
@@ -33,6 +35,8 @@ import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
+import com.rembrowser.rembrowse.model.DownloadItem
+import com.rembrowser.rembrowse.model.DownloadStatus
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
@@ -40,6 +44,7 @@ import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
+import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -77,6 +82,7 @@ class UiSnapshotTest {
     private val chrome = BrowserChromeState()
     private lateinit var browserVm: BrowserViewModel
     private lateinit var extVm: ExtensionsViewModel
+    private lateinit var downloadsVm: DownloadsViewModel
 
     @Before
     fun setUp() {
@@ -93,7 +99,8 @@ class UiSnapshotTest {
         settings: BrowserSettings = BrowserSettings(),
         layout: LayoutMode = LayoutMode.SINGLE_1X1,
         startOnNewTab: Boolean = false,
-        withExtensions: Boolean = false
+        withExtensions: Boolean = false,
+        downloads: List<DownloadItem> = emptyList()
     ) {
         val tabs = listOf(
             BrowserTab(id = "arch", url = "https://www.archdaily.com/", title = "ArchDaily"),
@@ -151,6 +158,13 @@ class UiSnapshotTest {
             )
         }
         extVm = ExtensionsViewModel(extensionManager, amo, uiScope)
+        downloadsVm = DownloadsViewModel(
+            storage = FakeDownloadStorage(),
+            history = FakeDownloadHistoryStore(downloads),
+            scope = uiScope,
+            ioDispatcher = Dispatchers.Unconfined
+        )
+        browserVm.downloadHandler = downloadsVm::onDownloadRequested
         engine.sessions.values.forEach { it.simulateSecurityChange(true) }
 
         composeRule.setContent {
@@ -159,8 +173,9 @@ class UiSnapshotTest {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
+                        downloadsViewModel = downloadsVm,
                         chrome = chrome,
-                        versionName = "0.05",
+                        versionName = "0.06",
                         onPickLocalXpi = {},
                         paneViewport = { tab, modifier -> PlaceholderPage(tab, modifier) },
                         extensionPopupContent = { Box(it) }
@@ -309,6 +324,51 @@ class UiSnapshotTest {
     }
 
     @Test
+    fun settingsTabs() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TABS) }
+        save("07f-settings-tabs")
+    }
+
+    @Test
+    fun settingsDownloads() {
+        launch(downloads = sampleDownloads)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.DOWNLOADS) }
+        save("17-settings-downloads")
+    }
+
+    @Test
+    fun settingsDownloadsEmpty() {
+        launch(settings = BrowserSettings(useDarkTheme = false))
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.DOWNLOADS) }
+        save("17b-settings-downloads-empty-light")
+    }
+
+    @Test
+    fun downloadPrompt() {
+        launch()
+        composeRule.runOnUiThread {
+            engine.sessions.getValue("arch").simulateDownload(
+                url = "https://www.archdaily.com/press/ArchDaily-media-kit-2026.pdf",
+                fileName = "ArchDaily-media-kit-2026.pdf",
+                bytes = ByteArray(1_300_000),
+                mimeType = "application/pdf"
+            )
+        }
+        save("18-download-prompt")
+        composeRule.onNodeWithTag("download_confirm").performClick()
+        save("18b-download-finished-notice")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun compactDownloads() {
+        launch(downloads = sampleDownloads)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.DOWNLOADS) }
+        save("19-compact-downloads")
+    }
+
+    @Test
     @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
     fun compactSettings() {
         launch()
@@ -338,6 +398,44 @@ class UiSnapshotTest {
         save("13-compact-browsing")
     }
 }
+
+private val sampleDownloads = listOf(
+    DownloadItem(
+        id = "d1",
+        fileName = "ubuntu-24.04-desktop-amd64.iso",
+        sourceUrl = "https://releases.ubuntu.com/24.04/ubuntu-24.04-desktop-amd64.iso",
+        mimeType = "application/x-iso9660-image",
+        totalBytes = 6_114_656_256,
+        receivedBytes = 2_340_000_000,
+        status = DownloadStatus.IN_PROGRESS
+    ),
+    DownloadItem(
+        id = "d2",
+        fileName = "ArchDaily-media-kit-2026.pdf",
+        sourceUrl = "https://www.archdaily.com/press/ArchDaily-media-kit-2026.pdf",
+        mimeType = "application/pdf",
+        totalBytes = 13_002_342,
+        receivedBytes = 13_002_342,
+        status = DownloadStatus.COMPLETED,
+        contentUri = "content://downloads/ArchDaily-media-kit-2026.pdf"
+    ),
+    DownloadItem(
+        id = "d3",
+        fileName = "quarterly-figures-final-v2-reviewed-by-finance-and-legal.xlsx",
+        sourceUrl = "https://intranet.example.com/files/quarterly.xlsx",
+        mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        receivedBytes = 48_000,
+        status = DownloadStatus.FAILED
+    ),
+    DownloadItem(
+        id = "d4",
+        fileName = "holiday-photos.zip",
+        sourceUrl = "https://drive.example.org/share/holiday-photos.zip",
+        mimeType = "application/zip",
+        receivedBytes = 0,
+        status = DownloadStatus.CANCELLED
+    )
+)
 
 private fun sampleAddon(id: String, name: String, author: String, rating: Double, summary: String) = AmoAddon(
     id = id,

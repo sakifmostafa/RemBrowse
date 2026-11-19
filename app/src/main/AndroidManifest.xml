@@ -36,6 +36,18 @@
                 <data android:scheme="https" />
             </intent-filter>
         </activity>
+
+        <!-- Lets another app open a downloaded file. Only needed before Android 10; newer
+             versions save to the shared Downloads folder instead. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.downloads"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/download_paths" />
+        </provider>
     </application>
 
 </manifest>

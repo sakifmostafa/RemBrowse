@@ -83,6 +83,10 @@ class SharedPrefsBrowserStateRepository(
                     put("accent", state.settings.accent.name)
                     put("searchEngine", state.settings.searchEngine.name)
                     put(KEY_ENHANCED_PRIVACY, state.settings.enhancedPrivacy)
+                    put("restoreTabsOnStartup", state.settings.restoreTabsOnStartup)
+                    put("openNewTabsNextToCurrent", state.settings.openNewTabsNextToCurrent)
+                    put("desktopSiteByDefault", state.settings.desktopSiteByDefault)
+                    put("askBeforeDownloading", state.settings.askBeforeDownloading)
                 }
             )
 
@@ -151,7 +155,14 @@ class SharedPrefsBrowserStateRepository(
                     useDarkTheme = settingsObj.optBoolean("useDarkTheme", defaults.useDarkTheme),
                     accent = AccentColor.fromNameOrDefault(settingsObj.optString("accent", "")),
                     searchEngine = SearchEngine.fromNameOrDefault(settingsObj.optString("searchEngine", "")),
-                    enhancedPrivacy = settingsObj.optBoolean(KEY_ENHANCED_PRIVACY, defaults.enhancedPrivacy)
+                    enhancedPrivacy = settingsObj.optBoolean(KEY_ENHANCED_PRIVACY, defaults.enhancedPrivacy),
+                    restoreTabsOnStartup = settingsObj.optBoolean("restoreTabsOnStartup", defaults.restoreTabsOnStartup),
+                    openNewTabsNextToCurrent = settingsObj.optBoolean(
+                        "openNewTabsNextToCurrent",
+                        defaults.openNewTabsNextToCurrent
+                    ),
+                    desktopSiteByDefault = settingsObj.optBoolean("desktopSiteByDefault", defaults.desktopSiteByDefault),
+                    askBeforeDownloading = settingsObj.optBoolean("askBeforeDownloading", defaults.askBeforeDownloading)
                 )
             }
 

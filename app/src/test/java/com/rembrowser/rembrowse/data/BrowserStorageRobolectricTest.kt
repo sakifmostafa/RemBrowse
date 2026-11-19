@@ -8,6 +8,8 @@ import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.DownloadItem
+import com.rembrowser.rembrowse.model.DownloadStatus
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
@@ -69,11 +71,66 @@ class BrowserStorageRobolectricTest {
             useDarkTheme = false,
             accent = AccentColor.BLUE,
             searchEngine = SearchEngine.BRAVE,
-            enhancedPrivacy = true
+            enhancedPrivacy = true,
+            // Every one of these is the opposite of its default, so a field that is not
+            // written or not read back fails the comparison
+            restoreTabsOnStartup = false,
+            openNewTabsNextToCurrent = true,
+            desktopSiteByDefault = false,
+            askBeforeDownloading = false
         )
         repository.saveState(PersistedBrowserState(settings = settings))
 
         assertEquals(settings, repository.loadState().settings)
+    }
+
+    @Test
+    fun downloadHistory_roundTripsAndTreatsAnInterruptedDownloadAsFailed() {
+        val store = SharedPrefsDownloadHistoryStore(context)
+        assertEquals(emptyList<DownloadItem>(), store.load())
+
+        val finished = DownloadItem(
+            id = "d1",
+            fileName = "report (1).pdf",
+            sourceUrl = "https://example.com/report.pdf",
+            mimeType = "application/pdf",
+            totalBytes = 2048,
+            receivedBytes = 2048,
+            status = DownloadStatus.COMPLETED,
+            contentUri = "content://media/external/downloads/42",
+            startedAtMillis = 1_700_000_000_000
+        )
+        val cancelled = DownloadItem(
+            id = "d2",
+            fileName = "movie.mkv",
+            sourceUrl = "https://example.com/movie.mkv",
+            mimeType = "video/x-matroska",
+            receivedBytes = 512,
+            status = DownloadStatus.CANCELLED
+        )
+        // The process died while this one was running
+        val interrupted = cancelled.copy(id = "d3", fileName = "half.iso", status = DownloadStatus.IN_PROGRESS)
+        store.save(listOf(finished, cancelled, interrupted))
+
+        val restored = SharedPrefsDownloadHistoryStore(context).load()
+        assertEquals(listOf(finished, cancelled, interrupted.copy(status = DownloadStatus.FAILED)), restored)
+        assertEquals("No address to open for an unfinished file", null, restored[1].contentUri)
+    }
+
+    @Test
+    fun downloadHistory_ignoresDamagedData() {
+        context.getSharedPreferences("rembrowse_downloads", Context.MODE_PRIVATE)
+            .edit()
+            .putString("items", """[{"id":"","fileName":"x"},{"id":"ok","fileName":"kept.txt","status":"NOPE"},17]""")
+            .commit()
+
+        val restored = SharedPrefsDownloadHistoryStore(context).load()
+        assertEquals(listOf("kept.txt"), restored.map { it.fileName })
+        assertEquals(DownloadStatus.FAILED, restored.single().status)
+
+        context.getSharedPreferences("rembrowse_downloads", Context.MODE_PRIVATE)
+            .edit().putString("items", "not json").commit()
+        assertEquals(emptyList<DownloadItem>(), SharedPrefsDownloadHistoryStore(context).load())
     }
 
     @Test

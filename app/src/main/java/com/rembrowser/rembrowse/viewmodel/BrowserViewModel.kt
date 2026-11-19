@@ -9,6 +9,7 @@ import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
+import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PersistedBrowserState
@@ -41,6 +42,10 @@ class BrowserViewModel(
         }
 
         private fun applySessionUpdate(tabId: String, update: SessionNavigationUpdate) {
+            // A location reported outside a page start means a document is now showing. A new
+            // session's own about:blank does not count.
+            val shownUrl = update.url?.takeUnless { update.isPageStart }
+            if (!shownUrl.isNullOrBlank() && shownUrl != BrowserTab.NEW_TAB_URL) tabsWithContent += tabId
             _uiState.update { state ->
                 val updatedTabs = state.tabs.map { tab ->
                     // An internal page is drawn by the app. Whatever a session still reports
@@ -89,7 +94,8 @@ class BrowserViewModel(
                 url = url,
                 assignToPane = openerPane ?: state.activePaneIndex,
                 desktopMode = opener?.desktopMode,
-                openedByPage = true
+                openedByPage = true,
+                openerTabId = opener?.id
             )
         }
 
@@ -100,7 +106,23 @@ class BrowserViewModel(
         override fun onPromptDismissed(promptId: String) {
             resolvePrompt(promptId)
         }
+
+        override fun onDownloadRequested(request: DownloadRequest) {
+            val handler = downloadHandler
+            if (handler != null) {
+                handler(request)
+            } else {
+                // Nobody to save it: let go of the connection rather than leave it hanging
+                runCatching { request.body.close() }
+            }
+        }
     }
+
+    /** Receives the files that pages offer to save. Set by whoever owns the downloads. */
+    var downloadHandler: ((DownloadRequest) -> Unit)? = null
+
+    /** Tabs in which the engine has shown a document since this browser started. */
+    private val tabsWithContent = mutableSetOf<String>()
 
     init {
         restoreInitialState()
@@ -108,12 +130,18 @@ class BrowserViewModel(
 
     private fun restoreInitialState() {
         val persisted = repository.loadState()
-        val initialTabs = persisted.tabs.toMutableList()
+        // In place before any tab is created: new tabs take their defaults from the settings
+        _uiState.value = BrowserUiState(settings = persisted.settings)
+
+        // "Open a new tab" at launch: the last session's tabs and layout are dropped, while
+        // bookmarks and settings are kept.
+        val restore = persisted.settings.restoreTabsOnStartup
+        val initialTabs = if (restore) persisted.tabs.toMutableList() else mutableListOf()
         if (initialTabs.isEmpty()) {
             initialTabs.add(createTabModel(BrowserTab.NEW_TAB_URL))
         }
 
-        val layout = persisted.layoutMode
+        val layout = if (restore) persisted.layoutMode else LayoutMode.SINGLE_1X1
         val validTabIds = initialTabs.map { it.id }.toSet()
         val paneTabIds = persisted.paneTabIds.filter { it in validTabIds }.toMutableList()
 
@@ -302,17 +330,27 @@ class BrowserViewModel(
         url: String? = null,
         assignToPane: Int? = null,
         desktopMode: Boolean? = null,
-        openedByPage: Boolean = false
+        openedByPage: Boolean = false,
+        /** The tab whose page asked for this one, when a page did. */
+        openerTabId: String? = null
     ): String {
         val resolved = url?.let { resolve(it) } ?: BrowserTab.NEW_TAB_URL
-        val newTab = createTabModel(resolved, desktopMode ?: true).copy(openedByPage = openedByPage)
+        val newTab = createTabModel(resolved, desktopMode).copy(openedByPage = openedByPage)
         // Created before anything else so the engine can hand this exact session back to a
         // page that asked for a new window. An internal page has no session at all.
         if (!newTab.isInternalPage) ensureSessionCreated(newTab)
 
         val current = _uiState.value
         val targetPane = (assignToPane ?: current.activePaneIndex).coerceIn(0, current.layoutMode.paneCount - 1)
-        val updatedTabs = current.tabs + newTab
+        // Either at the end of the list, or right after the tab it is opened from: the page
+        // that asked for it, or else the tab it replaces on screen.
+        val neighbourId = openerTabId ?: current.paneTabIds.getOrNull(targetPane)
+        val neighbourIndex = current.tabs.indexOfFirst { it.id == neighbourId }
+        val updatedTabs = if (current.settings.openNewTabsNextToCurrent && neighbourIndex >= 0) {
+            current.tabs.toMutableList().apply { add(neighbourIndex + 1, newTab) }
+        } else {
+            current.tabs + newTab
+        }
         val updatedPaneIds = current.paneTabIds.toMutableList()
         while (updatedPaneIds.size < current.layoutMode.paneCount) {
             updatedPaneIds.add(newTab.id)
@@ -336,6 +374,7 @@ class BrowserViewModel(
         if (closedIndex < 0) return
 
         engine.closeSession(tabId)
+        tabsWithContent -= tabId
         val remainingTabs = current.tabs.filterNot { it.id == tabId }.toMutableList()
         val updatedPaneIds = current.paneTabIds.toMutableList()
 
@@ -557,6 +596,49 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
+    fun setRestoreTabsOnStartup(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(restoreTabsOnStartup = enabled)) }
+        persistCurrentState()
+    }
+
+    fun setOpenNewTabsNextToCurrent(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(openNewTabsNextToCurrent = enabled)) }
+        persistCurrentState()
+    }
+
+    /**
+     * Sets what new tabs ask sites for. Tabs with no website in them yet (start pages, the
+     * settings tab) follow along, so the choice applies to the next address typed into them;
+     * tabs already showing a site keep their own setting.
+     */
+    fun setDesktopSiteByDefault(enabled: Boolean) {
+        _uiState.update { state ->
+            state.copy(
+                settings = state.settings.copy(desktopSiteByDefault = enabled),
+                tabs = state.tabs.map { if (it.isWebPage) it else it.copy(desktopMode = enabled) }
+            )
+        }
+        _uiState.value.tabs.filterNot { it.isWebPage }.forEach { tab ->
+            engine.getSession(tab.id)?.setDesktopMode(enabled)
+        }
+        persistCurrentState()
+    }
+
+    fun setAskBeforeDownloading(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(askBeforeDownloading = enabled)) }
+        persistCurrentState()
+    }
+
+    /**
+     * Closes the tab a page opened only to hand over a file. The engine never shows a document
+     * in such a tab (the response became a download instead), so it would stay behind as an
+     * empty page once the download is over.
+     */
+    fun closeTabLeftBehindByDownload(request: DownloadRequest) {
+        val tab = _uiState.value.tabs.firstOrNull { it.id == request.tabId } ?: return
+        if (tab.openedByPage && tab.id !in tabsWithContent) closeTab(tab.id)
+    }
+
     fun setSearchEngine(engine: SearchEngine) {
         _uiState.update { it.copy(settings = it.settings.copy(searchEngine = engine)) }
         persistCurrentState()
@@ -644,8 +726,13 @@ class BrowserViewModel(
         return tab?.takeUnless { it.isNewTabPage }?.url.orEmpty()
     }
 
-    private fun createTabModel(url: String, desktopMode: Boolean = true): BrowserTab {
-        return BrowserTab(id = idGenerator(), url = url, desktopMode = desktopMode)
+    /** A new tab. Unless told otherwise it asks for desktop or mobile sites as Settings say. */
+    private fun createTabModel(url: String, desktopMode: Boolean? = null): BrowserTab {
+        return BrowserTab(
+            id = idGenerator(),
+            url = url,
+            desktopMode = desktopMode ?: _uiState.value.settings.desktopSiteByDefault
+        )
     }
 
     private fun isInternalUrl(url: String): Boolean =

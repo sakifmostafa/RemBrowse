@@ -6,11 +6,13 @@ RemBrowse separates **UI rendering (Jetpack Compose)**, **state and business log
 
 ```mermaid
 flowchart TD
-    UI["Compose UI (RemBrowseScreen: TabRail, BrowserTopBar, TiledBrowserGrid, SettingsPage, TabSwitcher, CommandPalette, dialogs)"]
+    UI["Compose UI (RemBrowseScreen: TabRail, BrowserTopBar, TiledBrowserGrid, SettingsPage, DownloadsPanel, TabSwitcher, CommandPalette, dialogs)"]
     CHROME["BrowserChromeState (which overlays are open)"]
     HOLDER["BrowserSessionHolder (AndroidViewModel: owns everything below)"]
     BVM["BrowserViewModel (tabs, panes, split ratios, bookmarks, settings, page prompts)"]
     EVM["ExtensionsViewModel (AMO catalog, .xpi install, prompts, popups)"]
+    DVM["DownloadsViewModel (asking, saving, the downloads list)"]
+    DSTORE["DownloadStorage (MediaStore Downloads) & DownloadHistoryStore"]
     BE["BrowserEngine / BrowserSessionHandle (interfaces)"]
     EM["ExtensionManager (interface)"]
     REPO["BrowserStateRepository (SharedPreferences JSON)"]
@@ -19,9 +21,13 @@ flowchart TD
 
     UI --> BVM
     UI --> EVM
+    UI --> DVM
     UI --> CHROME
     HOLDER --> BVM
     HOLDER --> EVM
+    HOLDER --> DVM
+    BVM -- "files pages offer" --> DVM
+    DVM --> DSTORE
     BVM --> BE
     BVM --> REPO
     EVM --> EM
@@ -32,7 +38,7 @@ flowchart TD
 
 ### Lifetime
 
-`BrowserSessionHolder` is an `AndroidViewModel` created by `MainActivity`. It owns the engine, the extension manager and both view models, which gives live tabs the lifetime of the browser *window* rather than of one activity instance:
+`BrowserSessionHolder` is an `AndroidViewModel` created by `MainActivity`. It owns the engine, the extension manager and the three view models, which gives live tabs the lifetime of the browser *window* rather than of one activity instance:
 
 * If Android re-creates the activity, the same sessions are reused. Nothing is duplicated or leaked.
 * When the window really goes away, `onCleared()` saves state and closes every session exactly once.
@@ -95,9 +101,33 @@ Standard protection (`AntiTracking.DEFAULT`) is always on. The optional enhanced
 * `GeckoPagePrompts` turns Gecko's prompt requests (`alert`, `confirm`, `prompt`, HTTP authentication, `<select>`) into `PagePrompt` models. The view model queues them and the UI shows the oldest one that belongs to a visible tab.
 * `NavigationDelegate.onLoadError` returns a small self-contained page built by `ErrorPages`, with everything interpolated into it HTML-escaped.
 
+### Tab settings
+
+`BrowserSettings` carries three choices the view model applies itself:
+
+* `restoreTabsOnStartup`: when off, `restoreInitialState()` ignores the saved tabs and layout and starts on one start page. Bookmarks and settings are still loaded. "Startup" means a new `BrowserViewModel`, which is a new process or window, not an activity re-creation.
+* `openNewTabsNextToCurrent`: `openNewTab()` inserts after the tab it is opened from. For a window a page asked for, that is the opener, even if the opener is not on screen.
+* `desktopSiteByDefault`: the default for `createTabModel()`. Changing it also updates tabs that hold no website yet, so the next address typed into them uses it. A tab opened by a page inherits its opener's mode instead.
+
 ---
 
-## 3. Native WebExtensions (`.xpi`) Pipeline
+## 3. Downloads
+
+A response Gecko cannot display arrives in `ContentDelegate.onExternalResponse`. `downloadRequestFrom()` turns it into a `DownloadRequest` (file name, type, size and the body stream), the session listener passes it to `BrowserViewModel.downloadHandler`, and `BrowserSessionHolder` points that at `DownloadsViewModel`.
+
+* **Nothing is trusted.** `DownloadFileNames` takes the name from `Content-Disposition` (RFC 6266, `filename*` first) or the last path segment, then reduces it to a plain file name: no directories, no reserved characters, no leading dot, bounded length. Header names are matched in any letter case, and a missing or nonsensical size becomes "unknown".
+* **Asking costs nothing.** GeckoView keeps the response's network channel suspended until the first `read()`, so the request can wait in `pendingRequests` while `DownloadPromptDialog` is on screen. Declining just closes the stream. At most five unanswered requests are held; further ones are declined. Gecko's `skipConfirmation` (a PDF viewer's save button) and the **Ask before downloading** setting bypass the question.
+* **Copying** runs on `Dispatchers.IO` as plain blocking code: `DownloadStorage.create()`, read to the end, `commit()`. Progress is published in 256 KB steps rather than per chunk. Any exception, or a cancel flag set from the UI, ends in `discard()`, so a partial file never stays behind. Cancelling also closes the stream from another IO coroutine to wake a `read()` that is waiting on the network.
+* **Storage** is `AndroidDownloadStorage`. On Android 10+ it inserts into `MediaStore.Downloads` with `IS_PENDING` set until the last byte is written, which needs no storage permission and lets MediaStore number a taken name. The MIME type passed is the one that belongs to the file name's own extension, because MediaStore appends an extension when the two disagree. Before Android 10 there is no permission-free shared folder, so files go to the app's external `Download` directory and are opened through a `FileProvider`.
+* **The list** is `DownloadsUiState.items`, newest first and capped at 50. Finished entries are saved by `SharedPrefsDownloadHistoryStore`; an entry saved as running is loaded as failed, since a download cannot outlive the process. A `data:` address is stored as just its scheme.
+* **Opening** a file is an `ACTION_VIEW` intent with a read grant, sent by `MainActivity` after the view model has checked, off the main thread, that the file still exists.
+* **Leftover tabs.** A `target=_blank` link to a file opens a tab in which nothing ever loads. The view model records which tabs the engine has shown a document in (a location reported outside a page start, other than a new session's `about:blank`), and `closeTabLeftBehindByDownload()` closes a page-opened tab that is not among them. It does so once the request is over (saved, failed or declined), not before: whether the response body survives its window closing is not something the code relies on.
+
+Downloads live in the browser process; there is no foreground service, so a download ends if the process does.
+
+---
+
+## 4. Native WebExtensions (`.xpi`) Pipeline
 
 * **Discovery (`OkHttpAmoApiClient` + `AmoJsonParser`)**: queries `https://addons.mozilla.org/api/v5/addons/search/?app=android&type=extension&lang=en-US`. The parser handles AMO's locale maps (including the `null` + `_default` shape), skips entries without an id, duplicates and non-HTTPS downloads.
 * **Installation (`GeckoExtensionManager`)**: accepts `https://` `.xpi` URLs or a `file://` copy of a picked document (copied off the main thread into `cacheDir/xpi_imports/` and deleted afterwards). Install errors are mapped to plain-language messages; a cancelled prompt is not an error.
@@ -108,7 +138,7 @@ Standard protection (`AntiTracking.DEFAULT`) is always on. The optional enhanced
 
 ---
 
-## 4. Design tokens
+## 5. Design tokens
 
 All colours, type and shapes come from `ui/theme/Theme.kt`; components read `MaterialTheme` roles and never hardcode values.
 
@@ -129,12 +159,12 @@ Sizes shared by the chrome are in `RemDimens`. Interactive elements have a 48dp 
 
 ---
 
-## 5. State Persistence & Testing Strategy
+## 6. State Persistence & Testing Strategy
 
 * **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (layout, clamped split ratios, tabs, pane assignments, bookmarks and settings, including the chosen search engine) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
-* **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `AmoJsonParser`, command palette results, theme contrast, and both view models against the fakes in `BrowserFakes.kt`.
-* **Robolectric**: real `SharedPreferences` round trips.
+* **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `DownloadFileNames`, download request parsing, `AmoJsonParser`, command palette results, theme contrast, and the three view models against the fakes in `BrowserFakes.kt` (including a fake download storage and a response body that can fail or be cancelled part-way).
+* **Robolectric**: real `SharedPreferences` round trips for browser state and the downloads list.
 * **Headless Compose UI tests**: `RemBrowseUiTest` (laptop-sized window) and `CompactWindowUiTest` (phone-sized) drive the real screen with a fake engine.
 * **UI renders**: `UiSnapshotTest` writes PNGs of the main screens on request (see the Build & Test Guide).
 
-Behaviour that depends on the real engine (new-window adoption, crash recovery, prompts, extension delegates) is written against the GeckoView 138 sources and compiled against the real library, but is not exercised by automated tests: it needs a device.
+Behaviour that depends on the real engine or the device (new-window adoption, crash recovery, prompts, extension delegates, the download callback, MediaStore and opening files) is written against the GeckoView 138 sources and compiled against the real library, but is not exercised by automated tests: it needs a device.

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
@@ -29,17 +30,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
+import com.rembrowser.rembrowse.ui.components.DownloadNoticeBar
+import com.rembrowser.rembrowse.ui.components.DownloadPromptDialog
+import com.rembrowser.rembrowse.ui.components.DownloadsPanelActions
 import com.rembrowser.rembrowse.ui.components.ExtensionInstallPromptDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionPopupDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionsPanelActions
@@ -54,6 +60,7 @@ import com.rembrowser.rembrowse.ui.components.TiledBrowserGrid
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
+import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 
 /**
@@ -98,15 +105,20 @@ class BrowserChromeState {
 fun RemBrowseScreen(
     browserViewModel: BrowserViewModel,
     extensionsViewModel: ExtensionsViewModel,
+    downloadsViewModel: DownloadsViewModel,
     chrome: BrowserChromeState = remember { BrowserChromeState() },
     versionName: String = "",
     onPickLocalXpi: () -> Unit,
+    /** Shows a finished download in another app; false when nothing on the device can. */
+    onOpenDownload: (DownloadItem) -> Boolean = { false },
+    onOpenDownloadsFolder: () -> Unit = {},
     onFocusWebContent: (tabId: String) -> Unit = {},
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     extensionPopupContent: @Composable (Modifier) -> Unit
 ) {
     val browserState by browserViewModel.uiState.collectAsStateWithLifecycle()
     val extensionsState by extensionsViewModel.uiState.collectAsStateWithLifecycle()
+    val downloadsState by downloadsViewModel.uiState.collectAsStateWithLifecycle()
     val hasKeyboard = LocalConfiguration.current.keyboard == Configuration.KEYBOARD_QWERTY
 
     // Waiting a frame lets a closing dialog (the command palette) hand window focus back first
@@ -145,13 +157,28 @@ fun RemBrowseScreen(
         extensionsViewModel.refreshInstalled()
         openSettings(SettingsSection.EXTENSIONS)
     }
+    val openDownloads = { openSettings(SettingsSection.DOWNLOADS) }
     val settingsActions = remember(browserViewModel, extensionsViewModel) {
         SettingsActions(
             onSetDarkTheme = browserViewModel::setDarkTheme,
             onSetAccent = browserViewModel::setAccentColor,
             onSetSearchEngine = browserViewModel::setSearchEngine,
+            onSetRestoreTabsOnStartup = browserViewModel::setRestoreTabsOnStartup,
+            onSetOpenNewTabsNextToCurrent = browserViewModel::setOpenNewTabsNextToCurrent,
+            onSetDesktopSiteByDefault = browserViewModel::setDesktopSiteByDefault,
             onSetEnhancedPrivacy = browserViewModel::setEnhancedPrivacy,
-            onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled
+            onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled,
+            onSetAskBeforeDownloading = browserViewModel::setAskBeforeDownloading
+        )
+    }
+    val openDownload = { id: String -> downloadsViewModel.open(id, onOpenDownload) }
+    val downloadActions = remember(downloadsViewModel, onOpenDownload, onOpenDownloadsFolder) {
+        DownloadsPanelActions(
+            onOpen = openDownload,
+            onCancel = downloadsViewModel::cancel,
+            onRemove = downloadsViewModel::remove,
+            onClearFinished = downloadsViewModel::clearFinished,
+            onOpenFolder = onOpenDownloadsFolder
         )
     }
     val extensionActions = remember(extensionsViewModel, onPickLocalXpi) {
@@ -230,6 +257,7 @@ fun RemBrowseScreen(
                     onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
                     onOpenCommandPalette = { chrome.showCommandPalette = true },
                     onOpenBookmarks = { chrome.showBookmarks = true },
+                    onOpenDownloads = openDownloads,
                     onOpenExtensions = openExtensions,
                     onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction
@@ -270,8 +298,12 @@ fun RemBrowseScreen(
                                 settings = browserState.settings,
                                 versionName = versionName,
                                 extensionsState = extensionsState,
+                                downloadsState = downloadsState,
+                                downloadLocation = downloadsViewModel.locationLabel,
+                                canShowDownloadFolder = downloadsViewModel.canShowFolder,
                                 actions = settingsActions,
                                 extensionActions = extensionActions,
+                                downloadActions = downloadActions,
                                 modifier = pageModifier
                             )
                         },
@@ -296,6 +328,19 @@ fun RemBrowseScreen(
                 }
             }
         }
+
+        // Over the page, never in its way for long: it leaves by itself after a few seconds
+        DownloadNoticeBar(
+            notice = downloadsState.notice,
+            message = downloadsState.message,
+            onOpen = openDownload,
+            onShowDownloads = openDownloads,
+            onDismiss = {
+                downloadsViewModel.dismissNotice()
+                downloadsViewModel.clearMessage()
+            },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 
     if (chrome.showCommandPalette) {
@@ -319,6 +364,7 @@ fun RemBrowseScreen(
             PaletteCommand("bookmarks", "Bookmarks", Icons.Outlined.StarBorder) {
                 chrome.showBookmarks = true
             },
+            PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),
             PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,") {
                 openSettings(null)
@@ -361,6 +407,10 @@ fun RemBrowseScreen(
             originLabel = origin,
             onResolved = { browserViewModel.resolvePrompt(prompt.id) }
         )
+    }
+
+    downloadsState.pendingRequest?.let { request ->
+        DownloadPromptDialog(request = request, onDecision = downloadsViewModel::answerPendingRequest)
     }
 
     extensionsState.pendingPrompt?.let { prompt ->

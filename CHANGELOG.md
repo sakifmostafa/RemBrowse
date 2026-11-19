@@ -2,6 +2,29 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.06 (2026-11-19) — Downloads, and Tabs settings
+
+### Added
+* **Downloads.** A link to a file the browser cannot show used to do nothing. It is now saved to the device's Downloads folder. RemBrowse asks first, naming the file, its size and the site it comes from, and nothing is fetched until you answer. A line at the bottom of the window says when a download starts and finishes, with **Open**.
+* **Settings → Downloads.** Turn the question off with **Ask before downloading**, see where files go, open the folder, and manage recent downloads: cancel one that is running, open a finished one, remove entries or clear the list. More → Downloads, `Ctrl+J` and the command palette open it.
+* **Settings → Tabs.**
+  * **When RemBrowse starts**: continue where you left off (the default), or open a new tab and close last time's tabs.
+  * **Open new tabs**: at the end of the tab list (the default) or next to the current tab. A tab opened by a page goes next to that page.
+  * **Ask for desktop sites**: the default for new tabs, previously always on. More → Desktop site still changes a single tab.
+
+### Security
+* A downloaded file's name is never taken as given: directories, reserved characters and leading dots are removed, so a server cannot place a file outside the Downloads folder or hide it. An existing file is never overwritten; the new one is numbered.
+* Unanswered download questions are limited to five at a time. A page that asks for more has the rest declined.
+
+### Changed
+* A tab that a link opened only to hand over a file is closed once that download is over, instead of staying behind as an empty page.
+
+### Known limits
+* Downloads run inside the browser. One that is still running when RemBrowse is closed, or stopped by Android in the background, ends and has to be started again.
+
+### Testing
+161 automated tests.
+
 ## v0.05 (2026-11-19) — Settings page
 
 ### Added
