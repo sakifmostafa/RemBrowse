@@ -399,6 +399,41 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
+    /**
+     * Opens the focused tab in a two-pane split next to another tab: a background tab if there
+     * is one, otherwise a new start page. The focused tab keeps focus and lands on the side asked for.
+     */
+    fun splitCurrentTab(currentOnLeft: Boolean = true) {
+        val currentId = _uiState.value.activeTabId ?: return
+        if (_uiState.value.layoutMode != LayoutMode.SPLIT_1X2) {
+            setLayoutMode(LayoutMode.SPLIT_1X2)
+        }
+        val wantedPane = if (currentOnLeft) 0 else 1
+        if (_uiState.value.paneIndexOf(currentId) != wantedPane) {
+            swapPanes(0, 1)
+        }
+        focusPane(_uiState.value.paneIndexOf(currentId))
+    }
+
+    /** Swaps the focused pane with the next one. Focus follows the page the user was on. */
+    fun swapFocusedPane() {
+        val current = _uiState.value
+        val count = current.layoutMode.paneCount
+        if (count < 2) return
+        val from = current.activePaneIndex
+        val to = (from + 1) % count
+        swapPanes(from, to)
+        focusPane(to)
+    }
+
+    /** Sizes the first pane to [firstPaneFraction] of the split: 0.5 is even, 0.7 is 70/30. */
+    fun setSplitPreset(firstPaneFraction: Float) {
+        _uiState.update {
+            it.copy(splitRatios = SplitRatios(firstPaneFraction, firstPaneFraction).clamped())
+        }
+        persistCurrentState()
+    }
+
     fun maximizePane(paneIndex: Int) {
         val current = _uiState.value
         val tab = current.tabForPane(paneIndex) ?: return

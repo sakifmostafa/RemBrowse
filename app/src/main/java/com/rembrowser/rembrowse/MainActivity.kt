@@ -306,15 +306,13 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.TOGGLE_BOOKMARK -> browser.toggleBookmarkForActiveTab()
             BrowserShortcut.COMMAND_PALETTE -> chrome.showCommandPalette = true
             BrowserShortcut.OPEN_SETTINGS -> chrome.showSettings = true
-            BrowserShortcut.TOGGLE_SPLIT_VIEW -> browser.setLayoutMode(
-                if (browser.uiState.value.layoutMode == LayoutMode.SINGLE_1X1) {
-                    LayoutMode.SPLIT_1X2
-                } else {
-                    LayoutMode.SINGLE_1X1
-                }
-            )
+            BrowserShortcut.TOGGLE_SPLIT_VIEW -> if (browser.uiState.value.isSplit) {
+                browser.setLayoutMode(LayoutMode.SINGLE_1X1)
+            } else {
+                browser.splitCurrentTab(currentOnLeft = true)
+            }
             BrowserShortcut.LAYOUT_SINGLE -> browser.setLayoutMode(LayoutMode.SINGLE_1X1)
-            BrowserShortcut.LAYOUT_SIDE_BY_SIDE -> browser.setLayoutMode(LayoutMode.SPLIT_1X2)
+            BrowserShortcut.LAYOUT_SIDE_BY_SIDE -> browser.splitCurrentTab(currentOnLeft = true)
             BrowserShortcut.LAYOUT_STACKED -> browser.setLayoutMode(LayoutMode.SPLIT_2X1)
             BrowserShortcut.LAYOUT_GRID -> browser.setLayoutMode(LayoutMode.GRID_2X2)
         }

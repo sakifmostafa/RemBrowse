@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -41,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -149,8 +152,8 @@ fun TiledBrowserGrid(
                 onDragEnd = onCommitSplit,
                 onReset = onResetSplitRatios,
                 modifier = Modifier
-                    .offset(x = firstColumnWidth)
-                    .size(width = gap, height = totalHeight)
+                    .offset(x = firstColumnWidth - DividerGrabMargin)
+                    .size(width = gap + DividerGrabMargin * 2, height = totalHeight)
             )
         }
         if (rows == 2) {
@@ -160,8 +163,8 @@ fun TiledBrowserGrid(
                 onDragEnd = onCommitSplit,
                 onReset = onResetSplitRatios,
                 modifier = Modifier
-                    .offset(y = firstRowHeight)
-                    .size(width = totalWidth, height = gap)
+                    .offset(y = firstRowHeight - DividerGrabMargin)
+                    .size(width = totalWidth, height = gap + DividerGrabMargin * 2)
             )
         }
     }
@@ -316,7 +319,7 @@ private fun SplitDivider(
     val latestOnReset by rememberUpdatedState(onReset)
 
     val handleColor by animateColorAsState(
-        targetValue = if (highlighted) colors.primary else colors.outline,
+        targetValue = if (highlighted) colors.primary else colors.outlineVariant,
         label = "dividerHandle"
     )
     val resizeIcon = PointerIcon(
@@ -365,19 +368,35 @@ private fun SplitDivider(
     }
 }
 
+/** How far the divider's grab area reaches over the edge of each neighbouring pane. */
+private val DividerGrabMargin = 6.dp
+
+/** A grip: an accent pill with two columns of dots, wider than the gap it sits in. */
 @Composable
 private fun DividerHandle(vertical: Boolean, color: Color, thick: Boolean) {
-    val thickness: Dp = if (thick) 4.dp else 3.dp
-    Box(
+    val colors = MaterialTheme.colorScheme
+    val dot = colors.onPrimaryContainer
+    val across = if (thick) 14.dp else 12.dp
+    val along = 44.dp
+    Canvas(
         modifier = Modifier
-            .then(
-                if (vertical) {
-                    Modifier.width(thickness).height(40.dp)
-                } else {
-                    Modifier.height(thickness).width(40.dp)
-                }
-            )
+            .requiredSize(width = if (vertical) across else along, height = if (vertical) along else across)
             .clip(CircleShape)
-            .background(color)
-    )
+            .background(colors.primaryContainer)
+            .border(1.dp, color, CircleShape)
+    ) {
+        val radius = 1.25.dp.toPx()
+        val step = 6.dp.toPx()
+        val side = 2.5.dp.toPx()
+        for (i in -1..1) {
+            for (j in listOf(-1f, 1f)) {
+                val centre = if (vertical) {
+                    Offset(size.width / 2f + j * side, size.height / 2f + i * step)
+                } else {
+                    Offset(size.width / 2f + i * step, size.height / 2f + j * side)
+                }
+                drawCircle(color = dot, radius = radius, center = centre)
+            }
+        }
+    }
 }

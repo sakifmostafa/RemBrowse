@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **98 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **105 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -105,8 +105,8 @@ Commit those three files to publish a new version. Release APKs are about 85–9
 
 Output (about 190–210 MB each, uncompressed for fast incremental builds):
 ```text
-app/build/outputs/apk/debug/RemBrowse-v0.03-arm64-v8a-debug.apk
-app/build/outputs/apk/debug/RemBrowse-v0.03-x86_64-debug.apk
+app/build/outputs/apk/debug/RemBrowse-v0.04-arm64-v8a-debug.apk
+app/build/outputs/apk/debug/RemBrowse-v0.04-x86_64-debug.apk
 ```
 
 ### Verifying an APK
@@ -123,5 +123,5 @@ APK="build/RemBrowse-x86_64.apk"
 
 * **Persistent keystore**: when `signing/rembrowse.jks` exists (4096-bit RSA, alias `rembrowse`; passwords from `REMBROWSE_STORE_PASSWORD` / `REMBROWSE_KEY_PASSWORD`), debug and release builds are signed with it. Keeping this keystore stable lets installed builds upgrade in place. It is intentionally not committed.
 * **Without the keystore** (a fresh clone, CI, a cloud build), builds are signed with that machine's debug key so they remain installable. Android will not install such a build over one signed with a different key: uninstall the old copy first. **Publish from a machine that has the keystore** if you want downloads to update in place.
-* **Version increments**: for each new release, update `versionName` (e.g. `"0.04"`) and **always increment `versionCode`** (`5` → `6` …) in `app/build.gradle.kts` to avoid `INSTALL_FAILED_VERSION_DOWNGRADE`. APK names and `build/VERSION.txt` follow `versionName` automatically; update the version shown in the README's download section.
+* **Version increments**: for each new release, update `versionName` (e.g. `"0.05"`) and **always increment `versionCode`** (`6` → `7` …) in `app/build.gradle.kts` to avoid `INSTALL_FAILED_VERSION_DOWNGRADE`. APK names and `build/VERSION.txt` follow `versionName` automatically; update the version shown in the README's download section.
 * **Processor types**: `arm64-v8a` covers ARM phones, tablets and laptops; `x86_64` covers Intel/AMD Android laptops.

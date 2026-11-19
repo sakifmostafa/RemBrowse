@@ -2,6 +2,19 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.04 (2026-11-19) — Split view redesign
+
+### Changed
+* **Split button.** The toolbar now has a labelled **Split** button. **Split right** and **Split left** open the current tab beside another tab (a background tab if there is one, otherwise a new start page) on the side you choose, and keep focus on the page you were on. Stacked and Grid are in the same menu.
+* **Linked-tabs strip.** While a split is open, a strip above the panes lists the tabs that are part of it. The focused pane's tab is underlined; selecting a tab focuses its pane, and each has a close button.
+* **Split controls** on that strip: **Swap panes** (focus follows your page), **50/50** and **70/30** presets, **Expand focused pane** and **Close split**.
+* **Grip divider.** The divider is now a visible grip in the accent colour, with a wider grab area for touch.
+* **One address bar.** There are no address bars inside the panes: the bar at the top always shows, and acts on, the focused pane, which is marked by its outline and its underlined tab in the strip.
+* `Ctrl+2` and `Ctrl+\` now use the same "split the current tab" behaviour.
+
+### Testing
+105 automated tests.
+
 ## v0.03 (2026-11-19) — Ad blocker by default, new logo, two fixes found on device
 
 ### Added

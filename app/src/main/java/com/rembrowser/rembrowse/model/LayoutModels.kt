@@ -149,10 +149,12 @@ data class BrowserUiState(
     fun paneIndexOf(tabId: String): Int = visibleTabIds.indexOf(tabId)
 
     val isActiveTabBookmarked: Boolean
-        get() {
-            val currentUrl = activeTab?.url ?: return false
-            return bookmarks.any { it.url == currentUrl }
-        }
+        get() = activeTab?.let { isBookmarked(it.url) } == true
+
+    fun isBookmarked(url: String): Boolean = bookmarks.any { it.url == url }
+
+    val isSplit: Boolean
+        get() = layoutMode.paneCount > 1
 
     /** The oldest pending page dialog that belongs to a tab the user can currently see. */
     val visiblePrompt: PagePrompt?

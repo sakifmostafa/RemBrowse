@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,7 +89,8 @@ fun RemIconButton(
     selected: Boolean = false,
     tint: Color = Color.Unspecified,
     size: Dp = RemDimens.ControlSize,
-    iconSize: Dp = RemDimens.IconSize
+    iconSize: Dp = RemDimens.IconSize,
+    bordered: Boolean = false
 ) {
     val colors = MaterialTheme.colorScheme
     val contentColor = when {
@@ -112,6 +114,13 @@ fun RemIconButton(
                     .size(size)
                     .clip(MaterialTheme.shapes.medium)
                     .background(if (selected) colors.surfaceContainerHighest else Color.Transparent)
+                    .then(
+                        if (bordered) {
+                            Modifier.border(1.dp, colors.outlineVariant, MaterialTheme.shapes.medium)
+                        } else {
+                            Modifier
+                        }
+                    )
                     .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
                     .semantics { if (selected) this.selected = true },
                 contentAlignment = Alignment.Center
@@ -182,9 +191,17 @@ fun SiteIcon(
     }
 }
 
-/** Miniature drawing of a pane layout, used wherever a layout is offered. */
+/**
+ * Miniature drawing of a pane layout, used wherever a layout is offered.
+ * [firstPaneFraction] moves the divider, so a 70/30 split is drawn as one.
+ */
 @Composable
-fun LayoutGlyph(mode: LayoutMode, color: Color, modifier: Modifier = Modifier) {
+fun LayoutGlyph(
+    mode: LayoutMode,
+    color: Color,
+    modifier: Modifier = Modifier,
+    firstPaneFraction: Float = 0.5f
+) {
     Canvas(modifier = modifier.size(RemDimens.IconSize)) {
         val stroke = 1.5.dp.toPx()
         val insetX = 1.5.dp.toPx()
@@ -201,11 +218,11 @@ fun LayoutGlyph(mode: LayoutMode, color: Color, modifier: Modifier = Modifier) {
             style = Stroke(width = stroke)
         )
         if (mode.columns == 2) {
-            val x = size.width / 2f
+            val x = left + (right - left) * firstPaneFraction
             drawLine(color, Offset(x, top), Offset(x, bottom), strokeWidth = stroke)
         }
         if (mode.rows == 2) {
-            val y = size.height / 2f
+            val y = top + (bottom - top) * firstPaneFraction
             drawLine(color, Offset(left, y), Offset(right, y), strokeWidth = stroke)
         }
     }
