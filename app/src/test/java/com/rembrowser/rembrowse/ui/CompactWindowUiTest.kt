@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
@@ -29,6 +31,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** The same screen on a phone-sized window: no tab rail, a tab counter instead. */
 @RunWith(AndroidJUnit4::class)
@@ -77,6 +80,27 @@ class CompactWindowUiTest {
         composeRule.onNodeWithTag("switcher_new_tab").performClick()
         composeRule.onNodeWithTag("tab_switcher").assertDoesNotExist()
         assertEquals(3, browserVm.uiState.value.tabs.size)
+    }
+
+    // Native graphics for real text widths: with the legacy renderer text measures as almost
+    // nothing, every chip would fit on screen and this could not fail.
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun compactWindow_settingsScrollTheOpenSectionIntoView() {
+        launch()
+
+        // Extensions is the fourth chip: on a 360dp window it starts off screen
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_extensions").performClick()
+
+        composeRule.onNodeWithTag("settings_section_extensions").assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithTag("extensions_panel").assertIsDisplayed()
+
+        // Every other section stays reachable by scrolling the row
+        composeRule.onNodeWithTag("settings_section_about").performScrollTo().performClick()
+        composeRule.onNodeWithTag("settings_section_about").assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithTag("settings_section_appearance").performScrollTo().performClick()
+        composeRule.onNodeWithTag("setting_dark_theme").assertIsDisplayed()
     }
 
     @Test

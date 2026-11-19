@@ -6,7 +6,7 @@ RemBrowse separates **UI rendering (Jetpack Compose)**, **state and business log
 
 ```mermaid
 flowchart TD
-    UI["Compose UI (RemBrowseScreen: TabRail, BrowserTopBar, TiledBrowserGrid, TabSwitcher, CommandPalette, dialogs)"]
+    UI["Compose UI (RemBrowseScreen: TabRail, BrowserTopBar, TiledBrowserGrid, SettingsPage, TabSwitcher, CommandPalette, dialogs)"]
     CHROME["BrowserChromeState (which overlays are open)"]
     HOLDER["BrowserSessionHolder (AndroidViewModel: owns everything below)"]
     BVM["BrowserViewModel (tabs, panes, split ratios, bookmarks, settings, page prompts)"]
@@ -49,6 +49,19 @@ flowchart TD
 * **Lazy sessions**: a tab only gets an engine session once it is shown in a pane. Restoring twenty tabs therefore loads only the visible ones.
 * **Visibility vs. focus**: `setVisible()` maps to `GeckoSession.setActive()`, so every visible pane keeps painting, while `setFocusedForExtensions()` tells WebExtensions which single tab is focused.
 * **Start page**: a tab at `about:blank` is rendered natively by `NewTabPage`; no web view is composed for it until it navigates. Going back to the start of a tab's history returns to it.
+
+### Internal pages (`rem://`)
+
+RemBrowse's own pages are tabs whose address starts with `rem://`. Today that is the settings page: `rem://settings/<section>`, one address per `SettingsSection`. `TiledBrowserGrid` hands such a tab to the `internalPage` slot, where `RemBrowseScreen` draws `SettingsPage` (with `ExtensionsPanel` embedded as its Extensions section), instead of composing a web view.
+
+The web engine is kept out of it entirely:
+
+* **No engine session.** `syncSessions()` and `openNewTab()` skip internal tabs, and `showInternalPage()` closes the session of the start page it replaces. This is not only a saving: a `GeckoSession` reports `about:blank` when it opens, and that update would turn the settings tab back into the start page. For the same reason `onSessionUpdated` ignores anything that still arrives for a tab showing an internal page.
+* **Never loaded by Gecko.** `navigatePane()` routes a typed `rem://` address to `openSettings()`. That reuses the settings tab if there is one, converts an untouched start page in place, and otherwise opens a new tab, so a website and its history are never replaced.
+* **Not reachable from web content.** `onNewTabRequested` (from `window.open`, `target=_blank` or an extension's `tabs.create`) refuses `rem://` addresses, and no tab is created.
+* **Back to the web.** Typing a web address on the settings tab creates a session for it at that point and marks it visible.
+
+Because the section is the tab's URL, it is saved and restored with the rest of the tab state.
 
 ### Rendering several GeckoViews
 
@@ -118,7 +131,7 @@ Sizes shared by the chrome are in `RemDimens`. Interactive elements have a 48dp 
 
 ## 5. State Persistence & Testing Strategy
 
-* **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (layout, clamped split ratios, tabs, pane assignments, bookmarks and settings) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
+* **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (layout, clamped split ratios, tabs, pane assignments, bookmarks and settings, including the chosen search engine) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
 * **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `AmoJsonParser`, command palette results, theme contrast, and both view models against the fakes in `BrowserFakes.kt`.
 * **Robolectric**: real `SharedPreferences` round trips.
 * **Headless Compose UI tests**: `RemBrowseUiTest` (laptop-sized window) and `CompactWindowUiTest` (phone-sized) drive the real screen with a fake engine.

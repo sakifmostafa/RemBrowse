@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.04`)
+# RemBrowse User Guide (`v0.05`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -17,7 +17,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 * **Back**, and **Forward** when there is somewhere to go forward to.
 * **Reload** (becomes **Stop** while a page loads).
-* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search (DuckDuckGo) and press Enter. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
+* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use DuckDuckGo unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
 * **More (⋯)** — new tab, close tab, command palette, bookmarks, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one, or picks another layout.
@@ -82,13 +82,21 @@ Use ↑/↓ to move, Enter to run, Esc to close.
 
 ## 5. Settings
 
-**More → Settings** (or `Ctrl+,`):
+Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them in a tab, or switches to that tab if it is already open; an empty new tab is reused. Changes apply as soon as you make them, and you close the page like any other tab.
+
+Sections are listed down the left side (across the top on a phone-sized window):
 
 * **Appearance** — theme colour (six choices) and **Use dark theme**.
+* **Search** — the search engine used when you type words into the address bar or the command palette: DuckDuckGo, Google, Bing, Brave Search or Startpage.
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#6-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
+* **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#7-extensions-xpi).
 * **About** — version information.
+
+Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/privacy`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
+
+Back, reload and bookmark do nothing on the settings page. Typing a web address or a search into the address bar while on it loads that page in the same tab.
 
 ---
 
@@ -98,7 +106,7 @@ RemBrowse sets up **AdGuard AdBlocker** for you. The first time the browser star
 
 * **Turn it off or on**: **More → Settings → Privacy → Block ads and trackers**.
 * **Its own settings and per-site controls**: open **AdGuard AdBlocker** from the **More** menu.
-* **Remove it**: **More → Extensions → Installed**. A removed blocker stays removed; flipping the switch in Settings installs it again.
+* **Remove it**: **Settings → Extensions → Installed**. A removed blocker stays removed; flipping the switch in Settings installs it again.
 
 Like any content blocker, AdGuard can read and change the pages you visit in order to filter them. If a site misbehaves, switch it off for that site from AdGuard's own menu.
 
@@ -106,11 +114,11 @@ Like any content blocker, AdGuard can read and change the pages you visit in ord
 
 ## 7. Extensions (`.xpi`)
 
-Open **More → Extensions**:
+Extensions are managed in **Settings → Extensions** (`rem://settings/extensions`). **More → Extensions** opens the same place.
 
-1. **Discover** — search add-ons from addons.mozilla.org (uBlock Origin, Dark Reader, Bitwarden…). Select **Add**, review the permissions, then confirm.
-2. **From file** — paste an `https://` link to a `.xpi`, or choose a `.xpi` file already on the device.
-3. **Installed** — turn an extension on or off, open its popup or options, or remove it (you are asked to confirm).
+1. **Installed** — turn an extension on or off, open its popup or options, or remove it (you are asked to confirm).
+2. **Firefox Add-ons** — search the catalog at addons.mozilla.org (uBlock Origin, Dark Reader, Bitwarden…). Select **Add**, review the permissions, then confirm. Add-ons you already have are marked **Added**.
+3. **From file** — paste an `https://` link to a `.xpi`, or choose a `.xpi` file already on the device.
 
 Enabled extensions with a toolbar button also appear in the **More** menu, with their badge.
 

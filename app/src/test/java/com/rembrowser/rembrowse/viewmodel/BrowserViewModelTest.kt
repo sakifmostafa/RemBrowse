@@ -8,6 +8,8 @@ import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.SearchEngine
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SplitRatios
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -488,6 +490,177 @@ class BrowserViewModelTest {
 
         viewModel.reloadOrStop()
         assertEquals(1, session.reloadCount)
+    }
+
+    @Test
+    fun openSettings_usesOneTabWithItsOwnAddressAndNoEngineSession() {
+        engine.sessions.getValue("tab-1").simulatePageLoad("https://example.org/", "Example")
+
+        viewModel.openSettings()
+        var state = viewModel.uiState.value
+        val settingsTab = state.activeTab!!
+        assertEquals(2, state.tabs.size)
+        assertEquals("rem://settings/appearance", settingsTab.url)
+        assertEquals("rem://settings/appearance", state.addressBarInput)
+        assertEquals("Settings", settingsTab.displayTitle)
+        assertTrue(settingsTab.isInternalPage)
+        assertFalse(settingsTab.isWebPage)
+        // The app draws the page: the web engine is not involved at all
+        assertFalse(engine.sessions.containsKey(settingsTab.id))
+        assertEquals(setOf("tab-1"), engine.sessions.keys)
+
+        // Changing section changes the address; asking again reuses the tab
+        viewModel.showSettingsSection(settingsTab.id, SettingsSection.PRIVACY)
+        assertEquals("rem://settings/privacy", viewModel.uiState.value.addressBarInput)
+        viewModel.selectTab("tab-1")
+        viewModel.openSettings(SettingsSection.EXTENSIONS)
+        state = viewModel.uiState.value
+        assertEquals(2, state.tabs.size)
+        assertEquals(settingsTab.id, state.activeTabId)
+        assertEquals("rem://settings/extensions", state.activeTab!!.url)
+
+        // Nothing to reload, go back to, bookmark or switch to a mobile site on a settings page
+        viewModel.reloadOrStop()
+        viewModel.goBack()
+        viewModel.goForward()
+        viewModel.toggleBookmarkForActiveTab()
+        viewModel.toggleDesktopMode()
+        assertFalse(engine.sessions.containsKey(settingsTab.id))
+        assertTrue(viewModel.uiState.value.bookmarks.isEmpty())
+    }
+
+    @Test
+    fun openSettings_reusesAnUntouchedStartPageAndClosesItsSession() {
+        val startPageSession = engine.sessions.getValue("tab-1")
+
+        viewModel.openSettings(SettingsSection.SEARCH)
+
+        val state = viewModel.uiState.value
+        assertEquals("The empty tab became the settings page", 1, state.tabs.size)
+        assertEquals("rem://settings/search", state.activeTab!!.url)
+        assertTrue(startPageSession.isClosed)
+        assertTrue(engine.sessions.isEmpty())
+
+        // A real engine reports about:blank for a session that is opening or closing. Arriving
+        // late, it must not turn the settings page back into the start page.
+        startPageSession.simulatePageLoad("about:blank", "", canGoBack = false)
+        assertEquals("rem://settings/search", viewModel.uiState.value.activeTab!!.url)
+        assertEquals("rem://settings/search", viewModel.uiState.value.addressBarInput)
+        assertTrue(viewModel.uiState.value.activeTab!!.isSettingsPage)
+    }
+
+    @Test
+    fun openSettings_keepsAStartPageThatHasHistoryBehindIt() {
+        // The user went back to the start page: its tab still holds a page to go forward to
+        engine.sessions.getValue("tab-1").simulatePageLoad("https://example.org/", "Example")
+        engine.sessions.getValue("tab-1").simulateHistoryMove("about:blank", canGoBack = false, canGoForward = true)
+        assertTrue(viewModel.uiState.value.activeTab!!.isNewTabPage)
+
+        viewModel.openSettings()
+
+        assertEquals(2, viewModel.uiState.value.tabs.size)
+        assertFalse(engine.sessions.getValue("tab-1").isClosed)
+    }
+
+    @Test
+    fun settingsAddress_typedOverAWebPageOpensSettingsInItsOwnTab() {
+        val webSession = engine.sessions.getValue("tab-1")
+        webSession.simulatePageLoad("https://example.org/", "Example")
+
+        viewModel.onAddressBarChange("rem://settings/search")
+        viewModel.submitAddressBar()
+
+        val state = viewModel.uiState.value
+        assertEquals(2, state.tabs.size)
+        assertEquals("rem://settings/search", state.activeTab!!.url)
+        assertEquals(SettingsSection.SEARCH, SettingsSection.fromUrl(state.activeTab!!.url))
+        // The page that was open is untouched and the engine never saw the rem:// address
+        assertEquals("https://example.org/", state.tabs.first { it.id == "tab-1" }.url)
+        assertFalse(webSession.isClosed)
+        assertTrue(webSession.loadedUrls.none { it.startsWith("rem://") })
+
+        // An unknown section falls back to the first one rather than a broken page
+        assertEquals(SettingsSection.APPEARANCE, SettingsSection.fromUrl("rem://settings/nonsense"))
+        assertEquals(SettingsSection.APPEARANCE, SettingsSection.fromUrl("rem://something-else"))
+        assertEquals(SettingsSection.PRIVACY, SettingsSection.fromUrl(" REM://Settings/Privacy/ "))
+    }
+
+    @Test
+    fun settingsTab_canBrowseTheWebAndGetsAVisibleSessionWhenItDoes() {
+        engine.sessions.getValue("tab-1").simulatePageLoad("https://example.org/", "Example")
+        viewModel.openSettings()
+        val tabId = viewModel.uiState.value.activeTabId!!
+        assertFalse(engine.sessions.containsKey(tabId))
+
+        viewModel.onAddressBarChange("mozilla.org")
+        viewModel.submitAddressBar()
+
+        val tab = viewModel.uiState.value.activeTab!!
+        assertEquals(tabId, tab.id)
+        assertEquals("https://mozilla.org", tab.url)
+        assertTrue(tab.isWebPage)
+        val session = engine.sessions.getValue(tabId)
+        assertEquals("https://mozilla.org", session.loadedUrls.last())
+        assertTrue(session.loadedUrls.none { it.startsWith("rem://") })
+        // Without these the page would load into a session that never paints
+        assertTrue(session.visibleState)
+        assertTrue(session.focusedForExtensionsState)
+    }
+
+    @Test
+    fun pagesAndExtensionsCannotOpenInternalPages() {
+        val opener = engine.sessions.getValue("tab-1")
+        opener.simulatePageLoad("https://example.org/", "Example")
+
+        opener.simulateNewTab("rem://settings/extensions")
+        opener.simulateNewTab("  REM://settings")
+
+        var state = viewModel.uiState.value
+        assertEquals("No tab is opened for the request", 1, state.tabs.size)
+        assertTrue(state.tabs.none { it.isInternalPage })
+        assertEquals(setOf("tab-1"), engine.sessions.keys)
+
+        // A page that navigates itself to a rem:// address fails to load, and the engine
+        // reports the failed address. The tab must stay the web tab it is.
+        opener.simulatePageStart("rem://settings/privacy")
+        opener.simulatePageLoad("rem://settings/privacy", "Problem loading page")
+        state = viewModel.uiState.value
+        assertEquals("https://example.org/", state.activeTab!!.url)
+        assertEquals("https://example.org/", state.addressBarInput)
+        assertTrue(state.activeTab!!.isWebPage)
+    }
+
+    @Test
+    fun restoredSettingsTab_isShownWithoutAnEngineSession() {
+        repository.storedState = PersistedBrowserState(
+            tabs = listOf(
+                BrowserTab(id = "web", url = "https://example.org/"),
+                BrowserTab(id = "settings", url = "rem://settings/extensions")
+            ),
+            paneTabIds = listOf("settings")
+        )
+        engine = FakeBrowserEngine()
+        viewModel = newViewModel()
+
+        val state = viewModel.uiState.value
+        assertEquals("rem://settings/extensions", state.activeTab!!.url)
+        assertEquals("rem://settings/extensions", state.addressBarInput)
+        assertTrue(engine.sessions.isEmpty())
+    }
+
+    @Test
+    fun searchEngine_choiceIsUsedForTypedSearchesAndSaved() {
+        viewModel.setSearchEngine(SearchEngine.GOOGLE)
+        viewModel.onAddressBarChange("kotlin flow")
+        viewModel.submitAddressBar()
+
+        assertEquals("https://www.google.com/search?q=kotlin+flow", viewModel.uiState.value.activeTab!!.url)
+        assertEquals(SearchEngine.GOOGLE, repository.storedState.settings.searchEngine)
+
+        // Addresses are never sent to the search engine
+        viewModel.onAddressBarChange("example.com")
+        viewModel.submitAddressBar()
+        assertEquals("https://example.com", viewModel.uiState.value.activeTab!!.url)
     }
 
     @Test

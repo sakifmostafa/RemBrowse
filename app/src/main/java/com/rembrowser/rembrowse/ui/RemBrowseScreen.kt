@@ -36,15 +36,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
 import com.rembrowser.rembrowse.ui.components.ExtensionInstallPromptDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionPopupDialog
-import com.rembrowser.rembrowse.ui.components.ExtensionsManagerDialog
+import com.rembrowser.rembrowse.ui.components.ExtensionsPanelActions
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
-import com.rembrowser.rembrowse.ui.components.SettingsDialog
+import com.rembrowser.rembrowse.ui.components.SettingsActions
+import com.rembrowser.rembrowse.ui.components.SettingsPage
 import com.rembrowser.rembrowse.ui.components.SplitStrip
 import com.rembrowser.rembrowse.ui.components.TabRail
 import com.rembrowser.rembrowse.ui.components.TabSwitcher
@@ -62,8 +64,6 @@ import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 class BrowserChromeState {
     var showTabSwitcher by mutableStateOf(false)
     var showCommandPalette by mutableStateOf(false)
-    var showSettings by mutableStateOf(false)
-    var showExtensions by mutableStateOf(false)
     var showBookmarks by mutableStateOf(false)
 
     val addressBarFocusRequester = FocusRequester()
@@ -137,9 +137,36 @@ fun RemBrowseScreen(
         browserState.activeTabId?.let { browserViewModel.closeTab(it) }
         Unit
     }
+    val openSettings = { section: SettingsSection? ->
+        chrome.showTabSwitcher = false
+        browserViewModel.openSettings(section)
+    }
     val openExtensions = {
         extensionsViewModel.refreshInstalled()
-        chrome.showExtensions = true
+        openSettings(SettingsSection.EXTENSIONS)
+    }
+    val settingsActions = remember(browserViewModel, extensionsViewModel) {
+        SettingsActions(
+            onSetDarkTheme = browserViewModel::setDarkTheme,
+            onSetAccent = browserViewModel::setAccentColor,
+            onSetSearchEngine = browserViewModel::setSearchEngine,
+            onSetEnhancedPrivacy = browserViewModel::setEnhancedPrivacy,
+            onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled
+        )
+    }
+    val extensionActions = remember(extensionsViewModel, onPickLocalXpi) {
+        ExtensionsPanelActions(
+            onSelectTab = extensionsViewModel::selectTab,
+            onSearchQueryChange = extensionsViewModel::onSearchQueryChange,
+            onSubmitSearch = extensionsViewModel::submitSearch,
+            onInstallAddon = extensionsViewModel::installAddon,
+            onInstallUri = { uri -> extensionsViewModel.installFromUri(uri) },
+            onPickLocalXpi = onPickLocalXpi,
+            onSetEnabled = extensionsViewModel::setExtensionEnabled,
+            onUninstall = extensionsViewModel::uninstallExtension,
+            onOpenAction = extensionsViewModel::triggerBrowserAction,
+            onClearMessages = extensionsViewModel::clearMessages
+        )
     }
     val toggleSplitView = {
         if (browserState.isSplit) {
@@ -204,7 +231,7 @@ fun RemBrowseScreen(
                     onOpenCommandPalette = { chrome.showCommandPalette = true },
                     onOpenBookmarks = { chrome.showBookmarks = true },
                     onOpenExtensions = openExtensions,
-                    onOpenSettings = { chrome.showSettings = true },
+                    onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction
                 )
 
@@ -233,6 +260,21 @@ fun RemBrowseScreen(
                         contentFocusRequested = chrome.pendingContentFocus,
                         onContentFocusHandled = { chrome.pendingContentFocus = false },
                         onFocusWebContent = onFocusWebContent,
+                        internalPage = { tab, pageModifier ->
+                            SettingsPage(
+                                section = SettingsSection.fromUrl(tab.url),
+                                onSelectSection = { section ->
+                                    if (section == SettingsSection.EXTENSIONS) extensionsViewModel.refreshInstalled()
+                                    browserViewModel.showSettingsSection(tab.id, section)
+                                },
+                                settings = browserState.settings,
+                                versionName = versionName,
+                                extensionsState = extensionsState,
+                                actions = settingsActions,
+                                extensionActions = extensionActions,
+                                modifier = pageModifier
+                            )
+                        },
                         paneViewport = paneViewport
                     )
 
@@ -279,7 +321,7 @@ fun RemBrowseScreen(
             },
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),
             PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,") {
-                chrome.showSettings = true
+                openSettings(null)
             }
         )
         CommandPalette(
@@ -297,23 +339,6 @@ fun RemBrowseScreen(
         )
     }
 
-    if (chrome.showExtensions) {
-        ExtensionsManagerDialog(
-            uiState = extensionsState,
-            onDismiss = { chrome.showExtensions = false },
-            onSelectTab = extensionsViewModel::selectTab,
-            onSearchQueryChange = extensionsViewModel::onSearchQueryChange,
-            onSubmitSearch = extensionsViewModel::submitSearch,
-            onInstallAddon = extensionsViewModel::installAddon,
-            onInstallUri = { uri -> extensionsViewModel.installFromUri(uri) },
-            onPickLocalXpi = onPickLocalXpi,
-            onSetEnabled = extensionsViewModel::setExtensionEnabled,
-            onUninstall = extensionsViewModel::uninstallExtension,
-            onOpenAction = extensionsViewModel::triggerBrowserAction,
-            onClearMessages = extensionsViewModel::clearMessages
-        )
-    }
-
     if (chrome.showBookmarks) {
         BookmarksDialog(
             bookmarks = browserState.bookmarks,
@@ -323,21 +348,6 @@ fun RemBrowseScreen(
             },
             onRemoveBookmark = browserViewModel::removeBookmark,
             onDismiss = { chrome.showBookmarks = false }
-        )
-    }
-
-    if (chrome.showSettings) {
-        SettingsDialog(
-            settings = browserState.settings,
-            versionName = versionName,
-            adBlockerOn = extensionsState.isAdBlockerOn,
-            adBlockerBusy = extensionsState.isInstallingAdBlocker,
-            adBlockerError = extensionsState.adBlockerError,
-            onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled,
-            onSetDarkTheme = browserViewModel::setDarkTheme,
-            onSetAccent = browserViewModel::setAccentColor,
-            onSetEnhancedPrivacy = browserViewModel::setEnhancedPrivacy,
-            onDismiss = { chrome.showSettings = false }
         )
     }
 

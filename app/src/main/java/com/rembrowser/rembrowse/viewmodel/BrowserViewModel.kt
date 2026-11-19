@@ -12,6 +12,8 @@ import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.SearchEngine
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.util.UrlResolver
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,9 +33,19 @@ class BrowserViewModel(
 
     private val sessionListener = object : SessionEventListener {
         override fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate) {
+            // The engine also reports addresses it failed to load, such as a rem:// link a page
+            // navigated to. Accepting one would turn a web tab into the settings page, so an
+            // internal address is never taken from the engine.
+            val reportsInternalUrl = update.url?.let(::isInternalUrl) == true
+            applySessionUpdate(tabId, if (reportsInternalUrl) update.copy(url = null) else update)
+        }
+
+        private fun applySessionUpdate(tabId: String, update: SessionNavigationUpdate) {
             _uiState.update { state ->
                 val updatedTabs = state.tabs.map { tab ->
-                    if (tab.id != tabId) {
+                    // An internal page is drawn by the app. Whatever a session still reports
+                    // for that tab (a late about:blank, say) is not what is on screen.
+                    if (tab.id != tabId || tab.isInternalPage) {
                         tab
                     } else {
                         // A new document is loading: drop the previous page's title so a page
@@ -67,6 +79,9 @@ class BrowserViewModel(
         }
 
         override fun onNewTabRequested(url: String, openerTabId: String?) {
+            // Web content and extensions cannot open the browser's own pages. No tab is
+            // created, so the engine reports the window as not opened.
+            if (isInternalUrl(url)) return
             val state = _uiState.value
             val opener = state.tabs.firstOrNull { it.id == openerTabId }
             val openerPane = opener?.let { state.paneIndexOf(it.id) }?.takeIf { it >= 0 }
@@ -246,7 +261,7 @@ class BrowserViewModel(
             _uiState.update { it.copy(isAddressBarFocused = false, addressBarInput = addressTextFor(it.activeTab)) }
             return
         }
-        val resolved = UrlResolver.resolveInput(state.addressBarInput)
+        val resolved = resolve(state.addressBarInput)
         _uiState.update { it.copy(isAddressBarFocused = false, addressBarInput = resolved) }
         navigatePane(state.activePaneIndex, resolved)
     }
@@ -254,7 +269,13 @@ class BrowserViewModel(
     fun navigatePane(paneIndex: Int, rawInput: String) {
         val current = _uiState.value
         val tab = current.tabForPane(paneIndex) ?: return
-        val resolvedUrl = UrlResolver.resolveInput(rawInput)
+        val resolvedUrl = resolve(rawInput)
+        if (isInternalUrl(resolvedUrl)) {
+            // RemBrowse's own pages are drawn by the app; the web engine is not involved.
+            // A page that is open in this tab stays where it is: settings get their own tab.
+            openSettings(SettingsSection.fromUrl(resolvedUrl))
+            return
+        }
         val session = ensureSessionCreated(tab)
 
         _uiState.update { state ->
@@ -271,6 +292,9 @@ class BrowserViewModel(
         }
 
         session.loadUrl(resolvedUrl)
+        // A tab that was showing an internal page had no session until now, so the new one
+        // still has to be told it is on screen.
+        syncSessions()
         persistCurrentState()
     }
 
@@ -280,11 +304,11 @@ class BrowserViewModel(
         desktopMode: Boolean? = null,
         openedByPage: Boolean = false
     ): String {
-        val resolved = url?.let { UrlResolver.resolveInput(it) } ?: BrowserTab.NEW_TAB_URL
+        val resolved = url?.let { resolve(it) } ?: BrowserTab.NEW_TAB_URL
         val newTab = createTabModel(resolved, desktopMode ?: true).copy(openedByPage = openedByPage)
         // Created before anything else so the engine can hand this exact session back to a
-        // page that asked for a new window.
-        ensureSessionCreated(newTab)
+        // page that asked for a new window. An internal page has no session at all.
+        if (!newTab.isInternalPage) ensureSessionCreated(newTab)
 
         val current = _uiState.value
         val targetPane = (assignToPane ?: current.activePaneIndex).coerceIn(0, current.layoutMode.paneCount - 1)
@@ -459,7 +483,7 @@ class BrowserViewModel(
 
     fun reloadOrStop(paneIndex: Int = _uiState.value.activePaneIndex) {
         val tab = _uiState.value.tabForPane(paneIndex) ?: return
-        if (tab.isNewTabPage) return
+        if (!tab.isWebPage) return
         val session = engine.getSession(tab.id) ?: return
         if (tab.isLoading) {
             session.stop()
@@ -472,8 +496,9 @@ class BrowserViewModel(
         val current = _uiState.value
         val tab = current.tabForPane(paneIndex) ?: return
         val nextMode = !tab.desktopMode
-        val session = ensureSessionCreated(tab)
-        session.setDesktopMode(nextMode)
+        // An internal page has no session; the choice is stored and used if the tab later
+        // navigates to a website.
+        if (!tab.isInternalPage) ensureSessionCreated(tab).setDesktopMode(nextMode)
 
         _uiState.update { state ->
             state.copy(
@@ -488,7 +513,7 @@ class BrowserViewModel(
     fun toggleBookmarkForActiveTab() {
         val current = _uiState.value
         val activeTab = current.activeTab ?: return
-        if (activeTab.isNewTabPage) return
+        if (!activeTab.isWebPage) return
         val existing = current.bookmarks.firstOrNull { it.url == activeTab.url }
         val updatedBookmarks = if (existing != null) {
             current.bookmarks.filterNot { it.id == existing.id }
@@ -532,6 +557,70 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
+    fun setSearchEngine(engine: SearchEngine) {
+        _uiState.update { it.copy(settings = it.settings.copy(searchEngine = engine)) }
+        persistCurrentState()
+    }
+
+    /**
+     * Shows the settings page, in the tab that already has it open if there is one. Passing a
+     * [section] jumps to it; otherwise an open settings tab stays where it was.
+     */
+    fun openSettings(section: SettingsSection? = null) {
+        val state = _uiState.value
+        val existing = state.tabs.firstOrNull { it.isSettingsPage }
+        val active = state.activeTab
+        val url = (section ?: SettingsSection.APPEARANCE).url
+        when {
+            existing != null -> {
+                if (section != null) showInternalPage(existing.id, section.url)
+                selectTab(existing.id)
+            }
+            // An untouched start page becomes the settings page instead of being left behind
+            active != null && active.isNewTabPage && !active.canGoBack && !active.canGoForward ->
+                showInternalPage(active.id, url)
+            else -> openNewTab(url)
+        }
+    }
+
+    /** Switches the settings tab [tabId] to [section]; its address follows, as on any page. */
+    fun showSettingsSection(tabId: String, section: SettingsSection) {
+        showInternalPage(tabId, section.url)
+    }
+
+    /**
+     * Shows one of the app's own pages in [tabId]. Only called for a tab that already shows an
+     * internal page or is an untouched start page, so no web page or history is lost.
+     */
+    private fun showInternalPage(tabId: String, url: String) {
+        // The app draws this page, so the tab needs no engine session. A start page has one;
+        // left open it would cost a content process and keep reporting about:blank for this tab.
+        engine.closeSession(tabId)
+        _uiState.update { state ->
+            val updated = state.copy(
+                tabs = state.tabs.map {
+                    if (it.id == tabId) {
+                        it.copy(
+                            url = url,
+                            title = "",
+                            isLoading = false,
+                            progress = 0,
+                            canGoBack = false,
+                            canGoForward = false,
+                            isSecure = false,
+                            crashed = false
+                        )
+                    } else {
+                        it
+                    }
+                }
+            )
+            val address = if (!state.isAddressBarFocused && updated.activeTabId == tabId) url else state.addressBarInput
+            updated.copy(addressBarInput = address)
+        }
+        persistCurrentState()
+    }
+
     fun setEnhancedPrivacy(enabled: Boolean) {
         _uiState.update { it.copy(settings = it.settings.copy(enhancedPrivacy = enabled)) }
         engine.setEnhancedPrivacy(enabled)
@@ -559,10 +648,19 @@ class BrowserViewModel(
         return BrowserTab(id = idGenerator(), url = url, desktopMode = desktopMode)
     }
 
+    private fun isInternalUrl(url: String): Boolean =
+        url.trim().startsWith(BrowserTab.INTERNAL_SCHEME, ignoreCase = true)
+
+    /** Typed text to an address, using the search engine chosen in Settings. */
+    private fun resolve(input: String): String =
+        UrlResolver.resolveInput(input, _uiState.value.settings.searchEngine.queryUrl)
+
     private fun ensureSessionCreated(tab: BrowserTab): BrowserSessionHandle =
         engine.getSession(tab.id) ?: engine.createSession(
             tabId = tab.id,
-            initialUrl = tab.url,
+            // Reached for an internal page only when its tab is about to load a website: the
+            // session starts empty and the caller loads the address.
+            initialUrl = if (tab.isInternalPage) "" else tab.url,
             desktopMode = tab.desktopMode,
             listener = sessionListener
         )
@@ -598,7 +696,8 @@ class BrowserViewModel(
         val activeId = state.activeTabId
         state.tabs.forEach { tab ->
             val isVisible = tab.id in visibleIds
-            val session = if (isVisible) {
+            // Internal pages are drawn by the app and never get a session of their own
+            val session = if (isVisible && !tab.isInternalPage) {
                 ensureSessionCreated(tab)
             } else {
                 engine.getSession(tab.id) ?: return@forEach

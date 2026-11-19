@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -64,6 +65,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.rembrowser.rembrowse.R
+import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
@@ -149,6 +151,15 @@ fun SiteIcon(
     isNewTab: Boolean = false,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
+    if (url.startsWith(BrowserTab.SETTINGS_URL, ignoreCase = true)) {
+        Icon(
+            imageVector = Icons.Outlined.Settings,
+            contentDescription = null,
+            tint = tint,
+            modifier = modifier.size(size)
+        )
+        return
+    }
     if (isNewTab) {
         // The start page is RemBrowse's own page, so it carries the RemBrowse mark
         Image(

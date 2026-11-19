@@ -69,6 +69,14 @@ class UrlResolverTest {
     }
 
     @Test
+    fun resolveInput_sendsSearchesToTheChosenEngine() {
+        val google = "https://www.google.com/search?q="
+        assertEquals("https://www.google.com/search?q=kotlin+flow", UrlResolver.resolveInput("kotlin flow", google))
+        assertEquals("An address is not a search", "https://github.com", UrlResolver.resolveInput("github.com", google))
+        assertEquals("rem://settings/privacy", UrlResolver.resolveInput("rem://settings/privacy", google))
+    }
+
+    @Test
     fun resolveInput_blankInputMeansTheStartPage() {
         assertEquals("about:blank", UrlResolver.resolveInput("   "))
     }

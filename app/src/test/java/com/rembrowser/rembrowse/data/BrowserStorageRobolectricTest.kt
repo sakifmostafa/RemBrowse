@@ -10,6 +10,7 @@ import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SplitRatios
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -64,7 +65,12 @@ class BrowserStorageRobolectricTest {
 
     @Test
     fun saveAndLoadState_persistsAppearanceAndPrivacySettings() {
-        val settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE, enhancedPrivacy = true)
+        val settings = BrowserSettings(
+            useDarkTheme = false,
+            accent = AccentColor.BLUE,
+            searchEngine = SearchEngine.BRAVE,
+            enhancedPrivacy = true
+        )
         repository.saveState(PersistedBrowserState(settings = settings))
 
         assertEquals(settings, repository.loadState().settings)

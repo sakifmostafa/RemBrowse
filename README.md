@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.04`)
+# RemBrowse (`v0.05`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.04** — pick the file that matches your device's processor, open it on the device and confirm the install.
+**Version 0.05** — pick the file that matches your device's processor, open it on the device and confirm the install.
 
 | Your device | Download |
 | :--- | :--- |
@@ -26,8 +26,9 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Tab switcher**: a searchable grid of every open tab.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.
+* **Its own settings page**: Settings open in a tab at `rem://settings`, with sections for appearance, search engine, privacy, extensions and about.
 * **Ad blocking out of the box**: AdGuard AdBlocker is set up automatically on first launch and can be switched off or removed at any time (Settings → Privacy).
-* **Real WebExtensions**: browse and install add-ons from addons.mozilla.org, or install a signed `.xpi` from a link or a file. Permission requests are reviewed on install, on update and when an extension asks for more.
+* **Real WebExtensions, managed in Settings**: browse and install add-ons from Firefox Add-ons (addons.mozilla.org), or install a signed `.xpi` from a link or a file. Permission requests are reviewed on install, on update and when an extension asks for more.
 * **Built for a laptop**: freeform window resizing, hardware keyboard shortcuts, pointer hover states and resize cursors, with a compact layout for phone-sized windows.
 * **Private by default**: tracking protection that does not break sites, an optional enhanced level, no cloud backup of the browser profile, and only ordinary web links are accepted from other apps.
 
@@ -44,7 +45,7 @@ RemBrowser/
 │   ├── assets/                 # Logo artwork
 │   ├── ARCHITECTURE.md         # State, engine lifecycle, extensions and design tokens
 │   ├── BUILD_AND_TEST_GUIDE.md # Toolchain, tests, UI renders, publishing and signing
-│   └── USER_GUIDE.md           # The interface, split view, extensions and shortcuts
+│   └── USER_GUIDE.md           # The interface, split view, settings, extensions and shortcuts
 ├── app/
 │   ├── build.gradle.kts        # Android app config (compileSdk/targetSdk 35)
 │   └── src/
@@ -69,7 +70,7 @@ RemBrowser/
 
 ## Documentation & Guides
 
-* [User Guide](docs/USER_GUIDE.md) — the interface, split view, tab switcher, command palette, extensions and keyboard shortcuts.
+* [User Guide](docs/USER_GUIDE.md) — the interface, split view, tab switcher, command palette, settings, extensions and keyboard shortcuts.
 * [Architecture Guide](docs/ARCHITECTURE.md) — engine abstraction, tab lifecycle, extensions and the design tokens.
 * [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md) — toolchain setup, running the tests, rendering the UI without a device, publishing the APKs.
 * [Changelog](CHANGELOG.md) — release history.

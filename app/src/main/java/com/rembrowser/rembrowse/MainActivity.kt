@@ -305,7 +305,10 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.PREVIOUS_TAB -> browser.selectAdjacentTab(-1)
             BrowserShortcut.TOGGLE_BOOKMARK -> browser.toggleBookmarkForActiveTab()
             BrowserShortcut.COMMAND_PALETTE -> chrome.showCommandPalette = true
-            BrowserShortcut.OPEN_SETTINGS -> chrome.showSettings = true
+            BrowserShortcut.OPEN_SETTINGS -> {
+                chrome.showTabSwitcher = false
+                browser.openSettings()
+            }
             BrowserShortcut.TOGGLE_SPLIT_VIEW -> if (browser.uiState.value.isSplit) {
                 browser.setLayoutMode(LayoutMode.SINGLE_1X1)
             } else {

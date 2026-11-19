@@ -83,6 +83,7 @@ fun TiledBrowserGrid(
     contentFocusRequested: Boolean,
     onContentFocusHandled: () -> Unit,
     onFocusWebContent: (tabId: String) -> Unit,
+    internalPage: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -137,6 +138,7 @@ fun TiledBrowserGrid(
                     contentFocusRequested = contentFocusRequested,
                     onContentFocusHandled = onContentFocusHandled,
                     onFocusWebContent = onFocusWebContent,
+                    internalPage = internalPage,
                     paneViewport = paneViewport,
                     modifier = Modifier
                         .offset(x = x, y = y)
@@ -181,6 +183,7 @@ private fun BrowserPane(
     contentFocusRequested: Boolean,
     onContentFocusHandled: () -> Unit,
     onFocusWebContent: (tabId: String) -> Unit,
+    internalPage: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -198,7 +201,7 @@ private fun BrowserPane(
     // The pane is the keyboard-focus target for "the page". The pane itself takes focus first
     // (so the text field that had it lets go), then a web page's own view is focused inside it.
     val paneFocus = remember { FocusRequester() }
-    val showsWebContent = !tab.isNewTabPage && !tab.crashed
+    val showsWebContent = tab.isWebPage && !tab.crashed
     LaunchedEffect(contentFocusRequested, isActive) {
         if (contentFocusRequested && isActive) {
             runCatching { paneFocus.requestFocus() }
@@ -237,6 +240,8 @@ private fun BrowserPane(
     ) {
         when {
             tab.isNewTabPage -> NewTabPage(modifier = Modifier.fillMaxSize())
+            // RemBrowse's own pages (Settings) are native too; no web view is created for them
+            tab.isInternalPage -> internalPage(tab, Modifier.fillMaxSize())
             tab.crashed -> CrashedPane(
                 onReload = { onReloadPane(paneIndex) },
                 modifier = Modifier.fillMaxSize()
@@ -244,7 +249,7 @@ private fun BrowserPane(
             else -> paneViewport(tab, Modifier.fillMaxSize())
         }
 
-        if (tab.isLoading && !tab.isNewTabPage) {
+        if (tab.isLoading && tab.isWebPage) {
             LinearProgressIndicator(
                 progress = { tab.progress.coerceIn(5, 100) / 100f },
                 modifier = Modifier

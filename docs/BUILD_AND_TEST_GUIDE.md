@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **105 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **117 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -56,7 +56,7 @@ Test suites included:
 * `KeyboardShortcutsTest` — shortcut mapping, key-repeat suppression, modifier handling.
 * `ErrorPagesTest` — error page content and HTML escaping of the failed address.
 * `AmoJsonParserTest` — AMO v5 response parsing, locale fallbacks, duplicate and insecure entry filtering.
-* `BrowserViewModelTest` — layouts, lazy session creation, tab closing, new-window requests, split ratios, prompts, bookmarks, settings.
+* `BrowserViewModelTest` — layouts, lazy session creation, tab closing, new-window requests, split ratios, prompts, bookmarks, settings, and the settings page's tab (no engine session, typed `rem://` addresses, refusing them from pages).
 * `ExtensionsViewModelTest` — catalog loading and cancellation, install validation, cancel and failure handling.
 * `CommandPaletteResultsTest` — what the command palette offers for a typed query.
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
@@ -65,7 +65,7 @@ Test suites included:
 
 ### Rendering the UI without a device
 
-`UiSnapshotTest` renders the main screens (start page, browsing, tab switcher, split view, command palette, settings, light theme, compact layout) to PNG files. It is skipped unless you name a target directory:
+`UiSnapshotTest` renders the main screens (start page, browsing, tab switcher, split view, command palette, each settings section, the extensions manager, light theme, compact layout) to PNG files. It is skipped unless you name a target directory:
 
 ```bash
 ./gradlew testDebugUnitTest --tests "*UiSnapshotTest*" -Prembrowse.screenshots=build/ui-screenshots
@@ -105,8 +105,8 @@ Commit those three files to publish a new version. Release APKs are about 85–9
 
 Output (about 190–210 MB each, uncompressed for fast incremental builds):
 ```text
-app/build/outputs/apk/debug/RemBrowse-v0.04-arm64-v8a-debug.apk
-app/build/outputs/apk/debug/RemBrowse-v0.04-x86_64-debug.apk
+app/build/outputs/apk/debug/RemBrowse-v0.05-arm64-v8a-debug.apk
+app/build/outputs/apk/debug/RemBrowse-v0.05-x86_64-debug.apk
 ```
 
 ### Verifying an APK
