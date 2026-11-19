@@ -1,0 +1,180 @@
+package com.rembrowser.rembrowse.fakes
+
+import com.rembrowser.rembrowse.data.AmoApiClient
+import com.rembrowser.rembrowse.data.BrowserStateRepository
+import com.rembrowser.rembrowse.engine.BrowserEngine
+import com.rembrowser.rembrowse.engine.BrowserSessionHandle
+import com.rembrowser.rembrowse.engine.ExtensionManager
+import com.rembrowser.rembrowse.engine.SessionEventListener
+import com.rembrowser.rembrowse.engine.SessionNavigationUpdate
+import com.rembrowser.rembrowse.model.AmoAddon
+import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
+import com.rembrowser.rembrowse.model.ExtensionPopupState
+import com.rembrowser.rembrowse.model.InstalledExtension
+import com.rembrowser.rembrowse.model.PersistedBrowserState
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
+class FakeSessionHandle(
+    override val tabId: String,
+    initialUrl: String,
+    initialDesktopMode: Boolean,
+    private val listener: SessionEventListener
+) : BrowserSessionHandle {
+    val loadedUrls = mutableListOf(initialUrl)
+    var desktopModeEnabled: Boolean = initialDesktopMode
+    var visibleState: Boolean = false
+    var focusedForExtensionsState: Boolean = false
+    var reloadCount: Int = 0
+    var stopCount: Int = 0
+    var goBackCount: Int = 0
+    var goForwardCount: Int = 0
+    var isClosed: Boolean = false
+
+    override fun loadUrl(url: String) {
+        loadedUrls.add(url)
+        listener.onSessionUpdated(tabId, SessionNavigationUpdate(url = url))
+    }
+
+    override fun reload() { reloadCount++ }
+    override fun stop() { stopCount++ }
+    override fun goBack() { goBackCount++ }
+    override fun goForward() { goForwardCount++ }
+    override fun setDesktopMode(enabled: Boolean) { desktopModeEnabled = enabled }
+    override fun setVisible(visible: Boolean) { visibleState = visible }
+    override fun setFocusedForExtensions(focused: Boolean) { focusedForExtensionsState = focused }
+    override fun close() { isClosed = true }
+
+    fun simulatePageLoad(url: String, title: String, canGoBack: Boolean = true) {
+        listener.onSessionUpdated(
+            tabId,
+            SessionNavigationUpdate(
+                url = url,
+                title = title,
+                isLoading = false,
+                progress = 100,
+                canGoBack = canGoBack,
+                canGoForward = false
+            )
+        )
+    }
+
+    fun simulateNewTab(url: String) {
+        listener.onNewTabRequested(url)
+    }
+}
+
+class FakeBrowserEngine : BrowserEngine {
+    val sessions = linkedMapOf<String, FakeSessionHandle>()
+
+    override fun createSession(
+        tabId: String,
+        initialUrl: String,
+        desktopMode: Boolean,
+        listener: SessionEventListener
+    ): BrowserSessionHandle {
+        val handle = FakeSessionHandle(tabId, initialUrl, desktopMode, listener)
+        sessions[tabId] = handle
+        return handle
+    }
+
+    override fun getSession(tabId: String): BrowserSessionHandle? = sessions[tabId]
+
+    override fun closeSession(tabId: String) {
+        sessions.remove(tabId)?.close()
+    }
+
+    override fun closeAll() {
+        sessions.values.forEach { it.close() }
+        sessions.clear()
+    }
+}
+
+class FakeBrowserStateRepository(
+    var storedState: PersistedBrowserState = PersistedBrowserState()
+) : BrowserStateRepository {
+    var saveCount = 0
+
+    override fun loadState(): PersistedBrowserState = storedState
+
+    override fun saveState(state: PersistedBrowserState) {
+        saveCount++
+        storedState = state
+    }
+}
+
+class FakeAmoApiClient : AmoApiClient {
+    var featuredResult: Result<List<AmoAddon>> = Result.success(emptyList())
+    var searchResult: Result<List<AmoAddon>> = Result.success(emptyList())
+    val searchedQueries = mutableListOf<String>()
+
+    override suspend fun fetchFeaturedExtensions(pageSize: Int): Result<List<AmoAddon>> = featuredResult
+
+    override suspend fun searchExtensions(query: String, pageSize: Int): Result<List<AmoAddon>> {
+        searchedQueries.add(query)
+        return searchResult
+    }
+}
+
+class FakeExtensionManager : ExtensionManager {
+    override val installedExtensions = MutableStateFlow<List<InstalledExtension>>(emptyList())
+    override val pendingPrompt = MutableStateFlow<ExtensionInstallPrompt?>(null)
+    override val activePopup = MutableStateFlow<ExtensionPopupState?>(null)
+
+    var nextInstallResult: Result<InstalledExtension>? = null
+    val installedUris = mutableListOf<String>()
+    val triggeredActionIds = mutableListOf<String>()
+    var lastPromptDecision: Boolean? = null
+
+    override suspend fun refreshInstalled(): Result<List<InstalledExtension>> {
+        return Result.success(installedExtensions.value)
+    }
+
+    override suspend fun installFromUri(uri: String): Result<InstalledExtension> {
+        installedUris.add(uri)
+        val result = nextInstallResult ?: Result.success(
+            InstalledExtension(
+                id = "ext-${installedUris.size}@rembrowse",
+                name = "Installed Extension ${installedUris.size}",
+                version = "1.0.0",
+                description = "Installed from $uri",
+                enabled = true,
+                hasBrowserAction = true
+            )
+        )
+        result.onSuccess { ext ->
+            installedExtensions.value = installedExtensions.value.filterNot { it.id == ext.id } + ext
+        }
+        return result
+    }
+
+    override suspend fun setEnabled(extensionId: String, enabled: Boolean): Result<Unit> {
+        installedExtensions.value = installedExtensions.value.map {
+            if (it.id == extensionId) it.copy(enabled = enabled) else it
+        }
+        return Result.success(Unit)
+    }
+
+    override suspend fun uninstall(extensionId: String): Result<Unit> {
+        installedExtensions.value = installedExtensions.value.filterNot { it.id == extensionId }
+        return Result.success(Unit)
+    }
+
+    override fun triggerBrowserAction(extensionId: String) {
+        triggeredActionIds.add(extensionId)
+        val ext = installedExtensions.value.firstOrNull { it.id == extensionId }
+        if (ext != null) {
+            activePopup.value = ExtensionPopupState(ext.id, ext.name, "popup-${ext.id}")
+        }
+    }
+
+    override fun dismissPopup() {
+        activePopup.value = null
+    }
+
+    override fun dismissPrompt(allow: Boolean) {
+        lastPromptDecision = allow
+        pendingPrompt.value?.onDecision?.invoke(allow)
+        pendingPrompt.value = null
+    }
+}

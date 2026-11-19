@@ -1,0 +1,22 @@
+# Gradle & build outputs
+.gradle/
+.kotlin/
+build/
+app/build/
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Local machine configuration
+local.properties
+
+# IDE files
+.idea/
+*.iml
+.DS_Store
+
+# Signing keys (keep keystore backed up securely outside public repos)
+signing/*.jks
+signing/*.keystore

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer browser frame subtle outline -->
+    <path
+        android:fillColor="#1E293B"
+        android:strokeColor="#334155"
+        android:strokeWidth="1.5"
+        android:pathData="M29,25 H79 A6,6 0 0 1 85,31 V77 A6,6 0 0 1 79,83 H29 A6,6 0 0 1 23,77 V31 A6,6 0 0 1 29,25 Z" />
+
+    <!-- Top-Left Active Pane (Cyan) -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M31,31 H51 A3,3 0 0 1 54,34 V50 A3,3 0 0 1 51,53 H31 A3,3 0 0 1 28,50 V34 A3,3 0 0 1 31,31 Z" />
+    <!-- Top-Left mini address bar highlight -->
+    <path
+        android:fillColor="#E0F2FE"
+        android:pathData="M32,35 H50 A1.5,1.5 0 0 1 51.5,36.5 V36.5 A1.5,1.5 0 0 1 50,38 H32 A1.5,1.5 0 0 1 30.5,36.5 V36.5 A1.5,1.5 0 0 1 32,35 Z" />
+
+    <!-- Top-Right Pane (Indigo) -->
+    <path
+        android:fillColor="#818CF8"
+        android:pathData="M59,31 H77 A3,3 0 0 1 80,34 V50 A3,3 0 0 1 77,53 H59 A3,3 0 0 1 56,50 V34 A3,3 0 0 1 59,31 Z" />
+    <path
+        android:fillColor="#E0E7FF"
+        android:fillAlpha="0.85"
+        android:pathData="M60,35 H76 A1.5,1.5 0 0 1 77.5,36.5 V36.5 A1.5,1.5 0 0 1 76,38 H60 A1.5,1.5 0 0 1 58.5,36.5 V36.5 A1.5,1.5 0 0 1 60,35 Z" />
+
+    <!-- Bottom-Left Pane (Emerald Teal) -->
+    <path
+        android:fillColor="#2DD4BF"
+        android:pathData="M31,57 H51 A3,3 0 0 1 54,60 V74 A3,3 0 0 1 51,77 H31 A3,3 0 0 1 28,74 V60 A3,3 0 0 1 31,57 Z" />
+    <path
+        android:fillColor="#CCFBF1"
+        android:fillAlpha="0.85"
+        android:pathData="M32,61 H46 A1.5,1.5 0 0 1 47.5,62.5 V62.5 A1.5,1.5 0 0 1 46,64 H32 A1.5,1.5 0 0 1 30.5,62.5 V62.5 A1.5,1.5 0 0 1 32,61 Z" />
+
+    <!-- Bottom-Right Extension Puzzle Pane (Amber Orange - Fox/Extension nod) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M59,57 H65 C65,54.8 66.8,53.5 68.5,53.5 C70.2,53.5 72,54.8 72,57 H77 A3,3 0 0 1 80,60 V74 A3,3 0 0 1 77,77 H59 A3,3 0 0 1 56,74 V60 A3,3 0 0 1 59,57 Z" />
+    <!-- Spark / extension dot -->
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M68,67m-3.2,0a3.2,3.2 0,1 1,6.4 0a3.2,3.2 0,1 1,-6.4 0" />
+
+    <!-- Center Resizable Split Handle Dot -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M55,55m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+</vector>
