@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.06`)
+# RemBrowse User Guide (`v0.07`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -20,7 +20,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
 * **More (⋯)** — new tab, close tab, command palette, bookmarks, downloads, extensions, desktop site, settings.
-* **Split** — opens the current tab beside another one, or picks another layout.
+* **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark and split view move into the **More** menu.
 
@@ -39,7 +39,9 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 ## 3. Split view
 
-Select **Split** in the toolbar:
+Everything about the split is in the **Split** menu, beside **More** in the toolbar. Nothing is added above the pages, so they keep the full height of the window.
+
+With one page on screen, the menu offers:
 
 | Choice | What you get |
 | :--- | :--- |
@@ -47,23 +49,24 @@ Select **Split** in the toolbar:
 | **Split left** | The current tab on the right, another tab on the left |
 | **Stacked** | Two panes, top and bottom |
 | **Grid** | Four panes |
-| **Close split** | Back to a single page. Your other tabs stay open in the rail |
 
 "Another tab" is one of your background tabs if you have any, otherwise a new start page. Focus stays on the page you were on.
 
-While a split is open, a strip appears above the panes:
+While a split is open, the **Split** button is filled and the same menu holds its controls:
 
-* **Linked tabs** (after the link icon) — the tabs that make up the split. The focused pane's tab is underlined. Select a tab to focus its pane; **×** closes that tab.
 * **Swap panes** — exchanges the focused pane with the next one. Focus follows your page.
-* **50/50** and **70/30** — preset sizes for the first pane.
-* **Expand focused pane** — returns that page to the full window.
-* **Close split** — back to a single page.
+* **Size** — **50 / 50** or **70 / 30** for the first pane. The current size is ticked. Offered for two panes, not for the grid.
+* **Layout** — **Side by side**, **Stacked** or **Grid**. This changes the arrangement only; the pages stay in their panes.
+* **Close split** — back to a single page: the focused one. Your other tabs stay open in the rail.
+
+On a phone-sized window the same menu is under **More → Split view**.
 
 Working in a split:
 
-* **One address bar.** The address bar and the back, reload and bookmark buttons at the top always act on the **focused pane**. It is the one with the accent outline, and its tab is underlined in the strip. Select anywhere inside a pane to focus it.
+* **One address bar.** The address bar and the back, reload and bookmark buttons at the top always act on the **focused pane**, the one with the accent outline. Select anywhere inside a pane to focus it, or select its tab in the rail. Tabs that are on screen are highlighted in the rail.
 * **Resize**: drag the grip between the panes (20%–80%), or **double-tap** it for an even split.
 * **Rearrange**: use **Swap panes**, or **Show in pane…** from a tab's menu in the rail.
+* **Close a page in the split**: `Ctrl+W`, **More → Close tab**, or **Close tab** from its menu in the rail. Its pane is refilled with another tab.
 * `Ctrl+\` toggles the split; `Ctrl+1`–`4` pick single, side by side, stacked and grid.
 
 ---

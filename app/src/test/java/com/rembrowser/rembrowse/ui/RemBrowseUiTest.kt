@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -25,8 +24,6 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.click
 import androidx.compose.ui.text.TextRange
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
@@ -120,16 +117,6 @@ class RemBrowseUiTest {
         }
     }
 
-    /**
-     * Presses a linked-tab chip on its icon. The headless test renderer measures text as almost
-     * zero width, which would put the chip's centre on its close button.
-     */
-    private fun clickChip(paneIndex: Int) {
-        composeRule.onNodeWithTag("split_chip_$paneIndex").performTouchInput {
-            click(Offset(20f, height / 2f))
-        }
-    }
-
     private fun loadPage(tabId: String, url: String, title: String) {
         engine.sessions.getValue(tabId).simulatePageLoad(url, title, canGoBack = false)
     }
@@ -171,45 +158,71 @@ class RemBrowseUiTest {
     }
 
     @Test
-    fun splitView_showsLinkedTabsAndItsOwnControls() {
-        loadPage(browserVm.uiState.value.activeTabId!!, "https://archinspire.co/", "Architecture")
+    fun splitView_keepsItsControlsInTheSplitMenuAndShowsNoBarAboveThePanes() {
+        val first = browserVm.uiState.value.activeTabId!!
+        loadPage(first, "https://archinspire.co/", "Architecture")
         browserVm.openNewTab("https://notion.so/project-notes")
         val notes = browserVm.uiState.value.activeTabId!!
         loadPage(notes, "https://notion.so/project-notes", "Project Notes")
         launch()
-        composeRule.onNodeWithTag("split_strip").assertDoesNotExist()
 
+        // Not split yet: the menu offers ways to split, and nothing about a split
         composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("split_swap").assertDoesNotExist()
+        composeRule.onNodeWithTag("layout_1x1").assertDoesNotExist()
         composeRule.onNodeWithTag("split_left").performClick()
 
-        // The current tab went to the right pane, as asked, and both tabs are listed as linked
-        composeRule.onNodeWithTag("split_strip").assertIsDisplayed()
+        // The current tab went to the right pane, as asked. No row of tabs or buttons is added
+        // above the panes: the split's controls are all in the menu.
         assertEquals(notes, browserVm.uiState.value.paneTabIds[1])
-        composeRule.onNodeWithTag("split_chip_0").assertIsDisplayed()
-        composeRule.onNodeWithTag("split_chip_1").assertIsSelected()
+        composeRule.onNodeWithTag("split_strip").assertDoesNotExist()
+        composeRule.onNodeWithTag("browser_pane_0").assertIsDisplayed()
+        composeRule.onNodeWithTag("browser_pane_1").assertIsDisplayed()
         // The one address bar at the top shows the focused pane's page...
         composeRule.onNodeWithTag("omnibox_input").assert(hasText("https://notion.so/project-notes"))
 
-        // ...and follows focus when a linked-tab chip is pressed
-        clickChip(0)
+        // ...and follows focus when the other page's tab is picked in the rail
+        composeRule.onNodeWithTag("tab_bar_item_$first").performClick()
         assertEquals(0, browserVm.uiState.value.activePaneIndex)
-        composeRule.onNodeWithTag("split_chip_0").assertIsSelected()
         composeRule.onNodeWithTag("omnibox_input").assert(hasText("https://archinspire.co"))
 
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("split_preset_50").assertIsSelected()
+        composeRule.onNodeWithTag("layout_1x2").assertIsSelected()
         composeRule.onNodeWithTag("split_preset_70").performClick()
         assertEquals(0.7f, browserVm.uiState.value.splitRatios.horizontal, 0.001f)
+
+        composeRule.onNodeWithTag("split_button").performClick()
         composeRule.onNodeWithTag("split_preset_70").assertIsSelected()
         composeRule.onNodeWithTag("split_preset_50").performClick()
         assertEquals(0.5f, browserVm.uiState.value.splitRatios.horizontal, 0.001f)
 
         val before = browserVm.uiState.value.paneTabIds
+        composeRule.onNodeWithTag("split_button").performClick()
         composeRule.onNodeWithTag("split_swap").performClick()
         assertEquals(before.reversed(), browserVm.uiState.value.paneTabIds)
+        assertEquals("Focus stays with the page, not the position", first, browserVm.uiState.value.activeTabId)
 
-        composeRule.onNodeWithTag("split_close").performClick()
+        // Stacked is the same split turned on its side; the presets size it too
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("layout_2x1").performClick()
+        assertEquals(LayoutMode.SPLIT_2X1, browserVm.uiState.value.layoutMode)
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("layout_2x1").assertIsSelected()
+        composeRule.onNodeWithTag("split_preset_70").performClick()
+        assertEquals(0.7f, browserVm.uiState.value.splitRatios.vertical, 0.001f)
+
+        // With four panes there is no single divider to size, so the presets are not offered
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("layout_2x2").performClick()
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("split_preset_50").assertDoesNotExist()
+        composeRule.onNodeWithTag("split_swap").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("layout_1x1").performClick()
         assertEquals(LayoutMode.SINGLE_1X1, browserVm.uiState.value.layoutMode)
-        composeRule.onNodeWithTag("split_strip").assertDoesNotExist()
-        assertEquals("Both tabs are still open", 2, browserVm.uiState.value.tabs.size)
+        assertEquals("Closing the split keeps the focused page", first, browserVm.uiState.value.activeTabId)
+        assertEquals("Every tab is still open", 4, browserVm.uiState.value.tabs.size)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -221,7 +234,8 @@ class RemBrowseUiTest {
         val left = browserVm.uiState.value.paneTabIds[0]
         val right = browserVm.uiState.value.paneTabIds[1]
 
-        clickChip(1)
+        composeRule.onNodeWithTag("tab_bar_item_$right").performClick()
+        assertEquals(1, browserVm.uiState.value.activePaneIndex)
         composeRule.onNodeWithTag("omnibox_input").performClick()
         composeRule.onNodeWithTag("omnibox_input").performTextInput("mozilla.org")
         composeRule.onNodeWithTag("omnibox_input").performKeyInput { pressKey(Key.Enter) }
@@ -235,15 +249,16 @@ class RemBrowseUiTest {
     }
 
     @Test
-    fun splitView_expandReturnsTheFocusedPaneToFullWindow() {
+    fun splitView_closingTheSplitKeepsWhicheverPaneIsFocused() {
         loadPage(browserVm.uiState.value.activeTabId!!, "https://archinspire.co/", "Architecture")
         browserVm.splitCurrentTab(currentOnLeft = true)
         launch()
         val right = browserVm.uiState.value.paneTabIds[1]
 
-        clickChip(1)
+        composeRule.onNodeWithTag("tab_bar_item_$right").performClick()
         assertEquals(1, browserVm.uiState.value.activePaneIndex)
-        composeRule.onNodeWithTag("split_expand").performClick()
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("layout_1x1").performClick()
 
         assertEquals(LayoutMode.SINGLE_1X1, browserVm.uiState.value.layoutMode)
         assertEquals(right, browserVm.uiState.value.activeTabId)

@@ -78,7 +78,7 @@ Because the section is the tab's URL, it is saved and restored with the rest of 
 
 ### Split view
 
-`BrowserViewModel.splitCurrentTab()` puts the focused tab into a two-pane layout on the requested side and keeps focus on it; `swapFocusedPane()` and `setSplitPreset()` back the strip's controls. `SplitStrip` lists the tabs in `paneTabIds` as linked tabs. Panes have no toolbars of their own: the single address bar reads `activeTab`, so it always shows and acts on the focused pane.
+`BrowserViewModel.splitCurrentTab()` puts the focused tab into a two-pane layout on the requested side and keeps focus on it; `swapFocusedPane()` and `setSplitPreset()` back the controls in the Split menu. That menu (`SplitMenu` in `BrowserTopBar`) is the only place the split's controls live: with one page on screen it lists the ways to split, and while a split is open it lists swap, the size presets (two panes only), the layouts and Close split. No row is drawn above the panes, and panes have no toolbars of their own: the single address bar reads `activeTab`, so it always shows and acts on the focused pane, which is marked by its outline and in the tab rail.
 
 ### New windows
 

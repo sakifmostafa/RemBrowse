@@ -53,7 +53,6 @@ import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.SettingsActions
 import com.rembrowser.rembrowse.ui.components.SettingsPage
-import com.rembrowser.rembrowse.ui.components.SplitStrip
 import com.rembrowser.rembrowse.ui.components.TabRail
 import com.rembrowser.rembrowse.ui.components.TabSwitcher
 import com.rembrowser.rembrowse.ui.components.TiledBrowserGrid
@@ -252,6 +251,8 @@ fun RemBrowseScreen(
                     onToggleDesktopMode = { browserViewModel.toggleDesktopMode() },
                     onSelectLayout = browserViewModel::setLayoutMode,
                     onSplit = browserViewModel::splitCurrentTab,
+                    onSwapPanes = browserViewModel::swapFocusedPane,
+                    onSetSplitPreset = browserViewModel::setSplitPreset,
                     onNewTab = openNewTab,
                     onCloseActiveTab = closeActiveTab,
                     onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
@@ -262,18 +263,6 @@ fun RemBrowseScreen(
                     onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction
                 )
-
-                if (browserState.isSplit) {
-                    SplitStrip(
-                        uiState = browserState,
-                        onFocusPane = browserViewModel::focusPane,
-                        onCloseTab = browserViewModel::closeTab,
-                        onSwap = browserViewModel::swapFocusedPane,
-                        onSetPreset = browserViewModel::setSplitPreset,
-                        onExpandFocusedPane = { browserViewModel.maximizePane(browserState.activePaneIndex) },
-                        onCloseSplit = { browserViewModel.setLayoutMode(LayoutMode.SINGLE_1X1) }
-                    )
-                }
 
                 Box(modifier = Modifier.weight(1f)) {
                     TiledBrowserGrid(

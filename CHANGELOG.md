@@ -2,6 +2,20 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.07 (2026-11-19) — Split controls move into the Split menu
+
+### Changed
+* **No bar above a split.** The row that appeared over the panes (linked tabs on the left, buttons on the right) is gone, so the pages get that height back. You focus a pane by selecting it, or its tab in the rail.
+* **The Split menu holds the controls.** While a split is open, the **Split** button beside More opens: **Swap panes**, **Size** (50 / 50 or 70 / 30, with the current one ticked), **Layout** (Side by side, Stacked, Grid) and **Close split**. With one page on screen it still offers Split right, Split left, Stacked and Grid.
+* **Size presets on small windows.** They were hidden on windows narrower than 720dp; in the menu they are always available.
+
+### Removed
+* **Expand focused pane.** It did exactly what **Close split** does (the focused page goes back to full size), so only Close split remains.
+* The close button on each linked tab. Close a page in a split with `Ctrl+W`, More → Close tab, or the tab's menu in the rail.
+
+### Testing
+161 automated tests.
+
 ## v0.06 (2026-11-19) — Downloads, and Tabs settings
 
 ### Added
