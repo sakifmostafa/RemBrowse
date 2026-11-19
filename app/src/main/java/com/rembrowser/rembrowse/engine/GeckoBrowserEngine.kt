@@ -542,7 +542,14 @@ class GeckoBrowserEngine(
 
     companion object {
         fun createRuntime(appContext: Context): GeckoRuntime {
+            // Preferences GeckoView has no setter for (see EngineConfig). Null means "none":
+            // the builder is then left alone, as before.
+            val configFile = EngineConfig.prepare(
+                directory = appContext.filesDir,
+                smallestScreenWidthDp = appContext.resources.configuration.smallestScreenWidthDp
+            )
             val settings = GeckoRuntimeSettings.Builder()
+                .apply { if (configFile != null) configFilePath(configFile) }
                 .extensionsProcessEnabled(true)
                 .extensionsWebAPIEnabled(true)
                 .aboutConfigEnabled(true)
