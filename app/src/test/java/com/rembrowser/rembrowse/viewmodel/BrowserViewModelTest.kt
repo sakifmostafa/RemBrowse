@@ -649,13 +649,26 @@ class BrowserViewModelTest {
     }
 
     @Test
-    fun searchEngine_choiceIsUsedForTypedSearchesAndSaved() {
-        viewModel.setSearchEngine(SearchEngine.GOOGLE)
+    fun searchEngine_isGoogleUntilAnotherIsChosen() {
+        assertEquals(SearchEngine.GOOGLE, viewModel.uiState.value.settings.searchEngine)
+        // Settings saved before the engine could be chosen, or naming one that no longer exists
+        assertEquals(SearchEngine.GOOGLE, SearchEngine.fromNameOrDefault(""))
+        assertEquals(SearchEngine.GOOGLE, SearchEngine.fromNameOrDefault("ALTAVISTA"))
+
         viewModel.onAddressBarChange("kotlin flow")
         viewModel.submitAddressBar()
 
         assertEquals("https://www.google.com/search?q=kotlin+flow", viewModel.uiState.value.activeTab!!.url)
-        assertEquals(SearchEngine.GOOGLE, repository.storedState.settings.searchEngine)
+    }
+
+    @Test
+    fun searchEngine_choiceIsUsedForTypedSearchesAndSaved() {
+        viewModel.setSearchEngine(SearchEngine.DUCKDUCKGO)
+        viewModel.onAddressBarChange("kotlin flow")
+        viewModel.submitAddressBar()
+
+        assertEquals("https://duckduckgo.com/?q=kotlin+flow", viewModel.uiState.value.activeTab!!.url)
+        assertEquals(SearchEngine.DUCKDUCKGO, repository.storedState.settings.searchEngine)
 
         // Addresses are never sent to the search engine
         viewModel.onAddressBarChange("example.com")

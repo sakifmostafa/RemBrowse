@@ -17,7 +17,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 * **Back**, and **Forward** when there is somewhere to go forward to.
 * **Reload** (becomes **Stop** while a page loads).
-* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use DuckDuckGo unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
+* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
 * **More (⋯)** — new tab, close tab, command palette, bookmarks, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one, or picks another layout.
@@ -87,7 +87,7 @@ Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them
 Sections are listed down the left side (across the top on a phone-sized window):
 
 * **Appearance** — theme colour (six choices) and **Use dark theme**.
-* **Search** — the search engine used when you type words into the address bar or the command palette: DuckDuckGo, Google, Bing, Brave Search or Startpage.
+* **Search** — the search engine used when you type words into the address bar or the command palette: Google (the default), DuckDuckGo, Bing, Brave Search or Startpage.
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#6-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.

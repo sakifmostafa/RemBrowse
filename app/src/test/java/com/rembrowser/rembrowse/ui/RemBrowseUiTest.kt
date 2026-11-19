@@ -321,10 +321,10 @@ class RemBrowseUiTest {
 
         composeRule.onNodeWithTag("settings_section_search").performClick()
         composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/search"))
-        composeRule.onNodeWithTag("search_engine_duckduckgo").assertIsSelected()
-        composeRule.onNodeWithTag("search_engine_google").performClick()
-        assertEquals(SearchEngine.GOOGLE, browserVm.uiState.value.settings.searchEngine)
         composeRule.onNodeWithTag("search_engine_google").assertIsSelected()
+        composeRule.onNodeWithTag("search_engine_duckduckgo").performClick()
+        assertEquals(SearchEngine.DUCKDUCKGO, browserVm.uiState.value.settings.searchEngine)
+        composeRule.onNodeWithTag("search_engine_duckduckgo").assertIsSelected()
 
         // Asking for settings again goes back to the same tab instead of opening another
         composeRule.onNodeWithTag("more_button").performClick()

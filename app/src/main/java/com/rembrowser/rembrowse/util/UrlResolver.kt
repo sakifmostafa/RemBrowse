@@ -1,12 +1,15 @@
 package com.rembrowser.rembrowse.util
 
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.SearchEngine
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 object UrlResolver {
-    const val DEFAULT_SEARCH_ENGINE_PREFIX = "https://duckduckgo.com/?q="
+    /** The default engine's search address, used when no engine is passed in. */
+    val DEFAULT_SEARCH_ENGINE_PREFIX: String
+        get() = SearchEngine.DEFAULT.queryUrl
 
     private val SCHEME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")
     private val SPECIAL_SCHEME_REGEX =

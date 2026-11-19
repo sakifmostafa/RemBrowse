@@ -30,11 +30,11 @@ class UrlResolverTest {
     @Test
     fun resolveInput_convertsSearchTermsToSearchUrl() {
         assertEquals(
-            "https://duckduckgo.com/?q=kotlin+jetpack+compose",
+            "https://www.google.com/search?q=kotlin+jetpack+compose",
             UrlResolver.resolveInput("kotlin jetpack compose")
         )
         assertEquals(
-            "https://duckduckgo.com/?q=weather",
+            "https://www.google.com/search?q=weather",
             UrlResolver.resolveInput("  weather  ")
         )
     }
@@ -59,9 +59,9 @@ class UrlResolverTest {
 
     @Test
     fun resolveInput_treatsNumbersAndVersionsAsSearchesNotHosts() {
-        assertEquals("https://duckduckgo.com/?q=3.14", UrlResolver.resolveInput("3.14"))
-        assertEquals("https://duckduckgo.com/?q=v1.2.3", UrlResolver.resolveInput("v1.2.3"))
-        assertEquals("https://duckduckgo.com/?q=e.g", UrlResolver.resolveInput("e.g"))
+        assertEquals("https://www.google.com/search?q=3.14", UrlResolver.resolveInput("3.14"))
+        assertEquals("https://www.google.com/search?q=v1.2.3", UrlResolver.resolveInput("v1.2.3"))
+        assertEquals("https://www.google.com/search?q=e.g", UrlResolver.resolveInput("e.g"))
         // ...while real addresses, including ones with a query or an IDN host, still load
         assertEquals("https://example.com?q=1", UrlResolver.resolveInput("example.com?q=1"))
         assertEquals("https://münchen.de", UrlResolver.resolveInput("münchen.de"))
@@ -70,10 +70,17 @@ class UrlResolverTest {
 
     @Test
     fun resolveInput_sendsSearchesToTheChosenEngine() {
-        val google = "https://www.google.com/search?q="
-        assertEquals("https://www.google.com/search?q=kotlin+flow", UrlResolver.resolveInput("kotlin flow", google))
-        assertEquals("An address is not a search", "https://github.com", UrlResolver.resolveInput("github.com", google))
-        assertEquals("rem://settings/privacy", UrlResolver.resolveInput("rem://settings/privacy", google))
+        // Not the default engine, so this can only pass if the argument is honoured
+        val brave = "https://search.brave.com/search?q="
+        assertEquals("https://search.brave.com/search?q=kotlin+flow", UrlResolver.resolveInput("kotlin flow", brave))
+        assertEquals("An address is not a search", "https://github.com", UrlResolver.resolveInput("github.com", brave))
+        assertEquals("rem://settings/privacy", UrlResolver.resolveInput("rem://settings/privacy", brave))
+    }
+
+    @Test
+    fun resolveInput_searchesWithGoogleWhenNoEngineIsGiven() {
+        assertEquals("https://www.google.com/search?q=", UrlResolver.DEFAULT_SEARCH_ENGINE_PREFIX)
+        assertEquals("https://www.google.com/search?q=kotlin+flow", UrlResolver.resolveInput("kotlin flow"))
     }
 
     @Test
