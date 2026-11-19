@@ -20,7 +20,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
@@ -94,8 +93,7 @@ fun BrowserTopBar(
     onToggleBookmark: () -> Unit,
     onToggleDesktopMode: () -> Unit,
     onSelectLayout: (LayoutMode) -> Unit,
-    onSwapPanes: (Int, Int) -> Unit,
-    onResetSplit: () -> Unit,
+    onSplit: (currentOnLeft: Boolean) -> Unit,
     onNewTab: () -> Unit,
     onCloseActiveTab: () -> Unit,
     onOpenTabSwitcher: () -> Unit,
@@ -206,31 +204,51 @@ fun BrowserTopBar(
                     onDismiss = { showLayoutMenu = false },
                     uiState = uiState,
                     onSelectLayout = onSelectLayout,
-                    onSwapPanes = onSwapPanes,
-                    onResetSplit = onResetSplit
+                    onSplit = onSplit
                 )
             }
         }
 
         if (!compact) {
-            Box {
-                RemIconButton(
-                    icon = Icons.AutoMirrored.Outlined.ViewSidebar,
-                    label = "Split view",
-                    onClick = { showLayoutMenu = true },
-                    selected = uiState.layoutMode != LayoutMode.SINGLE_1X1,
-                    modifier = Modifier.testTag("split_button")
+            Box(modifier = Modifier.padding(start = 4.dp, end = 2.dp)) {
+                SplitButton(
+                    isSplit = uiState.isSplit,
+                    onClick = { showLayoutMenu = true }
                 )
                 LayoutMenu(
                     expanded = showLayoutMenu,
                     onDismiss = { showLayoutMenu = false },
                     uiState = uiState,
                     onSelectLayout = onSelectLayout,
-                    onSwapPanes = onSwapPanes,
-                    onResetSplit = onResetSplit
+                    onSplit = onSplit
                 )
             }
         }
+    }
+}
+
+/** The labelled "Split" button. Filled while a split is on screen. */
+@Composable
+private fun SplitButton(isSplit: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val shape = MaterialTheme.shapes.medium
+    val content = if (isSplit) colors.onPrimaryContainer else colors.onSurface
+    Row(
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .height(36.dp)
+            .clip(shape)
+            .background(if (isSplit) colors.primaryContainer else colors.surface)
+            .border(1.dp, if (isSplit) colors.primary else colors.outlineVariant, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { selected = isSplit }
+            .testTag("split_button")
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        LayoutGlyph(mode = LayoutMode.SPLIT_1X2, color = content)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = "Split", style = MaterialTheme.typography.labelLarge, color = content)
     }
 }
 
@@ -249,6 +267,7 @@ private fun AddressPill(
     val colors = MaterialTheme.colorScheme
 
     // Unfocused: the tidy display form. Focused: the full address, selected, ready to replace.
+    // In a split this one bar always shows, and acts on, the focused pane.
     val shown = if (isFocused) input else UrlResolver.toDisplayUrl(input)
     var value by remember { mutableStateOf(TextFieldValue(shown)) }
     LaunchedEffect(isFocused) {
@@ -519,66 +538,74 @@ private fun MoreMenu(
     }
 }
 
+/**
+ * The Split menu: open the current tab beside another one (on either side), or pick one of the
+ * other layouts. "Single pane" closes a split.
+ */
 @Composable
 private fun LayoutMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     uiState: BrowserUiState,
     onSelectLayout: (LayoutMode) -> Unit,
-    onSwapPanes: (Int, Int) -> Unit,
-    onResetSplit: () -> Unit
+    onSplit: (currentOnLeft: Boolean) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        LayoutMode.entries.forEachIndexed { index, mode ->
-            val selected = uiState.layoutMode == mode
-            DropdownMenuItem(
-                text = { Text(mode.description) },
-                leadingIcon = {
-                    LayoutGlyph(mode = mode, color = if (selected) colors.primary else colors.onSurfaceVariant)
-                },
-                trailingIcon = {
-                    if (selected) {
-                        Icon(
-                            imageVector = Icons.Outlined.Check,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    } else {
-                        ShortcutHint("Ctrl+${index + 1}")
-                    }
-                },
-                onClick = {
-                    onDismiss()
-                    onSelectLayout(mode)
-                },
-                modifier = Modifier
-                    .testTag("layout_${mode.label}")
-                    .semantics { this.selected = selected }
-            )
-        }
-        val paneCount = uiState.layoutMode.paneCount
-        if (paneCount > 1) {
-            HorizontalDivider(color = colors.outlineVariant)
-            val active = uiState.activePaneIndex
-            for (other in 0 until paneCount) {
-                if (other == active) continue
-                DropdownMenuItem(
-                    text = { Text("Swap with pane ${other + 1}") },
-                    onClick = {
-                        onDismiss()
-                        onSwapPanes(active, other)
-                    }
-                )
-            }
-            DropdownMenuItem(
-                text = { Text("Reset split") },
-                onClick = {
-                    onDismiss()
-                    onResetSplit()
+
+    @Composable
+    fun item(
+        label: String,
+        glyph: LayoutMode,
+        tag: String,
+        selected: Boolean = false,
+        shortcut: String? = null,
+        onClick: () -> Unit
+    ) {
+        DropdownMenuItem(
+            text = { Text(label) },
+            leadingIcon = { LayoutGlyph(mode = glyph, color = if (selected) colors.primary else colors.onSurfaceVariant) },
+            trailingIcon = {
+                if (selected) {
+                    Icon(
+                        imageVector = Icons.Outlined.Check,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else if (shortcut != null) {
+                    ShortcutHint(shortcut)
                 }
-            )
+            },
+            onClick = {
+                onDismiss()
+                onClick()
+            },
+            modifier = Modifier
+                .testTag(tag)
+                .semantics { this.selected = selected }
+        )
+    }
+
+    val mode = uiState.layoutMode
+    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        item("Split right", LayoutMode.SPLIT_1X2, "layout_1x2", shortcut = "Ctrl+2") { onSplit(true) }
+        item("Split left", LayoutMode.SPLIT_1X2, "split_left") { onSplit(false) }
+        HorizontalDivider(color = colors.outlineVariant)
+        item("Stacked", LayoutMode.SPLIT_2X1, "layout_2x1", selected = mode == LayoutMode.SPLIT_2X1, shortcut = "Ctrl+3") {
+            onSelectLayout(LayoutMode.SPLIT_2X1)
+        }
+        item("Grid", LayoutMode.GRID_2X2, "layout_2x2", selected = mode == LayoutMode.GRID_2X2, shortcut = "Ctrl+4") {
+            onSelectLayout(LayoutMode.GRID_2X2)
+        }
+        HorizontalDivider(color = colors.outlineVariant)
+        item(
+            label = if (uiState.isSplit) "Close split" else "Single pane",
+            glyph = LayoutMode.SINGLE_1X1,
+            tag = "layout_1x1",
+            selected = mode == LayoutMode.SINGLE_1X1,
+            shortcut = "Ctrl+1"
+        ) {
+            onSelectLayout(LayoutMode.SINGLE_1X1)
         }
     }
 }

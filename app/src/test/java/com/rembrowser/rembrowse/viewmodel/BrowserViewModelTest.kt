@@ -226,6 +226,67 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun splitCurrentTab_opensItBesideABackgroundTabOnTheRequestedSide() {
+        engine.sessions.getValue("tab-1").simulatePageLoad("https://docs.example/", "Docs")
+        viewModel.openNewTab("https://notes.example/")
+        val notes = viewModel.uiState.value.activeTabId!!
+
+        viewModel.splitCurrentTab(currentOnLeft = true)
+        var state = viewModel.uiState.value
+        assertEquals(LayoutMode.SPLIT_1X2, state.layoutMode)
+        assertEquals("The current tab stays on the left", notes, state.paneTabIds[0])
+        assertEquals("An existing tab fills the other side", "tab-1", state.paneTabIds[1])
+        assertEquals("Focus stays with the page you were on", notes, state.activeTabId)
+        assertEquals("No extra tab is created when one is available", 2, state.tabs.size)
+
+        // Asking for the other side moves it without changing which page has focus
+        viewModel.splitCurrentTab(currentOnLeft = false)
+        state = viewModel.uiState.value
+        assertEquals(listOf("tab-1", notes), state.paneTabIds)
+        assertEquals(notes, state.activeTabId)
+        assertEquals(1, state.activePaneIndex)
+    }
+
+    @Test
+    fun splitCurrentTab_opensAStartPageWhenThereIsNoOtherTab() {
+        engine.sessions.getValue("tab-1").simulatePageLoad("https://docs.example/", "Docs")
+
+        viewModel.splitCurrentTab(currentOnLeft = true)
+
+        val state = viewModel.uiState.value
+        assertEquals(2, state.tabs.size)
+        assertEquals("tab-1", state.paneTabIds[0])
+        assertTrue(state.tabForPane(1)!!.isNewTabPage)
+        assertEquals("tab-1", state.activeTabId)
+    }
+
+    @Test
+    fun swapFocusedPane_exchangesThePagesAndFocusFollowsTheOneYouWereOn() {
+        viewModel.splitCurrentTab(currentOnLeft = true)
+        val left = viewModel.uiState.value.paneTabIds[0]
+        val right = viewModel.uiState.value.paneTabIds[1]
+
+        viewModel.swapFocusedPane()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(right, left), state.paneTabIds)
+        assertEquals(left, state.activeTabId)
+        assertEquals(1, state.activePaneIndex)
+    }
+
+    @Test
+    fun splitPresets_setAndSaveTheSizeOfTheFirstPane() {
+        viewModel.splitCurrentTab(currentOnLeft = true)
+
+        viewModel.setSplitPreset(0.7f)
+        assertEquals(0.7f, viewModel.uiState.value.splitRatios.horizontal, 0.001f)
+        assertEquals(0.7f, repository.storedState.splitRatios.horizontal, 0.001f)
+
+        viewModel.setSplitPreset(0.5f)
+        assertEquals(0.5f, viewModel.uiState.value.splitRatios.horizontal, 0.001f)
+    }
+
+    @Test
     fun maximizePane_switchesTo1x1ShowingChosenPaneTab() {
         viewModel.setLayoutMode(LayoutMode.GRID_2X2)
         val pane2TabId = viewModel.uiState.value.paneTabIds[2]

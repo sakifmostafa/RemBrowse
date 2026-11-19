@@ -45,6 +45,7 @@ import com.rembrowser.rembrowse.ui.components.ExtensionsManagerDialog
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.SettingsDialog
+import com.rembrowser.rembrowse.ui.components.SplitStrip
 import com.rembrowser.rembrowse.ui.components.TabRail
 import com.rembrowser.rembrowse.ui.components.TabSwitcher
 import com.rembrowser.rembrowse.ui.components.TiledBrowserGrid
@@ -141,9 +142,11 @@ fun RemBrowseScreen(
         chrome.showExtensions = true
     }
     val toggleSplitView = {
-        browserViewModel.setLayoutMode(
-            if (browserState.layoutMode == LayoutMode.SINGLE_1X1) LayoutMode.SPLIT_1X2 else LayoutMode.SINGLE_1X1
-        )
+        if (browserState.isSplit) {
+            browserViewModel.setLayoutMode(LayoutMode.SINGLE_1X1)
+        } else {
+            browserViewModel.splitCurrentTab(currentOnLeft = true)
+        }
     }
 
     BoxWithConstraints(
@@ -194,8 +197,7 @@ fun RemBrowseScreen(
                     onToggleBookmark = browserViewModel::toggleBookmarkForActiveTab,
                     onToggleDesktopMode = { browserViewModel.toggleDesktopMode() },
                     onSelectLayout = browserViewModel::setLayoutMode,
-                    onSwapPanes = browserViewModel::swapPanes,
-                    onResetSplit = browserViewModel::resetSplitRatios,
+                    onSplit = browserViewModel::splitCurrentTab,
                     onNewTab = openNewTab,
                     onCloseActiveTab = closeActiveTab,
                     onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
@@ -205,6 +207,18 @@ fun RemBrowseScreen(
                     onOpenSettings = { chrome.showSettings = true },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction
                 )
+
+                if (browserState.isSplit) {
+                    SplitStrip(
+                        uiState = browserState,
+                        onFocusPane = browserViewModel::focusPane,
+                        onCloseTab = browserViewModel::closeTab,
+                        onSwap = browserViewModel::swapFocusedPane,
+                        onSetPreset = browserViewModel::setSplitPreset,
+                        onExpandFocusedPane = { browserViewModel.maximizePane(browserState.activePaneIndex) },
+                        onCloseSplit = { browserViewModel.setLayoutMode(LayoutMode.SINGLE_1X1) }
+                    )
+                }
 
                 Box(modifier = Modifier.weight(1f)) {
                     TiledBrowserGrid(

@@ -165,7 +165,22 @@ class UiSnapshotTest {
     @Test
     fun splitView() {
         launch(layout = LayoutMode.SPLIT_1X2)
+        composeRule.runOnUiThread { browserVm.focusPane(1) }
         save("04-split-view")
+    }
+
+    @Test
+    fun splitViewMenu() {
+        launch()
+        composeRule.onNodeWithTag("split_button").performClick()
+        save("04b-split-menu")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun compactSplit() {
+        launch(layout = LayoutMode.SPLIT_2X1)
+        save("14-compact-split")
     }
 
     @Test

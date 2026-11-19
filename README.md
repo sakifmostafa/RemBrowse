@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.03`)
+# RemBrowse (`v0.04`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.03** — pick the file that matches your device's processor, open it on the device and confirm the install.
+**Version 0.04** — pick the file that matches your device's processor, open it on the device and confirm the install.
 
 | Your device | Download |
 | :--- | :--- |
@@ -22,7 +22,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 ## What it does
 
 * **Quiet, single-row chrome**: a tab rail on the left (pinned sites, open tabs, new tab) and one toolbar (back, reload, address, bookmark, menu, split view). Dark by default, with a light theme and six accent colours.
-* **Split view**: one, two (side by side or stacked) or four live panes with draggable dividers. Every visible pane keeps rendering; the focused one is outlined.
+* **Split view**: open the current tab beside another one, on either side, with a draggable divider, 50/50 and 70/30 presets, swap, expand and close. A strip above the split shows which tabs are linked into it. Stacked and four-pane layouts are there too. The one address bar at the top always acts on the focused pane.
 * **Tab switcher**: a searchable grid of every open tab.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.
