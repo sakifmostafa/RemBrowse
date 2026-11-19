@@ -497,13 +497,18 @@ class GeckoBrowserEngine(
     override fun setEnhancedPrivacy(enabled: Boolean) {
         runOnMain {
             runCatching {
+                // Neither level uses Gecko's "content" list (AntiTracking.CONTENT / STRICT, or
+                // EtpLevel.STRICT). That list contains general-purpose hosts such as
+                // cloudflare.com, gstatic.com, google.com and cdn.jsdelivr.net, so blocking it
+                // breaks Cloudflare's bot check, reCAPTCHA and a large part of the web.
+                val standard = ContentBlocking.AntiTracking.DEFAULT
+                val enhanced = standard or
+                    ContentBlocking.AntiTracking.CRYPTOMINING or
+                    ContentBlocking.AntiTracking.FINGERPRINTING or
+                    ContentBlocking.AntiTracking.EMAIL
                 runtime.settings.contentBlocking
-                    .setAntiTracking(
-                        if (enabled) ContentBlocking.AntiTracking.STRICT else ContentBlocking.AntiTracking.DEFAULT
-                    )
-                    .setEnhancedTrackingProtectionLevel(
-                        if (enabled) ContentBlocking.EtpLevel.STRICT else ContentBlocking.EtpLevel.DEFAULT
-                    )
+                    .setAntiTracking(if (enabled) enhanced else standard)
+                    .setEnhancedTrackingProtectionLevel(ContentBlocking.EtpLevel.DEFAULT)
                     .setStrictSocialTrackingProtection(enabled)
             }.onFailure { Log.w(TAG, "Could not update tracking protection", it) }
         }

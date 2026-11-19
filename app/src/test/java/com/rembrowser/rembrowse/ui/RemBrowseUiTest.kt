@@ -4,9 +4,13 @@ import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -14,6 +18,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -22,6 +28,7 @@ import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AccentColor
+import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
@@ -135,6 +142,23 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("new_tab_page").assertDoesNotExist()
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun pressingEnterInTheAddressBar_navigatesWithoutOpeningAnythingElse() {
+        launch()
+
+        composeRule.onNodeWithTag("omnibox_input").performClick()
+        composeRule.onNodeWithTag("omnibox_input").performTextInput("mozilla.org")
+        // A hardware Enter key: press and release, exactly as a laptop keyboard sends it
+        composeRule.onNodeWithTag("omnibox_input").performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        assertEquals("https://mozilla.org", browserVm.uiState.value.activeTab?.url)
+        assertFalse("The tab switcher must stay closed", chrome.showTabSwitcher)
+        composeRule.onNodeWithTag("tab_switcher").assertDoesNotExist()
+        assertFalse("The address bar gives up focus", browserVm.uiState.value.isAddressBarFocused)
+    }
+
     @Test
     fun bookmarkButton_savesThePageAndPinsItToTheRail() {
         launch()
@@ -231,8 +255,52 @@ class RemBrowseUiTest {
 
         composeRule.onNodeWithTag("settings_section_privacy").performClick()
         composeRule.onNodeWithTag("setting_enhanced_privacy").performClick()
-        assertFalse(browserVm.uiState.value.settings.enhancedPrivacy)
-        assertEquals(false, engine.enhancedPrivacy)
+        assertTrue(browserVm.uiState.value.settings.enhancedPrivacy)
+        assertEquals(true, engine.enhancedPrivacy)
+    }
+
+    @Test
+    fun settings_adBlockerSwitchTurnsTheDefaultBlockerOffAndOn() {
+        extensionManager.installedExtensions.value = listOf(
+            InstalledExtension(
+                id = DefaultAdBlocker.ID,
+                name = "AdGuard AdBlocker",
+                version = "5.0",
+                description = "",
+                enabled = true
+            )
+        )
+        launch()
+        composeRule.runOnUiThread { chrome.showSettings = true }
+        composeRule.onNodeWithTag("settings_section_privacy").performClick()
+
+        composeRule.onNodeWithTag("setting_ad_blocker").assertIsOn()
+        composeRule.onNodeWithTag("setting_ad_blocker").performClick()
+        assertFalse(extensionManager.installedExtensions.value.single().enabled)
+        composeRule.onNodeWithTag("setting_ad_blocker").assertIsOff()
+
+        composeRule.onNodeWithTag("setting_ad_blocker").performClick()
+        assertTrue(extensionManager.installedExtensions.value.single().enabled)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun pressingEnterInTabSearch_opensTheMatchAndLeavesTheSwitcherClosed() {
+        browserVm.openNewTab("https://github.com/")
+        val tabs = browserVm.uiState.value.tabs
+        loadPage(tabs[1].id, "https://github.com/", "GitHub")
+        browserVm.selectTab(tabs[0].id)
+        launch()
+
+        composeRule.onNodeWithTag("tab_switcher_button").performClick()
+        composeRule.onNodeWithTag("switcher_search").performClick()
+        composeRule.onNodeWithTag("switcher_search").performTextInput("git")
+        composeRule.onNodeWithTag("switcher_search").performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        assertEquals(tabs[1].id, browserVm.uiState.value.activeTabId)
+        assertFalse("Enter must not reopen the switcher", chrome.showTabSwitcher)
+        composeRule.onNodeWithTag("tab_switcher").assertDoesNotExist()
     }
 
     @Test

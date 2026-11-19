@@ -33,6 +33,11 @@ class SharedPrefsBrowserStateRepository(
         private const val PREFS_NAME = "rembrowse_state_v1"
         private const val KEY_STATE_JSON = "browser_state_json"
 
+        // v0.02 saved "enhancedPrivacy": true for everyone without asking, and that mode broke
+        // Cloudflare-protected sites. The value is stored under a new key so those installs
+        // return to the standard level instead of keeping a choice the user never made.
+        private const val KEY_ENHANCED_PRIVACY = "enhancedTrackingProtection"
+
         internal fun encode(state: PersistedBrowserState): String {
             val root = JSONObject()
             root.put("layoutMode", state.layoutMode.name)
@@ -75,7 +80,7 @@ class SharedPrefsBrowserStateRepository(
                 JSONObject().apply {
                     put("useDarkTheme", state.settings.useDarkTheme)
                     put("accent", state.settings.accent.name)
-                    put("enhancedPrivacy", state.settings.enhancedPrivacy)
+                    put(KEY_ENHANCED_PRIVACY, state.settings.enhancedPrivacy)
                 }
             )
 
@@ -143,7 +148,7 @@ class SharedPrefsBrowserStateRepository(
                 BrowserSettings(
                     useDarkTheme = settingsObj.optBoolean("useDarkTheme", defaults.useDarkTheme),
                     accent = AccentColor.fromNameOrDefault(settingsObj.optString("accent", "")),
-                    enhancedPrivacy = settingsObj.optBoolean("enhancedPrivacy", defaults.enhancedPrivacy)
+                    enhancedPrivacy = settingsObj.optBoolean(KEY_ENHANCED_PRIVACY, defaults.enhancedPrivacy)
                 )
             }
 

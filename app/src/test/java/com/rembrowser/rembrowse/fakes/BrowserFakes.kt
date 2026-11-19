@@ -132,6 +132,10 @@ class FakeBrowserStateRepository(
     }
 }
 
+class FakeDefaultExtensionStore(
+    override var defaultBlockerProvisioned: Boolean = false
+) : com.rembrowser.rembrowse.data.DefaultExtensionStore
+
 class FakeAmoApiClient : AmoApiClient {
     var featuredResult: Result<List<AmoAddon>> = Result.success(emptyList())
     var searchResult: Result<List<AmoAddon>> = Result.success(emptyList())
@@ -177,6 +181,28 @@ class FakeExtensionManager : ExtensionManager {
                 name = "Installed Extension ${installedUris.size}",
                 version = "1.0.0",
                 description = "Installed from $uri",
+                enabled = true,
+                hasBrowserAction = true
+            )
+        )
+        result.onSuccess { ext ->
+            installedExtensions.value = installedExtensions.value.filterNot { it.id == ext.id } + ext
+        }
+        return result
+    }
+
+    /** uri to expectedId, for installs that skipped the permission review. */
+    val trustedInstalls = mutableListOf<Pair<String, String>>()
+    var nextTrustedInstallResult: Result<InstalledExtension>? = null
+
+    override suspend fun installTrusted(uri: String, expectedId: String): Result<InstalledExtension> {
+        trustedInstalls.add(uri to expectedId)
+        val result = nextTrustedInstallResult ?: Result.success(
+            InstalledExtension(
+                id = expectedId,
+                name = "AdGuard AdBlocker",
+                version = "5.0.0",
+                description = "Blocks ads and trackers",
                 enabled = true,
                 hasBrowserAction = true
             )

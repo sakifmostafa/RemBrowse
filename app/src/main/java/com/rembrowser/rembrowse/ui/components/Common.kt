@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +51,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
@@ -139,10 +141,10 @@ fun SiteIcon(
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     if (isNewTab) {
-        Icon(
-            imageVector = Icons.Outlined.AutoAwesome,
+        // The start page is RemBrowse's own page, so it carries the RemBrowse mark
+        Image(
+            painter = painterResource(R.drawable.rembrowse_mark),
             contentDescription = null,
-            tint = tint,
             modifier = modifier.size(size)
         )
         return

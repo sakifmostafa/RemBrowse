@@ -40,8 +40,11 @@ enum class AccentColor(val label: String) {
 data class BrowserSettings(
     val useDarkTheme: Boolean = true,
     val accent: AccentColor = AccentColor.MAROON,
-    /** Strict tracking protection (blocks fingerprinters, cryptominers and tracking content). */
-    val enhancedPrivacy: Boolean = true
+    /**
+     * Also block known fingerprinters, cryptominers and email trackers. Off by default: the
+     * standard level is what keeps every site working.
+     */
+    val enhancedPrivacy: Boolean = false
 )
 
 data class SplitRatios(

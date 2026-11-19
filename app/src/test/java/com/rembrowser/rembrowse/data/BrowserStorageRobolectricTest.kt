@@ -64,7 +64,7 @@ class BrowserStorageRobolectricTest {
 
     @Test
     fun saveAndLoadState_persistsAppearanceAndPrivacySettings() {
-        val settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE, enhancedPrivacy = false)
+        val settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE, enhancedPrivacy = true)
         repository.saveState(PersistedBrowserState(settings = settings))
 
         assertEquals(settings, repository.loadState().settings)
@@ -82,5 +82,32 @@ class BrowserStorageRobolectricTest {
         assertEquals(LayoutMode.SPLIT_1X2, restored.layoutMode)
         assertEquals(BrowserSettings(), restored.settings)
         assertEquals("https://mozilla.org", restored.tabs.single().url)
+    }
+
+    @Test
+    fun loadState_dropsTheStrictModeThatVersion002TurnedOnForEveryone() {
+        // v0.02 wrote "enhancedPrivacy": true without asking, and that mode broke sites
+        context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+            .edit()
+            .putString(
+                "browser_state_json",
+                """{"tabs":[],"settings":{"useDarkTheme":false,"accent":"GREEN","enhancedPrivacy":true}}"""
+            )
+            .commit()
+
+        val settings = repository.loadState().settings
+        assertEquals("Other choices are kept", AccentColor.GREEN, settings.accent)
+        assertEquals(false, settings.useDarkTheme)
+        assertEquals("Back to standard protection", false, settings.enhancedPrivacy)
+    }
+
+    @Test
+    fun defaultExtensionStore_remembersThatTheAdBlockerWasSetUp() {
+        val store = SharedPrefsDefaultExtensionStore(context)
+        store.defaultBlockerProvisioned = false
+        assertEquals(false, SharedPrefsDefaultExtensionStore(context).defaultBlockerProvisioned)
+
+        store.defaultBlockerProvisioned = true
+        assertEquals(true, SharedPrefsDefaultExtensionStore(context).defaultBlockerProvisioned)
     }
 }

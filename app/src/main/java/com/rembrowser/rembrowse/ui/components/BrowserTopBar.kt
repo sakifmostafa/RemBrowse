@@ -56,7 +56,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -88,6 +87,7 @@ fun BrowserTopBar(
     onAddressBarChange: (String) -> Unit,
     onAddressBarFocusChange: (Boolean) -> Unit,
     onSubmitAddressBar: () -> Unit,
+    onLeaveAddressBar: () -> Unit,
     onBack: () -> Unit,
     onForward: () -> Unit,
     onReloadOrStop: () -> Unit,
@@ -152,6 +152,7 @@ fun BrowserTopBar(
             onChange = onAddressBarChange,
             onFocusChange = onAddressBarFocusChange,
             onSubmit = onSubmitAddressBar,
+            onLeave = onLeaveAddressBar,
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 4.dp)
@@ -242,10 +243,10 @@ private fun AddressPill(
     onChange: (String) -> Unit,
     onFocusChange: (Boolean) -> Unit,
     onSubmit: () -> Unit,
+    onLeave: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
-    val focusManager = LocalFocusManager.current
 
     // Unfocused: the tidy display form. Focused: the full address, selected, ready to replace.
     val shown = if (isFocused) input else UrlResolver.toDisplayUrl(input)
@@ -296,7 +297,10 @@ private fun AddressPill(
             keyboardActions = KeyboardActions(
                 onGo = {
                     onSubmit()
-                    focusManager.clearFocus()
+                    // Focus is handed to the page, never just cleared: clearing it lets Android
+                    // refocus the first button in the window, and the Enter key's release
+                    // would then press that button.
+                    onLeave()
                 }
             ),
             modifier = Modifier
@@ -308,7 +312,7 @@ private fun AddressPill(
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                         // Abandon the edit and show the current page's address again
-                        focusManager.clearFocus()
+                        onLeave()
                         true
                     } else {
                         false

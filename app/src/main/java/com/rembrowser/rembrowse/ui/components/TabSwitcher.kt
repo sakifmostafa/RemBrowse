@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -77,10 +79,14 @@ fun TabSwitcher(
     onCloseTab: (String) -> Unit,
     onNewTab: () -> Unit,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSearchFocusChange: (Boolean) -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     var query by remember { mutableStateOf("") }
+    DisposableEffect(Unit) {
+        onDispose { onSearchFocusChange(false) }
+    }
     val tabs = remember(uiState.tabs, query) {
         val needle = query.trim()
         if (needle.isEmpty()) {
@@ -121,6 +127,7 @@ fun TabSwitcher(
                     onQueryChange = { query = it },
                     onSubmit = { tabs.firstOrNull()?.let { onSelectTab(it.id) } },
                     onEscape = onDismiss,
+                    onFocusChange = onSearchFocusChange,
                     focusRequester = searchFocus,
                     modifier = Modifier.weight(1f)
                 )
@@ -179,6 +186,7 @@ private fun TabSearchField(
     onQueryChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onEscape: () -> Unit,
+    onFocusChange: (Boolean) -> Unit,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier
 ) {
@@ -210,6 +218,7 @@ private fun TabSearchField(
             modifier = Modifier
                 .weight(1f)
                 .focusRequester(focusRequester)
+                .onFocusChanged { onFocusChange(it.isFocused) }
                 .testTag("switcher_search")
                 .semantics { contentDescription = "Search tabs" }
                 .onPreviewKeyEvent { event ->

@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,12 +50,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.ui.theme.tones
@@ -73,6 +76,10 @@ private enum class SettingsSection(val label: String, val icon: ImageVector) {
 fun SettingsDialog(
     settings: BrowserSettings,
     versionName: String,
+    adBlockerOn: Boolean,
+    adBlockerBusy: Boolean,
+    adBlockerError: String?,
+    onSetAdBlocker: (Boolean) -> Unit,
     onSetDarkTheme: (Boolean) -> Unit,
     onSetAccent: (AccentColor) -> Unit,
     onSetEnhancedPrivacy: (Boolean) -> Unit,
@@ -110,7 +117,14 @@ fun SettingsDialog(
                         Spacer(modifier = Modifier.height(16.dp))
                         when (section) {
                             SettingsSection.APPEARANCE -> AppearanceSection(settings, onSetDarkTheme, onSetAccent)
-                            SettingsSection.PRIVACY -> PrivacySection(settings, onSetEnhancedPrivacy)
+                            SettingsSection.PRIVACY -> PrivacySection(
+                                settings = settings,
+                                adBlockerOn = adBlockerOn,
+                                adBlockerBusy = adBlockerBusy,
+                                adBlockerError = adBlockerError,
+                                onSetAdBlocker = onSetAdBlocker,
+                                onSetEnhancedPrivacy = onSetEnhancedPrivacy
+                            )
                             SettingsSection.ABOUT -> AboutSection(versionName)
                         }
                     }
@@ -285,11 +299,33 @@ private fun AppearanceSection(
 }
 
 @Composable
-private fun PrivacySection(settings: BrowserSettings, onSetEnhancedPrivacy: (Boolean) -> Unit) {
+private fun PrivacySection(
+    settings: BrowserSettings,
+    adBlockerOn: Boolean,
+    adBlockerBusy: Boolean,
+    adBlockerError: String?,
+    onSetAdBlocker: (Boolean) -> Unit,
+    onSetEnhancedPrivacy: (Boolean) -> Unit
+) {
+    SwitchRow(
+        title = "Block ads and trackers",
+        description = when {
+            adBlockerBusy -> "Installing AdGuard AdBlocker…"
+            adBlockerError != null -> adBlockerError
+            else -> "Uses the AdGuard AdBlocker extension from addons.mozilla.org. To filter pages " +
+                "it can read and change the sites you visit. Manage or remove it under Extensions."
+        },
+        checked = adBlockerOn,
+        onCheckedChange = onSetAdBlocker,
+        testTag = "setting_ad_blocker",
+        enabled = !adBlockerBusy,
+        isError = adBlockerError != null && !adBlockerBusy
+    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     SwitchRow(
         title = "Enhanced privacy (restricts tracking)",
-        description = "Blocks trackers, fingerprinters and cryptominers on every site. " +
-            "Turn it off if a site you trust stops working.",
+        description = "Also blocks known fingerprinters, cryptominers and email trackers. " +
+            "Standard tracking protection stays on either way. Turn this off if a site stops working.",
         checked = settings.enhancedPrivacy,
         onCheckedChange = onSetEnhancedPrivacy,
         testTag = "setting_enhanced_privacy"
@@ -299,6 +335,12 @@ private fun PrivacySection(settings: BrowserSettings, onSetEnhancedPrivacy: (Boo
 @Composable
 private fun AboutSection(versionName: String) {
     val colors = MaterialTheme.colorScheme
+    Image(
+        painter = painterResource(R.drawable.rembrowse_mark),
+        contentDescription = "RemBrowse logo",
+        modifier = Modifier.size(72.dp)
+    )
+    Spacer(modifier = Modifier.height(12.dp))
     Text(text = "RemBrowse $versionName", style = MaterialTheme.typography.titleSmall)
     Spacer(modifier = Modifier.height(4.dp))
     Text(
@@ -316,14 +358,16 @@ private fun SwitchRow(
     description: String?,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    testTag: String
+    testTag: String,
+    enabled: Boolean = true,
+    isError: Boolean = false
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
             .testTag(testTag)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -334,7 +378,7 @@ private fun SwitchRow(
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant,
+                    color = if (isError) colors.error else colors.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
@@ -343,6 +387,7 @@ private fun SwitchRow(
         Switch(
             checked = checked,
             onCheckedChange = null,
+            enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = colors.primaryContainer,
                 checkedThumbColor = colors.onPrimaryContainer,
