@@ -39,15 +39,18 @@ enum class AccentColor(val label: String) {
 
 /** Where searches typed into the address bar are sent. */
 enum class SearchEngine(val label: String, val queryUrl: String) {
-    DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q="),
     GOOGLE("Google", "https://www.google.com/search?q="),
+    DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q="),
     BING("Bing", "https://www.bing.com/search?q="),
     BRAVE("Brave Search", "https://search.brave.com/search?q="),
     STARTPAGE("Startpage", "https://www.startpage.com/sp/search?query=");
 
     companion object {
+        /** Used until the user picks another engine in Settings. Stored by name, not position. */
+        val DEFAULT = GOOGLE
+
         fun fromNameOrDefault(name: String?): SearchEngine {
-            return entries.firstOrNull { it.name == name } ?: DUCKDUCKGO
+            return entries.firstOrNull { it.name == name } ?: DEFAULT
         }
     }
 }
@@ -75,7 +78,7 @@ enum class SettingsSection(val path: String, val label: String) {
 data class BrowserSettings(
     val useDarkTheme: Boolean = true,
     val accent: AccentColor = AccentColor.MAROON,
-    val searchEngine: SearchEngine = SearchEngine.DUCKDUCKGO,
+    val searchEngine: SearchEngine = SearchEngine.DEFAULT,
     /**
      * Also block known fingerprinters, cryptominers and email trackers. Off by default: the
      * standard level is what keeps every site working.
