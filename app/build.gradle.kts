@@ -12,13 +12,19 @@ android {
         applicationId = "com.rembrowser.rembrowse"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.01"
+        versionCode = 4
+        versionName = "0.02"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+    // One APK per CPU type instead of a single 380 MB package carrying both engines.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
         }
     }
 
@@ -41,13 +47,19 @@ android {
             }
         }
         release {
-            isMinifyEnabled = false
+            // Shrink only (see proguard-rules.pro): removes unused library code, mostly the
+            // bundled icon set, without renaming or rewriting anything.
+            isMinifyEnabled = true
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
+                getDefaultProguardFile("proguard-android.txt"),
                 "proguard-rules.pro"
             )
-            if (keystoreFile.exists()) {
-                signingConfig = signingConfigs.getByName("rembrowseKey")
+            // Without the project keystore the build is signed with the local debug key so it
+            // can still be installed. Such a build cannot update one signed with the real key.
+            signingConfig = if (keystoreFile.exists()) {
+                signingConfigs.getByName("rembrowseKey")
+            } else {
+                signingConfigs.getByName("debug")
             }
         }
     }
@@ -70,6 +82,13 @@ android {
         unitTests {
             isIncludeAndroidResources = true
             isReturnDefaultValues = true
+            all { test ->
+                // Opt-in UI renders: ./gradlew testDebugUnitTest -Prembrowse.screenshots=build/ui-screenshots
+                (project.findProperty("rembrowse.screenshots") as String?)?.let { dir ->
+                    test.systemProperty("rembrowse.screenshots", project.file(dir).absolutePath)
+                    test.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+                }
+            }
         }
     }
 
@@ -80,8 +99,35 @@ android {
     }
 }
 
+androidComponents {
+    // Release APKs store the native engine compressed, which halves the download.
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.packaging.jniLibs.useLegacyPackaging.set(true)
+    }
+}
+
+// Builds the installable APKs and copies them to <repo>/build under stable names, ready to be
+// committed. The README's "Download latest" links point at these files.
+tasks.register<Copy>("publishApk") {
+    group = "distribution"
+    description = "Builds release APKs and copies them to the repository's build/ folder."
+    dependsOn("assembleRelease")
+    val versionName = android.defaultConfig.versionName
+    val versionCode = android.defaultConfig.versionCode
+    val target = rootProject.layout.projectDirectory.dir("build")
+    from(layout.buildDirectory.dir("outputs/apk/release")) {
+        include("*.apk")
+        rename { it.replace("-v$versionName", "").replace("-release", "") }
+    }
+    into(target)
+    doLast {
+        target.file("VERSION.txt").asFile.writeText("RemBrowse $versionName (versionCode $versionCode)\n")
+    }
+}
+
 base {
-    archivesName.set("RemBrowse-v0.01")
+    // Follows versionName so the APK name never drifts from the version it contains
+    archivesName.set("RemBrowse-v${android.defaultConfig.versionName}")
 }
 
 dependencies {

@@ -4,7 +4,9 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
+import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
@@ -58,5 +60,27 @@ class BrowserStorageRobolectricTest {
         assertEquals(1, restored.activePaneIndex)
         assertEquals(1, restored.bookmarks.size)
         assertEquals("https://addons.mozilla.org", restored.bookmarks.first().url)
+    }
+
+    @Test
+    fun saveAndLoadState_persistsAppearanceAndPrivacySettings() {
+        val settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE, enhancedPrivacy = false)
+        repository.saveState(PersistedBrowserState(settings = settings))
+
+        assertEquals(settings, repository.loadState().settings)
+    }
+
+    @Test
+    fun loadState_fallsBackToDefaultsForDataSavedByAnOlderVersion() {
+        // v0.01 stored no "settings" object at all
+        context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+            .edit()
+            .putString("browser_state_json", """{"layoutMode":"SPLIT_1X2","tabs":[{"id":"t1","url":"https://mozilla.org"}]}""")
+            .commit()
+
+        val restored = repository.loadState()
+        assertEquals(LayoutMode.SPLIT_1X2, restored.layoutMode)
+        assertEquals(BrowserSettings(), restored.settings)
+        assertEquals("https://mozilla.org", restored.tabs.single().url)
     }
 }

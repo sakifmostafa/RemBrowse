@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **28 tests** (JVM unit tests + Robolectric persistence + headless Jetpack Compose UI tests):
+Run all **88 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -52,31 +52,67 @@ Run a single test class:
 ```
 
 Test suites included:
-* `UrlResolverTest` — URL/domain normalization, localhost/IP handling, DuckDuckGo search fallback, `.xpi` URI validation.
-* `AmoJsonParserTest` — AMO v5 JSON response parsing, locale fallback, malformed entry filtering.
-* `BrowserViewModelTest` — Layout switching (`1x1`/`1x2`/`2x1`/`2x2`), focused tab retention, multi-pane compositor visibility, split ratio clamping/reset, pane swap, maximize, desktop mode, bookmarks.
-* `ExtensionsViewModelTest` — AMO featured/search loading, `.xpi` URL validation & installation, enable/disable/uninstall.
-* `BrowserStorageRobolectricTest` — Real Android `SharedPreferences` JSON persistence round-trip.
-* `RemBrowseUiTest` — Headless Compose UI verification of layout switcher, Tab Bar tab switching, and Extensions dialog.
+* `UrlResolverTest` — address vs. search detection, display form, favicon location, extension link validation.
+* `KeyboardShortcutsTest` — shortcut mapping, key-repeat suppression, modifier handling.
+* `ErrorPagesTest` — error page content and HTML escaping of the failed address.
+* `AmoJsonParserTest` — AMO v5 response parsing, locale fallbacks, duplicate and insecure entry filtering.
+* `BrowserViewModelTest` — layouts, lazy session creation, tab closing, new-window requests, split ratios, prompts, bookmarks, settings.
+* `ExtensionsViewModelTest` — catalog loading and cancellation, install validation, cancel and failure handling.
+* `CommandPaletteResultsTest` — what the command palette offers for a typed query.
+* `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
+* `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01.
+* `RemBrowseUiTest` / `CompactWindowUiTest` — the real Compose screen on a laptop-sized and a phone-sized window.
+
+### Rendering the UI without a device
+
+`UiSnapshotTest` renders the main screens (start page, browsing, tab switcher, split view, command palette, settings, light theme, compact layout) to PNG files. It is skipped unless you name a target directory:
+
+```bash
+./gradlew testDebugUnitTest --tests "*UiSnapshotTest*" -Prembrowse.screenshots=build/ui-screenshots
+```
+
+The images land in `app/build/ui-screenshots/`. Web content is a placeholder, because the real engine cannot run on the JVM, and dialogs are drawn at the top-left corner without the dimmed backdrop a device shows.
 
 ---
 
-## 4. Building & Verifying the Signed APK
+## 4. Building the APKs
+
+Every build produces **one APK per processor type** (`arm64-v8a` and `x86_64`).
+
+### Publishing the "Download latest" APKs
+
+```bash
+./gradlew publishApk --no-daemon \
+  --project-cache-dir="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum | cut -c1-8)/gradle"
+```
+
+This builds the release variant and copies the result to the repository's `build/` folder under stable names, so the README links never need to change:
+
+```text
+build/RemBrowse-arm64-v8a.apk
+build/RemBrowse-x86_64.apk
+build/VERSION.txt
+```
+
+Commit those three files to publish a new version. Release APKs are about 85–90 MB: the native engine is stored compressed and unused library code is removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`). Each file must stay under GitHub's 100 MB limit.
+
+### Debug builds
 
 ```bash
 ./gradlew assembleDebug --no-daemon \
   --project-cache-dir="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum | cut -c1-8)/gradle"
 ```
 
-Output path:
+Output (about 190–210 MB each, uncompressed for fast incremental builds):
 ```text
-app/build/outputs/apk/debug/RemBrowse-v0.01-debug.apk
+app/build/outputs/apk/debug/RemBrowse-v0.02-arm64-v8a-debug.apk
+app/build/outputs/apk/debug/RemBrowse-v0.02-x86_64-debug.apk
 ```
 
-Verify APK badging, ABIs (`arm64-v8a`, `x86_64`), and v2 signature:
+### Verifying an APK
 
 ```bash
-APK="app/build/outputs/apk/debug/RemBrowse-v0.01-debug.apk"
+APK="build/RemBrowse-x86_64.apk"
 "$HOME/Android/Sdk/build-tools/35.0.0/aapt2" dump badging "$APK" | grep -E 'package:|targetSdkVersion:|application-label:|native-code:'
 "$HOME/Android/Sdk/build-tools/35.0.0/apksigner" verify --verbose "$APK"
 ```
@@ -85,6 +121,7 @@ APK="app/build/outputs/apk/debug/RemBrowse-v0.01-debug.apk"
 
 ## 5. Signing & Versioning Rules
 
-* **Persistent Keystore**: Builds use `signing/rembrowse.jks` (4096-bit RSA, alias `rembrowse`). Keeping this keystore stable lets you upgrade installed builds in place without uninstalling.
-* **Version Increments**: For each new release, update `versionName` (e.g., `"0.02"`, `"0.03"`) and **always increment `versionCode` monotonically** (`3` → `4` → `5`...) in `app/build.gradle.kts` to avoid `INSTALL_FAILED_VERSION_DOWNGRADE`.
-* **64-Bit ABIs**: `abiFilters` includes both `arm64-v8a` and `x86_64` for full compatibility across ARM64 Android devices and x86_64 Android Laptops / Googlebooks.
+* **Persistent keystore**: when `signing/rembrowse.jks` exists (4096-bit RSA, alias `rembrowse`; passwords from `REMBROWSE_STORE_PASSWORD` / `REMBROWSE_KEY_PASSWORD`), debug and release builds are signed with it. Keeping this keystore stable lets installed builds upgrade in place. It is intentionally not committed.
+* **Without the keystore** (a fresh clone, CI, a cloud build), builds are signed with that machine's debug key so they remain installable. Android will not install such a build over one signed with a different key: uninstall the old copy first. **Publish from a machine that has the keystore** if you want downloads to update in place.
+* **Version increments**: for each new release, update `versionName` (e.g. `"0.03"`) and **always increment `versionCode`** (`4` → `5` …) in `app/build.gradle.kts` to avoid `INSTALL_FAILED_VERSION_DOWNGRADE`. APK names and `build/VERSION.txt` follow `versionName` automatically; update the version shown in the README's download section.
+* **Processor types**: `arm64-v8a` covers ARM phones, tablets and laptops; `x86_64` covers Intel/AMD Android laptops.

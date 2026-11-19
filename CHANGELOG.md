@@ -2,6 +2,56 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.02 (2026-11-19) — New interface, lighter builds, reliability and security fixes
+
+### New interface
+* Replaced the three-row top bar with a **left tab rail** (pinned sites, open tabs, new tab) and a **single toolbar** (back, reload, address pill, bookmark, menu, split view).
+* New design tokens: `#14161B` chrome with a maroon/rose accent, dark by default, plus a **light theme** and **six accent colours** (Settings → Appearance). Every theme is checked against WCAG contrast minimums by a unit test.
+* **Native start page** with a clock: new tabs open instantly and offline instead of loading a search engine.
+* **Tab switcher**: searchable grid of all open tabs.
+* **Command palette** (`Ctrl+K`): search, open an address, switch tabs or run commands.
+* **Settings panel**: theme colour, dark theme, enhanced privacy.
+* Split view panes no longer carry header bars; the focused pane is outlined, and swapping panes or resetting the split lives in the split-view menu.
+* Phone-sized windows get a compact toolbar with a tab counter.
+* Touch targets are at least 48dp, every icon button has an accessible name and tooltip, and selection states never rely on colour alone.
+
+### Lighter
+* Release APKs are now **84–90 MB instead of 382 MB**: one APK per processor type, compressed native libraries, unused library code removed.
+* Only tabs shown in a pane get a live engine session at launch; background tabs are restored when first shown.
+* The AMO catalog requests a single language, which shrinks each response considerably.
+* Switching layouts resizes the existing web views instead of destroying and recreating them.
+
+### Fixed
+* Live tabs were **duplicated and leaked** whenever Android re-created the activity; sessions are now retained across re-creation and closed exactly once.
+* A link shared from another app was **re-opened** after every activity re-creation.
+* `window.open` / `target=_blank` lost `window.opener` (breaking popup sign-in and payment flows); the new tab now adopts the session the page asked for.
+* JavaScript `alert`/`confirm`/`prompt`, HTTP sign-in and all **`<select>` dropdowns** did nothing; they now show dialogs.
+* Failed navigations (offline, unknown host, bad certificate…) silently did nothing; an error page with a retry link is shown.
+* A tab whose content process crashed or was killed by the OS stayed blank; it is now restored with its history, with a manual reload after repeated crashes.
+* Dragging a split divider after resizing the window used the old window size, and wrote to storage on every pointer move.
+* Holding `Ctrl+T`/`Ctrl+W` repeated the action for every key-repeat tick.
+* Closing a tab in split view shuffled the other panes.
+* A page without a `<title>` kept showing the previous page's title.
+* Cancelling an extension's permission prompt showed an error banner; a second prompt could overwrite the first and leave an install hanging.
+* One tab's extension badge (for example a blocker's counter) leaked onto every other tab.
+* Importing a local `.xpi` blocked the main thread and never deleted its temporary copy.
+* Numbers such as `3.14` or `v1.2` were treated as web addresses.
+* `./gradlew` was not executable.
+
+### Security & privacy
+* Links from other apps are only opened when they are `http(s)`; `file:`, `javascript:`, `about:` and extension URLs are ignored.
+* Extension **updates that request new permissions** and **optional permission requests** are no longer approved silently.
+* Extension packages are only accepted over `https://` (or from a local file).
+* The browser profile is excluded from cloud backup and device-to-device transfer.
+* Page console output is no longer written to logcat in release builds.
+* The address bar's lock icon reflects the engine's verified connection state rather than the URL scheme.
+
+### Added shortcuts
+`Ctrl+K` command palette · `Ctrl+,` settings · `Ctrl+\` split view · `Ctrl+Tab` / `Ctrl+Shift+Tab` next/previous tab · `Ctrl+D` bookmark · `Alt+←` / `Alt+→` back/forward · `Alt+D` address bar · `F5` reload.
+
+### Testing
+88 automated tests (was 28), plus an opt-in task that renders the main screens to PNG without a device.
+
 ## v0.01 (2026-11-19) — Initial Release
 
 * **Browser Engine**: Integrated Mozilla **GeckoView `138.0`** with `BACKEND_TEXTURE_VIEW`, `arm64-v8a` and `x86_64` 64-bit native ABIs, desktop/mobile user-agent toggle, and tracking protection.

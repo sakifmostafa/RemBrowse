@@ -1,13 +1,18 @@
 # Gradle & build outputs
 .gradle/
 .kotlin/
-build/
 app/build/
 captures/
 *.apk
 *.aab
 *.ap_
 *.dex
+
+# The repo-root build/ folder holds the published APKs (./gradlew publishApk).
+# Everything else Gradle drops in there is scratch output.
+/build/*
+!/build/*.apk
+!/build/VERSION.txt
 
 # Local machine configuration
 local.properties

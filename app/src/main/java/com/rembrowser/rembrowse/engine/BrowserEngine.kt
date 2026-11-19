@@ -3,6 +3,7 @@ package com.rembrowser.rembrowse.engine
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
+import com.rembrowser.rembrowse.model.PagePrompt
 import kotlinx.coroutines.flow.StateFlow
 
 data class SessionNavigationUpdate(
@@ -11,12 +12,27 @@ data class SessionNavigationUpdate(
     val isLoading: Boolean? = null,
     val progress: Int? = null,
     val canGoBack: Boolean? = null,
-    val canGoForward: Boolean? = null
+    val canGoForward: Boolean? = null,
+    val isSecure: Boolean? = null,
+    val crashed: Boolean? = null,
+    /** A new document started loading (as opposed to an in-page navigation). */
+    val isPageStart: Boolean = false
 )
 
 interface SessionEventListener {
     fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate)
-    fun onNewTabRequested(url: String)
+
+    /**
+     * Content (or an extension) asked for a new tab. The listener must create the tab's session
+     * with [BrowserEngine.createSession] before returning, so the engine can hand that session
+     * back to the page that opened it and keep `window.opener` working.
+     */
+    fun onNewTabRequested(url: String, openerTabId: String?)
+
+    fun onPromptRequested(prompt: PagePrompt) {}
+
+    /** The page withdrew a prompt (for example by navigating away) before the user answered. */
+    fun onPromptDismissed(promptId: String) {}
 }
 
 interface BrowserSessionHandle {
@@ -43,7 +59,13 @@ interface BrowserEngine {
     fun getSession(tabId: String): BrowserSessionHandle?
     fun closeSession(tabId: String)
     fun closeAll()
+
+    /** Switches tracking protection between the standard and the strict blocking level. */
+    fun setEnhancedPrivacy(enabled: Boolean) {}
 }
+
+/** The user backed out of the permission prompt; not an error worth reporting. */
+class ExtensionInstallCancelledException : Exception("Extension installation was cancelled")
 
 interface ExtensionManager {
     val installedExtensions: StateFlow<List<InstalledExtension>>

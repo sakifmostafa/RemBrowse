@@ -1,71 +1,110 @@
-# RemBrowse User Guide (`v0.01`)
+# RemBrowse User Guide (`v0.02`)
 
-Welcome to **RemBrowse**, a tiled multi-pane web browser with native Mozilla WebExtension (`.xpi`) support built for Android and Googlebook OS.
-
----
-
-## 1. Tab Bar & Navigation
-
-* **Top Tab Bar**: Shows all open tabs across your workspace.
-  * Tap any tab to switch to it (in tiled layouts, tapping a tab already on screen focuses its pane; tapping a hidden tab loads it into your active pane).
-  * In multi-pane layouts (`1x2`, `2x1`, `2x2`), tabs currently visible in a pane show a **`P1`–`P4`** badge.
-  * Tap **`×`** on the right edge of a tab to close it, or **`+`** at the end of the strip to open a new tab.
-* **Omnibox**: Type any URL (`github.com`, `localhost:3000`, `about:config`) or search query (defaults to DuckDuckGo) and press Enter.
-  * When in multi-pane mode, a **`P1`–`P4`** badge inside the omnibox indicates which pane you are navigating.
-* **Desktop / Mobile Mode**: Tap the **monitor/phone icon** next to the omnibox to toggle Desktop User-Agent mode for the active pane.
-* **Bookmarks & Tabs Manager**: Tap the **tab-count pill** (far right) to view all open tabs, send any tab directly to Pane 1/2/3/4, or browse/delete saved bookmarks.
+RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
 ---
 
-## 2. Customizable Tiled Layouts (`1x1`, `1x2`, `2x1`, `2x2`)
+## 1. The window at a glance
 
-Switch layouts anytime from the layout strip below the address bar:
+**Tab rail (left edge)**, top to bottom:
 
-| Mode | Layout | Behavior |
-| :--- | :--- | :--- |
-| **`1x1`** | Single full-screen pane | Shows your focused pane's tab; all other open tabs remain in the top Tab Bar |
-| **`1x2`** | Side-by-side split (2 columns) | Left + Right panes with a draggable vertical divider |
-| **`2x1`** | Top / Bottom split (2 rows) | Upper + Lower panes with a draggable horizontal divider |
-| **`2x2`** | Quad 4-pane grid | Four simultaneous live panes with both horizontal and vertical dividers |
+* **Tab switcher** — opens a grid of every open tab.
+* **Pinned sites** — your first six bookmarks. Select one to open it.
+* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…**.
+* **+** — opens a new tab.
 
-### Resizing & Pane Controls
-* **Drag Dividers**: Grab any vertical or horizontal handle between panes to resize them smoothly (20%–80% range).
-* **Reset Split**: **Double-tap** any divider to snap ratios back to 50/50.
-* **Focus Pane**: Tap anywhere inside a pane (or its header bar) to make it the active pane (highlighted with a cyan border).
-* **Pane Header Actions**: Each tiled pane header offers **Back**, **Reload**, **Swap Pane** (exchange contents with another pane), **Maximize** (jump straight to `1x1` with that tab), and **Close**.
+**Toolbar (top)**, left to right:
 
----
+* **Back**, and **Forward** when there is somewhere to go forward to.
+* **Reload** (becomes **Stop** while a page loads).
+* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search (DuckDuckGo) and press Enter. Selecting the bar selects the whole address; Esc cancels the edit. A lock means the connection is verified secure; an open red lock means it is not.
+* **Star** — bookmarks the current page.
+* **More (⋯)** — new tab, close tab, command palette, bookmarks, extensions, desktop site, settings.
+* **Split view** — choose a layout.
 
-## 3. Installing & Managing WebExtensions (`.xpi`)
+On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark and split view move into the **More** menu.
 
-Tap the **amber puzzle icon** in the top bar to open **RemBrowse WebExtensions**:
-
-1. **Browse AMO (Recommended)**:
-   * Fetches live Android-compatible add-ons from `addons.mozilla.org`.
-   * Search for extensions such as **uBlock Origin**, **Dark Reader**, **Tampermonkey**, **Bitwarden**, or **Privacy Badger**.
-   * Tap **Add** → review permissions in the prompt dialog → tap **Add Extension**.
-2. **Install `.xpi` Tab**:
-   * **Direct URL**: Paste any Mozilla-signed `.xpi` download URL and tap **Install from URL**.
-   * **Local File**: Tap **Choose `.xpi` File from Device** to import a signed `.xpi` file from local storage.
-3. **Installed Tab & Extension Popups**:
-   * Toggle any extension on/off, uninstall it, or open its popup/options view.
-   * Enabled extensions with toolbar actions also appear as quick amber chips along the layout bar—tap a chip to open the extension's interactive popup window.
-
-> **Signing note**: Standard GeckoView requires `.xpi` packages to be signed by Mozilla (all add-ons from `addons.mozilla.org` are signed).
+**Start page** — a new tab shows a clock and the date instead of loading a website. Just start typing in the address bar.
 
 ---
 
-## 4. Hardware Keyboard Shortcuts
+## 2. Tabs
 
-Designed for Googlebook OS / external keyboards:
+* **Tab switcher**: select the top icon of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it.
+* `Ctrl+Tab` / `Ctrl+Shift+Tab` move to the next or previous tab.
+* Only the tabs you can see are kept running. Tabs in the background are paused and restored when you return to them, including after a restart.
+* If a tab's page crashes, it is reloaded for you. After repeated crashes it shows a **Reload** button instead.
+
+---
+
+## 3. Split view
+
+Open the **Split view** menu in the toolbar (or `Ctrl+1`–`4`):
+
+| Layout | What you get |
+| :--- | :--- |
+| **Single pane** | One page. Your other tabs stay open in the rail |
+| **Side by side** | Two panes, left and right |
+| **Stacked** | Two panes, top and bottom |
+| **Grid** | Four panes |
+
+* **Focus**: select anywhere inside a pane. The focused pane has an accent outline, and the address bar and toolbar act on it.
+* **Resize**: drag the handle between panes (20%–80%). **Double-tap** the handle, or choose **Reset split** in the menu, for an even split.
+* **Rearrange**: **Swap with pane…** in the split-view menu, or **Show in pane…** from a tab's menu in the rail.
+* `Ctrl+\` toggles between a single pane and side by side.
+
+---
+
+## 4. Command palette
+
+Press `Ctrl+K` (or **More → Command palette**), then type:
+
+* words to **search the web**, or an address to **open it**;
+* part of a tab's title to **switch to that tab**;
+* a command name: new tab, close tab, split view, bookmarks, extensions, settings.
+
+Use ↑/↓ to move, Enter to run, Esc to close.
+
+---
+
+## 5. Settings
+
+**More → Settings** (or `Ctrl+,`):
+
+* **Appearance** — theme colour (six choices) and **Use dark theme**.
+* **Privacy** — **Enhanced privacy** blocks trackers, fingerprinters and cryptominers on every site. Turn it off if a site you trust stops working.
+* **About** — version information.
+
+---
+
+## 6. Extensions (`.xpi`)
+
+Open **More → Extensions**:
+
+1. **Discover** — search add-ons from addons.mozilla.org (uBlock Origin, Dark Reader, Bitwarden…). Select **Add**, review the permissions, then confirm.
+2. **From file** — paste an `https://` link to a `.xpi`, or choose a `.xpi` file already on the device.
+3. **Installed** — turn an extension on or off, open its popup or options, or remove it (you are asked to confirm).
+
+Enabled extensions with a toolbar button also appear in the **More** menu, with their badge.
+
+You are asked again whenever an update needs **new permissions** or an extension requests **additional permissions**.
+
+> **Signing note**: extensions must be signed by Mozilla (everything on addons.mozilla.org is).
+
+---
+
+## 7. Keyboard shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |
-| `Ctrl + T` | Open new tab in active pane |
-| `Ctrl + W` | Close active tab |
-| `Ctrl + L` | Focus address bar (omnibox) |
-| `Ctrl + R` | Reload / stop active pane |
-| `Ctrl + 1` | Switch to `1x1` layout |
-| `Ctrl + 2` | Switch to `1x2` layout |
-| `Ctrl + 3` | Switch to `2x1` layout |
-| `Ctrl + 4` | Switch to `2x2` layout |
+| `Ctrl + T` | New tab |
+| `Ctrl + W` | Close tab |
+| `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
+| `Ctrl + L` or `Alt + D` | Focus the address bar |
+| `Ctrl + K` | Command palette |
+| `Ctrl + R` or `F5` | Reload / stop |
+| `Alt + ←` / `Alt + →` | Back / forward |
+| `Ctrl + D` | Bookmark this page |
+| `Ctrl + ,` | Settings |
+| `Ctrl + \` | Toggle split view |
+| `Ctrl + 1` … `Ctrl + 4` | Single pane, side by side, stacked, grid |

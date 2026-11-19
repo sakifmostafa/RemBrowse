@@ -1,45 +1,131 @@
 package com.rembrowser.rembrowse
 
+import android.annotation.SuppressLint
+import android.app.Application
 import android.content.Intent
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.ui.BrowserChromeState
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
+import com.rembrowser.rembrowse.util.BrowserShortcut
+import com.rembrowser.rembrowse.util.KeyboardShortcuts
+import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoView
 import java.io.File
 
+private const val TAG = "MainActivity"
+
+/**
+ * Owns the engine sessions and view models for as long as the browser window exists.
+ *
+ * Being an Android ViewModel, it survives activity re-creation, so live tabs are neither
+ * duplicated nor leaked when the system rebuilds the activity, and they are closed exactly
+ * once, when the window really goes away.
+ */
+class BrowserSessionHolder(application: Application) : AndroidViewModel(application) {
+
+    val engine: GeckoBrowserEngine
+    val extensionManager: GeckoExtensionManager
+    val browser: BrowserViewModel
+    val extensions: ExtensionsViewModel
+
+    init {
+        val runtime = (application as RemBrowseApplication).geckoRuntime
+        engine = GeckoBrowserEngine(application, providedRuntime = runtime)
+        extensionManager = GeckoExtensionManager(
+            runtime = runtime,
+            openExtensionTab = { url -> engine.adoptNewTab(url, openerTabId = null) },
+            openUrlInNewTab = ::openTabForExtension
+        )
+        engine.onFocusedSessionChanged = extensionManager::setActiveSession
+        browser = BrowserViewModel(
+            engine = engine,
+            repository = SharedPrefsBrowserStateRepository(application)
+        )
+        extensions = ExtensionsViewModel(
+            extensionManager = extensionManager,
+            amoApiClient = OkHttpAmoApiClient(
+                userAgent = "RemBrowse/${BuildConfig.VERSION_NAME} (Android; GeckoView)"
+            ),
+            scope = viewModelScope
+        )
+    }
+
+    private fun openTabForExtension(url: String) {
+        browser.openNewTab(url)
+    }
+
+    /** Copies a picked `.xpi` into the cache off the main thread, installs it, then cleans up. */
+    fun installLocalExtension(uri: Uri) {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val copy = withContext(Dispatchers.IO) {
+                runCatching {
+                    val importDir = File(app.cacheDir, "xpi_imports").apply { mkdirs() }
+                    val target = File(importDir, "import-${System.currentTimeMillis()}.xpi")
+                    val input = app.contentResolver.openInputStream(uri)
+                        ?: error("Unable to open the selected file")
+                    input.use { source -> target.outputStream().use { source.copyTo(it) } }
+                    target
+                }.onFailure { Log.e(TAG, "Failed to import local XPI", it) }.getOrNull()
+            }
+            if (copy == null) {
+                extensions.reportError("Couldn't read the selected file.")
+            } else {
+                extensions.installFromUri(Uri.fromFile(copy).toString(), onFinished = { copy.delete() })
+            }
+        }
+    }
+
+    override fun onCleared() {
+        browser.shutdown()
+        extensionManager.dismissPopup()
+    }
+}
+
 class MainActivity : ComponentActivity() {
 
-    private lateinit var engine: GeckoBrowserEngine
-    private lateinit var extensionManager: GeckoExtensionManager
-    private lateinit var browserViewModel: BrowserViewModel
-    private lateinit var extensionsViewModel: ExtensionsViewModel
-    private val addressBarFocusRequester = FocusRequester()
+    private val holder: BrowserSessionHolder by viewModels()
+    private val chrome = BrowserChromeState()
 
     private val pickLocalXpiLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            installFromPickedDocumentUri(uri)
+            holder.installLocalExtension(uri)
         }
     }
 
@@ -47,49 +133,50 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val app = application as RemBrowseApplication
-        val runtime = app.geckoRuntime
+        val engine = holder.engine
+        val extensionManager = holder.extensionManager
 
-        engine = GeckoBrowserEngine(applicationContext, providedRuntime = runtime)
-        extensionManager = GeckoExtensionManager(runtime)
+        // Only for a fresh launch: a re-created activity still carries the original intent and
+        // would otherwise open the same link again.
+        if (savedInstanceState == null) {
+            handleIncomingIntent(intent)
+        }
 
-        val stateRepository = SharedPrefsBrowserStateRepository(applicationContext)
-        val amoApiClient = OkHttpAmoApiClient()
-
-        browserViewModel = BrowserViewModel(
-            engine = engine,
-            repository = stateRepository
-        )
-        extensionsViewModel = ExtensionsViewModel(
-            extensionManager = extensionManager,
-            amoApiClient = amoApiClient,
-            scope = lifecycleScope
-        )
-
-        handleIncomingIntent(intent)
-
-        onBackPressedDispatcher.addCallback(
-            this,
-            object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    val activeTab = browserViewModel.uiState.value.activeTab
-                    if (activeTab?.canGoBack == true) {
-                        browserViewModel.goBack()
-                    } else {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                        isEnabled = true
-                    }
-                }
-            }
-        )
+        val initialSettings = holder.browser.uiState.value.settings
+        val settingsFlow = holder.browser.uiState.map { it.settings }.distinctUntilChanged()
 
         setContent {
-            RemBrowseTheme {
+            val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
+            val darkTheme = settings.useDarkTheme
+
+            // Keep system bar icons legible against the chrome, and let pages that honour
+            // prefers-color-scheme match the browser.
+            DisposableEffect(darkTheme) {
+                val style = if (darkTheme) {
+                    SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+                }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                onDispose { }
+            }
+            LaunchedEffect(darkTheme) {
+                engine.runtime.settings.setPreferredColorScheme(
+                    if (darkTheme) {
+                        GeckoRuntimeSettings.COLOR_SCHEME_DARK
+                    } else {
+                        GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
+                    }
+                )
+            }
+
+            RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent) {
+                val pageBackground = MaterialTheme.colorScheme.surfaceContainerLowest.toArgb()
                 RemBrowseScreen(
-                    browserViewModel = browserViewModel,
-                    extensionsViewModel = extensionsViewModel,
-                    addressBarFocusRequester = addressBarFocusRequester,
+                    browserViewModel = holder.browser,
+                    extensionsViewModel = holder.extensions,
+                    chrome = chrome,
+                    versionName = BuildConfig.VERSION_NAME,
                     onPickLocalXpi = {
                         pickLocalXpiLauncher.launch(arrayOf("*/*"))
                     },
@@ -105,7 +192,9 @@ class MainActivity : ComponentActivity() {
                             factory = { ctx ->
                                 GeckoView(ctx).apply {
                                     setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
-                                    setBackgroundColor(0xFF0B1120.toInt())
+                                    // Set once: covering again on every update would hide a
+                                    // page that has already painted.
+                                    coverUntilFirstPaint(pageBackground)
                                     geckoViewHolder[0] = this
                                     engine.attachSessionToView(tab.id, this)
                                 }
@@ -128,7 +217,7 @@ class MainActivity : ComponentActivity() {
                             factory = { ctx ->
                                 GeckoView(ctx).apply {
                                     setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
-                                    coverUntilFirstPaint(0xFF111827.toInt())
+                                    coverUntilFirstPaint(pageBackground)
                                     popupViewHolder[0] = this
                                     extensionManager.getPopupGeckoSession()?.let { setSession(it) }
                                 }
@@ -149,80 +238,71 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIncomingIntent(intent)
     }
 
+    // Shortcuts are read here, before the focused view, so they also work while a web page has
+    // focus. Lint flags the override as a restricted API although it is a public Activity hook.
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.isCtrlPressed) {
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_T -> {
-                    browserViewModel.openNewTab()
-                    return true
-                }
-                KeyEvent.KEYCODE_W -> {
-                    browserViewModel.uiState.value.activeTabId?.let { browserViewModel.closeTab(it) }
-                    return true
-                }
-                KeyEvent.KEYCODE_L -> {
-                    runCatching { addressBarFocusRequester.requestFocus() }
-                    return true
-                }
-                KeyEvent.KEYCODE_R -> {
-                    browserViewModel.reloadOrStop()
-                    return true
-                }
-                KeyEvent.KEYCODE_1 -> {
-                    browserViewModel.setLayoutMode(LayoutMode.SINGLE_1X1)
-                    return true
-                }
-                KeyEvent.KEYCODE_2 -> {
-                    browserViewModel.setLayoutMode(LayoutMode.SPLIT_1X2)
-                    return true
-                }
-                KeyEvent.KEYCODE_3 -> {
-                    browserViewModel.setLayoutMode(LayoutMode.SPLIT_2X1)
-                    return true
-                }
-                KeyEvent.KEYCODE_4 -> {
-                    browserViewModel.setLayoutMode(LayoutMode.GRID_2X2)
-                    return true
-                }
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val shortcut = KeyboardShortcuts.resolve(
+                keyCode = event.keyCode,
+                ctrl = event.isCtrlPressed,
+                shift = event.isShiftPressed,
+                alt = event.isAltPressed,
+                meta = event.isMetaPressed,
+                repeatCount = event.repeatCount
+            )
+            if (shortcut != null) {
+                performShortcut(shortcut)
+                return true
             }
         }
         return super.dispatchKeyEvent(event)
     }
 
-    override fun onDestroy() {
-        if (isFinishing) {
-            browserViewModel.shutdown()
-            extensionManager.dismissPopup()
+    private fun performShortcut(shortcut: BrowserShortcut) {
+        val browser = holder.browser
+        when (shortcut) {
+            BrowserShortcut.NEW_TAB -> {
+                browser.openNewTab()
+                chrome.focusAddressBar()
+            }
+            BrowserShortcut.CLOSE_TAB -> browser.uiState.value.activeTabId?.let { browser.closeTab(it) }
+            BrowserShortcut.FOCUS_ADDRESS_BAR -> chrome.focusAddressBar()
+            BrowserShortcut.RELOAD -> browser.reloadOrStop()
+            BrowserShortcut.BACK -> browser.goBack()
+            BrowserShortcut.FORWARD -> browser.goForward()
+            BrowserShortcut.NEXT_TAB -> browser.selectAdjacentTab(1)
+            BrowserShortcut.PREVIOUS_TAB -> browser.selectAdjacentTab(-1)
+            BrowserShortcut.TOGGLE_BOOKMARK -> browser.toggleBookmarkForActiveTab()
+            BrowserShortcut.COMMAND_PALETTE -> chrome.showCommandPalette = true
+            BrowserShortcut.OPEN_SETTINGS -> chrome.showSettings = true
+            BrowserShortcut.TOGGLE_SPLIT_VIEW -> browser.setLayoutMode(
+                if (browser.uiState.value.layoutMode == LayoutMode.SINGLE_1X1) {
+                    LayoutMode.SPLIT_1X2
+                } else {
+                    LayoutMode.SINGLE_1X1
+                }
+            )
+            BrowserShortcut.LAYOUT_SINGLE -> browser.setLayoutMode(LayoutMode.SINGLE_1X1)
+            BrowserShortcut.LAYOUT_SIDE_BY_SIDE -> browser.setLayoutMode(LayoutMode.SPLIT_1X2)
+            BrowserShortcut.LAYOUT_STACKED -> browser.setLayoutMode(LayoutMode.SPLIT_2X1)
+            BrowserShortcut.LAYOUT_GRID -> browser.setLayoutMode(LayoutMode.GRID_2X2)
         }
-        super.onDestroy()
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW) {
-            val dataUrl = intent.dataString
-            if (!dataUrl.isNullOrBlank()) {
-                browserViewModel.openNewTab(url = dataUrl)
-            }
-        }
-    }
-
-    private fun installFromPickedDocumentUri(uri: Uri) {
-        runCatching {
-            val xpiCacheDir = File(cacheDir, "xpi_imports").apply { mkdirs() }
-            val targetFile = File(xpiCacheDir, "import-${System.currentTimeMillis()}.xpi")
-            contentResolver.openInputStream(uri)?.use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            } ?: error("Unable to open selected .xpi file")
-            val fileUri = Uri.fromFile(targetFile).toString()
-            extensionsViewModel.installFromUri(fileUri)
-        }.onFailure { err ->
-            extensionsViewModel.installFromUri("") // surfaces validation error cleanly
-            android.util.Log.e("MainActivity", "Failed to import local XPI", err)
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val dataUrl = intent.dataString?.trim().orEmpty()
+        // Any app can send this activity a VIEW intent. Only ordinary web links are accepted;
+        // file:, javascript:, about: or extension URLs from outside are ignored.
+        if (UrlResolver.isWebUrl(dataUrl)) {
+            holder.browser.openNewTab(url = dataUrl)
+        } else if (dataUrl.isNotEmpty()) {
+            Log.w(TAG, "Ignored VIEW intent with a non-web URL scheme")
         }
     }
 }

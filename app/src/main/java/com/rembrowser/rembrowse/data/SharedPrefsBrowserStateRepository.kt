@@ -2,7 +2,9 @@ package com.rembrowser.rembrowse.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
+import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
@@ -68,6 +70,15 @@ class SharedPrefsBrowserStateRepository(
             }
             root.put("bookmarks", bookmarksArray)
 
+            root.put(
+                "settings",
+                JSONObject().apply {
+                    put("useDarkTheme", state.settings.useDarkTheme)
+                    put("accent", state.settings.accent.name)
+                    put("enhancedPrivacy", state.settings.enhancedPrivacy)
+                }
+            )
+
             return root.toString()
         }
 
@@ -89,8 +100,8 @@ class SharedPrefsBrowserStateRepository(
                     tabs.add(
                         BrowserTab(
                             id = id,
-                            url = obj.optString("url", BrowserTab.DEFAULT_HOME_URL),
-                            title = obj.optString("title", "New Tab"),
+                            url = obj.optString("url", BrowserTab.NEW_TAB_URL),
+                            title = obj.optString("title", ""),
                             desktopMode = obj.optBoolean("desktopMode", true)
                         )
                     )
@@ -124,13 +135,26 @@ class SharedPrefsBrowserStateRepository(
                 }
             }
 
+            val defaults = BrowserSettings()
+            val settingsObj = root.optJSONObject("settings")
+            val settings = if (settingsObj == null) {
+                defaults
+            } else {
+                BrowserSettings(
+                    useDarkTheme = settingsObj.optBoolean("useDarkTheme", defaults.useDarkTheme),
+                    accent = AccentColor.fromNameOrDefault(settingsObj.optString("accent", "")),
+                    enhancedPrivacy = settingsObj.optBoolean("enhancedPrivacy", defaults.enhancedPrivacy)
+                )
+            }
+
             return PersistedBrowserState(
                 layoutMode = layoutMode,
                 splitRatios = splitRatios,
                 tabs = tabs,
                 paneTabIds = paneTabIds,
                 activePaneIndex = activePaneIndex,
-                bookmarks = bookmarks
+                bookmarks = bookmarks,
+                settings = settings
             )
         }
     }
