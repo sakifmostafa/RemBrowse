@@ -16,6 +16,7 @@ class KeyboardShortcutsTest {
         assertEquals(BrowserShortcut.TOGGLE_BOOKMARK, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_D, ctrl = true))
         assertEquals(BrowserShortcut.COMMAND_PALETTE, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_K, ctrl = true))
         assertEquals(BrowserShortcut.OPEN_SETTINGS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_COMMA, ctrl = true))
+        assertEquals(BrowserShortcut.OPEN_DOWNLOADS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_J, ctrl = true))
         assertEquals(BrowserShortcut.TOGGLE_SPLIT_VIEW, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_BACKSLASH, ctrl = true))
         assertEquals(BrowserShortcut.LAYOUT_SINGLE, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_1, ctrl = true))
         assertEquals(BrowserShortcut.LAYOUT_GRID, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_4, ctrl = true))

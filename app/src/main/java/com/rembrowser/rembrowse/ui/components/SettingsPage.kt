@@ -30,10 +30,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Tab
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BrowserSettings
+import com.rembrowser.rembrowse.model.DownloadsUiState
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
@@ -72,7 +75,9 @@ private val SettingsSection.icon: ImageVector
     get() = when (this) {
         SettingsSection.APPEARANCE -> Icons.Outlined.Palette
         SettingsSection.SEARCH -> Icons.Outlined.Search
+        SettingsSection.TABS -> Icons.Outlined.Tab
         SettingsSection.PRIVACY -> Icons.Outlined.Shield
+        SettingsSection.DOWNLOADS -> Icons.Outlined.FileDownload
         SettingsSection.EXTENSIONS -> Icons.Outlined.Extension
         SettingsSection.ABOUT -> Icons.Outlined.Info
     }
@@ -82,8 +87,12 @@ class SettingsActions(
     val onSetDarkTheme: (Boolean) -> Unit,
     val onSetAccent: (AccentColor) -> Unit,
     val onSetSearchEngine: (SearchEngine) -> Unit,
+    val onSetRestoreTabsOnStartup: (Boolean) -> Unit,
+    val onSetOpenNewTabsNextToCurrent: (Boolean) -> Unit,
+    val onSetDesktopSiteByDefault: (Boolean) -> Unit,
     val onSetEnhancedPrivacy: (Boolean) -> Unit,
-    val onSetAdBlocker: (Boolean) -> Unit
+    val onSetAdBlocker: (Boolean) -> Unit,
+    val onSetAskBeforeDownloading: (Boolean) -> Unit
 )
 
 /**
@@ -105,8 +114,12 @@ fun SettingsPage(
     settings: BrowserSettings,
     versionName: String,
     extensionsState: ExtensionsUiState,
+    downloadsState: DownloadsUiState,
+    downloadLocation: String,
+    canShowDownloadFolder: Boolean,
     actions: SettingsActions,
     extensionActions: ExtensionsPanelActions,
+    downloadActions: DownloadsPanelActions,
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
@@ -162,6 +175,15 @@ fun SettingsPage(
                         SettingsSection.SEARCH -> SearchSection(
                             selected = settings.searchEngine,
                             onSelect = actions.onSetSearchEngine
+                        )
+                        SettingsSection.TABS -> TabsSection(settings = settings, actions = actions)
+                        SettingsSection.DOWNLOADS -> DownloadsSection(
+                            askBeforeDownloading = settings.askBeforeDownloading,
+                            onSetAskBeforeDownloading = actions.onSetAskBeforeDownloading,
+                            downloadsState = downloadsState,
+                            downloadLocation = downloadLocation,
+                            canShowDownloadFolder = canShowDownloadFolder,
+                            downloadActions = downloadActions
                         )
                         SettingsSection.PRIVACY -> PrivacySection(
                             settings = settings,
@@ -267,21 +289,128 @@ private fun SearchSection(selected: SearchEngine, onSelect: (SearchEngine) -> Un
     )
     Column(modifier = Modifier.selectableGroup()) {
         SearchEngine.entries.forEach { engine ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .selectable(
-                        selected = engine == selected,
-                        role = Role.RadioButton,
-                        onClick = { onSelect(engine) }
-                    )
-                    .testTag("search_engine_${engine.name.lowercase()}"),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(selected = engine == selected, onClick = null)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(text = engine.label, style = MaterialTheme.typography.bodyLarge)
+            RadioRow(
+                title = engine.label,
+                description = null,
+                selected = engine == selected,
+                onClick = { onSelect(engine) },
+                testTag = "search_engine_${engine.name.lowercase()}"
+            )
+        }
+    }
+}
+
+@Composable
+private fun TabsSection(settings: BrowserSettings, actions: SettingsActions) {
+    val colors = MaterialTheme.colorScheme
+    Text(text = "When RemBrowse starts", style = MaterialTheme.typography.titleSmall)
+    Spacer(modifier = Modifier.height(4.dp))
+    Column(modifier = Modifier.selectableGroup()) {
+        RadioRow(
+            title = "Continue where you left off",
+            description = "Reopens the tabs and the layout you had last time.",
+            selected = settings.restoreTabsOnStartup,
+            onClick = { actions.onSetRestoreTabsOnStartup(true) },
+            testTag = "setting_startup_restore"
+        )
+        RadioRow(
+            title = "Open a new tab",
+            description = "Last time's tabs are closed. Bookmarks and settings are kept.",
+            selected = !settings.restoreTabsOnStartup,
+            onClick = { actions.onSetRestoreTabsOnStartup(false) },
+            testTag = "setting_startup_new_tab"
+        )
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    HorizontalDivider(color = colors.outlineVariant)
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(text = "Open new tabs", style = MaterialTheme.typography.titleSmall)
+    Spacer(modifier = Modifier.height(4.dp))
+    Column(modifier = Modifier.selectableGroup()) {
+        RadioRow(
+            title = "At the end of the tab list",
+            description = null,
+            selected = !settings.openNewTabsNextToCurrent,
+            onClick = { actions.onSetOpenNewTabsNextToCurrent(false) },
+            testTag = "setting_new_tab_end"
+        )
+        RadioRow(
+            title = "Next to the current tab",
+            description = null,
+            selected = settings.openNewTabsNextToCurrent,
+            onClick = { actions.onSetOpenNewTabsNextToCurrent(true) },
+            testTag = "setting_new_tab_next"
+        )
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    HorizontalDivider(color = colors.outlineVariant)
+
+    SwitchRow(
+        title = "Ask for desktop sites",
+        description = "New tabs ask websites for their desktop version rather than the mobile one. " +
+            "To change it for one tab, use More → Desktop site.",
+        checked = settings.desktopSiteByDefault,
+        onCheckedChange = actions.onSetDesktopSiteByDefault,
+        testTag = "setting_desktop_default"
+    )
+}
+
+@Composable
+private fun DownloadsSection(
+    askBeforeDownloading: Boolean,
+    onSetAskBeforeDownloading: (Boolean) -> Unit,
+    downloadsState: DownloadsUiState,
+    downloadLocation: String,
+    canShowDownloadFolder: Boolean,
+    downloadActions: DownloadsPanelActions
+) {
+    SwitchRow(
+        title = "Ask before downloading",
+        description = "Shows the file's name, size and the site it comes from, and waits for your OK. " +
+            "When this is off, files are saved as soon as a page offers them.",
+        checked = askBeforeDownloading,
+        onCheckedChange = onSetAskBeforeDownloading,
+        testTag = "setting_ask_before_download"
+    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Spacer(modifier = Modifier.height(16.dp))
+    DownloadsPanel(
+        uiState = downloadsState,
+        locationLabel = downloadLocation,
+        actions = downloadActions,
+        showOpenFolder = canShowDownloadFolder
+    )
+}
+
+/** One choice in a group. The whole row is the touch target; the button itself is decoration. */
+@Composable
+private fun RadioRow(
+    title: String,
+    description: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .testTag(testTag)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

@@ -2,6 +2,8 @@ package com.rembrowser.rembrowse
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.app.DownloadManager
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.net.Uri
@@ -24,12 +26,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.rembrowser.rembrowse.data.AndroidDownloadStorage
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
 import com.rembrowser.rembrowse.data.SharedPrefsDefaultExtensionStore
+import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
+import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.BrowserChromeState
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
@@ -37,6 +43,7 @@ import com.rembrowser.rembrowse.util.BrowserShortcut
 import com.rembrowser.rembrowse.util.KeyboardShortcuts
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
+import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -63,6 +70,7 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     val extensionManager: GeckoExtensionManager
     val browser: BrowserViewModel
     val extensions: ExtensionsViewModel
+    val downloads: DownloadsViewModel
 
     init {
         val runtime = (application as RemBrowseApplication).geckoRuntime
@@ -85,6 +93,14 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             scope = viewModelScope,
             defaults = SharedPrefsDefaultExtensionStore(application)
         )
+        downloads = DownloadsViewModel(
+            storage = AndroidDownloadStorage(application),
+            history = SharedPrefsDownloadHistoryStore(application),
+            scope = viewModelScope,
+            askBeforeDownloading = { browser.uiState.value.settings.askBeforeDownloading },
+            onRequestSettled = browser::closeTabLeftBehindByDownload
+        )
+        browser.downloadHandler = downloads::onDownloadRequested
     }
 
     private fun openTabForExtension(url: String) {
@@ -114,6 +130,7 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     }
 
     override fun onCleared() {
+        downloads.shutdown()
         browser.shutdown()
         extensionManager.dismissPopup()
     }
@@ -187,9 +204,12 @@ class MainActivity : ComponentActivity() {
                     extensionsViewModel = holder.extensions,
                     chrome = chrome,
                     versionName = BuildConfig.VERSION_NAME,
+                    downloadsViewModel = holder.downloads,
                     onPickLocalXpi = {
                         pickLocalXpiLauncher.launch(arrayOf("*/*"))
                     },
+                    onOpenDownload = ::openDownloadedFile,
+                    onOpenDownloadsFolder = ::openDownloadsFolder,
                     onFocusWebContent = { tabId ->
                         paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
                     },
@@ -309,6 +329,10 @@ class MainActivity : ComponentActivity() {
                 chrome.showTabSwitcher = false
                 browser.openSettings()
             }
+            BrowserShortcut.OPEN_DOWNLOADS -> {
+                chrome.showTabSwitcher = false
+                browser.openSettings(SettingsSection.DOWNLOADS)
+            }
             BrowserShortcut.TOGGLE_SPLIT_VIEW -> if (browser.uiState.value.isSplit) {
                 browser.setLayoutMode(LayoutMode.SINGLE_1X1)
             } else {
@@ -318,6 +342,32 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.LAYOUT_SIDE_BY_SIDE -> browser.splitCurrentTab(currentOnLeft = true)
             BrowserShortcut.LAYOUT_STACKED -> browser.setLayoutMode(LayoutMode.SPLIT_2X1)
             BrowserShortcut.LAYOUT_GRID -> browser.setLayoutMode(LayoutMode.GRID_2X2)
+        }
+    }
+
+    /** Hands a finished download to whichever app can show it. False when none can. */
+    private fun openDownloadedFile(item: DownloadItem): Boolean {
+        val uri = item.contentUri?.let(Uri::parse) ?: return false
+        val view = Intent(Intent.ACTION_VIEW)
+            // The type comes from the saved file's own extension, not from what the server claimed
+            .setDataAndType(uri, AndroidDownloadStorage.mimeTypeFor(item.fileName))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return try {
+            startActivity(view)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Not allowed to open the downloaded file", e)
+            false
+        }
+    }
+
+    private fun openDownloadsFolder() {
+        try {
+            startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS))
+        } catch (_: ActivityNotFoundException) {
+            holder.downloads.reportMessage("This device has no app for browsing downloaded files.")
         }
     }
 

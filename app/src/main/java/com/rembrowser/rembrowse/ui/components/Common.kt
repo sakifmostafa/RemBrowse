@@ -373,3 +373,16 @@ fun VerticalHairline(modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.outlineVariant)
     )
 }
+
+/** A bordered row in a list of things to manage: an extension, a download. */
+@Composable
+fun ListCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        content()
+    }
+}

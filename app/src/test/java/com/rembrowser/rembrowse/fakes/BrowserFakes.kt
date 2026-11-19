@@ -87,6 +87,27 @@ class FakeSessionHandle(
         listener.onNewTabRequested(url, tabId)
     }
 
+    /** The page in this tab offered a file the engine cannot display. */
+    fun simulateDownload(
+        url: String,
+        fileName: String,
+        bytes: ByteArray = ByteArray(0),
+        mimeType: String = "application/octet-stream",
+        skipConfirmation: Boolean = false
+    ): com.rembrowser.rembrowse.model.DownloadRequest {
+        val request = com.rembrowser.rembrowse.model.DownloadRequest(
+            tabId = tabId,
+            url = url,
+            fileName = fileName,
+            mimeType = mimeType,
+            contentLength = bytes.size.toLong(),
+            skipConfirmation = skipConfirmation,
+            body = TrackedInputStream(bytes)
+        )
+        listener.onDownloadRequested(request)
+        return request
+    }
+
     fun simulatePrompt(prompt: com.rembrowser.rembrowse.model.PagePrompt) {
         listener.onPromptRequested(prompt)
     }
@@ -249,5 +270,91 @@ class FakeExtensionManager : ExtensionManager {
         lastPromptDecision = allow
         pendingPrompt.value?.onDecision?.invoke(allow)
         pendingPrompt.value = null
+    }
+}
+
+/** A response body that records whether it was read and closed, and can fail or call back. */
+class TrackedInputStream(
+    private val data: ByteArray,
+    /** Fail once this many bytes have been handed out; negative for never. */
+    private val failAfterBytes: Int = -1,
+    /** How many bytes one read may return, to force a download into several steps. */
+    private val chunkSize: Int = Int.MAX_VALUE,
+    /** Called before each read with the number of bytes handed out so far. */
+    private val beforeRead: (Int) -> Unit = {}
+) : java.io.InputStream() {
+    var position = 0
+        private set
+    var isClosed = false
+        private set
+    val wasRead: Boolean
+        get() = position > 0
+
+    override fun read(): Int {
+        val single = ByteArray(1)
+        return if (read(single, 0, 1) < 0) -1 else single[0].toInt() and 0xff
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        beforeRead(position)
+        if (isClosed) throw java.io.IOException("Stream is closed")
+        if (failAfterBytes in 0..position) throw java.io.IOException("Connection lost")
+        if (position >= data.size) return -1
+        var count = minOf(length, chunkSize, data.size - position)
+        if (failAfterBytes >= 0) count = minOf(count, failAfterBytes - position)
+        System.arraycopy(data, position, buffer, offset, count)
+        position += count
+        return count
+    }
+
+    override fun close() {
+        isClosed = true
+    }
+}
+
+class FakeDownloadStorage : com.rembrowser.rembrowse.data.DownloadStorage {
+    override val locationLabel = "The Downloads folder on this device"
+    override val isSharedFolder = true
+
+    /** Finished files by name. */
+    val saved = linkedMapOf<String, ByteArray>()
+    val discarded = mutableListOf<String>()
+    val missingUris = mutableSetOf<String>()
+    var failOnCreate = false
+    private val inFlight = mutableSetOf<String>()
+
+    fun uriFor(fileName: String) = "content://downloads/$fileName"
+
+    override fun create(fileName: String, mimeType: String): com.rembrowser.rembrowse.data.DownloadTarget {
+        if (failOnCreate) throw java.io.IOException("No space left")
+        val name = com.rembrowser.rembrowse.util.DownloadFileNames.unique(fileName) { it in saved || it in inFlight }
+        inFlight += name
+        val buffer = java.io.ByteArrayOutputStream()
+        return object : com.rembrowser.rembrowse.data.DownloadTarget {
+            override val fileName = name
+            override fun openOutput(): java.io.OutputStream = buffer
+            override fun commit(): String {
+                inFlight -= name
+                saved[name] = buffer.toByteArray()
+                return uriFor(name)
+            }
+            override fun discard() {
+                inFlight -= name
+                discarded += name
+            }
+        }
+    }
+
+    override fun exists(contentUri: String): Boolean = contentUri !in missingUris
+}
+
+class FakeDownloadHistoryStore(
+    var stored: List<com.rembrowser.rembrowse.model.DownloadItem> = emptyList()
+) : com.rembrowser.rembrowse.data.DownloadHistoryStore {
+    var saveCount = 0
+    override fun load() = stored
+    override fun save(items: List<com.rembrowser.rembrowse.model.DownloadItem>) {
+        stored = items
+        saveCount++
     }
 }

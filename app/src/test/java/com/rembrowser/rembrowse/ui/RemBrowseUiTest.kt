@@ -32,9 +32,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
+import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
+import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
+import com.rembrowser.rembrowse.model.DownloadItem
+import com.rembrowser.rembrowse.model.DownloadStatus
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
@@ -43,6 +47,7 @@ import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
+import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +76,18 @@ class RemBrowseUiTest {
     private val browserVm = BrowserViewModel(engine, FakeBrowserStateRepository())
     private val extVm = ExtensionsViewModel(extensionManager, FakeAmoApiClient(), uiScope)
     private val chrome = BrowserChromeState()
+    private val downloadStorage = FakeDownloadStorage()
+    private val downloadsVm = DownloadsViewModel(
+        storage = downloadStorage,
+        history = FakeDownloadHistoryStore(),
+        scope = uiScope,
+        // Unconfined: a download runs to its end inside the call that starts it
+        ioDispatcher = Dispatchers.Unconfined,
+        askBeforeDownloading = { browserVm.uiState.value.settings.askBeforeDownloading },
+        onRequestSettled = browserVm::closeTabLeftBehindByDownload
+    ).also { browserVm.downloadHandler = it::onDownloadRequested }
+    private val openedDownloads = mutableListOf<DownloadItem>()
+    private var canOpenDownloads = true
 
     @After
     fun tearDown() {
@@ -85,9 +102,14 @@ class RemBrowseUiTest {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
+                        downloadsViewModel = downloadsVm,
                         chrome = chrome,
                         versionName = "test",
                         onPickLocalXpi = {},
+                        onOpenDownload = { item ->
+                            openedDownloads += item
+                            canOpenDownloads
+                        },
                         paneViewport = { tab, modifier ->
                             Box(modifier = modifier) { Text(text = "Viewport:${tab.url}") }
                         },
@@ -404,6 +426,135 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("setting_enhanced_privacy").performClick()
         assertTrue(browserVm.uiState.value.settings.enhancedPrivacy)
         assertEquals(true, engine.enhancedPrivacy)
+    }
+
+    @Test
+    fun settingsTabsSection_changesStartupNewTabPositionAndDesktopSites() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TABS) }
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/tabs"))
+        composeRule.onNodeWithTag("settings_section_tabs").assertIsSelected()
+
+        composeRule.onNodeWithTag("setting_startup_restore").assertIsSelected()
+        composeRule.onNodeWithTag("setting_startup_new_tab").performClick()
+        assertFalse(browserVm.uiState.value.settings.restoreTabsOnStartup)
+        composeRule.onNodeWithTag("setting_startup_new_tab").assertIsSelected()
+
+        composeRule.onNodeWithTag("setting_new_tab_end").assertIsSelected()
+        composeRule.onNodeWithTag("setting_new_tab_next").performClick()
+        assertTrue(browserVm.uiState.value.settings.openNewTabsNextToCurrent)
+        composeRule.onNodeWithTag("setting_new_tab_next").assertIsSelected()
+
+        composeRule.onNodeWithTag("setting_desktop_default").assertIsOn()
+        composeRule.onNodeWithTag("setting_desktop_default").performClick()
+        assertFalse(browserVm.uiState.value.settings.desktopSiteByDefault)
+        composeRule.onNodeWithTag("setting_desktop_default").assertIsOff()
+    }
+
+    @Test
+    fun download_asksFirstThenIsSavedAnnouncedListedAndOpened() {
+        val tabId = browserVm.uiState.value.activeTabId!!
+        loadPage(tabId, "https://example.org/", "Example")
+        launch()
+
+        composeRule.runOnUiThread {
+            engine.sessions.getValue(tabId).simulateDownload(
+                url = "https://example.org/files/report.pdf",
+                fileName = "report.pdf",
+                bytes = ByteArray(2048),
+                mimeType = "application/pdf"
+            )
+        }
+
+        // Asked first, naming the file, its size and where it comes from
+        composeRule.onNodeWithTag("download_prompt").assertIsDisplayed()
+        composeRule.onNodeWithText("report.pdf").assertIsDisplayed()
+        composeRule.onNodeWithText("2.0 KB · from example.org").assertIsDisplayed()
+        assertTrue(downloadStorage.saved.isEmpty())
+
+        composeRule.onNodeWithTag("download_confirm").performClick()
+        composeRule.onNodeWithTag("download_prompt").assertDoesNotExist()
+        assertEquals(2048, downloadStorage.saved.getValue("report.pdf").size)
+
+        // Announced over the page, with a way to open it
+        composeRule.onNodeWithTag("download_notice").assertIsDisplayed()
+        composeRule.onNodeWithText("Downloaded report.pdf").assertIsDisplayed()
+        composeRule.onNodeWithTag("download_notice_action").performClick()
+        assertEquals(listOf("report.pdf"), openedDownloads.map { it.fileName })
+        composeRule.onNodeWithTag("download_notice").assertDoesNotExist()
+
+        // And listed under Settings → Downloads
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_downloads").performClick()
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/downloads"))
+        val id = downloadsVm.uiState.value.items.single().id
+        composeRule.onNodeWithTag("download_item_$id").assertIsDisplayed()
+        composeRule.onNodeWithText("2.0 KB · example.org").assertIsDisplayed()
+
+        // Nothing on the device can show it: said plainly instead of failing silently
+        canOpenDownloads = false
+        composeRule.onNodeWithTag("download_open_$id").performClick()
+        composeRule.onNodeWithText("No app on this device can open report.pdf.").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("download_remove_$id").performClick()
+        composeRule.onNodeWithTag("download_item_$id").assertDoesNotExist()
+        composeRule.onNodeWithText("No downloads yet").assertIsDisplayed()
+        assertTrue("Removing an entry leaves the file", "report.pdf" in downloadStorage.saved)
+    }
+
+    @Test
+    fun download_canBeDeclinedOrSavedWithoutAsking_andItsNoticeLeavesByItself() {
+        val tabId = browserVm.uiState.value.activeTabId!!
+        loadPage(tabId, "https://example.org/", "Example")
+        launch()
+
+        val declined = composeRule.runOnUiThread<com.rembrowser.rembrowse.model.DownloadRequest> {
+            engine.sessions.getValue(tabId).simulateDownload("https://example.org/setup.exe", "setup.exe", ByteArray(16))
+        }
+        composeRule.onNodeWithTag("download_decline").performClick()
+        composeRule.onNodeWithTag("download_prompt").assertDoesNotExist()
+        composeRule.onNodeWithTag("download_notice").assertDoesNotExist()
+        assertTrue(downloadStorage.saved.isEmpty())
+        assertTrue((declined.body as com.rembrowser.rembrowse.fakes.TrackedInputStream).isClosed)
+
+        // With asking turned off in Settings, a file is saved as soon as it is offered
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.DOWNLOADS) }
+        composeRule.onNodeWithTag("setting_ask_before_download").assertIsOn()
+        composeRule.onNodeWithTag("setting_ask_before_download").performClick()
+        composeRule.onNodeWithTag("setting_ask_before_download").assertIsOff()
+        composeRule.runOnUiThread {
+            engine.sessions.getValue(tabId).simulateDownload("https://example.org/a.zip", "a.zip", ByteArray(10))
+        }
+        composeRule.onNodeWithTag("download_prompt").assertDoesNotExist()
+        assertTrue("a.zip" in downloadStorage.saved)
+        composeRule.onNodeWithTag("download_notice").assertIsDisplayed()
+
+        composeRule.mainClock.advanceTimeBy(7_000)
+        composeRule.onNodeWithTag("download_notice").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("downloads_clear").performClick()
+        composeRule.onNodeWithText("No downloads yet").assertIsDisplayed()
+        assertTrue(downloadsVm.uiState.value.items.isEmpty())
+    }
+
+    @Test
+    fun download_fromALinkThatOpenedItsOwnTab_closesThatEmptyTabOnceItIsOver() {
+        val tabId = browserVm.uiState.value.activeTabId!!
+        loadPage(tabId, "https://example.org/", "Example")
+        launch()
+
+        composeRule.runOnUiThread {
+            engine.sessions.getValue(tabId).simulateNewTab("https://example.org/files/big.zip")
+            val newTabId = browserVm.uiState.value.activeTabId!!
+            engine.sessions.getValue(newTabId)
+                .simulateDownload("https://example.org/files/big.zip", "big.zip", ByteArray(8))
+        }
+        assertEquals("Still there while the question is open", 2, browserVm.uiState.value.tabs.size)
+
+        composeRule.onNodeWithTag("download_confirm").performClick()
+
+        assertEquals(listOf(tabId), browserVm.uiState.value.tabs.map { it.id })
+        assertTrue("big.zip" in downloadStorage.saved)
     }
 
     @Test

@@ -248,18 +248,6 @@ private fun EmptyState(
 }
 
 @Composable
-private fun ExtensionCard(content: @Composable () -> Unit) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        content()
-    }
-}
-
-@Composable
 private fun InstalledExtensionsList(
     extensions: List<InstalledExtension>,
     onSetEnabled: (String, Boolean) -> Unit,
@@ -282,7 +270,7 @@ private fun InstalledExtensionsList(
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(extensions, key = { it.id }) { ext ->
-            ExtensionCard {
+            ListCard {
                 Row(
                     modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -448,7 +436,7 @@ private fun AddonRow(
     onInstall: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    ExtensionCard {
+    ListCard {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically

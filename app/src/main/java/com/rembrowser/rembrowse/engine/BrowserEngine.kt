@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.engine
 
+import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
@@ -32,7 +33,13 @@ interface SessionEventListener {
     fun onPromptRequested(prompt: PagePrompt) {}
 
     /** The page withdrew a prompt (for example by navigating away) before the user answered. */
-    fun onPromptDismissed(promptId: String) {}
+    fun onPromptDismissed(promptId: String)
+
+    /**
+     * A page offered a file to save. The receiver owns [DownloadRequest.body] from here on and
+     * must close it, whether or not the file is kept.
+     */
+    fun onDownloadRequested(request: DownloadRequest) {}
 }
 
 interface BrowserSessionHandle {

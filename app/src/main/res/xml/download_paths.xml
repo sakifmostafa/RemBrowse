@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only used before Android 10, where downloads are kept in the app's own Download folder. -->
+<paths>
+    <external-files-path name="downloads" path="Download/" />
+    <files-path name="downloads_internal" path="Download/" />
+</paths>

@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.webkit.MimeTypeMap
 import com.rembrowser.rembrowse.BuildConfig
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PromptOption
@@ -18,6 +19,7 @@ import org.mozilla.geckoview.GeckoSession.PromptDelegate
 import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebRequestError
+import org.mozilla.geckoview.WebResponse
 import java.util.UUID
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -362,6 +364,22 @@ class GeckoBrowserEngine(
                 if (!title.isNullOrBlank()) {
                     listener.onSessionUpdated(tabId, SessionNavigationUpdate(title = title))
                 }
+            }
+
+            // A response Gecko cannot show: a file to save. The body's network channel stays
+            // suspended until the first read, so it can wait for the user's answer.
+            override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
+                val body = response.body ?: return
+                listener.onDownloadRequested(
+                    downloadRequestFrom(
+                        tabId = tabId,
+                        url = response.uri,
+                        headers = response.headers,
+                        skipConfirmation = response.skipConfirmation,
+                        body = body,
+                        extensionForMime = { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+                    )
+                )
             }
 
             override fun onCrash(session: GeckoSession) {

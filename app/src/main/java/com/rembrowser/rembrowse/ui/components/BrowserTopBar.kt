@@ -99,6 +99,7 @@ fun BrowserTopBar(
     onOpenTabSwitcher: () -> Unit,
     onOpenCommandPalette: () -> Unit,
     onOpenBookmarks: () -> Unit,
+    onOpenDownloads: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onTriggerExtensionAction: (String) -> Unit,
@@ -193,6 +194,7 @@ fun BrowserTopBar(
                 onCloseActiveTab = onCloseActiveTab,
                 onOpenCommandPalette = onOpenCommandPalette,
                 onOpenBookmarks = onOpenBookmarks,
+                onOpenDownloads = onOpenDownloads,
                 onOpenExtensions = onOpenExtensions,
                 onOpenSettings = onOpenSettings,
                 onOpenSplitView = { showLayoutMenu = true },
@@ -436,6 +438,7 @@ private fun MoreMenu(
     onCloseActiveTab: () -> Unit,
     onOpenCommandPalette: () -> Unit,
     onOpenBookmarks: () -> Unit,
+    onOpenDownloads: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSplitView: () -> Unit,
@@ -493,6 +496,12 @@ private fun MoreMenu(
             text = { Text("Bookmarks") },
             onClick = run(onOpenBookmarks),
             modifier = Modifier.testTag("menu_bookmarks")
+        )
+        DropdownMenuItem(
+            text = { Text("Downloads") },
+            trailingIcon = { ShortcutHint("Ctrl+J") },
+            onClick = run(onOpenDownloads),
+            modifier = Modifier.testTag("menu_downloads")
         )
         DropdownMenuItem(
             text = { Text("Extensions") },
