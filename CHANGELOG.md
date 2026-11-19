@@ -2,6 +2,18 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.08 (2026-11-19) — Pages keep their size in a narrow pane
+
+### Fixed
+* **Pages were drawn small in a narrow split pane.** A tab that asks for desktop sites was always laid out at least 980 px wide and then shrunk to fit its pane, so in a pane narrower than that the whole page, text included, became small. On tablet and laptop screens a page is now laid out at the width of its pane, as in a desktop browser whose window has been made narrow: text keeps its normal size and the page rearranges itself, or scrolls sideways if it cannot get narrower. Panes wider than 980 px looked right before and are unchanged.
+* Phones are deliberately left as they were: a desktop site there is still fitted to the screen.
+
+### How
+* The engine has a preference for this width but GeckoView offers no way to set it, so it is passed in the startup configuration file GeckoView reads. The file is checked with GeckoView's own parser first, and the browser starts without it if anything is wrong.
+
+### Testing
+167 automated tests. The change itself is in how the engine lays pages out, which the automated tests cannot run; it was made against the Firefox 138 source and needs a look on a device.
+
 ## v0.07 (2026-11-19) — Split controls move into the Split menu
 
 ### Changed

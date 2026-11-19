@@ -76,6 +76,16 @@ Because the section is the tab's URL, it is saved and restored with the rest of 
 1. **TextureView backend** (`GeckoView.BACKEND_TEXTURE_VIEW`) so panes can be clipped to rounded corners and drawn under Compose overlays.
 2. **Single-owner attachment**: `attachSessionToView()` tracks which view holds each session and releases the previous owner first, because a session may only be attached to one view.
 
+### Page width in a pane
+
+A tab that asks for desktop sites uses `VIEWPORT_MODE_DESKTOP`, which sets `forceDesktopViewport` on its browsing context. Gecko then lays the page out at `max(width of the view, browser.viewport.desktopWidth)` CSS px and scales it to fit the view (`Document::GetViewportInfo`). With Gecko's default of 980, a pane narrower than 980 px shows every page as a 980 px layout shrunk to fit, so its text is small.
+
+GeckoView 138 has no setter for that preference, so `EngineConfig` passes it in the startup configuration file GeckoView reads (`GeckoRuntimeSettings.Builder.configFilePath`). The file's `prefs` are applied as default preference values through `MOZ_DEFAULT_PREFS` before the engine starts, in release builds too.
+
+* On screens whose smallest side is at least 600dp the preference is set to 320, so the viewport follows the pane's real width and pages reflow at their natural size, as in a desktop browser with a narrow window. Panes wider than 980 px already used their own width.
+* Phones keep 980: there, a desktop site is expected to be fitted to the screen.
+* The file is written to the app's files directory at each start and read back with GeckoView's own parser (`DebugConfig`) before its path is handed over. If writing or parsing fails in any way, the engine starts without it. `proguard-rules.pro` keeps SnakeYAML whole so the parser cannot be shrunk away.
+
 ### Split view
 
 `BrowserViewModel.splitCurrentTab()` puts the focused tab into a two-pane layout on the requested side and keeps focus on it; `swapFocusedPane()` and `setSplitPreset()` back the controls in the Split menu. That menu (`SplitMenu` in `BrowserTopBar`) is the only place the split's controls live: with one page on screen it lists the ways to split, and while a split is open it lists swap, the size presets (two panes only), the layouts and Close split. No row is drawn above the panes, and panes have no toolbars of their own: the single address bar reads `activeTab`, so it always shows and acts on the focused pane, which is marked by its outline and in the tab rail.
@@ -162,7 +172,7 @@ Sizes shared by the chrome are in `RemDimens`. Interactive elements have a 48dp 
 ## 6. State Persistence & Testing Strategy
 
 * **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (layout, clamped split ratios, tabs, pane assignments, bookmarks and settings, including the chosen search engine) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
-* **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `DownloadFileNames`, download request parsing, `AmoJsonParser`, command palette results, theme contrast, and the three view models against the fakes in `BrowserFakes.kt` (including a fake download storage and a response body that can fail or be cancelled part-way).
+* **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `DownloadFileNames`, download request parsing, the engine configuration file (read back with GeckoView's real parser), `AmoJsonParser`, command palette results, theme contrast, and the three view models against the fakes in `BrowserFakes.kt` (including a fake download storage and a response body that can fail or be cancelled part-way).
 * **Robolectric**: real `SharedPreferences` round trips for browser state and the downloads list.
 * **Headless Compose UI tests**: `RemBrowseUiTest` (laptop-sized window) and `CompactWindowUiTest` (phone-sized) drive the real screen with a fake engine.
 * **UI renders**: `UiSnapshotTest` writes PNGs of the main screens on request (see the Build & Test Guide).

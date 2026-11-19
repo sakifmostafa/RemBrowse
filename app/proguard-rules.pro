@@ -10,3 +10,8 @@
 # SnakeYAML (a GeckoView dependency) refers to desktop-Java bean classes that Android does not
 # have. That code path is never reached on Android.
 -dontwarn java.beans.**
+
+# GeckoView parses its startup configuration file (see EngineConfig) with SnakeYAML, which
+# finds fields and constructors by reflection. Keep it whole, so nothing it needs at startup
+# can be shrunk away.
+-keep class org.yaml.snakeyaml.** { *; }
