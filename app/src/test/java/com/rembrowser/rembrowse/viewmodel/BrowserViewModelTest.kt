@@ -431,22 +431,23 @@ class BrowserViewModelTest {
 
     @Test
     fun settings_arePersistedAndPrivacyIsForwardedToTheEngine() {
-        assertEquals("Strict protection is applied at start-up", true, engine.enhancedPrivacy)
+        // Standard protection by default: the enhanced level is something the user opts into
+        assertEquals(false, engine.enhancedPrivacy)
 
         viewModel.setDarkTheme(false)
         viewModel.setAccentColor(AccentColor.TEAL)
-        viewModel.setEnhancedPrivacy(false)
+        viewModel.setEnhancedPrivacy(true)
 
         assertEquals(
-            BrowserSettings(useDarkTheme = false, accent = AccentColor.TEAL, enhancedPrivacy = false),
+            BrowserSettings(useDarkTheme = false, accent = AccentColor.TEAL, enhancedPrivacy = true),
             repository.storedState.settings
         )
-        assertEquals(false, engine.enhancedPrivacy)
+        assertEquals(true, engine.enhancedPrivacy)
 
         // A new browser instance starts from the saved settings
         engine = FakeBrowserEngine()
         val restored = newViewModel()
         assertEquals(AccentColor.TEAL, restored.uiState.value.settings.accent)
-        assertEquals(false, engine.enhancedPrivacy)
+        assertEquals(true, engine.enhancedPrivacy)
     }
 }

@@ -70,10 +70,26 @@ class BrowserChromeState {
     internal var addressFocusRequests by mutableIntStateOf(0)
         private set
 
+    /** Set while keyboard focus is waiting to be handed to the page in the focused pane. */
+    internal var pendingContentFocus by mutableStateOf(false)
+
+    /** True while the tab switcher's search field has keyboard focus. */
+    var isTabSearchFocused by mutableStateOf(false)
+
     /** Moves keyboard focus to the address bar (and selects its text) on the next frame. */
     fun focusAddressBar() {
         showTabSwitcher = false
+        pendingContentFocus = false
         addressFocusRequests++
+    }
+
+    /**
+     * Hands keyboard focus to the page in the focused pane. Used whenever a text field is done
+     * (Enter or Esc in the address bar, closing the tab switcher) so focus always lands
+     * somewhere deliberate instead of on whichever button happens to be first in the window.
+     */
+    fun focusContent() {
+        pendingContentFocus = true
     }
 }
 
@@ -84,6 +100,7 @@ fun RemBrowseScreen(
     chrome: BrowserChromeState = remember { BrowserChromeState() },
     versionName: String = "",
     onPickLocalXpi: () -> Unit,
+    onFocusWebContent: (tabId: String) -> Unit = {},
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     extensionPopupContent: @Composable (Modifier) -> Unit
 ) {
@@ -102,9 +119,11 @@ fun RemBrowseScreen(
     BackHandler(enabled = !chrome.showTabSwitcher && browserState.activeTab?.canGoBack == true) {
         browserViewModel.goBack()
     }
-    BackHandler(enabled = chrome.showTabSwitcher) {
+    val closeTabSwitcher = {
         chrome.showTabSwitcher = false
+        chrome.focusContent()
     }
+    BackHandler(enabled = chrome.showTabSwitcher, onBack = closeTabSwitcher)
 
     val openNewTab = {
         browserViewModel.openNewTab()
@@ -141,16 +160,16 @@ fun RemBrowseScreen(
                     uiState = browserState,
                     onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
                     onSelectTab = { tabId ->
-                        chrome.showTabSwitcher = false
                         browserViewModel.selectTab(tabId)
+                        closeTabSwitcher()
                     },
                     onCloseTab = browserViewModel::closeTab,
                     onCloseOtherTabs = browserViewModel::closeOtherTabs,
                     onAssignTabToPane = browserViewModel::assignTabToPane,
                     onNewTab = openNewTab,
                     onOpenBookmark = { url ->
-                        chrome.showTabSwitcher = false
                         browserViewModel.openBookmark(url)
+                        closeTabSwitcher()
                     },
                     onRemoveBookmark = browserViewModel::removeBookmark
                 )
@@ -168,6 +187,7 @@ fun RemBrowseScreen(
                         chrome.showTabSwitcher = false
                         browserViewModel.submitAddressBar()
                     },
+                    onLeaveAddressBar = chrome::focusContent,
                     onBack = { browserViewModel.goBack() },
                     onForward = { browserViewModel.goForward() },
                     onReloadOrStop = { browserViewModel.reloadOrStop() },
@@ -196,6 +216,9 @@ fun RemBrowseScreen(
                         onCommitSplit = browserViewModel::commitSplitRatios,
                         onResetSplitRatios = browserViewModel::resetSplitRatios,
                         onReloadPane = browserViewModel::reloadOrStop,
+                        contentFocusRequested = chrome.pendingContentFocus,
+                        onContentFocusHandled = { chrome.pendingContentFocus = false },
+                        onFocusWebContent = onFocusWebContent,
                         paneViewport = paneViewport
                     )
 
@@ -204,12 +227,13 @@ fun RemBrowseScreen(
                             uiState = browserState,
                             framed = !compact,
                             onSelectTab = { tabId ->
-                                chrome.showTabSwitcher = false
                                 browserViewModel.selectTab(tabId)
+                                closeTabSwitcher()
                             },
                             onCloseTab = browserViewModel::closeTab,
                             onNewTab = openNewTab,
-                            onDismiss = { chrome.showTabSwitcher = false },
+                            onDismiss = closeTabSwitcher,
+                            onSearchFocusChange = { chrome.isTabSearchFocused = it },
                             modifier = if (compact) Modifier else Modifier.padding(end = 6.dp, bottom = 6.dp)
                         )
                     }
@@ -248,12 +272,12 @@ fun RemBrowseScreen(
             commands = commands,
             tabs = browserState.tabs,
             onNavigate = { input ->
-                chrome.showTabSwitcher = false
                 browserViewModel.navigatePane(browserState.activePaneIndex, input)
+                closeTabSwitcher()
             },
             onSelectTab = { tabId ->
-                chrome.showTabSwitcher = false
                 browserViewModel.selectTab(tabId)
+                closeTabSwitcher()
             },
             onDismiss = { chrome.showCommandPalette = false }
         )
@@ -280,8 +304,8 @@ fun RemBrowseScreen(
         BookmarksDialog(
             bookmarks = browserState.bookmarks,
             onOpenBookmark = { url ->
-                chrome.showTabSwitcher = false
                 browserViewModel.openBookmark(url)
+                closeTabSwitcher()
             },
             onRemoveBookmark = browserViewModel::removeBookmark,
             onDismiss = { chrome.showBookmarks = false }
@@ -292,6 +316,10 @@ fun RemBrowseScreen(
         SettingsDialog(
             settings = browserState.settings,
             versionName = versionName,
+            adBlockerOn = extensionsState.isAdBlockerOn,
+            adBlockerBusy = extensionsState.isInstallingAdBlocker,
+            adBlockerError = extensionsState.adBlockerError,
+            onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled,
             onSetDarkTheme = browserViewModel::setDarkTheme,
             onSetAccent = browserViewModel::setAccentColor,
             onSetEnhancedPrivacy = browserViewModel::setEnhancedPrivacy,

@@ -2,8 +2,10 @@ package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.engine.ExtensionInstallCancelledException
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
+import com.rembrowser.rembrowse.fakes.FakeDefaultExtensionStore
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
+import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -226,6 +228,113 @@ class ExtensionsViewModelTest {
             gate.complete(Unit)
             assertEquals("The stale response is discarded", 1, viewModel.uiState.value.catalogAddons.size)
             assertNull(viewModel.uiState.value.catalogError)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun firstLaunch_installsTheDefaultAdBlockerWithoutAPromptAndOnlyOnce() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = FakeDefaultExtensionStore()
+            val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+
+            assertEquals(1, extensionManager.trustedInstalls.size)
+            val (url, id) = extensionManager.trustedInstalls.single()
+            assertEquals(DefaultAdBlocker.ID, id)
+            assertEquals("Falls back to the stable link when the catalog has no match", DefaultAdBlocker.FALLBACK_URL, url)
+            assertTrue(viewModel.uiState.value.isAdBlockerOn)
+            assertNull("No permission prompt for the browser's own default", viewModel.uiState.value.pendingPrompt)
+            assertTrue(store.defaultBlockerProvisioned)
+
+            // The next launch does not install it again
+            ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            assertEquals(1, extensionManager.trustedInstalls.size)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun defaultAdBlocker_usesTheCatalogPackageWhenAvailable() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val catalogUrl = "https://addons.mozilla.org/android/downloads/file/1/adguard.xpi"
+            amoApiClient.searchResult = Result.success(
+                listOf(ublockAddon, ublockAddon.copy(id = DefaultAdBlocker.ID, name = "AdGuard AdBlocker", xpiUrl = catalogUrl))
+            )
+            ExtensionsViewModel(extensionManager, amoApiClient, vmScope, FakeDefaultExtensionStore())
+
+            assertEquals(catalogUrl, extensionManager.trustedInstalls.single().first)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun defaultAdBlocker_failedFirstInstallIsSilentAndRetriedNextLaunch() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = FakeDefaultExtensionStore()
+            extensionManager.nextTrustedInstallResult = Result.failure(java.io.IOException("offline"))
+            val offline = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+
+            assertFalse(offline.uiState.value.isAdBlockerOn)
+            assertFalse(offline.uiState.value.isInstallingAdBlocker)
+            assertNull("Nobody asked for it yet, so no error is shown", offline.uiState.value.adBlockerError)
+            assertNull(offline.uiState.value.errorMessage)
+            assertFalse(store.defaultBlockerProvisioned)
+
+            extensionManager.nextTrustedInstallResult = null
+            val online = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            assertTrue(online.uiState.value.isAdBlockerOn)
+            assertTrue(store.defaultBlockerProvisioned)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun defaultAdBlocker_removedByTheUserIsNotReinstalledButTheSwitchBringsItBack() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = FakeDefaultExtensionStore()
+            val first = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            first.uninstallExtension(DefaultAdBlocker.ID)
+            assertNull(first.uiState.value.adBlocker)
+
+            val relaunched = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            assertNull("Removing it must stick", relaunched.uiState.value.adBlocker)
+            assertEquals(1, extensionManager.trustedInstalls.size)
+
+            relaunched.setAdBlockerEnabled(true)
+            assertTrue(relaunched.uiState.value.isAdBlockerOn)
+            assertEquals(2, extensionManager.trustedInstalls.size)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun adBlockerSwitch_turnsTheExtensionOffAndOnAndReportsAFailedDownload() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, FakeDefaultExtensionStore())
+
+            viewModel.setAdBlockerEnabled(false)
+            assertFalse(viewModel.uiState.value.isAdBlockerOn)
+            assertNotNull("Switched off, not removed", viewModel.uiState.value.adBlocker)
+
+            viewModel.setAdBlockerEnabled(true)
+            assertTrue(viewModel.uiState.value.isAdBlockerOn)
+
+            // Removed, then asked for again while offline: this time the user is told
+            viewModel.uninstallExtension(DefaultAdBlocker.ID)
+            extensionManager.nextTrustedInstallResult = Result.failure(java.io.IOException("offline"))
+            viewModel.setAdBlockerEnabled(true)
+            assertFalse(viewModel.uiState.value.isAdBlockerOn)
+            assertNotNull(viewModel.uiState.value.adBlockerError)
         } finally {
             vmScope.cancel()
         }

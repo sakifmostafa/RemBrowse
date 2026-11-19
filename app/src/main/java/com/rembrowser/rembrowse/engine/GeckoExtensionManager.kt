@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.engine
 
+import android.os.SystemClock
 import android.util.Log
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
@@ -24,6 +25,9 @@ import kotlin.coroutines.resume
 
 private const val TAG = "GeckoExtensionManager"
 
+/** How long a freshly installed default extension is kept from opening tabs of its own. */
+private const val WELCOME_TAB_QUIET_MS = 30_000L
+
 /**
  * @param openExtensionTab creates a browser tab for [url] and returns its *unopened* session,
  *   used to honour `browser.tabs.create()`.
@@ -44,6 +48,13 @@ class GeckoExtensionManager(
     private var activeSession: GeckoSession? = null
 
     private var activePopupSession: GeckoSession? = null
+
+    // Ids of default extensions being installed right now; their permission review is skipped.
+    private val trustedInstallIds = HashSet<String>()
+
+    // Extensions that just arrived as a default must not pop open a "thanks for installing"
+    // tab over whatever the user is doing. Maps extension id to an uptime deadline.
+    private val quietUntil = HashMap<String, Long>()
 
     // Permission prompts are answered one at a time; later requests wait their turn instead of
     // overwriting (and so never resolving) the one already on screen.
@@ -78,6 +89,9 @@ class GeckoExtensionManager(
                 permissions: Array<String>,
                 origins: Array<String>
             ): GeckoResult<WebExtension.PermissionPromptResponse> {
+                if (extension.id in trustedInstallIds) {
+                    return GeckoResult.fromValue(WebExtension.PermissionPromptResponse(true, false))
+                }
                 val result = GeckoResult<WebExtension.PermissionPromptResponse>()
                 enqueuePrompt(extension, permissions, origins, ExtensionPromptKind.INSTALL) { allow ->
                     result.complete(WebExtension.PermissionPromptResponse(allow, false))
@@ -178,6 +192,17 @@ class GeckoExtensionManager(
                 throw e
             } catch (e: Throwable) {
                 Result.failure(describeInstallFailure(e))
+            }
+        }
+
+    override suspend fun installTrusted(uri: String, expectedId: String): Result<InstalledExtension> =
+        withContext(Dispatchers.Main.immediate) {
+            trustedInstallIds.add(expectedId)
+            quietUntil[expectedId] = SystemClock.uptimeMillis() + WELCOME_TAB_QUIET_MS
+            try {
+                installFromUri(uri)
+            } finally {
+                trustedInstallIds.remove(expectedId)
             }
         }
 
@@ -292,6 +317,7 @@ class GeckoExtensionManager(
                 source: WebExtension,
                 createDetails: WebExtension.CreateTabDetails
             ): GeckoResult<GeckoSession>? {
+                if (SystemClock.uptimeMillis() < (quietUntil[source.id] ?: 0L)) return null
                 val session = openExtensionTab(createDetails.url ?: "about:blank") ?: return null
                 return GeckoResult.fromValue(session)
             }

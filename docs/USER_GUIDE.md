@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.02`)
+# RemBrowse User Guide (`v0.03`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -17,7 +17,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 * **Back**, and **Forward** when there is somewhere to go forward to.
 * **Reload** (becomes **Stop** while a page loads).
-* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search (DuckDuckGo) and press Enter. Selecting the bar selects the whole address; Esc cancels the edit. A lock means the connection is verified secure; an open red lock means it is not.
+* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search (DuckDuckGo) and press Enter. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
 * **More (⋯)** — new tab, close tab, command palette, bookmarks, extensions, desktop site, settings.
 * **Split view** — choose a layout.
@@ -72,12 +72,26 @@ Use ↑/↓ to move, Enter to run, Esc to close.
 **More → Settings** (or `Ctrl+,`):
 
 * **Appearance** — theme colour (six choices) and **Use dark theme**.
-* **Privacy** — **Enhanced privacy** blocks trackers, fingerprinters and cryptominers on every site. Turn it off if a site you trust stops working.
+* **Privacy**
+  * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#6-ad-blocking).
+  * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
 * **About** — version information.
 
 ---
 
-## 6. Extensions (`.xpi`)
+## 6. Ad blocking
+
+RemBrowse sets up **AdGuard AdBlocker** for you. The first time the browser starts with an internet connection it downloads the extension from addons.mozilla.org and turns it on; no prompt is shown. If you were offline, it tries again on the next start.
+
+* **Turn it off or on**: **More → Settings → Privacy → Block ads and trackers**.
+* **Its own settings and per-site controls**: open **AdGuard AdBlocker** from the **More** menu.
+* **Remove it**: **More → Extensions → Installed**. A removed blocker stays removed; flipping the switch in Settings installs it again.
+
+Like any content blocker, AdGuard can read and change the pages you visit in order to filter them. If a site misbehaves, switch it off for that site from AdGuard's own menu.
+
+---
+
+## 7. Extensions (`.xpi`)
 
 Open **More → Extensions**:
 
@@ -93,7 +107,7 @@ You are asked again whenever an update needs **new permissions** or an extension
 
 ---
 
-## 7. Keyboard shortcuts
+## 8. Keyboard shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |

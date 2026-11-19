@@ -60,7 +60,10 @@ interface BrowserEngine {
     fun closeSession(tabId: String)
     fun closeAll()
 
-    /** Switches tracking protection between the standard and the strict blocking level. */
+    /**
+     * Standard tracking protection is always on. Enhanced additionally blocks known
+     * fingerprinters, cryptominers and email trackers.
+     */
     fun setEnhancedPrivacy(enabled: Boolean) {}
 }
 
@@ -74,6 +77,12 @@ interface ExtensionManager {
 
     suspend fun refreshInstalled(): Result<List<InstalledExtension>>
     suspend fun installFromUri(uri: String): Result<InstalledExtension>
+
+    /**
+     * Installs one of the browser's own default extensions without showing the permission
+     * review. The review is skipped only if the package really has the id [expectedId].
+     */
+    suspend fun installTrusted(uri: String, expectedId: String): Result<InstalledExtension>
     suspend fun setEnabled(extensionId: String, enabled: Boolean): Result<Unit>
     suspend fun uninstall(extensionId: String): Result<Unit>
     fun triggerBrowserAction(extensionId: String)

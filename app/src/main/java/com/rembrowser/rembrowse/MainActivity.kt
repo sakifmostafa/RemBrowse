@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
+import com.rembrowser.rembrowse.data.SharedPrefsDefaultExtensionStore
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.model.LayoutMode
@@ -45,6 +46,7 @@ import kotlinx.coroutines.withContext
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoView
 import java.io.File
+import java.util.WeakHashMap
 
 private const val TAG = "MainActivity"
 
@@ -80,7 +82,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             amoApiClient = OkHttpAmoApiClient(
                 userAgent = "RemBrowse/${BuildConfig.VERSION_NAME} (Android; GeckoView)"
             ),
-            scope = viewModelScope
+            scope = viewModelScope,
+            defaults = SharedPrefsDefaultExtensionStore(application)
         )
     }
 
@@ -120,6 +123,13 @@ class MainActivity : ComponentActivity() {
 
     private val holder: BrowserSessionHolder by viewModels()
     private val chrome = BrowserChromeState()
+
+    // Which tab each on-screen web view is showing, so keyboard focus can be given to a page.
+    private val paneViewTabs = WeakHashMap<GeckoView, String>()
+
+    // An Enter press that submitted a text field must not also deliver its key release to
+    // whatever receives focus next (the page, or a button).
+    private var swallowEnterKeyUp = false
 
     private val pickLocalXpiLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -180,11 +190,17 @@ class MainActivity : ComponentActivity() {
                     onPickLocalXpi = {
                         pickLocalXpiLauncher.launch(arrayOf("*/*"))
                     },
+                    onFocusWebContent = { tabId ->
+                        paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
+                    },
                     paneViewport = { tab, modifier ->
                         val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
                         DisposableEffect(Unit) {
                             onDispose {
-                                geckoViewHolder[0]?.let { engine.detachView(it) }
+                                geckoViewHolder[0]?.let {
+                                    paneViewTabs.remove(it)
+                                    engine.detachView(it)
+                                }
                             }
                         }
                         AndroidView(
@@ -196,11 +212,13 @@ class MainActivity : ComponentActivity() {
                                     // page that has already painted.
                                     coverUntilFirstPaint(pageBackground)
                                     geckoViewHolder[0] = this
+                                    paneViewTabs[this] = tab.id
                                     engine.attachSessionToView(tab.id, this)
                                 }
                             },
                             update = { view ->
                                 geckoViewHolder[0] = view
+                                paneViewTabs[view] = tab.id
                                 engine.attachSessionToView(tab.id, view)
                             }
                         )
@@ -246,6 +264,14 @@ class MainActivity : ComponentActivity() {
     // focus. Lint flags the override as a restricted API although it is a public Activity hook.
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                swallowEnterKeyUp = holder.browser.uiState.value.isAddressBarFocused || chrome.isTabSearchFocused
+            } else if (event.action == KeyEvent.ACTION_UP && swallowEnterKeyUp) {
+                swallowEnterKeyUp = false
+                return true
+            }
+        }
         if (event.action == KeyEvent.ACTION_DOWN) {
             val shortcut = KeyboardShortcuts.resolve(
                 keyCode = event.keyCode,

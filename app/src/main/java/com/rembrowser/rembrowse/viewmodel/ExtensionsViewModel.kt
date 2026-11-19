@@ -1,9 +1,12 @@
 package com.rembrowser.rembrowse.viewmodel
 
+import com.rembrowser.rembrowse.data.AlreadyProvisionedDefaults
 import com.rembrowser.rembrowse.data.AmoApiClient
+import com.rembrowser.rembrowse.data.DefaultExtensionStore
 import com.rembrowser.rembrowse.engine.ExtensionInstallCancelledException
 import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
+import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.util.UrlResolver
@@ -20,7 +23,8 @@ import kotlinx.coroutines.launch
 class ExtensionsViewModel(
     private val extensionManager: ExtensionManager,
     private val amoApiClient: AmoApiClient,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val defaults: DefaultExtensionStore = AlreadyProvisionedDefaults
 ) {
     private val _uiState = MutableStateFlow(ExtensionsUiState())
     val uiState: StateFlow<ExtensionsUiState> = _uiState.asStateFlow()
@@ -47,7 +51,64 @@ class ExtensionsViewModel(
             }
             .launchIn(scope)
 
-        refreshInstalled()
+        scope.launch {
+            extensionManager.refreshInstalled()
+                .onFailure { err ->
+                    _uiState.update {
+                        it.copy(errorMessage = err.message ?: "Unable to list installed extensions")
+                    }
+                }
+            provisionDefaultAdBlocker()
+        }
+    }
+
+    /**
+     * First launch only: installs the default ad blocker. Once that has succeeded it is never
+     * repeated, so removing the blocker sticks. A failure (offline, for instance) is silent and
+     * simply tried again on the next launch.
+     */
+    private fun provisionDefaultAdBlocker() {
+        if (defaults.defaultBlockerProvisioned) return
+        if (_uiState.value.adBlocker != null) {
+            defaults.defaultBlockerProvisioned = true
+            return
+        }
+        installDefaultAdBlocker(userInitiated = false)
+    }
+
+    private fun installDefaultAdBlocker(userInitiated: Boolean) {
+        if (_uiState.value.isInstallingAdBlocker) return
+        _uiState.update { it.copy(isInstallingAdBlocker = true, adBlockerError = null) }
+        scope.launch {
+            // Prefer the catalog's Android-compatible package; fall back to the stable link.
+            val url = amoApiClient.searchExtensions(DefaultAdBlocker.NAME).getOrNull()
+                ?.firstOrNull { it.id == DefaultAdBlocker.ID }
+                ?.xpiUrl
+                ?: DefaultAdBlocker.FALLBACK_URL
+            val result = extensionManager.installTrusted(url, DefaultAdBlocker.ID)
+            if (result.isSuccess) {
+                defaults.defaultBlockerProvisioned = true
+            }
+            _uiState.update {
+                it.copy(
+                    isInstallingAdBlocker = false,
+                    adBlockerError = if (result.isFailure && userInitiated) {
+                        "Couldn't download the ad blocker. Check your connection and try again."
+                    } else {
+                        null
+                    }
+                )
+            }
+        }
+    }
+
+    /** The "Block ads and trackers" switch: enables/disables the blocker, or installs it again. */
+    fun setAdBlockerEnabled(enabled: Boolean) {
+        val state = _uiState.value
+        when {
+            state.adBlocker != null -> setExtensionEnabled(DefaultAdBlocker.ID, enabled)
+            enabled -> installDefaultAdBlocker(userInitiated = true)
+        }
     }
 
     fun selectTab(tab: ExtensionsTab) {

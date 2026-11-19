@@ -44,6 +44,18 @@ data class ExtensionInstallPrompt(
     val onDecision: (Boolean) -> Unit
 )
 
+/**
+ * The content blocker RemBrowse sets up by default: AdGuard AdBlocker, installed from
+ * addons.mozilla.org on first launch so it is always the current Mozilla-signed build.
+ */
+object DefaultAdBlocker {
+    const val ID = "adguardadblocker@adguard.com"
+    const val NAME = "AdGuard AdBlocker"
+
+    /** Used when the catalog lookup is unavailable. */
+    const val FALLBACK_URL = "https://addons.mozilla.org/firefox/downloads/latest/adguard-adblocker/latest.xpi"
+}
+
 data class ExtensionPopupState(
     val extensionId: String,
     val extensionName: String,
@@ -69,5 +81,14 @@ data class ExtensionsUiState(
     val statusMessage: String? = null,
     val errorMessage: String? = null,
     val pendingPrompt: ExtensionInstallPrompt? = null,
-    val activePopup: ExtensionPopupState? = null
-)
+    val activePopup: ExtensionPopupState? = null,
+    val isInstallingAdBlocker: Boolean = false,
+    /** Set only when the user asked for the ad blocker and it could not be installed. */
+    val adBlockerError: String? = null
+) {
+    val adBlocker: InstalledExtension?
+        get() = installedExtensions.firstOrNull { it.id == DefaultAdBlocker.ID }
+
+    val isAdBlockerOn: Boolean
+        get() = adBlocker?.enabled == true
+}

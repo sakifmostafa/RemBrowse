@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="rem_chrome">#14161B</color>
+    <!-- Deep maroon behind the gold RemBrowse mark -->
+    <color name="ic_launcher_background">#3E0A0E</color>
 </resources>

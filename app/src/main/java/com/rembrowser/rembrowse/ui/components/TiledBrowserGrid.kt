@@ -3,6 +3,7 @@ package com.rembrowser.rembrowse.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.hoverable
@@ -30,6 +31,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -73,6 +77,9 @@ fun TiledBrowserGrid(
     onCommitSplit: () -> Unit,
     onResetSplitRatios: () -> Unit,
     onReloadPane: (Int) -> Unit,
+    contentFocusRequested: Boolean,
+    onContentFocusHandled: () -> Unit,
+    onFocusWebContent: (tabId: String) -> Unit,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -124,6 +131,9 @@ fun TiledBrowserGrid(
                     isSplit = isSplit,
                     onFocusPane = onFocusPane,
                     onReloadPane = onReloadPane,
+                    contentFocusRequested = contentFocusRequested,
+                    onContentFocusHandled = onContentFocusHandled,
+                    onFocusWebContent = onFocusWebContent,
                     paneViewport = paneViewport,
                     modifier = Modifier
                         .offset(x = x, y = y)
@@ -165,6 +175,9 @@ private fun BrowserPane(
     isSplit: Boolean,
     onFocusPane: (Int) -> Unit,
     onReloadPane: (Int) -> Unit,
+    contentFocusRequested: Boolean,
+    onContentFocusHandled: () -> Unit,
+    onFocusWebContent: (tabId: String) -> Unit,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -179,10 +192,24 @@ private fun BrowserPane(
     )
     val latestOnFocusPane by rememberUpdatedState(onFocusPane)
 
+    // The pane is the keyboard-focus target for "the page". The pane itself takes focus first
+    // (so the text field that had it lets go), then a web page's own view is focused inside it.
+    val paneFocus = remember { FocusRequester() }
+    val showsWebContent = !tab.isNewTabPage && !tab.crashed
+    LaunchedEffect(contentFocusRequested, isActive) {
+        if (contentFocusRequested && isActive) {
+            runCatching { paneFocus.requestFocus() }
+            if (showsWebContent) onFocusWebContent(tab.id)
+            onContentFocusHandled()
+        }
+    }
+
     Box(
         modifier = modifier
             .clip(shape)
             .background(colors.surfaceContainerLowest)
+            .focusRequester(paneFocus)
+            .focusable()
             .then(
                 if (framed) {
                     Modifier.border(if (showFocusRing) 1.5.dp else 1.dp, borderColor, shape)
