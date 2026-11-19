@@ -1,1 +1,1 @@
-RemBrowse 0.05 (versionCode 7)
+RemBrowse 0.06 (versionCode 8)
