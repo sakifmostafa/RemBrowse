@@ -1,4 +1,5 @@
 import com.android.build.api.artifact.SingleArtifact
+import java.security.MessageDigest
 import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
@@ -23,6 +24,14 @@ android {
         versionName = "0.12"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Where the app looks for new versions: the APKs and update.json that publishApk
+        // writes, as raw files from the repository (which must be public for this to work)
+        buildConfigField(
+            "String",
+            "UPDATE_BASE_URL",
+            "\"https://raw.githubusercontent.com/sakifmostafa/RemBrowser/main/build/\""
+        )
     }
 
     // One APK per CPU type instead of a single 380 MB package carrying both engines.
@@ -121,7 +130,8 @@ androidComponents {
 }
 
 // Builds the installable APKs and copies them to <repo>/build under stable names, ready to be
-// committed. The README's "Download latest" links point at these files.
+// committed, with update.json for the app's update check. The README's "Download latest" links
+// point at these files.
 tasks.register<Copy>("publishApk") {
     group = "distribution"
     description = "Builds release APKs and copies them to the repository's build/ folder."
@@ -135,7 +145,30 @@ tasks.register<Copy>("publishApk") {
     }
     into(target)
     doLast {
-        target.file("VERSION.txt").asFile.writeText("RemBrowse $versionName (versionCode $versionCode)\n")
+        val dir = target.asFile
+        dir.resolve("VERSION.txt").writeText("RemBrowse $versionName (versionCode $versionCode)\n")
+        // What the app's update check reads: the version, and each APK's size and SHA-256 so a
+        // download can be checked before it is installed
+        val apks = dir.listFiles { file -> file.name.startsWith("RemBrowse-") && file.name.endsWith(".apk") }
+            .orEmpty()
+            .sortedBy { it.name }
+            .joinToString(",\n") { apk ->
+                val abi = apk.name.removePrefix("RemBrowse-").removeSuffix(".apk")
+                val digest = MessageDigest.getInstance("SHA-256")
+                apk.inputStream().use { input ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        digest.update(buffer, 0, read)
+                    }
+                }
+                val sha = digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+                "    \"$abi\": {\"file\": \"${apk.name}\", \"size\": ${apk.length()}, \"sha256\": \"$sha\"}"
+            }
+        dir.resolve("update.json").writeText(
+            "{\n  \"versionName\": \"$versionName\",\n  \"versionCode\": $versionCode,\n  \"apks\": {\n$apks\n  }\n}\n"
+        )
     }
 }
 

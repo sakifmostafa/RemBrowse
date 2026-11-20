@@ -46,6 +46,8 @@ import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
 import com.rembrowser.rembrowse.ui.components.DownloadNoticeBar
+import com.rembrowser.rembrowse.ui.components.UpdateActions
+import com.rembrowser.rembrowse.ui.components.UpdateNoticeBar
 import com.rembrowser.rembrowse.ui.components.DownloadPromptDialog
 import com.rembrowser.rembrowse.ui.components.DownloadsPanelActions
 import com.rembrowser.rembrowse.ui.components.ExtensionInstallPromptDialog
@@ -64,6 +66,7 @@ import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
+import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
 
 /**
  * Which overlays of the browser chrome are open. Lives outside the composition so hardware
@@ -120,6 +123,8 @@ fun RemBrowseScreen(
      * (its onResult or onDismiss) and then resolves it in [browserViewModel].
      */
     onPickFiles: (PagePrompt.FilePicker) -> Unit = {},
+    /** RemBrowse's own updates; null leaves them out (as in tests that don't need them). */
+    updatesViewModel: UpdatesViewModel? = null,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     extensionPopupContent: @Composable (Modifier) -> Unit
 ) {
@@ -167,6 +172,18 @@ fun RemBrowseScreen(
     val openDownloads = { openSettings(SettingsSection.DOWNLOADS) }
     val openHistory = { openSettings(SettingsSection.HISTORY) }
     val history by browserViewModel.history.collectAsStateWithLifecycle()
+    val updatesState = updatesViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    val updateActions = remember(updatesViewModel) {
+        updatesViewModel?.let { updates ->
+            UpdateActions(
+                onCheck = updates::checkNow,
+                onDownload = updates::downloadAndInstall,
+                onCancel = updates::cancelDownload,
+                onInstall = updates::install,
+                onSetCheckAutomatically = updates::setCheckAutomatically
+            )
+        }
+    }
     val historyActions = remember(browserViewModel) {
         HistoryActions(
             onOpen = browserViewModel::openHistoryEntry,
@@ -321,7 +338,9 @@ fun RemBrowseScreen(
                                 downloadActions = downloadActions,
                                 modifier = pageModifier,
                                 history = history,
-                                historyActions = historyActions
+                                historyActions = historyActions,
+                                updates = updatesState,
+                                updateActions = updateActions
                             )
                         },
                         paneViewport = paneViewport
@@ -346,18 +365,31 @@ fun RemBrowseScreen(
             }
         }
 
-        // Over the page, never in its way for long: it leaves by itself after a few seconds
-        DownloadNoticeBar(
-            notice = downloadsState.notice,
-            message = downloadsState.message,
-            onOpen = openDownload,
-            onShowDownloads = openDownloads,
-            onDismiss = {
-                downloadsViewModel.dismissNotice()
-                downloadsViewModel.clearMessage()
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Stays until answered, which is at most once per version
+            UpdateNoticeBar(
+                update = updatesState?.notice,
+                onUpdate = {
+                    updatesViewModel?.acceptNotice()
+                    openSettings(SettingsSection.ABOUT)
+                },
+                onDismiss = { updatesViewModel?.dismissNotice() }
+            )
+            // Over the page, never in its way for long: it leaves by itself after a few seconds
+            DownloadNoticeBar(
+                notice = downloadsState.notice,
+                message = downloadsState.message,
+                onOpen = openDownload,
+                onShowDownloads = openDownloads,
+                onDismiss = {
+                    downloadsViewModel.dismissNotice()
+                    downloadsViewModel.clearMessage()
+                }
+            )
+        }
 
         extensionsState.activePopup?.let { popup ->
             ExtensionPopupDialog(

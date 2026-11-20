@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only used before Android 10, where downloads are kept in the app's own Download folder. -->
 <paths>
+    <!-- Downloads, only before Android 10, where they are kept in the app's own Download folder -->
     <external-files-path name="downloads" path="Download/" />
     <files-path name="downloads_internal" path="Download/" />
+    <!-- A downloaded update of RemBrowse itself, handed to the system installer -->
+    <cache-path name="updates" path="updates/" />
 </paths>
