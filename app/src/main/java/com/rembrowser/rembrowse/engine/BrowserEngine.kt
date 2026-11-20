@@ -40,6 +40,9 @@ interface SessionEventListener {
      * must close it, whether or not the file is kept.
      */
     fun onDownloadRequested(request: DownloadRequest) {}
+
+    /** The page in [tabId] asked to fill the screen (a video's fullscreen button), or left it. */
+    fun onFullScreenChanged(tabId: String, fullScreen: Boolean) {}
 }
 
 interface BrowserSessionHandle {
@@ -52,6 +55,9 @@ interface BrowserSessionHandle {
     fun setDesktopMode(enabled: Boolean)
     fun setVisible(visible: Boolean)
     fun setFocusedForExtensions(focused: Boolean)
+
+    /** Takes the page out of fullscreen, as its own exit button or Esc would. */
+    fun exitFullScreen() {}
     fun close()
 }
 

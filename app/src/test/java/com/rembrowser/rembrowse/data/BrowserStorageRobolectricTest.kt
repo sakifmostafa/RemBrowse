@@ -11,10 +11,13 @@ import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.DownloadStatus
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
+import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -172,5 +175,69 @@ class BrowserStorageRobolectricTest {
 
         store.defaultBlockerProvisioned = true
         assertEquals(true, SharedPrefsDefaultExtensionStore(context).defaultBlockerProvisioned)
+    }
+
+    @Test
+    fun saveAndLoadState_keepsAFreeFormLayout() {
+        val layout = PaneNode.Split(
+            SplitOrientation.ROW,
+            0.6f,
+            PaneNode.Leaf("t1"),
+            PaneNode.Split(SplitOrientation.COLUMN, 0.3f, PaneNode.Leaf("t2"), PaneNode.Leaf("t3"))
+        )
+        repository.saveState(
+            PersistedBrowserState(
+                layoutMode = LayoutMode.GRID_2X2,
+                tabs = listOf("t1", "t2", "t3").map { BrowserTab(id = it, url = "https://$it.example/") },
+                paneTabIds = listOf("t1", "t2", "t3"),
+                layout = layout
+            )
+        )
+
+        val restored = repository.loadState()
+
+        assertEquals(layout, restored.layout)
+        assertEquals(listOf("t1", "t2", "t3"), restored.paneTabIds)
+    }
+
+    @Test
+    fun loadState_hasNoLayoutTreeForStatesSavedBeforeFreeFormLayouts() {
+        val prefs = context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+        // Exactly what v0.12 wrote for a side-by-side split
+        prefs.edit().putString(
+            "browser_state_json",
+            """{"layoutMode":"SPLIT_1X2","splitHorizontal":0.7,"splitVertical":0.5,"activePaneIndex":1,
+               "tabs":[{"id":"t1","url":"https://reddit.com"},{"id":"t2","url":"https://youtube.com"}],
+               "paneTabIds":["t1","t2"]}"""
+        ).commit()
+
+        val restored = repository.loadState()
+
+        assertNull(restored.layout)
+        assertEquals(LayoutMode.SPLIT_1X2, restored.layoutMode)
+        assertEquals(0.7f, restored.splitRatios.horizontal, 0.001f)
+        assertEquals(listOf("t1", "t2"), restored.paneTabIds)
+        assertEquals(1, restored.activePaneIndex)
+
+        // A layout that cannot be read is ignored the same way, and nothing else is lost
+        prefs.edit().putString(
+            "browser_state_json",
+            """{"layoutMode":"SPLIT_2X1","tabs":[{"id":"t1","url":"https://reddit.com"}],"paneTabIds":["t1"],
+               "layout":{"split":"DIAGONAL","ratio":"wide","first":{"tab":"t1"}}}"""
+        ).commit()
+        val damaged = repository.loadState()
+        assertNull(damaged.layout)
+        assertEquals(LayoutMode.SPLIT_2X1, damaged.layoutMode)
+        assertEquals(1, damaged.tabs.size)
+
+        // An out-of-range ratio is brought back into range
+        prefs.edit().putString(
+            "browser_state_json",
+            """{"tabs":[],"layout":{"split":"ROW","ratio":3,"first":{"tab":"t1"},"second":{"tab":"t2"}}}"""
+        ).commit()
+        assertEquals(
+            PaneNode.Split(SplitOrientation.ROW, SplitRatios.MAX_RATIO, PaneNode.Leaf("t1"), PaneNode.Leaf("t2")),
+            repository.loadState().layout
+        )
     }
 }

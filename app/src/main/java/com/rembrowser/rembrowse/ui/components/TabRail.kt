@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
+import com.rembrowser.rembrowse.model.DropZone
+import com.rembrowser.rembrowse.model.PaneDropTarget
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 
@@ -93,6 +95,7 @@ internal fun railExtensionSlots(railHeight: Dp): Int {
  *
  * @param extensions extensions with a toolbar button, in the order they are shown.
  * @param openPopupExtensionId the extension whose popup is open, marked like a selected tab.
+ * @param dragState when given, tab tiles can be dragged onto the panes; [onDropTab] gets the drop.
  */
 @Composable
 fun TabRail(
@@ -106,6 +109,9 @@ fun TabRail(
     onOpenBookmark: (String) -> Unit,
     onRemoveBookmark: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onClosePane: (paneIndex: Int) -> Unit = {},
+    dragState: TabDragState? = null,
+    onDropTab: (tabId: String, paneIndex: Int, zone: DropZone) -> Unit = { _, _, _ -> },
     extensions: List<InstalledExtension> = emptyList(),
     openPopupExtensionId: String? = null,
     onTriggerExtensionAction: (String) -> Unit = {},
@@ -165,11 +171,14 @@ fun TabRail(
                             tab = tab,
                             isActive = tab.id == uiState.activeTabId,
                             isVisibleInPane = paneIndex >= 0,
-                            paneCount = uiState.layoutMode.paneCount,
+                            paneCount = uiState.paneCount,
                             onSelect = { onSelectTab(tab.id) },
                             onClose = { onCloseTab(tab.id) },
                             onCloseOthers = { onCloseOtherTabs(tab.id) },
-                            onShowInPane = { pane -> onAssignTabToPane(pane, tab.id) }
+                            onShowInPane = { pane -> onAssignTabToPane(pane, tab.id) },
+                            onClosePane = { onClosePane(paneIndex) },
+                            dragState = dragState,
+                            onDrop = { target -> onDropTab(tab.id, target.paneIndex, target.zone) }
                         )
                     }
                 }
@@ -416,18 +425,35 @@ private fun RailTabItem(
     onSelect: () -> Unit,
     onClose: () -> Unit,
     onCloseOthers: () -> Unit,
-    onShowInPane: (Int) -> Unit
+    onShowInPane: (Int) -> Unit,
+    onClosePane: () -> Unit,
+    dragState: TabDragState?,
+    onDrop: (PaneDropTarget) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box {
         RailTile(
             label = tab.displayTitle,
             selected = isActive,
-            highlighted = isVisibleInPane,
+            highlighted = isVisibleInPane || dragState?.draggedTabId == tab.id,
             role = Role.Tab,
             onClick = onSelect,
             onOpenMenu = { showMenu = true },
-            modifier = Modifier.testTag("tab_bar_item_${tab.id}")
+            modifier = Modifier
+                .testTag("tab_bar_item_${tab.id}")
+                .then(
+                    if (dragState != null) {
+                        Modifier.tabDragSource(
+                            tabId = tab.id,
+                            dragState = dragState,
+                            // A long press opened the menu before the finger moved on
+                            onDragStart = { showMenu = false },
+                            onDrop = onDrop
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
             if (tab.isLoading && !tab.isNewTabPage) {
                 CircularProgressIndicator(
@@ -474,6 +500,17 @@ private fun RailTabItem(
                             showMenu = false
                             onShowInPane(pane)
                         }
+                    )
+                }
+                if (isVisibleInPane) {
+                    // The pane goes, the tab stays open here in the rail
+                    DropdownMenuItem(
+                        text = { Text("Close pane") },
+                        onClick = {
+                            showMenu = false
+                            onClosePane()
+                        },
+                        modifier = Modifier.testTag("tab_bar_close_pane_${tab.id}")
                     )
                 }
             }
