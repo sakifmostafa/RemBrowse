@@ -267,14 +267,26 @@ class BrowserViewModel(
         selectTab(current.tabs[next].id)
     }
 
-    /**
-     * Live resize while the divider of the split at [path] is dragged, by [deltaFraction] of
-     * the split's length. Call [commitSplitRatios] when the drag ends.
-     */
+    /** Resizes the split at [path] by [deltaFraction] of its length. */
     fun resizeSplit(path: String, deltaFraction: Float) {
         _uiState.update { state ->
             val layout = state.layout.updateRatio(path) { it + deltaFraction }
             state.copy(layout = layout, splitRatios = state.splitRatios.following(layout))
+        }
+    }
+
+    /**
+     * Live resize while the divider of the split at [path] is dragged to [ratio], which is kept
+     * within the allowed range. Call [commitSplitRatios] when the drag ends.
+     */
+    fun setSplitRatio(path: String, ratio: Float) {
+        _uiState.update { state ->
+            val layout = state.layout.updateRatio(path) { ratio }
+            if (layout == state.layout) {
+                state
+            } else {
+                state.copy(layout = layout, splitRatios = state.splitRatios.following(layout))
+            }
         }
     }
 
