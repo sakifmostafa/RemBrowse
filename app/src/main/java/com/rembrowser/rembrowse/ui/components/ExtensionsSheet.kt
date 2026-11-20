@@ -52,12 +52,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -87,6 +89,7 @@ import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 /** Everything the extensions panel can ask for. */
 class ExtensionsPanelActions(
@@ -674,6 +677,19 @@ fun ExtensionPopupDialog(
     anchorToRail: Boolean = false
 ) {
     val colors = MaterialTheme.colorScheme
+    // Sized to what the popup's content asked for, as desktop Firefox does, within its limits
+    // (the window caps it further); the default until it has said, or if it never does
+    val width = popup.contentWidth?.dp?.coerceIn(PopupMinWidth, PopupMaxWidth) ?: PopupDefaultWidth
+    val pageHeight = popup.contentHeight?.dp?.coerceIn(PopupMinPageHeight, PopupMaxPageHeight)
+        ?: PopupDefaultPageHeight
+    // Hidden for a moment until the content's size is known, so the popup does not visibly
+    // jump from the default size to its own
+    var waited by remember(popup.sessionId) { mutableStateOf(false) }
+    LaunchedEffect(popup.sessionId) {
+        delay(POPUP_SIZE_WAIT_MS)
+        waited = true
+    }
+    val shown = waited || popup.contentWidth != null
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -682,9 +698,9 @@ fun ExtensionPopupDialog(
         Surface(
             modifier = Modifier
                 .padding(PopupShadowMargin)
-                .widthIn(max = PopupMaxWidth)
-                .fillMaxWidth()
-                .heightIn(max = PopupMaxHeight),
+                .width(width)
+                .alpha(if (shown) 1f else 0f)
+                .testTag("extension_popup"),
             shape = MaterialTheme.shapes.large,
             color = colors.surface,
             contentColor = colors.onSurface,
@@ -720,7 +736,7 @@ fun ExtensionPopupDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .height(PopupPageHeight)
+                        .height(pageHeight)
                         .testTag("extension_popup_page")
                 ) {
                     popupContent(Modifier.fillMaxSize())
@@ -732,9 +748,19 @@ fun ExtensionPopupDialog(
 
 /** Room around the popup for its shadow; the dialog window is this much larger than it. */
 private val PopupShadowMargin = 8.dp
-private val PopupMaxWidth = 420.dp
-private val PopupMaxHeight = 600.dp
-private val PopupPageHeight = 540.dp
+
+/** The popup's size before its content has reported one, or when it never does. */
+private val PopupDefaultWidth = 420.dp
+private val PopupDefaultPageHeight = 540.dp
+
+/** Desktop Firefox's largest popup, and a floor so a mis-measured page stays usable. */
+private val PopupMinWidth = 200.dp
+private val PopupMaxWidth = 800.dp
+private val PopupMinPageHeight = 160.dp
+private val PopupMaxPageHeight = 600.dp
+
+/** How long a popup stays hidden waiting for its content's size before it is shown anyway. */
+private const val POPUP_SIZE_WAIT_MS = 700L
 
 /**
  * Places the dialog's window. Beside the rail it goes to the bottom corner on the rail's side,

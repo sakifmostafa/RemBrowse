@@ -2,6 +2,17 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.12 (unreleased) — Popups sized to their content
+
+### Changed
+* **Extension popups are sized to their content, as in desktop Firefox.** The popup was always 420 × 540: a popup made wider than that (Proton Pass) was shrunk to fit, with small text and empty space below it, and a narrower one (Proton VPN) had a band of empty background beside it. RemBrowse's built-in popup helper now measures what a popup written for desktop Firefox wants and the popup takes that size, up to desktop Firefox's 800 × 600 and within the window. The popup appears once its size is known (at most a moment later), so it does not jump. Popups made for phones keep the standard size.
+
+### Known limits
+* Measured with the page's own layout rather than Firefox's desktop panel code, which cannot be used on Android; not yet tried on a device.
+
+### Testing
+196 automated tests.
+
 ## v0.11 (2026-11-20) — VPN extensions, second attempt
 
 ### Fixed

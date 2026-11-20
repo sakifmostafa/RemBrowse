@@ -108,6 +108,18 @@ class GeckoExtensionManager(
     private val _activePopup = MutableStateFlow<ExtensionPopupState?>(null)
     override val activePopup: StateFlow<ExtensionPopupState?> = _activePopup.asStateFlow()
 
+    // The popup helper reports the size each desktop-style popup's content wants
+    private val popupSizeMessages = object : WebExtension.MessageDelegate {
+        override fun onMessage(
+            nativeApp: String,
+            message: Any,
+            sender: WebExtension.MessageSender
+        ): GeckoResult<Any>? {
+            PopupContentSize.parse(message)?.let(::onPopupContentSize)
+            return null
+        }
+    }
+
     init {
         configureDelegates()
         installBuiltInHelpers()
@@ -116,14 +128,28 @@ class GeckoExtensionManager(
     /**
      * Installs (or updates, after an app update) the built-in helper. If it cannot be set up,
      * popups still open; they are just shown the way Gecko lays them out by default.
+     *
+     * Lint cannot tell that the result arrives on the main thread: a GeckoResult calls back on
+     * the thread that created it, and this runs on the main thread.
      */
+    @SuppressLint("WrongThread")
     private fun installBuiltInHelpers() {
         runCatching {
             controller.ensureBuiltIn(POPUP_VIEWPORT_EXTENSION_URI, POPUP_VIEWPORT_EXTENSION_ID).accept(
-                { Log.d(TAG, "Popup viewport helper ready") },
+                { helper ->
+                    helper?.setMessageDelegate(popupSizeMessages, PopupContentSize.NATIVE_APP)
+                    Log.d(TAG, "Popup viewport helper ready")
+                },
                 { error -> Log.w(TAG, "Popup viewport helper could not be installed", error) }
             )
         }.onFailure { Log.w(TAG, "Popup viewport helper could not be installed", it) }
+    }
+
+    /** Sizes the open popup to what its content asked for; reports for other popups are stale. */
+    private fun onPopupContentSize(size: PopupContentSize) {
+        val popup = _activePopup.value ?: return
+        if (popup.extensionId != size.extensionId) return
+        _activePopup.value = popup.copy(contentWidth = size.width, contentHeight = size.height)
     }
 
     fun getPopupGeckoSession(): GeckoSession? = activePopupSession
