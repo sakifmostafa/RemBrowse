@@ -2,6 +2,20 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.10 (unreleased) — Uploads, and VPN extensions
+
+### Fixed
+* **Upload buttons did nothing.** Choosing a file on Google Drive, Proton Drive, X or any other site never opened anything, because the engine's request for a file picker went unanswered. It now opens the system file picker, for one file or several as the page allows, filtered to the kinds of file the page accepts. The chosen files are copied into RemBrowse's private storage and handed to the page from there, since the engine cannot open files in shared storage directly; the copies are removed the next time RemBrowse starts. Folder uploads are not offered yet.
+* **VPN extensions could not connect.** Extensions such as Proton VPN take control of the browser's proxy setting before they route anything, and the Android build of Firefox's engine refuses that outright ("Not able to control the browser network settings"; Mozilla bug 1725981). RemBrowse now ships the engine with that one refusal removed. The routing itself (`proxy.onRequest`) was already supported.
+* **"Allow … in private windows" banners.** Extensions are now allowed in private browsing, which Firefox requires before an extension may change the proxy setting. RemBrowse has no private windows, so this exposes nothing; extensions installed earlier get the permission on the next start (they restart once).
+
+### Known limits
+* Neither fix has been tried on a device yet. The proxy change is in how the engine itself behaves on Android and needs a check with a real VPN extension.
+* A very large upload is copied before the page receives it, which takes a moment and uses storage until RemBrowse restarts.
+
+### Testing
+189 automated tests. The build checks the engine patch itself: it fails if the code it replaces is not found exactly, and verifies that nothing else in the engine changed.
+
 ## v0.09 (2026-11-20) — Extension buttons on the rail, readable popups
 
 ### Changed

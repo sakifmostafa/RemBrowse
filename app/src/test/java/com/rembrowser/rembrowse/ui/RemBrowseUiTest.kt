@@ -88,6 +88,7 @@ class RemBrowseUiTest {
         onRequestSettled = browserVm::closeTabLeftBehindByDownload
     ).also { browserVm.downloadHandler = it::onDownloadRequested }
     private val openedDownloads = mutableListOf<DownloadItem>()
+    private val filePickerRequests = mutableListOf<PagePrompt.FilePicker>()
     private var canOpenDownloads = true
 
     @After
@@ -107,6 +108,7 @@ class RemBrowseUiTest {
                         chrome = chrome,
                         versionName = "test",
                         onPickLocalXpi = {},
+                        onPickFiles = { filePickerRequests += it },
                         onOpenDownload = { item ->
                             openedDownloads += item
                             canOpenDownloads
@@ -761,6 +763,40 @@ class RemBrowseUiTest {
 
         assertEquals(true, answer)
         composeRule.onNodeWithText("Empty your cart?").assertDoesNotExist()
+        assertTrue(browserVm.uiState.value.pendingPrompts.isEmpty())
+    }
+
+    @Test
+    fun uploadButton_opensTheSystemFilePickerOnceInsteadOfADialog() {
+        launch()
+        val tabId = browserVm.uiState.value.activeTabId!!
+        loadPage(tabId, "https://drive.example/", "Drive")
+        composeRule.runOnUiThread {
+            engine.sessions.getValue(tabId).simulatePrompt(
+                PagePrompt.FilePicker(
+                    id = "upload-1",
+                    tabId = tabId,
+                    title = null,
+                    multiple = true,
+                    mimeTypes = listOf("*/*"),
+                    onResult = {},
+                    onDismiss = {}
+                )
+            )
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("upload-1"), filePickerRequests.map { it.id })
+        assertTrue(filePickerRequests.single().multiple)
+        composeRule.onNodeWithText("drive.example asks").assertDoesNotExist()
+
+        // Recomposing (a new frame, another state change) does not open it again
+        composeRule.runOnUiThread { browserVm.onAddressBarChange("drive") }
+        composeRule.waitForIdle()
+        assertEquals(1, filePickerRequests.size)
+
+        // Once answered, the request is gone
+        composeRule.runOnUiThread { browserVm.resolvePrompt("upload-1") }
         assertTrue(browserVm.uiState.value.pendingPrompts.isEmpty())
     }
 

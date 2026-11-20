@@ -1,12 +1,14 @@
 package com.rembrowser.rembrowse.engine
 
 import android.content.Context
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.webkit.MimeTypeMap
 import com.rembrowser.rembrowse.BuildConfig
+import com.rembrowser.rembrowse.data.UploadCache
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PromptOption
 import com.rembrowser.rembrowse.util.ErrorPages
@@ -216,6 +218,11 @@ class GeckoBrowserEngine(
     private val mainHandler = Handler(Looper.getMainLooper())
 
     val runtime: GeckoRuntime = providedRuntime ?: createRuntime(context.applicationContext)
+
+    private val appContext: Context = context.applicationContext
+
+    // Copies of files picked for upload buttons; last run's copies are no longer needed
+    private val uploads = UploadCache(appContext).also { it.clearPrevious() }
 
     /** Told which session has browser focus so per-tab extension badges can follow it. */
     var onFocusedSessionChanged: ((GeckoSession) -> Unit)? = null
@@ -441,7 +448,7 @@ class GeckoBrowserEngine(
             }
         }
 
-        geckoSession.promptDelegate = GeckoPagePrompts(tabId, listener)
+        geckoSession.promptDelegate = GeckoPagePrompts(tabId, listener, appContext, uploads)
     }
 
     override fun getSession(tabId: String): BrowserSessionHandle? = sessions[tabId]
@@ -622,7 +629,9 @@ class GeckoBrowserEngine(
  */
 private class GeckoPagePrompts(
     private val tabId: String,
-    private val listener: SessionEventListener
+    private val listener: SessionEventListener,
+    private val context: Context,
+    private val uploads: UploadCache
 ) : PromptDelegate {
 
     /** Completes a prompt's result at most once, whichever of its callbacks fires first. */
@@ -753,6 +762,43 @@ private class GeckoPagePrompts(
             },
             onDismiss = { completer.complete { prompt.dismiss() } }
         )
+    }
+
+    /**
+     * A page's upload button. Without this, choosing files did nothing on any site. The UI
+     * opens the system picker; the chosen files are copied where the engine can read them
+     * (see [UploadCache]) and handed over. Folder uploads (`webkitdirectory`) are not offered.
+     */
+    override fun onFilePrompt(
+        session: GeckoSession,
+        prompt: PromptDelegate.FilePrompt
+    ): GeckoResult<PromptDelegate.PromptResponse> {
+        if (prompt.type == PromptDelegate.FilePrompt.Type.FOLDER) {
+            return GeckoResult.fromValue(prompt.dismiss())
+        }
+        val multiple = prompt.type == PromptDelegate.FilePrompt.Type.MULTIPLE
+        return present(prompt) { id, completer ->
+            PagePrompt.FilePicker(
+                id = id,
+                tabId = tabId,
+                title = prompt.title,
+                multiple = multiple,
+                mimeTypes = UploadCache.pickerMimeTypes(prompt.mimeTypes?.toList()),
+                onResult = { uris ->
+                    uploads.copyInBackground(uris.map(Uri::parse)) { files ->
+                        val picked = if (multiple) files else files.take(1)
+                        completer.complete {
+                            if (picked.isEmpty()) {
+                                prompt.dismiss()
+                            } else {
+                                prompt.confirm(context, picked.map { Uri.fromFile(it) }.toTypedArray())
+                            }
+                        }
+                    }
+                },
+                onDismiss = { completer.complete { prompt.dismiss() } }
+            )
+        }
     }
 
     private fun flattenChoices(

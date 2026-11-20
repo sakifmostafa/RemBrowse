@@ -246,6 +246,8 @@ fun PagePromptDialog(prompt: PagePrompt, originLabel: String, onResolved: () -> 
         }
 
         is PagePrompt.Choice -> ChoicePromptDialog(prompt = prompt, onDismiss = ::dismiss, onResolved = onResolved)
+        // Answered by the system file picker, which the screen opens instead of a dialog
+        is PagePrompt.FilePicker -> Unit
     }
 }
 

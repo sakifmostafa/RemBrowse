@@ -35,6 +35,7 @@ import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.BrowserChromeState
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
@@ -71,6 +72,12 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     val browser: BrowserViewModel
     val extensions: ExtensionsViewModel
     val downloads: DownloadsViewModel
+
+    /**
+     * The upload request the system file picker is open for. Kept here, not in the activity, so
+     * a re-created activity neither opens the picker a second time nor loses the answer.
+     */
+    var filePickerPromptId: String? = null
 
     init {
         val runtime = (application as RemBrowseApplication).geckoRuntime
@@ -148,6 +155,15 @@ class MainActivity : ComponentActivity() {
     // whatever receives focus next (the page, or a button).
     private var swallowEnterKeyUp = false
 
+    // Upload buttons on web pages: one file, or several when the page allows it
+    private val pickOneFileLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? -> onFilesPicked(listOfNotNull(uri)) }
+
+    private val pickFilesLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> -> onFilesPicked(uris) }
+
     private val pickLocalXpiLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -210,6 +226,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenDownload = ::openDownloadedFile,
                     onOpenDownloadsFolder = ::openDownloadsFolder,
+                    onPickFiles = ::pickFilesFor,
                     onFocusWebContent = { tabId ->
                         paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
                     },
@@ -272,6 +289,31 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    /** Opens the system file picker for a page's upload button, unless it is already open. */
+    private fun pickFilesFor(prompt: PagePrompt.FilePicker) {
+        if (holder.filePickerPromptId == prompt.id) return
+        holder.filePickerPromptId = prompt.id
+        val types = prompt.mimeTypes.toTypedArray()
+        try {
+            if (prompt.multiple) pickFilesLauncher.launch(types) else pickOneFileLauncher.launch(types)
+        } catch (e: ActivityNotFoundException) {
+            Log.w(TAG, "No app can pick files", e)
+            onFilesPicked(emptyList())
+        }
+    }
+
+    /** Answers the open upload request with what was picked; nothing picked cancels it. */
+    private fun onFilesPicked(uris: List<Uri>) {
+        val promptId = holder.filePickerPromptId ?: return
+        holder.filePickerPromptId = null
+        val browser = holder.browser
+        // The page may have withdrawn the request (navigated away) while the picker was open
+        val prompt = browser.uiState.value.pendingPrompts.firstOrNull { it.id == promptId } as? PagePrompt.FilePicker
+            ?: return
+        if (uris.isEmpty()) prompt.onDismiss() else prompt.onResult(uris.map(Uri::toString))
+        browser.resolvePrompt(promptId)
     }
 
     override fun onNewIntent(intent: Intent) {

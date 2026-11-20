@@ -87,6 +87,10 @@ class GeckoExtensionManager(
     // Ids of default extensions being installed right now; their permission review is skipped.
     private val trustedInstallIds = HashSet<String>()
 
+    // Extensions already asked to be allowed in private browsing this run (see
+    // allowInPrivateBrowsing), so a refusal is not retried on every refresh.
+    private val privateBrowsingRequested = HashSet<String>()
+
     // Extensions that just arrived as a default must not pop open a "thanks for installing"
     // tab over whatever the user is doing. Maps extension id to an uptime deadline.
     private val quietUntil = HashMap<String, Long>()
@@ -138,12 +142,14 @@ class GeckoExtensionManager(
                 permissions: Array<String>,
                 origins: Array<String>
             ): GeckoResult<WebExtension.PermissionPromptResponse> {
+                // The second value allows the extension in private browsing; see
+                // allowInPrivateBrowsing for why RemBrowse always does.
                 if (extension.id in trustedInstallIds) {
-                    return GeckoResult.fromValue(WebExtension.PermissionPromptResponse(true, false))
+                    return GeckoResult.fromValue(WebExtension.PermissionPromptResponse(true, true))
                 }
                 val result = GeckoResult<WebExtension.PermissionPromptResponse>()
                 enqueuePrompt(extension, permissions, origins, ExtensionPromptKind.INSTALL) { allow ->
-                    result.complete(WebExtension.PermissionPromptResponse(allow, false))
+                    result.complete(WebExtension.PermissionPromptResponse(allow, allow))
                 }
                 return result
             }
@@ -226,6 +232,7 @@ class GeckoExtensionManager(
                 iconBitmaps.keys.retainAll(installedIds)
                 iconRendersPending.retainAll(installedIds)
                 list.forEach { requestIcon(it.id) }
+                list.forEach { allowInPrivateBrowsing(it) }
                 val models = list.map { toModel(it) }.sortedBy { it.name.lowercase() }
                 _installedExtensions.value = models
                 models
@@ -453,6 +460,28 @@ class GeckoExtensionManager(
         if (updated != current) {
             _installedExtensions.value = updated
         }
+    }
+
+    /**
+     * Allows [extension] in private browsing, once per run, if it is not already.
+     *
+     * RemBrowse has no private windows, so the permission does not expose anything; what it
+     * does is unlock APIs that Gecko keeps from extensions without it. VPN extensions need it:
+     * `proxy.settings` refuses them otherwise (and shows "possibly a permission is missing").
+     * Extensions installed since this change get it at install; this covers those installed
+     * before. If RemBrowse ever gains private windows, this must become the user's choice.
+     */
+    private fun allowInPrivateBrowsing(extension: WebExtension) {
+        if (extension.metaData.allowedInPrivateBrowsing || !privateBrowsingRequested.add(extension.id)) return
+        controller.setAllowedInPrivateBrowsing(extension, true).accept(
+            { updated ->
+                if (updated != null && rawExtensions.containsKey(updated.id)) {
+                    rawExtensions[updated.id] = updated
+                    registerDelegates(updated)
+                }
+            },
+            { error -> Log.w(TAG, "Couldn't allow ${extension.id} in private browsing", error) }
+        )
     }
 
     /** The icon [extensionId]'s button should show: its action's, else the extension's own. */

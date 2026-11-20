@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.09`)
+# RemBrowse User Guide (`v0.10`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -134,6 +134,8 @@ Enabled extensions with a toolbar button appear at the bottom of the tab rail, w
 
 **Popups.** An extension's popup opens beside its button and closes when you select anything outside it, press Esc or use **×**. Most popups are written for desktop Firefox and leave out the setting that tells a phone browser how wide to lay them out, which used to make them appear shrunk to under half size. RemBrowse now lays them out at the popup's own width at full size; a popup that already sets its own width is left as it is.
 
+**VPN and proxy extensions.** Extensions such as Proton VPN work by taking control of the browser's proxy setting. Firefox's engine refuses that on Android; RemBrowse ships the engine with that refusal removed, so these extensions can connect. Extensions are also allowed in private browsing, which Firefox requires for this: RemBrowse has no private windows, so the permission exposes nothing, and an extension's "allow in private windows" hint can be ignored.
+
 You are asked again whenever an update needs **new permissions** or an extension requests **additional permissions**.
 
 > **Signing note**: extensions must be signed by Mozilla (everything on addons.mozilla.org is).
@@ -155,6 +157,9 @@ Good to know:
 * Downloads run while RemBrowse is open. If you close it, or Android stops it in the background, a download that was still running ends and is marked **Couldn't download**; start it again from the page.
 * A download that receives nothing for 30 seconds is treated as failed.
 * A link that opens an empty tab only to hand over a file has that tab closed once the download is over.
+
+
+**Uploading files.** A page's upload button (Google Drive, Proton Drive, X…) opens the system file picker. Pick one file, or several when the page allows it; the picker shows the kinds of file the page accepts. Cancelling sends nothing. RemBrowse hands the page a private copy of each file, which is removed the next time the browser starts. Uploading a whole folder is not supported yet.
 
 ---
 
