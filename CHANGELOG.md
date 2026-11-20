@@ -2,7 +2,7 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## v0.13.1 (2026-11-20) — One left, two right; updates from the renamed repository
+## v0.13.1 (2026-11-20) — One left, two right, and a divider that follows the mouse
 
 ### Added
 * **One left, two right layout.** The Split menu (and `Ctrl+5`) offers one tall pane on the left with two stacked on the right, next to Side by side, Stacked and Grid. The page you are on takes the tall pane. Building the same shape by dragging a tab onto the bottom edge of the right-hand page is recognised as this layout too.
