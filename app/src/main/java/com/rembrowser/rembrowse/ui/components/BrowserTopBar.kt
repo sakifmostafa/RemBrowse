@@ -104,6 +104,7 @@ fun BrowserTopBar(
     onOpenCommandPalette: () -> Unit,
     onOpenBookmarks: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenHistory: () -> Unit = {},
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onTriggerExtensionAction: (String) -> Unit,
@@ -199,6 +200,7 @@ fun BrowserTopBar(
                 onOpenCommandPalette = onOpenCommandPalette,
                 onOpenBookmarks = onOpenBookmarks,
                 onOpenDownloads = onOpenDownloads,
+                onOpenHistory = onOpenHistory,
                 onOpenExtensions = onOpenExtensions,
                 onOpenSettings = onOpenSettings,
                 onOpenSplitView = { showLayoutMenu = true },
@@ -447,6 +449,7 @@ private fun MoreMenu(
     onOpenCommandPalette: () -> Unit,
     onOpenBookmarks: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenHistory: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSplitView: () -> Unit,
@@ -504,6 +507,12 @@ private fun MoreMenu(
             text = { Text("Bookmarks") },
             onClick = run(onOpenBookmarks),
             modifier = Modifier.testTag("menu_bookmarks")
+        )
+        DropdownMenuItem(
+            text = { Text("History") },
+            trailingIcon = { ShortcutHint("Ctrl+H") },
+            onClick = run(onOpenHistory),
+            modifier = Modifier.testTag("menu_history")
         )
         DropdownMenuItem(
             text = { Text("Downloads") },

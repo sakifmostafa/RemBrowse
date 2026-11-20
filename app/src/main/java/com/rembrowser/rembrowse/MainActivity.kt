@@ -29,6 +29,7 @@ import androidx.lifecycle.viewModelScope
 import com.rembrowser.rembrowse.data.AndroidDownloadStorage
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
+import com.rembrowser.rembrowse.data.SharedPrefsBrowsingHistoryStore
 import com.rembrowser.rembrowse.data.SharedPrefsDefaultExtensionStore
 import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
@@ -46,6 +47,8 @@ import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
+import java.io.File
+import java.util.WeakHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -53,8 +56,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoView
-import java.io.File
-import java.util.WeakHashMap
 
 private const val TAG = "MainActivity"
 
@@ -90,7 +91,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
         engine.onFocusedSessionChanged = extensionManager::setActiveSession
         browser = BrowserViewModel(
             engine = engine,
-            repository = SharedPrefsBrowserStateRepository(application)
+            repository = SharedPrefsBrowserStateRepository(application),
+            historyStore = SharedPrefsBrowsingHistoryStore(application)
         )
         extensions = ExtensionsViewModel(
             extensionManager = extensionManager,
@@ -374,6 +376,10 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.OPEN_DOWNLOADS -> {
                 chrome.showTabSwitcher = false
                 browser.openSettings(SettingsSection.DOWNLOADS)
+            }
+            BrowserShortcut.OPEN_HISTORY -> {
+                chrome.showTabSwitcher = false
+                browser.openSettings(SettingsSection.HISTORY)
             }
             BrowserShortcut.TOGGLE_SPLIT_VIEW -> if (browser.uiState.value.isSplit) {
                 browser.setLayoutMode(LayoutMode.SINGLE_1X1)

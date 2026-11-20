@@ -87,6 +87,7 @@ class SharedPrefsBrowserStateRepository(
                     put("openNewTabsNextToCurrent", state.settings.openNewTabsNextToCurrent)
                     put("desktopSiteByDefault", state.settings.desktopSiteByDefault)
                     put("askBeforeDownloading", state.settings.askBeforeDownloading)
+                    put("keepHistory", state.settings.keepHistory)
                 }
             )
 
@@ -162,7 +163,8 @@ class SharedPrefsBrowserStateRepository(
                         defaults.openNewTabsNextToCurrent
                     ),
                     desktopSiteByDefault = settingsObj.optBoolean("desktopSiteByDefault", defaults.desktopSiteByDefault),
-                    askBeforeDownloading = settingsObj.optBoolean("askBeforeDownloading", defaults.askBeforeDownloading)
+                    askBeforeDownloading = settingsObj.optBoolean("askBeforeDownloading", defaults.askBeforeDownloading),
+                    keepHistory = settingsObj.optBoolean("keepHistory", defaults.keepHistory)
                 )
             }
 

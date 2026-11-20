@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tab
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.util.UrlResolver
 
 /** One runnable entry in the command palette. */
@@ -83,6 +85,7 @@ private const val MAX_TAB_RESULTS = 6
 fun CommandPalette(
     commands: List<PaletteCommand>,
     tabs: List<BrowserTab>,
+    history: List<HistoryEntry> = emptyList(),
     onNavigate: (String) -> Unit,
     onSelectTab: (String) -> Unit,
     onDismiss: () -> Unit
@@ -93,8 +96,8 @@ fun CommandPalette(
     val inputFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
-    val results = remember(query, commands, tabs) {
-        buildPaletteResults(query, commands, tabs, onNavigate, onSelectTab)
+    val results = remember(query, commands, tabs, history) {
+        buildPaletteResults(query, commands, tabs, onNavigate, onSelectTab, history)
     }
     LaunchedEffect(results.size) {
         highlighted = highlighted.coerceIn(0, (results.size - 1).coerceAtLeast(0))
@@ -272,14 +275,16 @@ private fun PaletteRow(command: PaletteCommand, isHighlighted: Boolean, onClick:
 
 /**
  * Typed text first offers to open or search for itself, then matching commands, then matching
- * open tabs. With nothing typed, the full command list is shown.
+ * open tabs, then matching pages from the history that are not open. With nothing typed, the
+ * full command list is shown.
  */
 internal fun buildPaletteResults(
     query: String,
     commands: List<PaletteCommand>,
     tabs: List<BrowserTab>,
     onNavigate: (String) -> Unit,
-    onSelectTab: (String) -> Unit
+    onSelectTab: (String) -> Unit,
+    history: List<HistoryEntry> = emptyList()
 ): List<PaletteCommand> {
     val needle = query.trim()
     if (needle.isEmpty()) return commands
@@ -308,5 +313,20 @@ internal fun buildPaletteResults(
                 action = { onSelectTab(tab.id) }
             )
         }
+    val openUrls = tabs.map { it.url }.toSet()
+    results += filterHistory(history, needle)
+        .filter { it.url !in openUrls }
+        .take(MAX_HISTORY_RESULTS)
+        .map { entry ->
+            PaletteCommand(
+                id = "history-${entry.url}",
+                label = entry.displayTitle,
+                icon = Icons.Outlined.History,
+                action = { onNavigate(entry.url) }
+            )
+        }
     return results
 }
+
+/** Pages from the history offered for a typed query. */
+private const val MAX_HISTORY_RESULTS = 5
