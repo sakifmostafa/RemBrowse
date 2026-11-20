@@ -20,6 +20,7 @@ class KeyboardShortcutsTest {
         assertEquals(BrowserShortcut.TOGGLE_SPLIT_VIEW, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_BACKSLASH, ctrl = true))
         assertEquals(BrowserShortcut.LAYOUT_SINGLE, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_1, ctrl = true))
         assertEquals(BrowserShortcut.LAYOUT_GRID, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_4, ctrl = true))
+        assertEquals(BrowserShortcut.LAYOUT_ONE_AND_TWO, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_5, ctrl = true))
     }
 
     @Test

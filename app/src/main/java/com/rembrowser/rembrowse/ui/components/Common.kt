@@ -228,13 +228,15 @@ fun LayoutGlyph(
             cornerRadius = CornerRadius(3.dp.toPx()),
             style = Stroke(width = stroke)
         )
+        val x = left + (right - left) * firstPaneFraction
         if (mode.columns == 2) {
-            val x = left + (right - left) * firstPaneFraction
             drawLine(color, Offset(x, top), Offset(x, bottom), strokeWidth = stroke)
         }
         if (mode.rows == 2) {
             val y = top + (bottom - top) * firstPaneFraction
-            drawLine(color, Offset(left, y), Offset(right, y), strokeWidth = stroke)
+            // One and two: only the right-hand column is split in two
+            val rowStart = if (mode == LayoutMode.SPLIT_1_2) x else left
+            drawLine(color, Offset(rowStart, y), Offset(right, y), strokeWidth = stroke)
         }
     }
 }

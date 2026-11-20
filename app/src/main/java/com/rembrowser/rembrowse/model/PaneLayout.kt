@@ -111,6 +111,8 @@ sealed interface PaneNode {
             if (orientation == SplitOrientation.ROW) LayoutMode.SPLIT_1X2 else LayoutMode.SPLIT_2X1
         this is Split && orientation == SplitOrientation.COLUMN && first.isLeafPair(SplitOrientation.ROW) &&
             second.isLeafPair(SplitOrientation.ROW) -> LayoutMode.GRID_2X2
+        this is Split && orientation == SplitOrientation.ROW && first is Leaf &&
+            second.isLeafPair(SplitOrientation.COLUMN) -> LayoutMode.SPLIT_1_2
         else -> null
     }
 
@@ -144,6 +146,12 @@ sealed interface PaneNode {
                 LayoutMode.SINGLE_1X1 -> leaf(0)
                 LayoutMode.SPLIT_1X2 -> Split(SplitOrientation.ROW, h, leaf(0), leaf(1))
                 LayoutMode.SPLIT_2X1 -> Split(SplitOrientation.COLUMN, v, leaf(0), leaf(1))
+                LayoutMode.SPLIT_1_2 -> Split(
+                    SplitOrientation.ROW,
+                    h,
+                    leaf(0),
+                    Split(SplitOrientation.COLUMN, v, leaf(1), leaf(2))
+                )
                 LayoutMode.GRID_2X2 -> Split(
                     SplitOrientation.COLUMN,
                     v,

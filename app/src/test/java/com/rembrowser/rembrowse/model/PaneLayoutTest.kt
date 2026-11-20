@@ -118,7 +118,26 @@ class PaneLayoutTest {
         LayoutMode.entries.forEach { mode ->
             assertEquals(mode, PaneNode.preset(mode, ids, ratios).matchingPreset())
         }
-        assertNull("Three panes are no preset", oneAndTwo.matchingPreset())
+        assertEquals("One left, two right is a preset", LayoutMode.SPLIT_1_2, oneAndTwo.matchingPreset())
+        assertNull(
+            "Two on the left, one on the right is not",
+            Split(ROW, 0.5f, Split(COLUMN, 0.5f, Leaf("a"), Leaf("b")), Leaf("c")).matchingPreset()
+        )
+    }
+
+    @Test
+    fun oneAndTwoPreset_keepsTheFirstTabFullHeightOnTheLeft() {
+        val ratios = SplitRatios(horizontal = 0.6f, vertical = 0.4f)
+        val layout = PaneNode.preset(LayoutMode.SPLIT_1_2, listOf("reddit", "youtube", "news"), ratios)
+        assertEquals(
+            Split(ROW, 0.6f, Leaf("reddit"), Split(COLUMN, 0.4f, Leaf("youtube"), Leaf("news"))),
+            layout
+        )
+
+        val panes = layout.geometry(width = 1000f, height = 600f, gap = 0f).panes.associate { it.tabId to it.rect }
+        assertEquals(PaneRect(0f, 0f, 600f, 600f), panes["reddit"])
+        assertEquals(PaneRect(600f, 0f, 400f, 240f), panes["youtube"])
+        assertEquals(PaneRect(600f, 240f, 400f, 360f), panes["news"])
     }
 
     @Test
