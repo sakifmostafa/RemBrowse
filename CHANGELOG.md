@@ -2,10 +2,16 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## Unreleased
+## v0.13.1 (2026-11-20) — Updates from the renamed repository
 
 ### Changed
-* **Updates come from the repository's new name**, `sakifmostafa/RemBrowse`. 0.13 still asks the old name, which GitHub forwards, so it keeps working until a version with this change is installed.
+* **Updates come from the repository's new name**, `sakifmostafa/RemBrowse` (it was `RemBrowser`). 0.13 asks the old name, which GitHub forwards, so updating from 0.13 works; from this version on, RemBrowse no longer depends on that forwarding.
+
+### Known limits
+* The first update that can be installed from inside the app: from 0.13, use **Settings → About → Check for updates**. Not yet tried on a device.
+
+### Testing
+270 automated tests.
 
 ## v0.13 (2026-11-20) — Layouts your way, fullscreen video, history and updates
 
