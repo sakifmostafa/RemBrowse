@@ -8,9 +8,9 @@
 
 ## Download latest
 
-**Version 0.09** — pick the file that matches your device's processor, open it on the device and confirm the install.
+**Version 0.10** — pick the file that matches your device's processor, open it on the device and confirm the install.
 
-> **Updating from 0.08 or earlier:** 0.09 is signed with a different key, so Android will not install it over an older copy. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions.
+> **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
 | Your device | Download |
 | :--- | :--- |

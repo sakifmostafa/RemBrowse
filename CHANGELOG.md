@@ -2,7 +2,7 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## v0.10 (unreleased) — Uploads, and VPN extensions
+## v0.10 (2026-11-20) — Uploads, and VPN extensions
 
 ### Fixed
 * **Upload buttons did nothing.** Choosing a file on Google Drive, Proton Drive, X or any other site never opened anything, because the engine's request for a file picker went unanswered. It now opens the system file picker, for one file or several as the page allows, filtered to the kinds of file the page accepts. The chosen files are copied into RemBrowse's private storage and handed to the page from there, since the engine cannot open files in shared storage directly; the copies are removed the next time RemBrowse starts. Folder uploads are not offered yet.
