@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.ui.components
 
 import android.graphics.Bitmap
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -50,7 +51,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -70,6 +72,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -675,7 +678,7 @@ fun ExtensionPopupDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        if (anchorToRail) AnchorDialogBesideRail()
+        PlaceDialogWindow(anchorToRail)
         Surface(
             modifier = Modifier
                 .padding(PopupShadowMargin)
@@ -734,24 +737,46 @@ private val PopupMaxHeight = 600.dp
 private val PopupPageHeight = 540.dp
 
 /**
- * Moves the dialog's window from the centre to the bottom-start corner, just past the tab
- * rail, so the popup sits beside the extension buttons. The page behind is not dimmed: a tap
- * outside still closes the popup.
+ * Places the dialog's window. Beside the rail it goes to the bottom corner on the rail's side,
+ * just past the rail, so the popup sits next to the extension buttons, and the page behind is
+ * not dimmed (a tap outside still closes the popup). Otherwise it is centred and dimmed.
+ *
+ * Both cases are set every time, because the same dialog can move from one to the other: the
+ * activity handles rotation and resizing itself, so a popup opened on a wide window survives
+ * the window becoming phone-sized.
  */
 @Composable
-private fun AnchorDialogBesideRail() {
+private fun PlaceDialogWindow(anchorToRail: Boolean) {
     val view = LocalView.current
     val density = LocalDensity.current
-    SideEffect {
-        val window = (view.parent as? DialogWindowProvider)?.window ?: return@SideEffect
-        window.setGravity(Gravity.BOTTOM or Gravity.START)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        val params = window.attributes
-        with(density) {
-            // The visible popup starts 4dp past the rail and lines up with the panes' bottom edge
-            params.x = (RemDimens.RailWidth + 4.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
-            params.y = (6.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
+    val layoutDirection = LocalLayoutDirection.current
+    DisposableEffect(view, anchorToRail, density, layoutDirection) {
+        val window = (view.parent as? DialogWindowProvider)?.window
+        if (window != null) {
+            val params = window.attributes
+            if (anchorToRail) {
+                // A window's gravity is not resolved against the layout direction (START
+                // would always mean left), and in a right-to-left layout the rail is on the
+                // right, so resolve it here
+                params.gravity = Gravity.getAbsoluteGravity(
+                    Gravity.BOTTOM or Gravity.START,
+                    if (layoutDirection == LayoutDirection.Rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+                )
+                with(density) {
+                    // The visible popup starts 4dp past the rail and lines up with the panes'
+                    // bottom edge; x is measured from whichever side the gravity names
+                    params.x = (RemDimens.RailWidth + 4.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
+                    params.y = (6.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
+                }
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND.inv()
+            } else {
+                params.gravity = Gravity.CENTER
+                params.x = 0
+                params.y = 0
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_DIM_BEHIND
+            }
+            window.attributes = params
         }
-        window.attributes = params
+        onDispose { }
     }
 }

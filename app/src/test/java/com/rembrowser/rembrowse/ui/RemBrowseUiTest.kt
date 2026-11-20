@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -371,6 +372,44 @@ class RemBrowseUiTest {
 
         // Its button is marked while the popup of an extension in the menu is open
         composeRule.onNodeWithTag("rail_extensions_more").assertIsSelected()
+    }
+
+    // A phone in landscape, then the same with the keyboard up: the tabs keep their room and
+    // every extension stays reachable
+    @Test
+    @Config(qualifiers = "w800dp-h360dp-land-mdpi")
+    fun extensionButtons_onAShortWindow_leaveRoomForTheTabs() {
+        assertShortRailKeepsTabsAndExtensions()
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h250dp-land-mdpi")
+    fun extensionButtons_onAVeryShortWindow_leaveRoomForTheTabs() {
+        assertShortRailKeepsTabsAndExtensions()
+    }
+
+    private fun assertShortRailKeepsTabsAndExtensions() {
+        browserVm.openNewTab("https://one.example/")
+        browserVm.openNewTab("https://two.example/")
+        extensionManager.installedExtensions.value = (1..4).map { toolbarExtension("e$it@example", "Extension $it") }
+        launch()
+
+        val newTab = composeRule.onNodeWithTag("new_tab_button").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val section = composeRule.onNodeWithTag("rail_extensions").getUnclippedBoundsInRoot()
+        assertTrue(newTab.bottom - newTab.top >= 40.dp)
+        assertTrue(newTab.bottom <= section.top)
+        val firstTab = browserVm.uiState.value.tabs.first().id
+        composeRule.onNodeWithTag("tab_bar_item_$firstTab").assertIsDisplayed()
+
+        // Extensions without a button of their own are in the overflow menu
+        val onRail = (1..4).filter { i ->
+            composeRule.onAllNodesWithTag("rail_extension_e$i@example").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(onRail.size < 4)
+        composeRule.onNodeWithTag("rail_extensions_more").performClick()
+        (1..4).filterNot { it in onRail }.forEach { i ->
+            composeRule.onNodeWithTag("menu_extension_e$i@example").assertIsDisplayed()
+        }
     }
 
     @Test

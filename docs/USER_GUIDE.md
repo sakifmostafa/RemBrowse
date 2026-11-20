@@ -12,7 +12,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Pinned sites** — your first six bookmarks. Select one to open it.
 * **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…**.
 * **+** — opens a new tab.
-* **Extensions (bottom)** — the buttons of your extensions, such as AdGuard AdBlocker or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than four, the last button lists the rest.
+* **Extensions (bottom)** — the buttons of your extensions, such as AdGuard AdBlocker or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
 
 **Toolbar (top)**, left to right:
 

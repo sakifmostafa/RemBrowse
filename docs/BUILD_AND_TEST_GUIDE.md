@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **175 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **183 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -65,7 +65,8 @@ Test suites included:
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
 * `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01, and the saved downloads list.
 * `BuiltInExtensionAssetsTest` — the bundled popup viewport helper: its id, the files its manifest names and its API wiring.
-* `RemBrowseUiTest` / `CompactWindowUiTest` — the real Compose screen on a laptop-sized and a phone-sized window, including extension buttons on the rail and in the More menu.
+* `RailExtensionSlotsTest` / `ExtensionPopupDialogTest` — how many extension buttons fit on the rail for its height; where an extension popup's window goes (beside the rail, centred after the window becomes phone-sized, right-to-left).
+* `RemBrowseUiTest` / `CompactWindowUiTest` — the real Compose screen on a laptop-sized and a phone-sized window, including extension buttons on the rail (also on short windows) and in the More menu.
 
 ### Rendering the UI without a device
 

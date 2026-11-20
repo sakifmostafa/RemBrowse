@@ -10,11 +10,13 @@
 // 420dp popup that leaves the page at about 40%, too small to read or use.
 //
 // This gives such a popup the tag a page made for a phone would carry, so it is laid out at
-// the popup's own width at 100%. A tag the popup has itself is parsed later and takes
-// precedence (Gecko uses the most recently added one), so popups that already work on
-// Android are unchanged. Pages of extensions shown in a tab are left alone.
+// the popup's own width at 100%. There is deliberately no initial-scale: without one, Gecko
+// still scales a popup whose content is wider than the popup down to fit, instead of making
+// it scroll sideways. A tag the popup has itself is parsed later and takes precedence (Gecko
+// uses the most recently added one), so popups that already work on Android are unchanged.
+// Pages of extensions shown in a tab are left alone.
 
-const VIEWPORT = "width=device-width, initial-scale=1";
+const VIEWPORT = "width=device-width";
 
 let started = false;
 
