@@ -209,6 +209,9 @@ fun RemBrowseScreen(
             .safeDrawingPadding()
     ) {
         val compact = maxWidth < RemDimens.CompactWidth
+        val toolbarExtensions = remember(extensionsState.installedExtensions) {
+            extensionsState.installedExtensions.filter { it.enabled && it.hasBrowserAction }
+        }
 
         Row(modifier = Modifier.fillMaxSize()) {
             if (!compact) {
@@ -227,7 +230,11 @@ fun RemBrowseScreen(
                         browserViewModel.openBookmark(url)
                         closeTabSwitcher()
                     },
-                    onRemoveBookmark = browserViewModel::removeBookmark
+                    onRemoveBookmark = browserViewModel::removeBookmark,
+                    extensions = toolbarExtensions,
+                    openPopupExtensionId = extensionsState.activePopup?.extensionId,
+                    onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
+                    onManageExtensions = openExtensions
                 )
             }
 
@@ -330,6 +337,17 @@ fun RemBrowseScreen(
             },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+
+        extensionsState.activePopup?.let { popup ->
+            ExtensionPopupDialog(
+                popup = popup,
+                icon = extensionsState.installedExtensions.firstOrNull { it.id == popup.extensionId }?.icon,
+                // Beside the extension buttons when the rail shows them, like a toolbar popup
+                anchorToRail = !compact,
+                onDismiss = extensionsViewModel::dismissPopup,
+                popupContent = extensionPopupContent
+            )
+        }
     }
 
     if (chrome.showCommandPalette) {
@@ -406,14 +424,6 @@ fun RemBrowseScreen(
         ExtensionInstallPromptDialog(
             prompt = prompt,
             onDecision = extensionsViewModel::respondToInstallPrompt
-        )
-    }
-
-    extensionsState.activePopup?.let { popup ->
-        ExtensionPopupDialog(
-            popup = popup,
-            onDismiss = extensionsViewModel::dismissPopup,
-            popupContent = extensionPopupContent
         )
     }
 }

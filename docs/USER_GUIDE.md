@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.08`)
+# RemBrowse User Guide (`v0.09`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -12,6 +12,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Pinned sites** — your first six bookmarks. Select one to open it.
 * **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…**.
 * **+** — opens a new tab.
+* **Extensions (bottom)** — the buttons of your extensions, such as AdGuard AdBlocker or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than four, the last button lists the rest.
 
 **Toolbar (top)**, left to right:
 
@@ -22,7 +23,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **More (⋯)** — new tab, close tab, command palette, bookmarks, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
-On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark and split view move into the **More** menu.
+On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
 
 **Start page** — a new tab shows a clock and the date instead of loading a website. Just start typing in the address bar.
 
@@ -129,7 +130,9 @@ Extensions are managed in **Settings → Extensions** (`rem://settings/extension
 2. **Firefox Add-ons** — search the catalog at addons.mozilla.org (uBlock Origin, Dark Reader, Bitwarden…). Select **Add**, review the permissions, then confirm. Add-ons you already have are marked **Added**.
 3. **From file** — paste an `https://` link to a `.xpi`, or choose a `.xpi` file already on the device.
 
-Enabled extensions with a toolbar button also appear in the **More** menu, with their badge.
+Enabled extensions with a toolbar button appear at the bottom of the tab rail, with their icon and badge; on a phone-sized window they are in the **More** menu.
+
+**Popups.** An extension's popup opens beside its button and closes when you select anything outside it, press Esc or use **×**. Most popups are written for desktop Firefox and leave out the setting that tells a phone browser how wide to lay them out, which used to make them appear shrunk to under half size. RemBrowse now lays them out at the popup's own width at full size; a popup that already sets its own width is left as it is.
 
 You are asked again whenever an update needs **new permissions** or an extension requests **additional permissions**.
 

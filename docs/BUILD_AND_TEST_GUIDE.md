@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **167 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **175 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -64,11 +64,12 @@ Test suites included:
 * `CommandPaletteResultsTest` — what the command palette offers for a typed query.
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
 * `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01, and the saved downloads list.
-* `RemBrowseUiTest` / `CompactWindowUiTest` — the real Compose screen on a laptop-sized and a phone-sized window.
+* `BuiltInExtensionAssetsTest` — the bundled popup viewport helper: its id, the files its manifest names and its API wiring.
+* `RemBrowseUiTest` / `CompactWindowUiTest` — the real Compose screen on a laptop-sized and a phone-sized window, including extension buttons on the rail and in the More menu.
 
 ### Rendering the UI without a device
 
-`UiSnapshotTest` renders the main screens (start page, browsing, tab switcher, split view, command palette, each settings section, the extensions manager, the downloads list, the download question and notice, light theme, compact layout) to PNG files. It is skipped unless you name a target directory:
+`UiSnapshotTest` renders the main screens (start page, browsing, tab switcher, split view, command palette, each settings section, the extensions manager, the downloads list, the download question and notice, extension buttons and an open popup, light theme, compact layout) to PNG files. It is skipped unless you name a target directory:
 
 ```bash
 ./gradlew testDebugUnitTest --tests "*UiSnapshotTest*" -Prembrowse.screenshots=build/ui-screenshots

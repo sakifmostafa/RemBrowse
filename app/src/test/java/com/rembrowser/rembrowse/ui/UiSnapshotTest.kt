@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -138,7 +139,18 @@ class UiSnapshotTest {
                     version = "5.2.1",
                     description = "Blocks ads and trackers on the sites you visit.",
                     enabled = true,
-                    hasBrowserAction = true
+                    hasBrowserAction = true,
+                    badgeText = "12",
+                    icon = sampleIcon(0xFF68BC71.toInt())
+                ),
+                InstalledExtension(
+                    id = "vpn@proton.ch",
+                    name = "Proton VPN: Fast & Secure",
+                    version = "1.2.9",
+                    description = "Free, fast and secure VPN.",
+                    enabled = true,
+                    hasBrowserAction = true,
+                    icon = sampleIcon(0xFF6D4AFF.toInt())
                 ),
                 InstalledExtension(
                     id = "addon@darkreader.org",
@@ -178,11 +190,23 @@ class UiSnapshotTest {
                         versionName = "0.06",
                         onPickLocalXpi = {},
                         paneViewport = { tab, modifier -> PlaceholderPage(tab, modifier) },
-                        extensionPopupContent = { Box(it) }
+                        extensionPopupContent = { modifier ->
+                            Box(modifier.background(Color(0xFF1B1530)), contentAlignment = Alignment.Center) {
+                                Text("Extension popup page", color = Color.White)
+                            }
+                        }
                     )
                 }
             }
         }
+    }
+
+    /** A filled circle standing in for an extension's toolbar icon. */
+    private fun sampleIcon(color: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+        android.graphics.Canvas(bitmap).drawCircle(32f, 32f, 28f, paint)
+        return bitmap
     }
 
     /** Captures the whole display, so dialogs and menus are composited over the browser. */
@@ -300,6 +324,19 @@ class UiSnapshotTest {
         launch()
         composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.PRIVACY) }
         save("07c-settings-privacy")
+    }
+
+    @Test
+    fun extensionButtons() {
+        launch(withExtensions = true)
+        save("20-extension-buttons")
+    }
+
+    @Test
+    fun extensionPopup() {
+        launch(withExtensions = true)
+        composeRule.onNodeWithTag("rail_extension_vpn@proton.ch").performClick()
+        save("21-extension-popup")
     }
 
     @Test

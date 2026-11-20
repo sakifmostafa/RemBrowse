@@ -2,6 +2,21 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.09 (2026-11-20) — Extension buttons on the rail, readable popups
+
+### Changed
+* **Extension buttons moved to the bottom of the tab rail.** They used to be text entries in the More menu. Each now shows the extension's own icon, which updates when the extension changes it (a VPN showing it is connected, for example), and its badge in the colours the extension chose. Select one to open its popup; right-click or long-press it for **Manage extensions**. With more than four extensions, the last button lists the rest. On a phone-sized window, where there is no rail, they stay in the More menu, now with their icons.
+* **Popups open beside their button.** On windows with the rail, an extension's popup appears at the bottom-left next to the extension buttons, the way a desktop toolbar popup drops from its button, and the page behind it is no longer dimmed. The popup's header shows the extension's icon, and its button stays marked while the popup is open.
+
+### Fixed
+* **Extension popups were shrunk to under half size.** Popups written for desktop Firefox, such as Proton VPN's, usually leave out the viewport setting a phone browser relies on, so the engine laid them out 980 pixels wide and zoomed them out to fit the popup. v0.08's narrower layout width already covers this on tablets and laptops, but phones keep 980, and v0.08 depends on a startup setting being applied. RemBrowse now also includes a small built-in helper that gives such popups that viewport setting on every device, so they are laid out at the popup's own width at full size. Popups that already set it, and extension pages opened in a tab, are unchanged. The helper is part of the browser and is not listed among your extensions.
+
+### Known limits
+* The popup fix has been checked against the GeckoView 138 sources and by automated tests of the app, but not yet on a device. If the helper cannot start, popups open as they did before.
+
+### Testing
+175 automated tests.
+
 ## v0.08 (2026-11-19) — Pages keep their size in a narrow pane
 
 ### Fixed

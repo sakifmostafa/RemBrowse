@@ -18,6 +18,7 @@ import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
 import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
 import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
+import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
@@ -46,7 +47,8 @@ class CompactWindowUiTest {
 
     private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val browserVm = BrowserViewModel(FakeBrowserEngine(), FakeBrowserStateRepository())
-    private val extVm = ExtensionsViewModel(FakeExtensionManager(), FakeAmoApiClient(), uiScope)
+    private val extensionManager = FakeExtensionManager()
+    private val extVm = ExtensionsViewModel(extensionManager, FakeAmoApiClient(), uiScope)
     private val downloadsVm = DownloadsViewModel(
         storage = FakeDownloadStorage(),
         history = FakeDownloadHistoryStore(),
@@ -90,6 +92,28 @@ class CompactWindowUiTest {
         composeRule.onNodeWithTag("switcher_new_tab").performClick()
         composeRule.onNodeWithTag("tab_switcher").assertDoesNotExist()
         assertEquals(3, browserVm.uiState.value.tabs.size)
+    }
+
+    @Test
+    fun compactWindow_keepsExtensionButtonsInTheMoreMenu() {
+        extensionManager.installedExtensions.value = listOf(
+            InstalledExtension(
+                id = "vpn@example",
+                name = "Proton VPN",
+                version = "1.0",
+                description = "",
+                enabled = true,
+                hasBrowserAction = true
+            )
+        )
+        launch()
+
+        composeRule.onNodeWithTag("rail_extensions").assertDoesNotExist()
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_extension_vpn@example").performClick()
+
+        assertEquals(listOf("vpn@example"), extensionManager.triggeredActionIds)
+        composeRule.onNodeWithTag("extension_popup_page").assertIsDisplayed()
     }
 
     // Native graphics for real text widths: with the legacy renderer text measures as almost

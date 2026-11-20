@@ -1,0 +1,14 @@
+[
+  {
+    "namespace": "popupViewport",
+    "description": "Gives extension popups without a viewport tag one that fits the popup.",
+    "functions": [
+      {
+        "name": "start",
+        "type": "function",
+        "description": "Starts watching for extension popups in the extension process.",
+        "parameters": []
+      }
+    ]
+  }
+]

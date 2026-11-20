@@ -2,7 +2,7 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.08`)
+# RemBrowse (`v0.09`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
@@ -29,7 +29,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Its own settings page**: Settings open in a tab at `rem://settings`, with sections for appearance, search engine, tabs, privacy, downloads, extensions and about.
 * **Downloads**: files a page offers are saved to the device's Downloads folder. You are asked first, with the file's name, size and site; recent downloads are listed in Settings → Downloads (`Ctrl+J`).
 * **Ad blocking out of the box**: AdGuard AdBlocker is set up automatically on first launch and can be switched off or removed at any time (Settings → Privacy).
-* **Real WebExtensions, managed in Settings**: browse and install add-ons from Firefox Add-ons (addons.mozilla.org), or install a signed `.xpi` from a link or a file. Permission requests are reviewed on install, on update and when an extension asks for more.
+* **Real WebExtensions, managed in Settings**: browse and install add-ons from Firefox Add-ons (addons.mozilla.org), or install a signed `.xpi` from a link or a file. Permission requests are reviewed on install, on update and when an extension asks for more. Extension buttons sit at the bottom of the tab rail with their icons and badges, and popups open beside them at full size.
 * **Built for a laptop**: freeform window resizing, hardware keyboard shortcuts, pointer hover states and resize cursors, with a compact layout for phone-sized windows.
 * **Private by default**: tracking protection that does not break sites, an optional enhanced level, no cloud backup of the browser profile, and only ordinary web links are accepted from other apps.
 

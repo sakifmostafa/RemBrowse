@@ -1,5 +1,8 @@
 package com.rembrowser.rembrowse.ui.components
 
+import android.graphics.Bitmap
+import android.view.Gravity
+import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +50,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +59,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -67,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import coil.compose.AsyncImage
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
@@ -75,6 +82,7 @@ import com.rembrowser.rembrowse.model.ExtensionPromptKind
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
+import com.rembrowser.rembrowse.ui.theme.RemDimens
 import java.util.Locale
 
 /** Everything the extensions panel can ask for. */
@@ -649,23 +657,31 @@ fun ExtensionInstallPromptDialog(
     )
 }
 
+/**
+ * An extension's popup. On windows wide enough for the tab rail it opens at the bottom-left,
+ * beside the rail's extension buttons, the way a desktop toolbar popup drops from its button,
+ * and leaves the page undimmed. On phone-sized windows it is centred.
+ */
 @Composable
 fun ExtensionPopupDialog(
     popup: ExtensionPopupState,
     onDismiss: () -> Unit,
-    popupContent: @Composable (Modifier) -> Unit
+    popupContent: @Composable (Modifier) -> Unit,
+    icon: Bitmap? = null,
+    anchorToRail: Boolean = false
 ) {
     val colors = MaterialTheme.colorScheme
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        if (anchorToRail) AnchorDialogBesideRail()
         Surface(
             modifier = Modifier
-                .padding(16.dp)
-                .widthIn(max = 440.dp)
+                .padding(PopupShadowMargin)
+                .widthIn(max = PopupMaxWidth)
                 .fillMaxWidth()
-                .heightIn(max = 620.dp),
+                .heightIn(max = PopupMaxHeight),
             shape = MaterialTheme.shapes.large,
             color = colors.surface,
             contentColor = colors.onSurface,
@@ -674,16 +690,13 @@ fun ExtensionPopupDialog(
         ) {
             Column {
                 Row(
-                    modifier = Modifier.padding(start = 16.dp, end = 4.dp),
+                    modifier = Modifier
+                        .height(44.dp)
+                        .padding(start = 14.dp, end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Extension,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    ExtensionIcon(icon = icon, size = 18.dp)
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = popup.extensionName,
                         style = MaterialTheme.typography.titleSmall,
@@ -694,18 +707,51 @@ fun ExtensionPopupDialog(
                     RemIconButton(
                         icon = Icons.Outlined.Close,
                         label = "Close ${popup.extensionName}",
-                        onClick = onDismiss
+                        onClick = onDismiss,
+                        size = 32.dp,
+                        iconSize = 18.dp
                     )
                 }
                 HorizontalDivider(color = colors.outlineVariant)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(520.dp)
+                        .weight(1f, fill = false)
+                        .height(PopupPageHeight)
+                        .testTag("extension_popup_page")
                 ) {
                     popupContent(Modifier.fillMaxSize())
                 }
             }
         }
+    }
+}
+
+/** Room around the popup for its shadow; the dialog window is this much larger than it. */
+private val PopupShadowMargin = 8.dp
+private val PopupMaxWidth = 420.dp
+private val PopupMaxHeight = 600.dp
+private val PopupPageHeight = 540.dp
+
+/**
+ * Moves the dialog's window from the centre to the bottom-start corner, just past the tab
+ * rail, so the popup sits beside the extension buttons. The page behind is not dimmed: a tap
+ * outside still closes the popup.
+ */
+@Composable
+private fun AnchorDialogBesideRail() {
+    val view = LocalView.current
+    val density = LocalDensity.current
+    SideEffect {
+        val window = (view.parent as? DialogWindowProvider)?.window ?: return@SideEffect
+        window.setGravity(Gravity.BOTTOM or Gravity.START)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        val params = window.attributes
+        with(density) {
+            // The visible popup starts 4dp past the rail and lines up with the panes' bottom edge
+            params.x = (RemDimens.RailWidth + 4.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
+            params.y = (6.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
+        }
+        window.attributes = params
     }
 }

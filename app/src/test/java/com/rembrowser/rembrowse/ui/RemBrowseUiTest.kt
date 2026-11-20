@@ -24,7 +24,9 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
@@ -36,6 +38,7 @@ import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.DownloadStatus
+import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
@@ -302,6 +305,85 @@ class RemBrowseUiTest {
 
         assertEquals(listOf("https://github.com/"), browserVm.uiState.value.bookmarks.map { it.url })
         composeRule.onNodeWithContentDescription("Remove bookmark").assertIsDisplayed()
+    }
+
+    private fun toolbarExtension(id: String, name: String, badge: String? = null, enabled: Boolean = true) =
+        InstalledExtension(
+            id = id,
+            name = name,
+            version = "1.0",
+            description = "",
+            enabled = enabled,
+            hasBrowserAction = true,
+            badgeText = badge
+        )
+
+    @Test
+    fun extensionButtons_sitAtTheBottomOfTheRailAndOpenTheirPopup() {
+        extensionManager.installedExtensions.value = listOf(
+            toolbarExtension("vpn@example", "Proton VPN"),
+            toolbarExtension(DefaultAdBlocker.ID, DefaultAdBlocker.NAME, badge = "12"),
+            toolbarExtension("off@example", "Switched off", enabled = false)
+        )
+        launch()
+
+        // At the foot of the rail, below the tabs and the new-tab button
+        val rail = composeRule.onNodeWithTag("tab_rail").getUnclippedBoundsInRoot()
+        val newTab = composeRule.onNodeWithTag("new_tab_button").getUnclippedBoundsInRoot()
+        val section = composeRule.onNodeWithTag("rail_extensions").getUnclippedBoundsInRoot()
+        val vpn = composeRule.onNodeWithTag("rail_extension_vpn@example")
+            .assertIsDisplayed()
+            .getUnclippedBoundsInRoot()
+        assertTrue(vpn.top > newTab.bottom)
+        assertTrue(rail.bottom - section.bottom <= 8.dp)
+        assertTrue(section.top - newTab.bottom > 200.dp)
+
+        // A badge is read out with the extension's name; a switched-off extension has no button
+        composeRule.onNodeWithContentDescription("AdGuard AdBlocker (12)").assertIsDisplayed()
+        composeRule.onNodeWithTag("rail_extension_off@example").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("rail_extension_vpn@example").performClick()
+        assertEquals(listOf("vpn@example"), extensionManager.triggeredActionIds)
+        composeRule.onNodeWithTag("extension_popup_page").assertIsDisplayed()
+        composeRule.onNodeWithTag("rail_extension_vpn@example").assertIsSelected()
+
+        composeRule.onNodeWithContentDescription("Close Proton VPN").performClick()
+        composeRule.onNodeWithTag("extension_popup_page").assertDoesNotExist()
+
+        // With the rail on screen the More menu does not repeat them
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_extensions").assertIsDisplayed()
+        composeRule.onNodeWithTag("menu_extension_vpn@example").assertDoesNotExist()
+    }
+
+    @Test
+    fun extensionButtons_beyondFourAreListedInAMenu() {
+        extensionManager.installedExtensions.value = (1..6).map { toolbarExtension("e$it@example", "Extension $it") }
+        launch()
+
+        (1..3).forEach { composeRule.onNodeWithTag("rail_extension_e$it@example").assertIsDisplayed() }
+        composeRule.onNodeWithTag("rail_extension_e4@example").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("rail_extensions_more").performClick()
+        composeRule.onNodeWithTag("menu_extension_e4@example").assertIsDisplayed()
+        composeRule.onNodeWithTag("menu_extension_e5@example").performClick()
+        assertEquals(listOf("e5@example"), extensionManager.triggeredActionIds)
+
+        // Its button is marked while the popup of an extension in the menu is open
+        composeRule.onNodeWithTag("rail_extensions_more").assertIsSelected()
+    }
+
+    @Test
+    fun extensionButtons_manageExtensionsFromTheContextMenu() {
+        extensionManager.installedExtensions.value = listOf(toolbarExtension("vpn@example", "Proton VPN"))
+        launch()
+
+        composeRule.onNodeWithTag("rail_extension_vpn@example")
+            .performSemanticsAction(SemanticsActions.OnLongClick)
+        composeRule.onNodeWithText("Manage extensions").performClick()
+
+        composeRule.onNodeWithTag("extensions_panel").assertIsDisplayed()
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/extensions"))
     }
 
     @Test
