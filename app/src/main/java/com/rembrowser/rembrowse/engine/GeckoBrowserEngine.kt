@@ -120,6 +120,10 @@ class GeckoSessionHandle(
         }
     }
 
+    override fun exitFullScreen() {
+        runOnMain { if (session.isOpen) session.exitFullScreen() }
+    }
+
     override fun setFocusedForExtensions(focused: Boolean) {
         runOnMain {
             runCatching {
@@ -387,6 +391,12 @@ class GeckoBrowserEngine(
                         extensionForMime = { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
                     )
                 )
+            }
+
+            // Without this the page only fills its own view: the browser has to give it the
+            // whole window.
+            override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
+                listener.onFullScreenChanged(tabId, fullScreen)
             }
 
             override fun onCrash(session: GeckoSession) {

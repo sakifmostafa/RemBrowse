@@ -1,9 +1,15 @@
 package com.rembrowser.rembrowse.ui
 
 import android.app.Application
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -20,14 +26,19 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
@@ -36,9 +47,11 @@ import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
 import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AccentColor
+import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.DownloadStatus
+import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
@@ -57,6 +70,7 @@ import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -90,15 +104,21 @@ class RemBrowseUiTest {
     private val openedDownloads = mutableListOf<DownloadItem>()
     private val filePickerRequests = mutableListOf<PagePrompt.FilePicker>()
     private var canOpenDownloads = true
+    private var backDispatcher: OnBackPressedDispatcher? = null
 
     @After
     fun tearDown() {
         uiScope.cancel()
     }
 
-    private fun launch() {
+    private fun launch(
+        viewport: @Composable (BrowserTab, Modifier) -> Unit = { tab, modifier ->
+            Box(modifier = modifier) { Text(text = "Viewport:${tab.url}") }
+        }
+    ) {
         composeRule.setContent {
             // Site icons fall back to monograms so the tests never touch the network
+            backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
                 RemBrowseTheme {
                     RemBrowseScreen(
@@ -113,9 +133,7 @@ class RemBrowseUiTest {
                             openedDownloads += item
                             canOpenDownloads
                         },
-                        paneViewport = { tab, modifier ->
-                            Box(modifier = modifier) { Text(text = "Viewport:${tab.url}") }
-                        },
+                        paneViewport = viewport,
                         extensionPopupContent = { Box(it) }
                     )
                 }
@@ -856,5 +874,283 @@ class RemBrowseUiTest {
 
         assertFalse(browserVm.uiState.value.tabs.any { it.id == closing })
         assertEquals(LayoutMode.SINGLE_1X1, browserVm.uiState.value.layoutMode)
+    }
+
+    /** Reddit beside YouTube, and a third tab (returned) that is only in the rail. */
+    private fun redditBesideYouTubeWithNewsInTheRail(): String {
+        val reddit = browserVm.uiState.value.activeTabId!!
+        loadPage(reddit, "https://reddit.com/", "Reddit")
+        val news = browserVm.openNewTab("https://news.example/")
+        loadPage(news, "https://news.example/", "News")
+        val youtube = browserVm.openNewTab("https://youtube.com/")
+        loadPage(youtube, "https://youtube.com/", "YouTube")
+        browserVm.selectTab(reddit)
+        browserVm.setLayoutMode(LayoutMode.SPLIT_1X2)
+        browserVm.assignTabToPane(1, youtube)
+        assertEquals(listOf(reddit, youtube), browserVm.uiState.value.paneTabIds)
+        return news
+    }
+
+    /** A point of pane [paneIndex], in the coordinates of the rail tile of [tabId]. */
+    private fun pointInPane(tabId: String, paneIndex: Int, fractionX: Float, fractionY: Float): Offset {
+        val tile = composeRule.onNodeWithTag("tab_bar_item_$tabId").getUnclippedBoundsInRoot()
+        val pane = composeRule.onNodeWithTag("browser_pane_$paneIndex").getUnclippedBoundsInRoot()
+        val density = composeRule.density.density
+        return Offset(
+            (pane.left + pane.width * fractionX - tile.left).value * density,
+            (pane.top + pane.height * fractionY - tile.top).value * density
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun draggingARailTabWithTheMouse_ontoAPanesEdgeAddsAThirdPane() {
+        val news = redditBesideYouTubeWithNewsInTheRail()
+        launch()
+        val (reddit, youtube) = browserVm.uiState.value.paneTabIds
+        val redditPane = composeRule.onNodeWithTag("browser_pane_0").getUnclippedBoundsInRoot()
+        val bottomOfYouTube = pointInPane(news, paneIndex = 1, fractionX = 0.5f, fractionY = 0.9f)
+
+        // Press on the tile and move: the landing spot is shown while the button is held
+        composeRule.onNodeWithTag("tab_bar_item_$news").performMouseInput {
+            moveTo(center)
+            press()
+            moveTo(center + Offset(40f, 0f))
+            moveTo(bottomOfYouTube)
+        }
+        composeRule.onNodeWithTag("tab_drag_ghost", useUnmergedTree = true).assertIsDisplayed()
+        val youtubePane = composeRule.onNodeWithTag("browser_pane_1").getUnclippedBoundsInRoot()
+        val highlight = composeRule.onNodeWithTag("pane_drop_highlight").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertEquals("The lower half of the YouTube pane lights up", youtubePane.bottom, highlight.bottom)
+        assertEquals(youtubePane.height / 2, highlight.height)
+        assertEquals(youtubePane.width, highlight.width)
+        composeRule.onNodeWithContentDescription("Split below, pane 2").assertIsDisplayed()
+        assertEquals("Nothing changes until the tab is let go", 2, browserVm.uiState.value.paneCount)
+
+        composeRule.onNodeWithTag("tab_bar_item_$news").performMouseInput { release() }
+        composeRule.waitForIdle()
+
+        val state = browserVm.uiState.value
+        assertEquals(listOf(reddit, youtube, news), state.paneTabIds)
+        assertEquals("The drop is not also a click or a context menu", news, state.activeTabId)
+        composeRule.onNodeWithTag("pane_drop_highlight").assertDoesNotExist()
+        composeRule.onNodeWithTag("tab_drag_ghost", useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithTag("tab_bar_close_$news").assertDoesNotExist()
+        for (pane in 0..2) composeRule.onNodeWithTag("browser_pane_$pane").assertIsDisplayed()
+        composeRule.onNodeWithTag("browser_pane_3").assertDoesNotExist()
+        composeRule.onNodeWithText("Viewport:https://news.example/").assertIsDisplayed()
+
+        // Reddit kept its full height; the right column is shared
+        assertEquals(redditPane, composeRule.onNodeWithTag("browser_pane_0").getUnclippedBoundsInRoot())
+        val upper = composeRule.onNodeWithTag("browser_pane_1").getUnclippedBoundsInRoot()
+        val lower = composeRule.onNodeWithTag("browser_pane_2").getUnclippedBoundsInRoot()
+        assertEquals(upper.left, lower.left)
+        assertTrue(lower.top > upper.bottom)
+        assertTrue(upper.height < redditPane.height / 2)
+        // Each split has its own divider
+        composeRule.onNodeWithTag("split_divider_vertical").assertIsDisplayed()
+        composeRule.onNodeWithTag("split_divider_horizontal").assertIsDisplayed()
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("https://news.example"))
+
+        // The pane's tab menu closes the pane again; the tab stays in the rail
+        composeRule.onNodeWithTag("tab_bar_item_$youtube").performSemanticsAction(SemanticsActions.OnLongClick)
+        composeRule.onNodeWithTag("tab_bar_close_pane_$youtube").performClick()
+        assertEquals(listOf(reddit, news), browserVm.uiState.value.paneTabIds)
+        composeRule.onNodeWithTag("tab_bar_item_$youtube").assertIsDisplayed()
+        composeRule.onNodeWithTag("browser_pane_2").assertDoesNotExist()
+    }
+
+    @Test
+    fun draggingARailTabByTouch_startsAfterALongPressAndDropsOnThePane() {
+        val news = redditBesideYouTubeWithNewsInTheRail()
+        launch()
+        val (reddit, youtube) = browserVm.uiState.value.paneTabIds
+        val centreOfReddit = pointInPane(news, paneIndex = 0, fractionX = 0.5f, fractionY = 0.5f)
+        val rightOfYouTube = pointInPane(news, paneIndex = 1, fractionX = 0.95f, fractionY = 0.5f)
+
+        // A long press alone still opens the tab's menu, as before
+        composeRule.onNodeWithTag("tab_bar_item_$news").performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 200)
+            // A finger never rests perfectly still
+            moveBy(Offset(1f, 0f))
+        }
+        composeRule.onNodeWithTag("tab_bar_close_$news").assertIsDisplayed()
+
+        // Moving on from there picks the tab up, and the menu gets out of the way
+        composeRule.onNodeWithTag("tab_bar_item_$news").performTouchInput {
+            moveTo(center + Offset(60f, 0f))
+            moveTo(rightOfYouTube)
+        }
+        composeRule.onNodeWithTag("tab_bar_close_$news").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Split right, pane 2").assertIsDisplayed()
+
+        // The centre of a pane replaces what it shows
+        composeRule.onNodeWithTag("tab_bar_item_$news").performTouchInput { moveTo(centreOfReddit) }
+        composeRule.onNodeWithContentDescription("Show here, pane 1").assertIsDisplayed()
+        composeRule.onNodeWithTag("tab_bar_item_$news").performTouchInput { up() }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(news, youtube), browserVm.uiState.value.paneTabIds)
+        assertTrue("The replaced tab stays open", browserVm.uiState.value.tabs.any { it.id == reddit })
+        composeRule.onNodeWithTag("tab_bar_item_$reddit").assertIsDisplayed()
+        composeRule.onNodeWithTag("pane_drop_highlight").assertDoesNotExist()
+    }
+
+    @Test
+    fun aQuickSwipeOnARailTab_isNotADrag() {
+        val news = redditBesideYouTubeWithNewsInTheRail()
+        launch()
+        val before = browserVm.uiState.value.layout
+        val bottomOfYouTube = pointInPane(news, paneIndex = 1, fractionX = 0.5f, fractionY = 0.9f)
+
+        composeRule.onNodeWithTag("tab_bar_item_$news").performTouchInput {
+            down(center)
+            moveTo(center + Offset(60f, 0f))
+            moveTo(bottomOfYouTube)
+            up()
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(before, browserVm.uiState.value.layout)
+        composeRule.onNodeWithTag("pane_drop_highlight").assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun aFullLayout_offersOnlyTheCentreOfAPane() {
+        val news = redditBesideYouTubeWithNewsInTheRail()
+        browserVm.setLayoutMode(LayoutMode.GRID_2X2)
+        val shown = browserVm.uiState.value.activeTabId!!
+        val extra = browserVm.openNewTab("https://five.example/")
+        browserVm.assignTabToPane(browserVm.uiState.value.activePaneIndex, shown)
+        launch()
+        assertEquals(4, browserVm.uiState.value.paneCount)
+        assertFalse(extra in browserVm.uiState.value.paneTabIds)
+        val edge = pointInPane(extra, paneIndex = 3, fractionX = 0.97f, fractionY = 0.5f)
+
+        composeRule.onNodeWithTag("tab_bar_item_$extra").performMouseInput {
+            moveTo(center)
+            press()
+            moveTo(center + Offset(40f, 0f))
+            moveTo(edge)
+        }
+        composeRule.onNodeWithContentDescription("Show here, pane 4").assertIsDisplayed()
+        composeRule.onNodeWithTag("tab_bar_item_$extra").performMouseInput { release() }
+        composeRule.waitForIdle()
+
+        assertEquals(4, browserVm.uiState.value.paneCount)
+        assertEquals(extra, browserVm.uiState.value.paneTabIds[3])
+        assertTrue(browserVm.uiState.value.tabs.any { it.id == news })
+    }
+
+    @Test
+    fun splitMenu_closesTheFocusedPaneOfACustomLayout() {
+        val news = redditBesideYouTubeWithNewsInTheRail()
+        val (reddit, youtube) = browserVm.uiState.value.paneTabIds
+        browserVm.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+        launch()
+
+        // Three panes are none of the presets, and there is no single divider to size
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("split_preset_50").assertDoesNotExist()
+        composeRule.onNodeWithTag("split_close_pane").performClick()
+
+        assertEquals("The focused pane (the dropped tab) is gone", listOf(reddit, youtube), browserVm.uiState.value.paneTabIds)
+        assertEquals(3, browserVm.uiState.value.tabs.size)
+        composeRule.onNodeWithTag("browser_pane_2").assertDoesNotExist()
+        composeRule.onNodeWithTag("browser_pane_1").assertIsDisplayed()
+    }
+
+    @Test
+    fun pageFullscreen_fromASplitFillsTheWindowAndComesBackToTheSameSplit() {
+        redditBesideYouTubeWithNewsInTheRail()
+        browserVm.setSplitPreset(0.7f)
+        launch()
+        val (reddit, youtube) = browserVm.uiState.value.paneTabIds
+        val layout = browserVm.uiState.value.layout
+        val window = composeRule.onRoot().getUnclippedBoundsInRoot()
+        val redditPane = composeRule.onNodeWithTag("browser_pane_0").getUnclippedBoundsInRoot()
+        composeRule.onNodeWithTag("tab_bar_item_$youtube").performClick()
+        assertEquals(1, browserVm.uiState.value.activePaneIndex)
+
+        // The video in the left pane goes fullscreen
+        composeRule.runOnUiThread { engine.sessions.getValue(reddit).simulateFullScreen(true) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("tab_rail").assertDoesNotExist()
+        composeRule.onNodeWithTag("omnibox_input").assertDoesNotExist()
+        composeRule.onNodeWithTag("split_button").assertDoesNotExist()
+        composeRule.onNodeWithTag("split_divider_vertical").assertDoesNotExist()
+        composeRule.onNodeWithTag("browser_pane_1").assertDoesNotExist()
+        composeRule.onNodeWithText("Viewport:https://youtube.com/").assertDoesNotExist()
+        val fullscreenPane = composeRule.onNodeWithTag("browser_pane_0").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertEquals(window.width, fullscreenPane.width)
+        assertEquals(window.height, fullscreenPane.height)
+        composeRule.onNodeWithText("Viewport:https://reddit.com/").assertIsDisplayed()
+        assertTrue("The other page is kept alive behind it", engine.sessions.getValue(youtube).visibleState)
+
+        // Back leaves fullscreen: the page is asked to, and the window is as it was
+        composeRule.runOnUiThread { backDispatcher!!.onBackPressed() }
+        composeRule.waitForIdle()
+
+        assertEquals(1, engine.sessions.getValue(reddit).exitFullScreenCount)
+        assertNull(browserVm.uiState.value.fullscreenTabId)
+        assertEquals("Same layout, same sizes", layout, browserVm.uiState.value.layout)
+        assertEquals("Same focus", youtube, browserVm.uiState.value.activeTabId)
+        composeRule.onNodeWithTag("tab_rail").assertIsDisplayed()
+        composeRule.onNodeWithTag("omnibox_input").assertIsDisplayed()
+        composeRule.onNodeWithTag("split_divider_vertical").assertIsDisplayed()
+        composeRule.onNodeWithTag("browser_pane_1").assertIsDisplayed()
+        composeRule.onNodeWithText("Viewport:https://youtube.com/").assertIsDisplayed()
+        assertEquals(redditPane, composeRule.onNodeWithTag("browser_pane_0").getUnclippedBoundsInRoot())
+
+        // The page leaving by itself (Esc, its own button) does the same
+        composeRule.runOnUiThread { engine.sessions.getValue(youtube).simulateFullScreen(true) }
+        composeRule.onNodeWithTag("tab_rail").assertDoesNotExist()
+        composeRule.onNodeWithText("Viewport:https://reddit.com/").assertDoesNotExist()
+        composeRule.runOnUiThread { engine.sessions.getValue(youtube).simulateFullScreen(false) }
+        composeRule.onNodeWithTag("tab_rail").assertIsDisplayed()
+        composeRule.onNodeWithText("Viewport:https://reddit.com/").assertIsDisplayed()
+    }
+
+    @Test
+    fun layoutChanges_keepTheWebViewOfEveryTabThatStaysOnScreen() {
+        val news = redditBesideYouTubeWithNewsInTheRail()
+        val (reddit, youtube) = browserVm.uiState.value.paneTabIds
+        // Stands in for a GeckoView: created once per tab shown, disposed when its tab leaves
+        val created = mutableListOf<String>()
+        val disposed = mutableListOf<String>()
+        launch { tab, modifier ->
+            DisposableEffect(Unit) {
+                created += tab.id
+                onDispose { disposed += tab.id }
+            }
+            Box(modifier = modifier) { Text(text = "Viewport:${tab.url}") }
+        }
+        composeRule.waitForIdle()
+        assertEquals(listOf(reddit, youtube), created)
+
+        fun change(action: () -> Unit) {
+            composeRule.runOnUiThread(action)
+            composeRule.waitForIdle()
+        }
+
+        // A new pane, a resize, a move to another pane, a swap, a preset and fullscreen
+        change { browserVm.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM) }
+        change { browserVm.resizeSplit("", 0.2f) }
+        change { browserVm.dropTabOnPane(reddit, targetPaneIndex = 2, zone = DropZone.RIGHT) }
+        change { browserVm.swapPanes(0, 2) }
+        change { browserVm.setLayoutMode(LayoutMode.GRID_2X2) }
+        change { engine.sessions.getValue(youtube).simulateFullScreen(true) }
+        change { engine.sessions.getValue(youtube).simulateFullScreen(false) }
+        change { browserVm.closePane(3) }
+
+        assertEquals("Each tab got one view, and kept it", listOf(reddit, youtube, news), created)
+        assertTrue("No view was thrown away: $disposed", disposed.isEmpty())
+
+        // Only a tab that leaves the screen gives its view up
+        change { browserVm.closePane(browserVm.uiState.value.paneIndexOf(news)) }
+        assertEquals(listOf(news), disposed)
     }
 }

@@ -8,11 +8,14 @@ import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DownloadRequest
+import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -876,5 +879,313 @@ class BrowserViewModelTest {
         viewModel.closeTab(popup.id)
         viewModel.closeTabLeftBehindByDownload(fromPopup)
         assertEquals(listOf("tab-1"), viewModel.uiState.value.tabs.map { it.id })
+    }
+
+    /** Reddit beside YouTube, with a third tab waiting in the rail. */
+    private fun redditBesideYouTube(): Triple<String, String, String> {
+        val reddit = "tab-1"
+        viewModel.navigatePane(0, "https://reddit.com/")
+        val news = viewModel.openNewTab("https://news.example/")
+        val youtube = viewModel.openNewTab("https://youtube.com/")
+        viewModel.selectTab(reddit)
+        viewModel.setLayoutMode(LayoutMode.SPLIT_1X2)
+        viewModel.assignTabToPane(1, youtube)
+        assertEquals(listOf(reddit, youtube), viewModel.uiState.value.paneTabIds)
+        return Triple(reddit, youtube, news)
+    }
+
+    @Test
+    fun dropOnAnEdge_splitsThatPaneAndShowsTheTabInTheNewOne() {
+        val (reddit, youtube, news) = redditBesideYouTube()
+
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            "Reddit keeps the full height; YouTube and the new pane share the right column",
+            PaneNode.Split(
+                SplitOrientation.ROW,
+                0.5f,
+                PaneNode.Leaf(reddit),
+                PaneNode.Split(SplitOrientation.COLUMN, 0.5f, PaneNode.Leaf(youtube), PaneNode.Leaf(news))
+            ),
+            state.layout
+        )
+        assertEquals(listOf(reddit, youtube, news), state.paneTabIds)
+        assertNull("Three panes match no preset", state.layoutMode)
+        assertEquals("Focus and the address bar go to the dropped tab", news, state.activeTabId)
+        assertEquals("https://news.example/", state.addressBarInput)
+        assertTrue(engine.sessions.getValue(news).visibleState)
+        assertEquals(state.layout, repository.storedState.layout)
+        assertEquals("An older version still finds its fields", listOf(reddit, youtube, news), repository.storedState.paneTabIds)
+    }
+
+    @Test
+    fun dropOnTheCentre_replacesThePanesTabWhichStaysOpenInTheRail() {
+        val (reddit, youtube, news) = redditBesideYouTube()
+
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.CENTER)
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(reddit, news), state.paneTabIds)
+        assertEquals(LayoutMode.SPLIT_1X2, state.layoutMode)
+        assertTrue("The replaced tab is still open", state.tabs.any { it.id == youtube })
+        assertFalse("...but no longer painted", engine.sessions.getValue(youtube).visibleState)
+        assertTrue(engine.sessions.getValue(news).visibleState)
+        assertEquals(1, state.activePaneIndex)
+    }
+
+    @Test
+    fun dropOfATabThatIsAlreadyOnScreen_movesItAndClosesThePaneItLeft() {
+        val (reddit, youtube, news) = redditBesideYouTube()
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+
+        // From under YouTube to the left of Reddit
+        viewModel.dropTabOnPane(news, targetPaneIndex = 0, zone = DropZone.LEFT)
+        assertEquals(listOf(news, reddit, youtube), viewModel.uiState.value.paneTabIds)
+        assertEquals(3, viewModel.uiState.value.paneCount)
+
+        // Onto the centre of YouTube: it takes that pane over, and its old pane is gone
+        viewModel.dropTabOnPane(news, targetPaneIndex = 2, zone = DropZone.CENTER)
+        val state = viewModel.uiState.value
+        assertEquals(listOf(reddit, news), state.paneTabIds)
+        assertEquals(LayoutMode.SPLIT_1X2, state.layoutMode)
+        assertFalse(engine.sessions.getValue(youtube).visibleState)
+        assertEquals(3, state.tabs.size)
+
+        // Dropping a tab on its own pane does nothing
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.TOP)
+        assertEquals(state.layout, viewModel.uiState.value.layout)
+    }
+
+    @Test
+    fun drop_neverMakesMoreThanFourPanes() {
+        viewModel.setLayoutMode(LayoutMode.GRID_2X2)
+        val before = viewModel.uiState.value.layout
+        val fifth = viewModel.openNewTab("https://five.example/")
+        viewModel.assignTabToPane(0, "tab-1")
+        assertEquals(before, viewModel.uiState.value.layout)
+        assertFalse(fifth in viewModel.uiState.value.paneTabIds)
+
+        viewModel.dropTabOnPane(fifth, targetPaneIndex = 3, zone = DropZone.RIGHT)
+        assertEquals("No room for a fifth pane", before, viewModel.uiState.value.layout)
+
+        // The centre still works when full
+        viewModel.dropTabOnPane(fifth, targetPaneIndex = 3, zone = DropZone.CENTER)
+        assertEquals(4, viewModel.uiState.value.paneCount)
+        assertEquals(fifth, viewModel.uiState.value.paneTabIds[3])
+
+        // And a pane that is already on screen can be moved to another edge
+        viewModel.dropTabOnPane(fifth, targetPaneIndex = 0, zone = DropZone.TOP)
+        assertEquals(4, viewModel.uiState.value.paneCount)
+        assertEquals(fifth, viewModel.uiState.value.paneTabIds[0])
+
+        viewModel.dropTabOnPane("no-such-tab", targetPaneIndex = 0, zone = DropZone.CENTER)
+        viewModel.dropTabOnPane(fifth, targetPaneIndex = 9, zone = DropZone.CENTER)
+        assertEquals(4, viewModel.uiState.value.paneCount)
+    }
+
+    @Test
+    fun closePane_collapsesItsSplitAndKeepsTheTabOpen() {
+        val (reddit, youtube, news) = redditBesideYouTube()
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+        viewModel.focusPane(0)
+
+        viewModel.closePane(1)
+
+        var state = viewModel.uiState.value
+        assertEquals("The pane below takes the whole column", listOf(reddit, news), state.paneTabIds)
+        assertEquals(LayoutMode.SPLIT_1X2, state.layoutMode)
+        assertTrue(state.tabs.any { it.id == youtube })
+        assertFalse(engine.sessions.getValue(youtube).visibleState)
+        assertEquals("Focus stays with the page it was on", reddit, state.activeTabId)
+
+        // Closing the focused pane hands focus (and the address bar) to what remains
+        viewModel.closePane()
+        state = viewModel.uiState.value
+        assertEquals(listOf(news), state.paneTabIds)
+        assertEquals(news, state.activeTabId)
+        assertEquals("https://news.example/", state.addressBarInput)
+
+        // The last pane stays
+        viewModel.closePane()
+        assertEquals(listOf(news), viewModel.uiState.value.paneTabIds)
+    }
+
+    @Test
+    fun everySplitHasItsOwnRatio() {
+        val (_, _, news) = redditBesideYouTube()
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+        val saves = repository.saveCount
+
+        viewModel.resizeSplit("1", 0.2f)
+        assertEquals(listOf(0.5f, 0.7f), viewModel.uiState.value.layout.splits().map { it.ratio })
+        viewModel.resizeSplit("", -0.9f)
+        assertEquals(SplitRatios.MIN_RATIO, viewModel.uiState.value.layout.splits()[0].ratio, 0.001f)
+        assertEquals("Dragging does not write to storage", saves, repository.saveCount)
+        viewModel.commitSplitRatios()
+        assertEquals(viewModel.uiState.value.layout, repository.storedState.layout)
+
+        // The presets' sizes follow the outermost divider of each direction
+        assertEquals(SplitRatios.MIN_RATIO, viewModel.uiState.value.splitRatios.horizontal, 0.001f)
+        assertEquals(0.7f, viewModel.uiState.value.splitRatios.vertical, 0.001f)
+
+        viewModel.resetSplit("1")
+        assertEquals(listOf(SplitRatios.MIN_RATIO, 0.5f), viewModel.uiState.value.layout.splits().map { it.ratio })
+    }
+
+    @Test
+    fun closingATabInACustomLayout_refillsItsPaneAndKeepsTheShape() {
+        val (reddit, youtube, news) = redditBesideYouTube()
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+        val splits = viewModel.uiState.value.layout.splits()
+
+        viewModel.closeTab(youtube)
+
+        val state = viewModel.uiState.value
+        assertEquals(3, state.paneCount)
+        assertEquals(splits, state.layout.splits())
+        assertEquals(reddit, state.paneTabIds[0])
+        assertEquals(news, state.paneTabIds[2])
+        assertTrue("With no other tab to show, the pane gets a start page", state.tabForPane(1)!!.isNewTabPage)
+    }
+
+    private fun threeTabs() = listOf(
+        BrowserTab(id = "a", url = "https://a.example/"),
+        BrowserTab(id = "b", url = "https://b.example/"),
+        BrowserTab(id = "c", url = "https://c.example/")
+    )
+
+    @Test
+    fun startup_migratesTheFixedLayoutsOfEarlierVersions() {
+        // Saved by a version without free-form layouts: no layout tree at all
+        repository.storedState = PersistedBrowserState(
+            layoutMode = LayoutMode.GRID_2X2,
+            splitRatios = SplitRatios(horizontal = 0.3f, vertical = 0.7f),
+            tabs = threeTabs(),
+            paneTabIds = listOf("b", "a"),
+            activePaneIndex = 1
+        )
+        engine = FakeBrowserEngine()
+
+        val state = newViewModel().uiState.value
+
+        assertEquals(LayoutMode.GRID_2X2, state.layoutMode)
+        assertEquals("b", state.paneTabIds[0])
+        assertEquals("a", state.paneTabIds[1])
+        assertEquals("c", state.paneTabIds[2])
+        assertTrue("The fourth pane had no tab: it gets a start page", state.tabForPane(3)!!.isNewTabPage)
+        assertEquals("a", state.activeTabId)
+        val grid = state.layout as PaneNode.Split
+        assertEquals(SplitOrientation.COLUMN, grid.orientation)
+        assertEquals(0.7f, grid.ratio, 0.001f)
+        assertEquals(0.3f, (grid.first as PaneNode.Split).ratio, 0.001f)
+        assertEquals("From now on the layout itself is saved", state.layout, repository.storedState.layout)
+    }
+
+    @Test
+    fun startup_restoresACustomLayoutAndShowsOnlyItsTabs() {
+        val saved = PaneNode.Split(
+            SplitOrientation.ROW,
+            0.6f,
+            PaneNode.Leaf("a"),
+            PaneNode.Split(SplitOrientation.COLUMN, 0.3f, PaneNode.Leaf("c"), PaneNode.Leaf("gone"))
+        )
+        repository.storedState = PersistedBrowserState(
+            // What an older version would have made of it; the tree wins
+            layoutMode = LayoutMode.GRID_2X2,
+            tabs = threeTabs(),
+            paneTabIds = listOf("a", "c", "gone"),
+            activePaneIndex = 2,
+            layout = saved
+        )
+        engine = FakeBrowserEngine()
+
+        val state = newViewModel().uiState.value
+
+        assertEquals(
+            "The pane of a tab that no longer exists is closed",
+            PaneNode.Split(SplitOrientation.ROW, 0.6f, PaneNode.Leaf("a"), PaneNode.Leaf("c")),
+            state.layout
+        )
+        assertEquals("c", state.activeTabId)
+        assertEquals(0.6f, state.splitRatios.horizontal, 0.001f)
+        assertTrue(engine.sessions.getValue("a").visibleState)
+        assertTrue(engine.sessions.getValue("c").visibleState)
+        assertFalse("Background tabs get no session until shown", engine.sessions.containsKey("b"))
+    }
+
+    @Test
+    fun startup_fallsBackToASinglePaneWhenNothingOfTheSavedLayoutIsLeft() {
+        repository.storedState = PersistedBrowserState(
+            tabs = threeTabs(),
+            layout = PaneNode.Split(SplitOrientation.ROW, 0.5f, PaneNode.Leaf("x"), PaneNode.Leaf("y"))
+        )
+        engine = FakeBrowserEngine()
+
+        val state = newViewModel().uiState.value
+
+        assertEquals(listOf("a"), state.paneTabIds)
+        assertEquals(3, state.tabs.size)
+    }
+
+    @Test
+    fun fullscreen_isTrackedForTheVisibleTabThatAskedAndEndsWithThePage() {
+        val (reddit, youtube, news) = redditBesideYouTube()
+        val layout = viewModel.uiState.value.layout
+        viewModel.focusPane(1)
+
+        engine.sessions.getValue(reddit).simulateFullScreen(true)
+        var state = viewModel.uiState.value
+        assertEquals(reddit, state.fullscreenTabId)
+        assertEquals("The layout and focus are left as they were", layout, state.layout)
+        assertEquals(youtube, state.activeTabId)
+
+        // Another tab leaving fullscreen is not ours to act on
+        engine.sessions.getValue(youtube).simulateFullScreen(false)
+        assertEquals(reddit, viewModel.uiState.value.fullscreenTabId)
+
+        // The page leaves by itself (its own button, or Esc)
+        engine.sessions.getValue(reddit).simulateFullScreen(false)
+        state = viewModel.uiState.value
+        assertNull(state.fullscreenTabId)
+        assertEquals(layout, state.layout)
+        assertEquals(youtube, state.activeTabId)
+
+        // Back: the browser asks the page to leave
+        engine.sessions.getValue(reddit).simulateFullScreen(true)
+        viewModel.exitFullscreen()
+        assertNull(viewModel.uiState.value.fullscreenTabId)
+        assertEquals(1, engine.sessions.getValue(reddit).exitFullScreenCount)
+
+        // A tab nobody can see is not allowed to take the window
+        viewModel.closePane(1)
+        engine.sessions.getValue(youtube).simulateFullScreen(true)
+        assertNull(viewModel.uiState.value.fullscreenTabId)
+        assertEquals(1, engine.sessions.getValue(youtube).exitFullScreenCount)
+        assertTrue(viewModel.uiState.value.tabs.any { it.id == news })
+    }
+
+    @Test
+    fun fullscreen_endsWhenTheTabClosesOrItsPaneShowsSomethingElse() {
+        val (reddit, youtube, news) = redditBesideYouTube()
+
+        engine.sessions.getValue(youtube).simulateFullScreen(true)
+        viewModel.closeTab(youtube)
+        assertNull("Closed while fullscreen", viewModel.uiState.value.fullscreenTabId)
+        assertEquals("The split is still there", 2, viewModel.uiState.value.paneCount)
+
+        val redditSession = engine.sessions.getValue(reddit)
+        redditSession.simulateFullScreen(true)
+        assertEquals(reddit, viewModel.uiState.value.fullscreenTabId)
+        assertEquals("The closed tab's pane was refilled from the rail", listOf(reddit, news), viewModel.uiState.value.paneTabIds)
+        viewModel.openNewTab("https://other.example/", assignToPane = 0)
+        assertFalse(reddit in viewModel.uiState.value.paneTabIds)
+        assertNull("Its pane went on to show another tab", viewModel.uiState.value.fullscreenTabId)
+        assertEquals("The page is told, so it does not stay fullscreen unseen", 1, redditSession.exitFullScreenCount)
+
+        engine.sessions.getValue(news).simulateFullScreen(true)
+        engine.sessions.getValue(news).simulateCrashLoop()
+        assertNull("A crashed page shows nothing", viewModel.uiState.value.fullscreenTabId)
     }
 }

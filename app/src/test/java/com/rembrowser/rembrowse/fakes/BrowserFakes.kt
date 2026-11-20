@@ -30,6 +30,7 @@ class FakeSessionHandle(
     var goBackCount: Int = 0
     var goForwardCount: Int = 0
     var isClosed: Boolean = false
+    var exitFullScreenCount: Int = 0
 
     override fun loadUrl(url: String) {
         loadedUrls.add(url)
@@ -44,6 +45,12 @@ class FakeSessionHandle(
     override fun setVisible(visible: Boolean) { visibleState = visible }
     override fun setFocusedForExtensions(focused: Boolean) { focusedForExtensionsState = focused }
     override fun close() { isClosed = true }
+    override fun exitFullScreen() { exitFullScreenCount++ }
+
+    /** The page pressed (or left) its fullscreen button. */
+    fun simulateFullScreen(fullScreen: Boolean) {
+        listener.onFullScreenChanged(tabId, fullScreen)
+    }
 
     fun simulatePageLoad(url: String, title: String, canGoBack: Boolean = true) {
         listener.onSessionUpdated(

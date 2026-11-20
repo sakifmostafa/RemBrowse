@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -98,6 +99,7 @@ fun BrowserTopBar(
     onSplit: (currentOnLeft: Boolean) -> Unit,
     onSwapPanes: () -> Unit,
     onSetSplitPreset: (Float) -> Unit,
+    onClosePane: () -> Unit,
     onNewTab: () -> Unit,
     onCloseActiveTab: () -> Unit,
     onOpenTabSwitcher: () -> Unit,
@@ -215,7 +217,8 @@ fun BrowserTopBar(
                     onSelectLayout = onSelectLayout,
                     onSplit = onSplit,
                     onSwapPanes = onSwapPanes,
-                    onSetSplitPreset = onSetSplitPreset
+                    onSetSplitPreset = onSetSplitPreset,
+                    onClosePane = onClosePane
                 )
             }
         }
@@ -233,7 +236,8 @@ fun BrowserTopBar(
                     onSelectLayout = onSelectLayout,
                     onSplit = onSplit,
                     onSwapPanes = onSwapPanes,
-                    onSetSplitPreset = onSetSplitPreset
+                    onSetSplitPreset = onSetSplitPreset,
+                    onClosePane = onClosePane
                 )
             }
         }
@@ -577,7 +581,8 @@ private fun SplitMenu(
     onSelectLayout: (LayoutMode) -> Unit,
     onSplit: (currentOnLeft: Boolean) -> Unit,
     onSwapPanes: () -> Unit,
-    onSetSplitPreset: (Float) -> Unit
+    onSetSplitPreset: (Float) -> Unit,
+    onClosePane: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -659,7 +664,7 @@ private fun SplitMenu(
         )
 
         // One divider to size against: the presets only mean something with two panes
-        if (mode.paneCount == 2) {
+        if (mode != null && uiState.paneCount == 2) {
             HorizontalDivider(color = colors.outlineVariant)
             sectionLabel("Size")
             val current = if (mode == LayoutMode.SPLIT_2X1) uiState.splitRatios.vertical else uiState.splitRatios.horizontal
@@ -682,6 +687,15 @@ private fun SplitMenu(
         layoutItem("Grid", LayoutMode.GRID_2X2, "layout_2x2", "Ctrl+4") { onSelectLayout(LayoutMode.GRID_2X2) }
 
         HorizontalDivider(color = colors.outlineVariant)
+        // The focused pane goes and its neighbour takes the room; its tab stays in the rail
+        item(
+            label = "Close this pane",
+            tag = "split_close_pane",
+            leading = { tint ->
+                Icon(Icons.Outlined.Remove, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            },
+            onClick = onClosePane
+        )
         // The focused page stays, full size; the other tabs remain open in the rail
         item(
             label = "Close split",
