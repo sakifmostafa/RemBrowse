@@ -2,6 +2,27 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13 (2026-11-20) — Layouts your way, fullscreen video, history and updates
+
+### Added
+* **Split layouts in any arrangement, built by dragging tabs.** Drag a tab from the rail onto the pages: near an edge of a page it splits that page (left, right, above or below), in the middle it shows the tab there. Up to four pages, in any arrangement, for example one tall page beside two stacked ones (a third page under YouTube is a drag to the bottom edge of YouTube). A highlight shows where the tab will land. With a mouse, press and drag; on touch, long-press then drag. Dragging a tab that is on screen moves it. Every split has its own divider, **Close pane** (in a tab's rail menu, or **Split → Close this pane**) removes a pane and keeps its tab, and the layout is restored on the next start. Side by side, Stacked and Grid stay as quick choices in the Split menu.
+* **Browsing history.** **More → History** (`Ctrl+H`) opens **Settings → History**: the pages you have visited, newest first, grouped by day, with search, remove and **Clear history**. The command palette also suggests matching pages from it. **Keep browsing history** turns recording off. The start page, settings and extension pages are never recorded, and history stays on the device.
+* **RemBrowse updates itself.** **Settings → About** can check for a new version, download the APK for your device's processor with progress and Cancel, and hand it to Android's installer, which asks you to confirm; tabs, bookmarks, extensions and settings are kept. A daily check at launch (on by default, can be turned off) offers a new version in a notice at the bottom of the window. A download is installed only if it is exactly the published file (size and SHA-256), is RemBrowse, is newer and is signed with the same key, so a wrongly signed build is explained rather than failing with "App not installed". Updates come from this repository, which has to be public for the check to work.
+
+### Fixed
+* **Fullscreen video stayed inside its pane.** A page's fullscreen button only filled the page's own area: in a split, the rail, toolbar and other page stayed on screen. RemBrowse now gives the page the whole window and hides Android's status and navigation bars. On Android 15 and newer, a desktop window (a Googlebook) that is not already full-screen is enlarged to the whole screen and restored afterwards. Back, Esc or the page's own button return to exactly the same layout.
+
+### Known limits
+* **First version with the update check.** 0.12 and earlier cannot update themselves: install 0.13 from the README once, and later versions can be installed from Settings → About.
+* Not yet tried on a device: dragging tabs, fullscreen (in particular enlarging a Googlebook window) and installing an update.
+* Showing another tab in a pane creates a new web view for it, so switching tabs in a pane could briefly flash.
+* While a page is fullscreen, the pages behind it keep running.
+* An older version opening a three-pane layout shows it as a grid.
+* On a phone-sized window there is no rail to drag tabs from; layouts are still shown and panes can be closed from the menu.
+
+### Testing
+270 automated tests.
+
 ## v0.12 (2026-11-20) — Popups sized to their content
 
 ### Changed

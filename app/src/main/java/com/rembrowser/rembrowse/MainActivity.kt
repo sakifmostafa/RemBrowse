@@ -179,6 +179,9 @@ class MainActivity : ComponentActivity() {
     // Which tab each on-screen web view is showing, so keyboard focus can be given to a page.
     private val paneViewTabs = WeakHashMap<GeckoView, String>()
 
+    // The window was made fullscreen for a page and should be given back when the page leaves it
+    private var desktopFullscreenRequested = false
+
     // An Enter press that submitted a text field must not also deliver its key release to
     // whatever receives focus next (the page, or a button).
     private var swallowEnterKeyUp = false
@@ -240,9 +243,13 @@ class MainActivity : ComponentActivity() {
                 if (pageFullscreen) {
                     systemBars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     systemBars.hide(WindowInsetsCompat.Type.systemBars())
+                    requestDesktopFullscreen(enter = true)
                 }
                 onDispose {
-                    if (pageFullscreen) systemBars.show(WindowInsetsCompat.Type.systemBars())
+                    if (pageFullscreen) {
+                        systemBars.show(WindowInsetsCompat.Type.systemBars())
+                        requestDesktopFullscreen(enter = false)
+                    }
                 }
             }
             LaunchedEffect(darkTheme) {
@@ -331,6 +338,27 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+    }
+
+    /**
+     * In a desktop window (a Googlebook), hiding the system bars leaves the window its size, so a
+     * fullscreen video would only fill the window. Android 15 lets an app in such a window ask
+     * for the whole screen, as Chrome does for fullscreen video, and give it back afterwards.
+     */
+    private fun requestDesktopFullscreen(enter: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
+        if (enter) {
+            // Only a freeform (desktop) window can be made fullscreen this way
+            if (!isInMultiWindowMode) return
+            desktopFullscreenRequested = true
+            runCatching { requestFullscreenMode(FULLSCREEN_MODE_REQUEST_ENTER, null) }
+                .onFailure { Log.w(TAG, "Couldn't make the window fullscreen", it) }
+        } else if (desktopFullscreenRequested) {
+            // The window is no longer in multi-window mode while fullscreen, so this is tracked
+            desktopFullscreenRequested = false
+            runCatching { requestFullscreenMode(FULLSCREEN_MODE_REQUEST_EXIT, null) }
+                .onFailure { Log.w(TAG, "Couldn't restore the window", it) }
         }
     }
 
