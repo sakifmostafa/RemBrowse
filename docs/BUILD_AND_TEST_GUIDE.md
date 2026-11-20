@@ -61,6 +61,9 @@ Test suites included:
 * `BrowserViewModelTest` — layouts, lazy session creation, tab closing, new-window requests, split ratios, prompts, bookmarks, settings (startup, new-tab position, desktop sites), handing downloads over, and the settings page's tab (no engine session, typed `rem://` addresses, refusing them from pages).
 * `ExtensionsViewModelTest` — catalog loading and cancellation, install validation, cancel and failure handling.
 * `DownloadsViewModelTest` — asking first, saving, declining, failure and cancel clean-up, name collisions, progress, the list and its history.
+* `BrowsingHistoryTest` / `BrowsingHistoryStoreTest` — what is recorded (web pages only, one entry per address, titles filled in, the cap), the Keep history switch, remove and clear, and the saved list.
+* `AppUpdatesTest` — reading `update.json` (and rejecting unsafe entries), choosing the APK for the device, fetching it, and deleting a download that is damaged, truncated or too large.
+* `UpdatesViewModelTest` / `UpdatesUiTest` — the daily check and its notice, checking on request, download progress and cancel, retrying, the install permission round trip, refused updates, and the controls in Settings → About.
 * `CommandPaletteResultsTest` — what the command palette offers for a typed query.
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
 * `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01, and the saved downloads list.
@@ -99,9 +102,10 @@ This builds the release variant and copies the result to the repository's `build
 build/RemBrowse-arm64-v8a.apk
 build/RemBrowse-x86_64.apk
 build/VERSION.txt
+build/update.json
 ```
 
-Commit those three files to publish a new version. Release APKs are about 85–90 MB: the native engine is stored compressed and unused library code is removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`). Each file must stay under GitHub's 100 MB limit.
+Commit those four files together to publish a new version. `update.json` holds the version and each APK's size and SHA-256; copies of RemBrowse already installed read it for **Settings → About → Updates** and the daily check, so it must always describe the APKs next to it. Release APKs are about 85–90 MB: the native engine is stored compressed and unused library code is removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`). Each file must stay under GitHub's 100 MB limit.
 
 ### The engine patch
 

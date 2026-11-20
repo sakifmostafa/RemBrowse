@@ -138,7 +138,23 @@ Downloads live in the browser process; there is no foreground service, so a down
 
 ---
 
-## 4. Native WebExtensions (`.xpi`) Pipeline
+## 4. History and app updates
+
+### Browsing history
+
+`BrowserViewModel.recordHistory()` runs at the end of every session update. A new location that is a web address (`UrlResolver.isWebUrl`) puts a `HistoryEntry` at the top, replacing any older entry for the same address, capped at 1,000; a title that arrives afterwards fills in the entry for the tab's address. Internal pages, the start page and extension pages are never web addresses, so they are never recorded. The list is a `StateFlow` of its own (`history`), not part of `BrowserUiState`, so a visit does not recompose the whole screen. `SharedPrefsBrowsingHistoryStore` keeps it in its own preferences file and writes on a background thread, coalescing bursts of visits into one write.
+
+### App updates
+
+`./gradlew publishApk` writes `build/update.json` beside the APKs: `versionName`, `versionCode`, and for each processor type the APK's file name, size and SHA-256. `UpdatesViewModel` reads it from `BuildConfig.UPDATE_BASE_URL`, the repository's raw `build/` folder on GitHub, so it only works while the repository is public.
+
+* **Checking.** `OkHttpUpdateSource.fetchManifest()`; `UpdateManifests.updateFor()` offers the newest version only if its `versionCode` is higher than the running one, in the APK for the first of `Build.SUPPORTED_ABIS` that was published. File names containing `/`, sizes below 1 and malformed hashes are dropped when the file is parsed. An automatic check runs at launch when allowed and 24 hours have passed (or the clock went back); it fails silently and raises `notice` only for a version whose notice was not closed before.
+* **Downloading** streams to `cache/updates/<name>.part` on `Dispatchers.IO`, hashing as it goes. More bytes than published, fewer, or a different SHA-256 throws `UpdateIntegrityException` and deletes the partial file; only a matching file is renamed into place. Progress is published in steps of 1 %. `cache/updates/` is emptied at every launch and before every download.
+* **Installing.** `AndroidUpdateInstaller` reads the APK with `getPackageArchiveInfo` and requires this package name, a higher version code, and the installed copy's current signing certificate among the update's (current or rotated-from) certificates. Android enforces the signer itself; this check exists to explain a mismatch instead of the installer's bare "App not installed". Without `canRequestPackageInstalls()` it opens `ACTION_MANAGE_UNKNOWN_APP_SOURCES` and `MainActivity.onResume` resumes the install once the permission is granted. The APK reaches the system installer as an `ACTION_VIEW` intent with a read grant on a `FileProvider` URI (the `updates` cache path in `download_paths.xml`). Nothing is installed without the system installer's confirmation.
+
+---
+
+## 5. Native WebExtensions (`.xpi`) Pipeline
 
 * **Discovery (`OkHttpAmoApiClient` + `AmoJsonParser`)**: queries `https://addons.mozilla.org/api/v5/addons/search/?app=android&type=extension&lang=en-US`. The parser handles AMO's locale maps (including the `null` + `_default` shape), skips entries without an id, duplicates and non-HTTPS downloads.
 * **Installation (`GeckoExtensionManager`)**: accepts `https://` `.xpi` URLs or a `file://` copy of a picked document (copied off the main thread into `cacheDir/xpi_imports/` and deleted afterwards). Install errors are mapped to plain-language messages; a cancelled prompt is not an error.
@@ -153,7 +169,7 @@ Downloads live in the browser process; there is no foreground service, so a down
 
 ---
 
-## 5. Design tokens
+## 6. Design tokens
 
 All colours, type and shapes come from `ui/theme/Theme.kt`; components read `MaterialTheme` roles and never hardcode values.
 
@@ -174,12 +190,13 @@ Sizes shared by the chrome are in `RemDimens`. Interactive elements have a 48dp 
 
 ---
 
-## 6. State Persistence & Testing Strategy
+## 7. State Persistence & Testing Strategy
 
 * **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (layout, clamped split ratios, tabs, pane assignments, bookmarks and settings, including the chosen search engine) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
 * **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `DownloadFileNames`, download request parsing, the engine configuration file (read back with GeckoView's real parser), `AmoJsonParser`, command palette results, theme contrast, and the three view models against the fakes in `BrowserFakes.kt` (including a fake download storage and a response body that can fail or be cancelled part-way).
-* **Robolectric**: real `SharedPreferences` round trips for browser state and the downloads list.
+* **Robolectric**: real `SharedPreferences` round trips for browser state, the downloads list and the browsing history.
+* **Updates**: `AppUpdatesTest` runs `OkHttpUpdateSource` against canned HTTP responses (a damaged, truncated or oversized APK is deleted); `UpdatesViewModelTest` covers the daily check, closed notices, progress, cancel, retries and the install permission round trip with a fake source and installer.
 * **Headless Compose UI tests**: `RemBrowseUiTest` (laptop-sized window) and `CompactWindowUiTest` (phone-sized) drive the real screen with a fake engine, including the extension buttons on the rail and in the More menu.
 * **UI renders**: `UiSnapshotTest` writes PNGs of the main screens on request (see the Build & Test Guide).
 
-Behaviour that depends on the real engine or the device (new-window adoption, crash recovery, prompts, extension delegates and popups, the popup viewport helper, the download callback, MediaStore and opening files) is written against the GeckoView 138 sources and compiled against the real library, but is not exercised by automated tests: it needs a device.
+Behaviour that depends on the real engine or the device (new-window adoption, crash recovery, prompts, extension delegates and popups, the popup viewport helper, the download callback, MediaStore and opening files, and the system installer) is written against the GeckoView 138 sources and compiled against the real library, but is not exercised by automated tests: it needs a device.
