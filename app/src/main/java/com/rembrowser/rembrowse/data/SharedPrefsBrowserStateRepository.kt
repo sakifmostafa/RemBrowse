@@ -7,8 +7,10 @@ import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
+import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import org.json.JSONArray
 import org.json.JSONObject
@@ -62,6 +64,7 @@ class SharedPrefsBrowserStateRepository(
             val paneIdsArray = JSONArray()
             state.paneTabIds.forEach { paneIdsArray.put(it) }
             root.put("paneTabIds", paneIdsArray)
+            state.layout?.let { root.put("layout", encodeLayout(it)) }
 
             val bookmarksArray = JSONArray()
             state.bookmarks.forEach { bookmark ->
@@ -173,8 +176,38 @@ class SharedPrefsBrowserStateRepository(
                 paneTabIds = paneTabIds,
                 activePaneIndex = activePaneIndex,
                 bookmarks = bookmarks,
-                settings = settings
+                settings = settings,
+                // Absent in states saved before layouts became free-form; unreadable ones are
+                // dropped the same way, and the layout is rebuilt from the fields above.
+                layout = root.optJSONObject("layout")?.let { decodeLayout(it, depth = 0) }
             )
         }
+
+        private fun encodeLayout(node: PaneNode): JSONObject = when (node) {
+            is PaneNode.Leaf -> JSONObject().put("tab", node.tabId)
+            is PaneNode.Split -> JSONObject()
+                .put("split", node.orientation.name)
+                .put("ratio", node.ratio.toDouble())
+                .put("first", encodeLayout(node.first))
+                .put("second", encodeLayout(node.second))
+        }
+
+        private fun decodeLayout(obj: JSONObject, depth: Int): PaneNode? {
+            if (depth > MAX_LAYOUT_DEPTH) return null
+            val tabId = obj.optString("tab", "")
+            if (tabId.isNotBlank()) return PaneNode.Leaf(tabId)
+            val orientation = SplitOrientation.entries.firstOrNull { it.name == obj.optString("split", "") } ?: return null
+            val first = obj.optJSONObject("first")?.let { decodeLayout(it, depth + 1) } ?: return null
+            val second = obj.optJSONObject("second")?.let { decodeLayout(it, depth + 1) } ?: return null
+            return PaneNode.Split(
+                orientation = orientation,
+                ratio = PaneNode.clampRatio(obj.optDouble("ratio", 0.5).toFloat()),
+                first = first,
+                second = second
+            )
+        }
+
+        /** Four panes never nest deeper than this; anything deeper is not a layout we wrote. */
+        private const val MAX_LAYOUT_DEPTH = 8
     }
 }

@@ -33,6 +33,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -45,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -52,45 +54,59 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
+import com.rembrowser.rembrowse.model.DropZone
+import com.rembrowser.rembrowse.model.PaneDropTarget
+import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 
 /**
- * The content area: one to four panes with draggable dividers between them.
+ * The content area: one to four panes, arranged by the layout tree, with a draggable divider in
+ * every split.
  *
- * Every pane keeps the same position in the composition whatever the layout, so switching
- * between layouts resizes the existing web views instead of destroying and recreating them.
+ * Panes are laid out side by side in one flat box and keyed by the tab they show, so whatever
+ * happens to the layout (a split, a closed pane, a tab moved to another pane) the web view of a
+ * tab that stays on screen is only moved and resized, never destroyed and recreated.
+ *
+ * While a page is fullscreen its pane covers the whole area. The other panes stay where they
+ * are underneath it, composed but out of reach, so leaving fullscreen shows them at once.
+ *
+ * @param dragState a tab being dragged from the rail; the grid shows where it would land.
  */
 @Composable
 fun TiledBrowserGrid(
     uiState: BrowserUiState,
     compact: Boolean,
     onFocusPane: (Int) -> Unit,
-    onUpdateHorizontalSplit: (Float) -> Unit,
-    onUpdateVerticalSplit: (Float) -> Unit,
+    onResizeSplit: (path: String, deltaFraction: Float) -> Unit,
     onCommitSplit: () -> Unit,
-    onResetSplitRatios: () -> Unit,
+    onResetSplit: (path: String) -> Unit,
     onReloadPane: (Int) -> Unit,
     contentFocusRequested: Boolean,
     onContentFocusHandled: () -> Unit,
     onFocusWebContent: (tabId: String) -> Unit,
     internalPage: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dragState: TabDragState? = null
 ) {
-    val mode = uiState.layoutMode
-    val isSplit = mode.paneCount > 1
+    val isSplit = uiState.isSplit
+    val fullscreenTabId = uiState.fullscreenTabId?.takeIf { it in uiState.paneTabIds }
+    val fullscreen = fullscreenTabId != null
     // A lone pane on a small window uses every pixel; otherwise panes float on the chrome.
-    val framed = !compact || isSplit
+    val framed = !fullscreen && (!compact || isSplit)
 
     BoxWithConstraints(
         modifier = modifier
@@ -103,36 +119,44 @@ fun TiledBrowserGrid(
     ) {
         val density = LocalDensity.current
         val gap = RemDimens.PaneGap
-        val columns = mode.columns
-        val rows = mode.rows
         val totalWidth = maxWidth
         val totalHeight = maxHeight
-        val firstColumnWidth = if (columns == 2) (totalWidth - gap) * uiState.splitRatios.horizontal else totalWidth
-        val firstRowHeight = if (rows == 2) (totalHeight - gap) * uiState.splitRatios.vertical else totalHeight
-        val draggableWidthPx = with(density) { (totalWidth - gap).toPx().coerceAtLeast(1f) }
-        val draggableHeightPx = with(density) { (totalHeight - gap).toPx().coerceAtLeast(1f) }
+        // In dp, like everything else here
+        val geometry = remember(uiState.layout, totalWidth, totalHeight) {
+            uiState.layout.geometry(totalWidth.value, totalHeight.value, gap.value)
+        }
 
-        for (paneIndex in 0 until mode.paneCount) {
-            key(paneIndex) {
-                val column = paneIndex % columns
-                val row = paneIndex / columns
-                val x = if (column == 0) 0.dp else firstColumnWidth + gap
-                val y = if (row == 0) 0.dp else firstRowHeight + gap
-                val width = when {
-                    columns == 1 -> totalWidth
-                    column == 0 -> firstColumnWidth
-                    else -> totalWidth - firstColumnWidth - gap
+        var originInRoot by remember { mutableStateOf(Offset.Zero) }
+        Box(modifier = Modifier.matchParentSize().onGloballyPositioned { originInRoot = it.positionInRoot() })
+        if (dragState != null) {
+            val hitTest by rememberUpdatedState { position: Offset, tabId: String ->
+                if (fullscreen) {
+                    null
+                } else {
+                    geometry.dropTargetAt(
+                        x = (position.x - originInRoot.x) / density.density,
+                        y = (position.y - originInRoot.y) / density.density,
+                        draggedTabId = tabId,
+                        slack = gap.value
+                    )
                 }
-                val height = when {
-                    rows == 1 -> totalHeight
-                    row == 0 -> firstRowHeight
-                    else -> totalHeight - firstRowHeight - gap
-                }
+            }
+            DisposableEffect(dragState) {
+                dragState.hitTest = { position, tabId -> hitTest(position, tabId) }
+                onDispose { dragState.hitTest = null }
+            }
+        }
+
+        geometry.panes.forEachIndexed { paneIndex, placement ->
+            key(placement.tabId) {
+                val fillsWindow = placement.tabId == fullscreenTabId
+                val rect = placement.rect
                 BrowserPane(
                     paneIndex = paneIndex,
                     uiState = uiState,
                     framed = framed,
-                    isSplit = isSplit,
+                    isSplit = isSplit && !fullscreen,
+                    hidden = fullscreen && !fillsWindow,
                     onFocusPane = onFocusPane,
                     onReloadPane = onReloadPane,
                     contentFocusRequested = contentFocusRequested,
@@ -140,35 +164,84 @@ fun TiledBrowserGrid(
                     onFocusWebContent = onFocusWebContent,
                     internalPage = internalPage,
                     paneViewport = paneViewport,
-                    modifier = Modifier
-                        .offset(x = x, y = y)
-                        .size(width = width.coerceAtLeast(0.dp), height = height.coerceAtLeast(0.dp))
+                    modifier = if (fillsWindow) {
+                        Modifier.zIndex(1f).size(totalWidth, totalHeight)
+                    } else {
+                        Modifier
+                            .offset(x = rect.left.dp, y = rect.top.dp)
+                            .size(width = rect.width.dp, height = rect.height.dp)
+                    }
                 )
             }
         }
 
-        if (columns == 2) {
-            SplitDivider(
-                vertical = true,
-                onDragDeltaPx = { delta -> onUpdateHorizontalSplit(delta / draggableWidthPx) },
-                onDragEnd = onCommitSplit,
-                onReset = onResetSplitRatios,
-                modifier = Modifier
-                    .offset(x = firstColumnWidth - DividerGrabMargin)
-                    .size(width = gap + DividerGrabMargin * 2, height = totalHeight)
-            )
+        if (!fullscreen) {
+            geometry.dividers.forEach { divider ->
+                key(divider.path) {
+                    val vertical = divider.orientation == SplitOrientation.ROW
+                    val extentPx = with(density) { divider.extent.dp.toPx().coerceAtLeast(1f) }
+                    val rect = divider.rect
+                    SplitDivider(
+                        vertical = vertical,
+                        onDragDeltaPx = { delta -> onResizeSplit(divider.path, delta / extentPx) },
+                        onDragEnd = onCommitSplit,
+                        onReset = { onResetSplit(divider.path) },
+                        modifier = if (vertical) {
+                            Modifier
+                                .offset(x = rect.left.dp - DividerGrabMargin, y = rect.top.dp)
+                                .size(width = gap + DividerGrabMargin * 2, height = rect.height.dp)
+                        } else {
+                            Modifier
+                                .offset(x = rect.left.dp, y = rect.top.dp - DividerGrabMargin)
+                                .size(width = rect.width.dp, height = gap + DividerGrabMargin * 2)
+                        }
+                    )
+                }
+            }
         }
-        if (rows == 2) {
-            SplitDivider(
-                vertical = false,
-                onDragDeltaPx = { delta -> onUpdateVerticalSplit(delta / draggableHeightPx) },
-                onDragEnd = onCommitSplit,
-                onReset = onResetSplitRatios,
-                modifier = Modifier
-                    .offset(y = firstRowHeight - DividerGrabMargin)
-                    .size(width = totalWidth, height = gap + DividerGrabMargin * 2)
-            )
-        }
+
+        if (dragState != null) DropHighlight(dragState)
+    }
+}
+
+/**
+ * Where a dragged tab will land: half a pane for a split, the whole pane to take it over.
+ * Reads the pointer position in a scope of its own, so a drag does not recompose the panes.
+ */
+@Composable
+private fun DropHighlight(dragState: TabDragState) {
+    val target = dragState.target ?: return
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(RemDimens.PaneRadius)
+    val label = when (target.zone) {
+        DropZone.CENTER -> "Show here"
+        DropZone.LEFT -> "Split left"
+        DropZone.RIGHT -> "Split right"
+        DropZone.TOP -> "Split above"
+        DropZone.BOTTOM -> "Split below"
+    }
+    val rect = target.highlight
+    Box(
+        modifier = Modifier
+            .zIndex(2f)
+            .offset(x = rect.left.dp, y = rect.top.dp)
+            .size(width = rect.width.dp, height = rect.height.dp)
+            .clip(shape)
+            .background(colors.primary.copy(alpha = 0.28f))
+            .border(2.dp, colors.primary, shape)
+            .testTag("pane_drop_highlight")
+            .semantics { contentDescription = "$label, pane ${target.paneIndex + 1}" },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.onPrimary,
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(colors.primary)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        )
     }
 }
 
@@ -178,6 +251,8 @@ private fun BrowserPane(
     uiState: BrowserUiState,
     framed: Boolean,
     isSplit: Boolean,
+    /** Covered by a fullscreen page: kept alive, but not there for pointer, keyboard or reader. */
+    hidden: Boolean,
     onFocusPane: (Int) -> Unit,
     onReloadPane: (Int) -> Unit,
     contentFocusRequested: Boolean,
@@ -202,8 +277,8 @@ private fun BrowserPane(
     // (so the text field that had it lets go), then a web page's own view is focused inside it.
     val paneFocus = remember { FocusRequester() }
     val showsWebContent = tab.isWebPage && !tab.crashed
-    LaunchedEffect(contentFocusRequested, isActive) {
-        if (contentFocusRequested && isActive) {
+    LaunchedEffect(contentFocusRequested, isActive, hidden) {
+        if (contentFocusRequested && isActive && !hidden) {
             runCatching { paneFocus.requestFocus() }
             if (showsWebContent) onFocusWebContent(tab.id)
             onContentFocusHandled()
@@ -215,6 +290,7 @@ private fun BrowserPane(
             .clip(shape)
             .background(colors.surfaceContainerLowest)
             .focusRequester(paneFocus)
+            .focusProperties { canFocus = !hidden }
             .focusable()
             .then(
                 if (framed) {
@@ -223,8 +299,8 @@ private fun BrowserPane(
                     Modifier
                 }
             )
-            .pointerInput(paneIndex, isActive) {
-                if (!isActive) {
+            .pointerInput(paneIndex, isActive, hidden) {
+                if (!isActive && !hidden) {
                     // Observe the press without consuming it, so the page still receives it
                     awaitPointerEventScope {
                         while (true) {
@@ -236,7 +312,7 @@ private fun BrowserPane(
                     }
                 }
             }
-            .testTag("browser_pane_$paneIndex")
+            .then(if (hidden) Modifier.clearAndSetSemantics { } else Modifier.testTag("browser_pane_$paneIndex"))
     ) {
         when {
             tab.isNewTabPage -> NewTabPage(modifier = Modifier.fillMaxSize())

@@ -57,6 +57,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.performMouseInput
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
+import com.rembrowser.rembrowse.model.DropZone
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -268,6 +275,39 @@ class UiSnapshotTest {
     fun gridView() {
         launch(layout = LayoutMode.GRID_2X2)
         save("05-grid-view")
+    }
+
+    @Test
+    fun threePaneLayout() {
+        launch(layout = LayoutMode.SPLIT_1X2)
+        composeRule.runOnUiThread { browserVm.dropTabOnPane("github", targetPaneIndex = 1, zone = DropZone.BOTTOM) }
+        save("05b-three-panes")
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun dropZoneHighlight() {
+        launch(layout = LayoutMode.SPLIT_1X2)
+        val tile = composeRule.onNodeWithTag("tab_bar_item_github").getUnclippedBoundsInRoot()
+        val pane = composeRule.onNodeWithTag("browser_pane_1").getUnclippedBoundsInRoot()
+        val target = Offset(
+            (pane.left + pane.width * 0.5f - tile.left).value,
+            (pane.top + pane.height * 0.85f - tile.top).value
+        )
+        composeRule.onNodeWithTag("tab_bar_item_github").performMouseInput {
+            moveTo(center)
+            press()
+            moveTo(center + Offset(40f, 0f))
+            moveTo(target)
+        }
+        save("05c-drop-zone")
+    }
+
+    @Test
+    fun pageFullscreen() {
+        launch(layout = LayoutMode.SPLIT_1X2)
+        composeRule.runOnUiThread { engine.sessions.getValue("android").simulateFullScreen(true) }
+        save("05d-page-fullscreen")
     }
 
     @Test

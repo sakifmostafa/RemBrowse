@@ -23,6 +23,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -187,6 +190,7 @@ class MainActivity : ComponentActivity() {
 
         val initialSettings = holder.browser.uiState.value.settings
         val settingsFlow = holder.browser.uiState.map { it.settings }.distinctUntilChanged()
+        val fullscreenFlow = holder.browser.uiState.map { it.fullscreenTabId != null }.distinctUntilChanged()
 
         setContent {
             val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
@@ -202,6 +206,19 @@ class MainActivity : ComponentActivity() {
                 }
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
                 onDispose { }
+            }
+            // A fullscreen page gets the screen to itself: the status and navigation bars go,
+            // and come back for a moment on a swipe from the edge, or for good when it ends.
+            val pageFullscreen by fullscreenFlow.collectAsStateWithLifecycle(initialValue = false)
+            DisposableEffect(pageFullscreen) {
+                val systemBars = WindowCompat.getInsetsController(window, window.decorView)
+                if (pageFullscreen) {
+                    systemBars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    systemBars.hide(WindowInsetsCompat.Type.systemBars())
+                }
+                onDispose {
+                    if (pageFullscreen) systemBars.show(WindowInsetsCompat.Type.systemBars())
+                }
             }
             LaunchedEffect(darkTheme) {
                 engine.runtime.settings.setPreferredColorScheme(
