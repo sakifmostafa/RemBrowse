@@ -79,7 +79,7 @@ Working in a split:
 
 * **One address bar.** The address bar and the back, reload and bookmark buttons at the top always act on the **focused pane**, the one with the accent outline. Select anywhere inside a pane to focus it, or select its tab in the rail. Tabs that are on screen are highlighted in the rail.
 * **Pages fit their pane.** On a tablet or laptop screen a page is laid out at the width of its pane, as in a desktop browser whose window has been made narrow: text keeps its normal size and the page rearranges itself, or scrolls sideways if it cannot get any narrower. (On a phone, a desktop site is still fitted to the screen as a whole.)
-* **Resize**: every split has its own grip; drag it (20%–80%), or **double-tap** it to even out that split alone.
+* **Resize**: every split has its own grip; drag it (20%–80%), or **double-tap** or **double-click** it to even out that split alone. With a mouse or touchpad the resize arrows show over the whole grip and stay while you drag, even when the pointer runs past a limit; the grip moves again once the pointer comes back to it.
 * **Rearrange**: drag tabs from the rail, use **Swap panes**, or **Show in pane…** from a tab's menu in the rail.
 * **Close a pane, keep its tab**: **Close pane** from the tab's menu in the rail, or **Split → Close this pane**.
 * **Close a page in the split**: `Ctrl+W`, **More → Close tab**, or **Close tab** from its menu in the rail. Its pane is refilled with another tab.
