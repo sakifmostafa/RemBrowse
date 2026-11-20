@@ -28,7 +28,9 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Tab switcher**: a searchable grid of every open tab.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.
-* **Its own settings page**: Settings open in a tab at `rem://settings`, with sections for appearance, search engine, tabs, privacy, downloads, extensions and about.
+* **Its own settings page**: Settings open in a tab at `rem://settings`, with sections for appearance, search engine, tabs, privacy, history, downloads, extensions and about.
+* **History** (`Ctrl+H`): the pages you have visited, grouped by day, searchable, and suggested in the command palette. It stays on the device and can be cleared or switched off.
+* **Updates itself**: Settings → About checks for a new version, downloads the one for your processor, verifies it and hands it to Android's installer, keeping your tabs and settings. A daily check (which you can turn off) lets you know when one is out.
 * **Uploads**: a page's upload button (Google Drive, Proton Drive, X…) opens the system file picker, for one file or several.
 * **Downloads**: files a page offers are saved to the device's Downloads folder. You are asked first, with the file's name, size and site; recent downloads are listed in Settings → Downloads (`Ctrl+J`).
 * **Ad blocking out of the box**: AdGuard AdBlocker is set up automatically on first launch and can be switched off or removed at any time (Settings → Privacy).

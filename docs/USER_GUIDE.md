@@ -79,7 +79,8 @@ Press `Ctrl+K` (or **More → Command palette**), then type:
 
 * words to **search the web**, or an address to **open it**;
 * part of a tab's title to **switch to that tab**;
-* a command name: new tab, close tab, split view, bookmarks, downloads, extensions, settings.
+* part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
+* a command name: new tab, close tab, split view, bookmarks, history, downloads, extensions, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
@@ -100,13 +101,36 @@ Sections are listed down the left side (across the top on a phone-sized window):
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#6-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
+* **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
 * **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#8-downloads).
 * **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#7-extensions-xpi).
-* **About** — version information.
+* **About** — the version you have, and updates. See [Updates](#updates) below.
 
-Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/downloads`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
+Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/history`, `rem://settings/downloads`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
 
 Back, reload and bookmark do nothing on the settings page. Typing a web address or a search into the address bar while on it loads that page in the same tab.
+
+### History
+
+**More → History** (`Ctrl+H`, or **History** in the command palette) opens **Settings → History**: every web page you have opened, newest first, under a heading for each day, with the time of your last visit. A page visited again moves to the top rather than being listed twice. The newest 1,000 pages are kept.
+
+* **Open a page**: select it. It opens in a new tab.
+* **Search**: type in **Search history**; pages whose title or address contain every word you type are listed.
+* **Remove one page**: its **×** button. **Clear history** removes everything, after asking.
+* **Stop recording**: turn off **Keep browsing history**. What is already listed stays until you clear it.
+
+The start page, RemBrowse's own pages and extension pages are never recorded. History is kept only on this device.
+
+### Updates
+
+RemBrowse can update itself. **Settings → About** shows the version you have and, under **Updates**:
+
+* **Check for updates** looks for a newer version straight away.
+* **Download and install** fetches the new version for your device's processor, with its progress and a **Cancel** button. Once it has arrived and checks out, Android's installer asks you to confirm. Your tabs, bookmarks, extensions and settings are kept.
+* The first time, Android asks you to **allow RemBrowse to install apps**. Allow it and come back: the update continues by itself.
+* **Check for updates automatically** (on by default) checks once a day when RemBrowse starts. When there is a new version, a notice at the bottom of the window offers it: **Update** downloads it, **×** hides the notice until the next version. Nothing is downloaded until you choose to.
+
+Updates come from the same place as the [download links in the README](../README.md#download-latest), the RemBrowse repository on GitHub. Before installing, RemBrowse checks that the file is exactly the one published (its size and SHA-256 fingerprint), that it is RemBrowse, newer than your copy, and signed with the same key. A file that fails any check is deleted and not installed.
 
 ---
 
@@ -176,6 +200,7 @@ Good to know:
 | `Alt + ←` / `Alt + →` | Back / forward |
 | `Ctrl + D` | Bookmark this page |
 | `Ctrl + ,` | Settings |
+| `Ctrl + H` | History |
 | `Ctrl + J` | Downloads |
 | `Ctrl + \` | Toggle split view |
 | `Ctrl + 1` … `Ctrl + 4` | Single pane, side by side, stacked, grid |
