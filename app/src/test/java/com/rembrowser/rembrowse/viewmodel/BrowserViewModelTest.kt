@@ -21,6 +21,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -1032,6 +1033,30 @@ class BrowserViewModelTest {
 
         viewModel.resetSplit("1")
         assertEquals(listOf(SplitRatios.MIN_RATIO, 0.5f), viewModel.uiState.value.layout.splits().map { it.ratio })
+    }
+
+    @Test
+    fun draggingADividerSetsItsSplitToWhereThePointerIs_withinTheLimits() {
+        val (_, _, news) = redditBesideYouTube()
+        viewModel.dropTabOnPane(news, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+        val saves = repository.saveCount
+
+        viewModel.setSplitRatio("1", 0.65f)
+        assertEquals(listOf(0.5f, 0.65f), viewModel.uiState.value.layout.splits().map { it.ratio })
+        assertEquals(0.65f, viewModel.uiState.value.splitRatios.vertical, 0.001f)
+
+        // The pointer may be anywhere, the divider waits at its limit
+        viewModel.setSplitRatio("", 1.4f)
+        assertEquals(SplitRatios.MAX_RATIO, viewModel.uiState.value.layout.splits()[0].ratio, 0.001f)
+        val atLimit = viewModel.uiState.value
+        viewModel.setSplitRatio("", 1.7f)
+        assertSame("Nothing to redraw while it waits", atLimit, viewModel.uiState.value)
+        viewModel.setSplitRatio("", Float.NaN)
+        assertEquals(0.5f, viewModel.uiState.value.layout.splits()[0].ratio, 0.001f)
+
+        viewModel.setSplitRatio("0", 0.3f)
+        assertEquals("No split there", listOf(0.5f, 0.65f), viewModel.uiState.value.layout.splits().map { it.ratio })
+        assertEquals("Dragging does not write to storage", saves, repository.saveCount)
     }
 
     @Test
