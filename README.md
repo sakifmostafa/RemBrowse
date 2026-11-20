@@ -8,12 +8,14 @@
 
 ## Download latest
 
-**Version 0.08** — pick the file that matches your device's processor, open it on the device and confirm the install.
+**Version 0.09** — pick the file that matches your device's processor, open it on the device and confirm the install.
+
+> **Updating from 0.08 or earlier:** 0.09 is signed with a different key, so Android will not install it over an older copy. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions.
 
 | Your device | Download |
 | :--- | :--- |
 | Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](build/RemBrowse-x86_64.apk?raw=true)** · 90 MB |
-| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](build/RemBrowse-arm64-v8a.apk?raw=true)** · 84 MB |
+| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](build/RemBrowse-arm64-v8a.apk?raw=true)** · 85 MB |
 
 Requires Android 8.0 or newer. If Android refuses to install over an existing copy, uninstall the old one first: builds signed with different keys cannot update each other (see the [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md#5-signing--versioning-rules)).
 

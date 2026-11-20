@@ -12,7 +12,8 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **Extension popups were shrunk to under half size.** Popups written for desktop Firefox, such as Proton VPN's, usually leave out the viewport setting a phone browser relies on, so the engine laid them out 980 pixels wide and zoomed them out to fit the popup. v0.08's narrower layout width already covers this on tablets and laptops, but phones keep 980, and v0.08 depends on a startup setting being applied. RemBrowse now also includes a small built-in helper that gives such popups that viewport setting on every device, so they are laid out at the popup's own width at full size; a popup wider than that is scaled down to fit rather than scrolled sideways. Popups that already set it, and extension pages opened in a tab, are unchanged. The helper is part of the browser and is not listed among your extensions.
 
 ### Known limits
-* The popup fix has been checked against the GeckoView 138 sources and by automated tests of the app, but not yet on a device. If the helper cannot start, popups open as they did before.
+* **Uninstall 0.08 before installing 0.09.** These APKs are signed with a different key from earlier releases, so Android will not install them over an older copy. Uninstalling removes RemBrowse's tabs, bookmarks and extensions.
+* The popup fix has been checked against the GeckoView 138 sources and by automated tests of the app, but not yet on a device. If the helper cannot start, popups open as they did before. (On a laptop, 0.08 already shows Proton VPN's popup at full size.)
 
 ### Testing
 183 automated tests.
