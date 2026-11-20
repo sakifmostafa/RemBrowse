@@ -7,6 +7,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -27,6 +28,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.rembrowser.rembrowse.data.AndroidDownloadStorage
+import com.rembrowser.rembrowse.data.AndroidUpdateInstaller
+import com.rembrowser.rembrowse.data.OkHttpUpdateSource
+import com.rembrowser.rembrowse.data.SharedPrefsUpdatePreferences
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
 import com.rembrowser.rembrowse.data.SharedPrefsBrowsingHistoryStore
@@ -47,6 +51,7 @@ import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
+import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
 import java.io.File
 import java.util.WeakHashMap
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +63,9 @@ import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoView
 
 private const val TAG = "MainActivity"
+
+/** Under the cache directory; shared with the installer through the manifest's FileProvider. */
+private const val UPDATES_DIR = "updates"
 
 /**
  * Owns the engine sessions and view models for as long as the browser window exists.
@@ -73,6 +81,7 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     val browser: BrowserViewModel
     val extensions: ExtensionsViewModel
     val downloads: DownloadsViewModel
+    val updates: UpdatesViewModel
 
     /**
      * The upload request the system file picker is open for. Kept here, not in the activity, so
@@ -110,6 +119,20 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             onRequestSettled = browser::closeTabLeftBehindByDownload
         )
         browser.downloadHandler = downloads::onDownloadRequested
+        updates = UpdatesViewModel(
+            source = OkHttpUpdateSource(
+                baseUrl = BuildConfig.UPDATE_BASE_URL,
+                userAgent = "RemBrowse/${BuildConfig.VERSION_NAME} (Android; GeckoView)"
+            ),
+            installer = AndroidUpdateInstaller(application),
+            preferences = SharedPrefsUpdatePreferences(application),
+            updatesDir = File(application.cacheDir, UPDATES_DIR),
+            currentVersionCode = BuildConfig.VERSION_CODE,
+            supportedAbis = Build.SUPPORTED_ABIS.toList(),
+            baseUrl = BuildConfig.UPDATE_BASE_URL,
+            scope = viewModelScope
+        )
+        updates.onAppStarted()
     }
 
     private fun openTabForExtension(url: String) {
@@ -229,6 +252,7 @@ class MainActivity : ComponentActivity() {
                     onOpenDownload = ::openDownloadedFile,
                     onOpenDownloadsFolder = ::openDownloadsFolder,
                     onPickFiles = ::pickFilesFor,
+                    updatesViewModel = holder.updates,
                     onFocusWebContent = { tabId ->
                         paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
                     },
@@ -316,6 +340,12 @@ class MainActivity : ComponentActivity() {
             ?: return
         if (uris.isEmpty()) prompt.onDismiss() else prompt.onResult(uris.map(Uri::toString))
         browser.resolvePrompt(promptId)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Back from the screen that lets RemBrowse install apps: finish a waiting update
+        holder.updates.onResumed()
     }
 
     override fun onNewIntent(intent: Intent) {

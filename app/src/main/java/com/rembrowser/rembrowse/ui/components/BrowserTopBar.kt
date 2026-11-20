@@ -104,7 +104,7 @@ fun BrowserTopBar(
     onOpenCommandPalette: () -> Unit,
     onOpenBookmarks: () -> Unit,
     onOpenDownloads: () -> Unit,
-    onOpenHistory: () -> Unit = {},
+    onOpenHistory: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onTriggerExtensionAction: (String) -> Unit,

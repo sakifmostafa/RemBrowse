@@ -39,7 +39,9 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Tab
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -57,7 +59,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.R
@@ -68,7 +72,16 @@ import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.UpdateStatus
+import com.rembrowser.rembrowse.model.UpdatesUiState
 import com.rembrowser.rembrowse.ui.theme.tones
+import com.rembrowser.rembrowse.util.ByteSizes
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 /** Settings rows are capped to this width so a label and its switch stay close on wide windows. */
 private val ContentMaxWidth = 760.dp
@@ -126,7 +139,10 @@ fun SettingsPage(
     downloadActions: DownloadsPanelActions,
     modifier: Modifier = Modifier,
     history: List<HistoryEntry> = emptyList(),
-    historyActions: HistoryActions = HistoryActions(onOpen = {}, onRemove = {}, onClear = {})
+    historyActions: HistoryActions = HistoryActions(onOpen = {}, onRemove = {}, onClear = {}),
+    /** The app's own updates, for About; null leaves the update controls out. */
+    updates: UpdatesUiState? = null,
+    updateActions: UpdateActions? = null
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -225,7 +241,7 @@ fun SettingsPage(
                             onSetAdBlocker = actions.onSetAdBlocker,
                             onSetEnhancedPrivacy = actions.onSetEnhancedPrivacy
                         )
-                        SettingsSection.ABOUT -> AboutSection(versionName)
+                        SettingsSection.ABOUT -> AboutSection(versionName, updates, updateActions)
                         SettingsSection.EXTENSIONS, SettingsSection.HISTORY -> Unit
                     }
                 }
@@ -573,7 +589,7 @@ private fun PrivacySection(
 }
 
 @Composable
-private fun AboutSection(versionName: String) {
+private fun AboutSection(versionName: String, updates: UpdatesUiState?, updateActions: UpdateActions?) {
     val colors = MaterialTheme.colorScheme
     Image(
         painter = painterResource(R.drawable.rembrowse_mark),
@@ -589,6 +605,112 @@ private fun AboutSection(versionName: String) {
         style = MaterialTheme.typography.bodyMedium,
         color = colors.onSurfaceVariant
     )
+    if (updates != null && updateActions != null) {
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider(color = colors.outlineVariant)
+        Spacer(modifier = Modifier.height(16.dp))
+        UpdatesBlock(state = updates, actions = updateActions)
+    }
+}
+
+/** Where the app's own update stands, the one button that moves it on, and the daily check. */
+@Composable
+private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
+    val colors = MaterialTheme.colorScheme
+    val status = state.status
+    val lastChecked = state.lastCheckedMillis?.let(::lastCheckedText)
+
+    Text(text = "Updates", style = MaterialTheme.typography.titleSmall)
+    Text(
+        text = when (status) {
+            UpdateStatus.Idle -> lastChecked?.let { "Last checked $it." } ?: "See whether a newer RemBrowse is out."
+            UpdateStatus.Checking -> "Checking for updates…"
+            UpdateStatus.UpToDate -> "RemBrowse is up to date." + (lastChecked?.let { " Last checked $it." } ?: "")
+            is UpdateStatus.Available ->
+                "RemBrowse ${status.update.versionName} is available (${ByteSizes.format(status.update.size)})."
+            is UpdateStatus.Downloading ->
+                "Downloading RemBrowse ${status.update.versionName}: ${ByteSizes.format(status.receivedBytes)} " +
+                    "of ${ByteSizes.format(status.update.size)}"
+            is UpdateStatus.ReadyToInstall ->
+                "RemBrowse ${status.update.versionName} is downloaded. Android asks you to confirm the update; " +
+                    "your tabs and settings are kept."
+            is UpdateStatus.Failed -> status.message
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (status is UpdateStatus.Failed) colors.error else colors.onSurfaceVariant,
+        modifier = Modifier
+            .padding(top = 2.dp, bottom = 12.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite }
+            .testTag("update_status")
+    )
+    if (status is UpdateStatus.Downloading) {
+        LinearProgressIndicator(
+            progress = { status.fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        )
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        when (status) {
+            UpdateStatus.Idle, UpdateStatus.UpToDate, UpdateStatus.Checking -> PrimaryDialogButton(
+                label = "Check for updates",
+                enabled = status != UpdateStatus.Checking,
+                onClick = actions.onCheck,
+                modifier = Modifier.testTag("update_action")
+            )
+            is UpdateStatus.Available -> PrimaryDialogButton(
+                label = "Download and install",
+                onClick = actions.onDownload,
+                modifier = Modifier.testTag("update_action")
+            )
+            is UpdateStatus.Downloading -> OutlinedButton(
+                onClick = actions.onCancel,
+                modifier = Modifier.testTag("update_cancel")
+            ) { Text("Cancel") }
+            is UpdateStatus.ReadyToInstall -> PrimaryDialogButton(
+                label = "Install",
+                onClick = actions.onInstall,
+                modifier = Modifier.testTag("update_action")
+            )
+            is UpdateStatus.Failed -> PrimaryDialogButton(
+                label = if (status.update != null) "Try again" else "Check for updates",
+                onClick = if (status.update != null) actions.onDownload else actions.onCheck,
+                modifier = Modifier.testTag("update_action")
+            )
+        }
+    }
+    state.message?.let { message ->
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 12.dp)
+                .testTag("update_message")
+        )
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    SwitchRow(
+        title = "Check for updates automatically",
+        description = "Once a day RemBrowse looks on GitHub for a newer version and lets you know. " +
+            "Nothing is downloaded until you choose to.",
+        checked = state.checkAutomatically,
+        onCheckedChange = actions.onSetCheckAutomatically,
+        testTag = "setting_check_updates"
+    )
+}
+
+/** "today at 10:42", or "on 18 Nov 2026". */
+private fun lastCheckedText(millis: Long): String {
+    val zone = ZoneId.systemDefault()
+    val time = Instant.ofEpochMilli(millis).atZone(zone)
+    val locale = Locale.getDefault()
+    return if (time.toLocalDate() == LocalDate.now(zone)) {
+        "today at " + time.toLocalTime().format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale))
+    } else {
+        "on " + time.toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
+    }
 }
 
 /** The whole row toggles, which gives the switch a full-width touch target and one label. */
