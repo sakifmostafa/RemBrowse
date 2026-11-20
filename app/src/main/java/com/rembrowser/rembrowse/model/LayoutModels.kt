@@ -13,6 +13,9 @@ enum class LayoutMode(
     SINGLE_1X1("1x1", "Single pane", 1, 1, 1),
     SPLIT_1X2("1x2", "Side by side", 2, 2, 1),
     SPLIT_2X1("2x1", "Stacked", 2, 1, 2),
+
+    /** One pane on the left, two stacked on the right. */
+    SPLIT_1_2("1+2", "One and two", 3, 2, 2),
     GRID_2X2("2x2", "Grid", 4, 2, 2);
 
     companion object {

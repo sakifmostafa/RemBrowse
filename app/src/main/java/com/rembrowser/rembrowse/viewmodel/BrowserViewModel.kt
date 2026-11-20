@@ -911,8 +911,8 @@ class BrowserViewModel(
         val state = _uiState.value
         repository.saveState(
             PersistedBrowserState(
-                // For a version that only knows the fixed layouts: the nearest one
-                layoutMode = state.layoutMode ?: LayoutMode.GRID_2X2,
+                // For a version that only knows the first fixed layouts: the nearest one
+                layoutMode = state.layoutMode?.takeUnless { it == LayoutMode.SPLIT_1_2 } ?: LayoutMode.GRID_2X2,
                 splitRatios = state.splitRatios,
                 tabs = state.tabs,
                 paneTabIds = state.paneTabIds,

@@ -465,6 +465,7 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.LAYOUT_SIDE_BY_SIDE -> browser.splitCurrentTab(currentOnLeft = true)
             BrowserShortcut.LAYOUT_STACKED -> browser.setLayoutMode(LayoutMode.SPLIT_2X1)
             BrowserShortcut.LAYOUT_GRID -> browser.setLayoutMode(LayoutMode.GRID_2X2)
+            BrowserShortcut.LAYOUT_ONE_AND_TWO -> browser.setLayoutMode(LayoutMode.SPLIT_1_2)
         }
     }
 

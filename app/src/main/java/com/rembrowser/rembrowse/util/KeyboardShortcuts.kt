@@ -20,7 +20,10 @@ enum class BrowserShortcut {
     LAYOUT_SINGLE,
     LAYOUT_SIDE_BY_SIDE,
     LAYOUT_STACKED,
-    LAYOUT_GRID
+    LAYOUT_GRID,
+
+    /** One pane on the left, two stacked on the right. */
+    LAYOUT_ONE_AND_TWO
 }
 
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
@@ -73,6 +76,7 @@ object KeyboardShortcuts {
             KeyEvent.KEYCODE_2 -> BrowserShortcut.LAYOUT_SIDE_BY_SIDE
             KeyEvent.KEYCODE_3 -> BrowserShortcut.LAYOUT_STACKED
             KeyEvent.KEYCODE_4 -> BrowserShortcut.LAYOUT_GRID
+            KeyEvent.KEYCODE_5 -> BrowserShortcut.LAYOUT_ONE_AND_TWO
             else -> null
         }
     }

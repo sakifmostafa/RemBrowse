@@ -61,6 +61,7 @@ The **Split** menu, beside **More** in the toolbar, has buttons for the common l
 | **Split left** | The current tab on the right, another tab on the left |
 | **Stacked** | Two panes, top and bottom |
 | **Grid** | Four panes |
+| **One left, two right** | The current tab full height on the left, two more stacked on the right |
 
 "Another tab" is one of your background tabs if you have any, otherwise a new start page. Focus stays on the page you were on.
 
@@ -68,7 +69,7 @@ While a split is open, the **Split** button is filled and the same menu holds it
 
 * **Swap panes** — exchanges the focused pane with the next one. Focus follows your page.
 * **Size** — **50 / 50** or **70 / 30** for the first pane. The current size is ticked. Offered when there are two panes.
-* **Layout** — **Side by side**, **Stacked** or **Grid**, ticked when the current arrangement is one of them. Choosing a two-pane layout while three or four pages are on screen keeps the first two and the focused one.
+* **Layout** — **Side by side**, **Stacked**, **Grid** or **One left, two right**, ticked when the current arrangement is one of them. Choosing a two-pane layout while three or four pages are on screen keeps the first two and the focused one.
 * **Close this pane** — the focused pane goes and its neighbour takes the room. Its tab stays open in the rail.
 * **Close split** — back to a single page: the focused one. Your other tabs stay open in the rail.
 
@@ -82,7 +83,7 @@ Working in a split:
 * **Rearrange**: drag tabs from the rail, use **Swap panes**, or **Show in pane…** from a tab's menu in the rail.
 * **Close a pane, keep its tab**: **Close pane** from the tab's menu in the rail, or **Split → Close this pane**.
 * **Close a page in the split**: `Ctrl+W`, **More → Close tab**, or **Close tab** from its menu in the rail. Its pane is refilled with another tab.
-* `Ctrl+\` toggles the split; `Ctrl+1`–`4` pick single, side by side, stacked and grid.
+* `Ctrl+\` toggles the split; `Ctrl+1`–`5` pick single, side by side, stacked, grid, and one left, two right.
 * Your layout, its sizes and which tab is where come back the next time RemBrowse starts.
 
 On a phone-sized window there is no rail to drag from, but any layout is shown, and panes can be closed from the menu.
@@ -225,4 +226,4 @@ Good to know:
 | `Ctrl + H` | History |
 | `Ctrl + J` | Downloads |
 | `Ctrl + \` | Toggle split view |
-| `Ctrl + 1` … `Ctrl + 4` | Single pane, side by side, stacked, grid |
+| `Ctrl + 1` … `Ctrl + 5` | Single pane, side by side, stacked, grid, one left and two right |

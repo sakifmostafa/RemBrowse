@@ -2,7 +2,10 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## v0.13.1 (2026-11-20) — Updates from the renamed repository
+## v0.13.1 (2026-11-20) — One left, two right; updates from the renamed repository
+
+### Added
+* **One left, two right layout.** The Split menu (and `Ctrl+5`) offers one tall pane on the left with two stacked on the right, next to Side by side, Stacked and Grid. The page you are on takes the tall pane. Building the same shape by dragging a tab onto the bottom edge of the right-hand page is recognised as this layout too.
 
 ### Changed
 * **Updates come from the repository's new name**, `sakifmostafa/RemBrowse` (it was `RemBrowser`). 0.13 asks the old name, which GitHub forwards, so updating from 0.13 works; from this version on, RemBrowse no longer depends on that forwarding.
@@ -11,7 +14,7 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * The first update that can be installed from inside the app: from 0.13, use **Settings → About → Check for updates**. Not yet tried on a device.
 
 ### Testing
-270 automated tests.
+273 automated tests.
 
 ## v0.13 (2026-11-20) — Layouts your way, fullscreen video, history and updates
 

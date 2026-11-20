@@ -566,6 +566,9 @@ private fun MoreMenu(
 /** Preset sizes for the first pane of a two-pane split. */
 private val SPLIT_PRESETS = listOf(0.5f to "50 / 50", 0.7f to "70 / 30")
 
+/** [LayoutMode.SPLIT_1_2] in the Split menu. */
+private const val ONE_AND_TWO_LABEL = "One left, two right"
+
 /**
  * Everything about the split in one menu, opened from the Split button beside More.
  *
@@ -653,6 +656,7 @@ private fun SplitMenu(
             HorizontalDivider(color = colors.outlineVariant)
             layoutItem("Stacked", LayoutMode.SPLIT_2X1, "layout_2x1", "Ctrl+3") { onSelectLayout(LayoutMode.SPLIT_2X1) }
             layoutItem("Grid", LayoutMode.GRID_2X2, "layout_2x2", "Ctrl+4") { onSelectLayout(LayoutMode.GRID_2X2) }
+            layoutItem(ONE_AND_TWO_LABEL, LayoutMode.SPLIT_1_2, "layout_1_2", "Ctrl+5") { onSelectLayout(LayoutMode.SPLIT_1_2) }
         } else {
         item(
             label = "Swap panes",
@@ -685,6 +689,7 @@ private fun SplitMenu(
         layoutItem("Side by side", LayoutMode.SPLIT_1X2, "layout_1x2") { onSelectLayout(LayoutMode.SPLIT_1X2) }
         layoutItem("Stacked", LayoutMode.SPLIT_2X1, "layout_2x1", "Ctrl+3") { onSelectLayout(LayoutMode.SPLIT_2X1) }
         layoutItem("Grid", LayoutMode.GRID_2X2, "layout_2x2", "Ctrl+4") { onSelectLayout(LayoutMode.GRID_2X2) }
+        layoutItem(ONE_AND_TWO_LABEL, LayoutMode.SPLIT_1_2, "layout_1_2", "Ctrl+5") { onSelectLayout(LayoutMode.SPLIT_1_2) }
 
         HorizontalDivider(color = colors.outlineVariant)
         // The focused pane goes and its neighbour takes the room; its tab stays in the rail

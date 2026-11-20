@@ -104,6 +104,32 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun setLayoutMode_oneAndTwo_putsTheFocusedTabOnTheLeftAndTwoMoreOnTheRight() {
+        viewModel.setLayoutMode(LayoutMode.SPLIT_1_2)
+
+        val state = viewModel.uiState.value
+        assertEquals(LayoutMode.SPLIT_1_2, state.layoutMode)
+        assertEquals(3, state.paneTabIds.size)
+        assertEquals("tab-1", state.paneTabIds[0])
+        assertEquals(
+            PaneNode.Split(
+                SplitOrientation.ROW,
+                0.5f,
+                PaneNode.Leaf(state.paneTabIds[0]),
+                PaneNode.Split(SplitOrientation.COLUMN, 0.5f, PaneNode.Leaf(state.paneTabIds[1]), PaneNode.Leaf(state.paneTabIds[2]))
+            ),
+            state.layout
+        )
+        assertEquals(3, engine.sessions.size)
+        assertEquals(state.layout, repository.storedState.layout)
+        assertEquals(
+            "An older version, which only knows the first four layouts, gets the grid",
+            LayoutMode.GRID_2X2,
+            repository.storedState.layoutMode
+        )
+    }
+
+    @Test
     fun setLayoutMode_shrinkingPreservesExistingTabsAndKeepsFocusedTabVisible() {
         viewModel.setLayoutMode(LayoutMode.GRID_2X2)
         viewModel.focusPane(2)
@@ -912,7 +938,7 @@ class BrowserViewModelTest {
             state.layout
         )
         assertEquals(listOf(reddit, youtube, news), state.paneTabIds)
-        assertNull("Three panes match no preset", state.layoutMode)
+        assertEquals("The shape of the One left, two right preset", LayoutMode.SPLIT_1_2, state.layoutMode)
         assertEquals("Focus and the address bar go to the dropped tab", news, state.activeTabId)
         assertEquals("https://news.example/", state.addressBarInput)
         assertTrue(engine.sessions.getValue(news).visibleState)
