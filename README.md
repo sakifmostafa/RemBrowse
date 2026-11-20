@@ -44,7 +44,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 ## Project Structure
 
 ```text
-RemBrowser/
+RemBrowse/
 ├── README.md
 ├── CHANGELOG.md
 ├── build/                      # Published APKs (./gradlew publishApk) linked from "Download latest"
