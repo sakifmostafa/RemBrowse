@@ -7,14 +7,17 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 ### Added
 * **One left, two right layout.** The Split menu (and `Ctrl+5`) offers one tall pane on the left with two stacked on the right, next to Side by side, Stacked and Grid. The page you are on takes the tall pane. Building the same shape by dragging a tab onto the bottom edge of the right-hand page is recognised as this layout too.
 
+### Fixed
+* **Resizing a split with a mouse or touchpad.** The divider could fall behind the pointer (at a steady speed, every other movement step was lost), wander off after reaching its limit, or stop responding after switching between side by side and stacked. It now stays under the pointer. The resize arrows show over the whole grip, not just its middle, and stay for the whole drag. Double-clicking the divider resets the split even if the mouse moves slightly, and only the main button drags it.
+
 ### Changed
 * **Updates come from the repository's new name**, `sakifmostafa/RemBrowse` (it was `RemBrowser`). 0.13 asks the old name, which GitHub forwards, so updating from 0.13 works; from this version on, RemBrowse no longer depends on that forwarding.
 
 ### Known limits
-* The first update that can be installed from inside the app: from 0.13, use **Settings → About → Check for updates**. Not yet tried on a device.
+* The first update that can be installed from inside the app: from 0.13, use **Settings → About → Check for updates**. Not yet tried on a device, nor are the divider fixes; if dragging a divider feels heavy on a large page, the cost of resizing the pages while dragging is the next thing to look at.
 
 ### Testing
-273 automated tests.
+290 automated tests.
 
 ## v0.13 (2026-11-20) — Layouts your way, fullscreen video, history and updates
 
