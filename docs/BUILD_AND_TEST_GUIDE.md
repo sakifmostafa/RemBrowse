@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **196 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **270 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -52,6 +52,7 @@ Run a single test class:
 ```
 
 Test suites included:
+* `PaneLayoutTest` — the layout tree: presets, splitting a pane on each side, replacing and moving tabs, the four-pane limit, removing panes, ratios, geometry and drop zones, and cleaning up invalid trees.
 * `UrlResolverTest` — address vs. search detection, display form, favicon location, extension link validation.
 * `DownloadFileNamesTest` / `DownloadRequestsTest` — file names from `Content-Disposition` or the address, sanitising hostile names, numbering taken names, size formatting, reading download headers.
 * `KeyboardShortcutsTest` — shortcut mapping, key-repeat suppression, modifier handling.

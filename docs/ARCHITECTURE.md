@@ -71,7 +71,7 @@ Because the section is the tab's URL, it is saved and restored with the rest of 
 
 ### Rendering several GeckoViews
 
-`TiledBrowserGrid` places each pane by index with explicit offsets and sizes. Pane *n* keeps its place in the composition whatever the layout, so switching layout resizes the existing `GeckoView`s instead of re-creating them. In `GeckoBrowserEngine`:
+`TiledBrowserGrid` lays every pane out in one flat box with explicit offsets and sizes computed from the layout tree (`PaneNode.geometry()`), and keys each pane by the tab it shows. Whatever happens to the layout (a split, a closed pane, a tab dragged to another pane, fullscreen), the `GeckoView` of a tab that stays on screen is moved and resized, never re-created. A pane that starts showing a different tab gets a new view, and the old one is detached. In `GeckoBrowserEngine`:
 
 1. **TextureView backend** (`GeckoView.BACKEND_TEXTURE_VIEW`) so panes can be clipped to rounded corners and drawn under Compose overlays.
 2. **Single-owner attachment**: `attachSessionToView()` tracks which view holds each session and releases the previous owner first, because a session may only be attached to one view.
@@ -88,7 +88,15 @@ GeckoView 138 has no setter for that preference, so `EngineConfig` passes it in 
 
 ### Split view
 
-`BrowserViewModel.splitCurrentTab()` puts the focused tab into a two-pane layout on the requested side and keeps focus on it; `swapFocusedPane()` and `setSplitPreset()` back the controls in the Split menu. That menu (`SplitMenu` in `BrowserTopBar`) is the only place the split's controls live: with one page on screen it lists the ways to split, and while a split is open it lists swap, the size presets (two panes only), the layouts and Close split. No row is drawn above the panes, and panes have no toolbars of their own: the single address bar reads `activeTab`, so it always shows and acts on the focused pane, which is marked by its outline and in the tab rail.
+The layout is a tree (`model/PaneLayout.kt`): a `PaneNode` is either a `Leaf(tabId)` or a `Split(ROW | COLUMN, ratio, first, second)`, with at most four leaves. Pane indices are the leaves in reading order. `BrowserUiState.layout` is the source of truth; `paneTabIds` and `paneCount` are derived from it, and `layoutMode` is the preset the tree matches, or null for a custom shape. Presets (`LayoutMode`, the Split menu, `Ctrl+1`–`4`) build trees. Each split's ratio is clamped to 0.2–0.8, and `PaneNode.sanitized()` drops closed tabs, duplicates and anything past four panes, so a restored or edited tree is always valid.
+
+**Drag and drop.** `Modifier.tabDragSource` (in `TabDrag.kt`) watches a rail tile's pointer on the Initial pass without consuming anything until a drag starts: with a mouse after the touch slop, with a finger only after a long press, so taps, the tile's menu and scrolling the rail still work. `TabDragState` holds the dragged tab and pointer position. The grid sets its `hitTest`, which maps a position to a `PaneDropTarget`: the outer quarter of a pane on each side is an edge zone, the rest is the centre. `BrowserViewModel.dropTabOnPane()` splits the pane on that side, or shows the tab in it; a tab already on screen is moved, and the leaf it left is removed. When four panes are on screen only the centre is offered, unless the dragged tab is one of them.
+
+**Persistence.** The tree is saved as JSON next to the legacy `layoutMode`, `paneTabIds` and ratios, which are still written (a custom three- or four-pane layout as `GRID_2X2`) so an older version can read the state. A state without a tree, or with an unreadable one, is rebuilt from the legacy fields.
+
+**Fullscreen.** `ContentDelegate.onFullScreen` reaches `BrowserViewModel` as `onFullScreenChanged`, which sets `fullscreenTabId` for a tab that is on screen (a hidden tab asking is told to exit). It is cleared when the page leaves fullscreen, the tab closes or crashes, or its pane stops showing it; `exitFullscreen()` (Back) calls `GeckoSession.exitFullScreen()`. While it is set, the screen drops the rail, the toolbar and the safe-drawing padding, and the grid draws that pane over the whole area. The other panes stay composed underneath, without semantics, focus or pointer input, and the layout itself is never changed. `MainActivity` hides the system bars (transient on swipe) and, on Android 15 and newer in a freeform window, calls `requestFullscreenMode(FULLSCREEN_MODE_REQUEST_ENTER)` so the window covers the screen, giving it back on exit.
+
+`splitCurrentTab()` puts the focused tab into a two-pane layout on the requested side and keeps focus on it; `swapFocusedPane()`, `setSplitPreset()` and `closePane()` back the controls in the Split menu. That menu (`SplitMenu` in `BrowserTopBar`) is the only place the split's controls live: with one page on screen it lists the ways to split, and while a split is open it lists swap, the size presets (two panes only), the layouts and Close split. No row is drawn above the panes, and panes have no toolbars of their own: the single address bar reads `activeTab`, so it always shows and acts on the focused pane, which is marked by its outline and in the tab rail.
 
 ### New windows
 
@@ -192,7 +200,7 @@ Sizes shared by the chrome are in `RemDimens`. Interactive elements have a 48dp 
 
 ## 7. State Persistence & Testing Strategy
 
-* **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (layout, clamped split ratios, tabs, pane assignments, bookmarks and settings, including the chosen search engine) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
+* **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (the layout tree and the legacy layout fields, clamped split ratios, tabs, pane assignments, bookmarks and settings, including the chosen search engine) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
 * **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `DownloadFileNames`, download request parsing, the engine configuration file (read back with GeckoView's real parser), `AmoJsonParser`, command palette results, theme contrast, and the three view models against the fakes in `BrowserFakes.kt` (including a fake download storage and a response body that can fail or be cancelled part-way).
 * **Robolectric**: real `SharedPreferences` round trips for browser state, the downloads list and the browsing history.
 * **Updates**: `AppUpdatesTest` runs `OkHttpUpdateSource` against canned HTTP responses (a damaged, truncated or oversized APK is deleted); `UpdatesViewModelTest` covers the daily check, closed notices, progress, cancel, retries and the install permission round trip with a fake source and installer.

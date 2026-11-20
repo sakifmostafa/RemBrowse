@@ -2,7 +2,7 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.12`)
+# RemBrowse (`v0.13`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
@@ -24,7 +24,8 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 ## What it does
 
 * **Quiet, single-row chrome**: a tab rail on the left (pinned sites, open tabs, new tab) and one toolbar (back, reload, address, bookmark, menu, split view). Dark by default, with a light theme and six accent colours.
-* **Split view**: open the current tab beside another one, on either side, with a draggable divider. Swap, 50/50 and 70/30 sizes, the stacked and four-pane layouts and Close split are all in the **Split** menu beside More, so the panes keep the full height of the window. Pages are laid out at their pane's own width, so text keeps its normal size in a narrow pane. The one address bar at the top always acts on the focused pane.
+* **Split view, your way**: up to four pages in any arrangement. Drag a tab from the rail onto the edge of a page to split it (left, right, above or below), or onto its middle to show it there. Every split has its own draggable divider, and side by side, stacked, grid, swap, sizes and closing a pane are in the **Split** menu. Pages are laid out at their pane's own width, so text keeps its normal size in a narrow pane. The one address bar at the top always acts on the focused pane.
+* **Fullscreen video**: a page's fullscreen button fills the whole screen, even from a split, and Back or Esc returns to the same layout.
 * **Tab switcher**: a searchable grid of every open tab.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.

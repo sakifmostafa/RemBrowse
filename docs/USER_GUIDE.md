@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.12`)
+# RemBrowse User Guide (`v0.13`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -10,7 +10,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 * **Tab switcher** — opens a grid of every open tab.
 * **Pinned sites** — your first six bookmarks. Select one to open it.
-* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…**.
+* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#3-split-view)).
 * **+** — opens a new tab.
 * **Extensions (bottom)** — the buttons of your extensions, such as AdGuard AdBlocker or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
 
@@ -20,7 +20,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, close tab, command palette, bookmarks, downloads, extensions, desktop site, settings.
+* **More (⋯)** — new tab, close tab, command palette, bookmarks, history, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
@@ -40,9 +40,20 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 ## 3. Split view
 
-Everything about the split is in the **Split** menu, beside **More** in the toolbar. Nothing is added above the pages, so they keep the full height of the window.
+Up to four pages can share the window, in any arrangement: side by side, stacked, a grid, or for example one tall page beside two stacked ones. Nothing is added above the pages, so they keep the full height of the window.
 
-With one page on screen, the menu offers:
+### Drag tabs to build a layout
+
+Drag a tab from the rail onto the pages. A highlight shows where it will land before you let go:
+
+* **Near an edge of a page** (its outer quarter) — that page is split, and the tab opens **left**, **right**, **above** or **below** it. To put a third page under YouTube, drag the tab to the bottom edge of the YouTube page.
+* **In the middle of a page** — the tab is **shown there** instead; the page that was there stays open in the rail.
+
+With a mouse or touchpad, press on a tab and drag it. With a finger, long-press the tab until its menu opens, then drag without lifting (the menu closes); a quick swipe still scrolls the rail. Dragging a tab that is already on screen moves it, and the place it left closes up. With four pages on screen, only the middle of a page is offered, unless you are moving one of the four.
+
+### The Split menu
+
+The **Split** menu, beside **More** in the toolbar, has buttons for the common layouts. With one page on screen it offers:
 
 | Choice | What you get |
 | :--- | :--- |
@@ -56,8 +67,9 @@ With one page on screen, the menu offers:
 While a split is open, the **Split** button is filled and the same menu holds its controls:
 
 * **Swap panes** — exchanges the focused pane with the next one. Focus follows your page.
-* **Size** — **50 / 50** or **70 / 30** for the first pane. The current size is ticked. Offered for two panes, not for the grid.
-* **Layout** — **Side by side**, **Stacked** or **Grid**. This changes the arrangement only; the pages stay in their panes.
+* **Size** — **50 / 50** or **70 / 30** for the first pane. The current size is ticked. Offered when there are two panes.
+* **Layout** — **Side by side**, **Stacked** or **Grid**, ticked when the current arrangement is one of them. Choosing a two-pane layout while three or four pages are on screen keeps the first two and the focused one.
+* **Close this pane** — the focused pane goes and its neighbour takes the room. Its tab stays open in the rail.
 * **Close split** — back to a single page: the focused one. Your other tabs stay open in the rail.
 
 On a phone-sized window the same menu is under **More → Split view**.
@@ -66,10 +78,20 @@ Working in a split:
 
 * **One address bar.** The address bar and the back, reload and bookmark buttons at the top always act on the **focused pane**, the one with the accent outline. Select anywhere inside a pane to focus it, or select its tab in the rail. Tabs that are on screen are highlighted in the rail.
 * **Pages fit their pane.** On a tablet or laptop screen a page is laid out at the width of its pane, as in a desktop browser whose window has been made narrow: text keeps its normal size and the page rearranges itself, or scrolls sideways if it cannot get any narrower. (On a phone, a desktop site is still fitted to the screen as a whole.)
-* **Resize**: drag the grip between the panes (20%–80%), or **double-tap** it for an even split.
-* **Rearrange**: use **Swap panes**, or **Show in pane…** from a tab's menu in the rail.
+* **Resize**: every split has its own grip; drag it (20%–80%), or **double-tap** it to even out that split alone.
+* **Rearrange**: drag tabs from the rail, use **Swap panes**, or **Show in pane…** from a tab's menu in the rail.
+* **Close a pane, keep its tab**: **Close pane** from the tab's menu in the rail, or **Split → Close this pane**.
 * **Close a page in the split**: `Ctrl+W`, **More → Close tab**, or **Close tab** from its menu in the rail. Its pane is refilled with another tab.
 * `Ctrl+\` toggles the split; `Ctrl+1`–`4` pick single, side by side, stacked and grid.
+* Your layout, its sizes and which tab is where come back the next time RemBrowse starts.
+
+On a phone-sized window there is no rail to drag from, but any layout is shown, and panes can be closed from the menu.
+
+### Fullscreen video
+
+A page's fullscreen button (a video's, for example) gives it the whole screen: the rail, the toolbar, the other panes and Android's status and navigation bars are hidden. On a Googlebook with Android 15 or newer, a RemBrowse window that is not already full-screen is enlarged to fill the screen, and returns to its size afterwards. Swipe from the edge of the screen to see the system bars for a moment.
+
+To leave, press **Back** or **Esc**, or the page's own button. The split comes back exactly as it was.
 
 ---
 
