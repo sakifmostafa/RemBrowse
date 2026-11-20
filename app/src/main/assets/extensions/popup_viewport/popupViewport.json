@@ -1,13 +1,31 @@
 [
   {
     "namespace": "popupViewport",
-    "description": "Gives extension popups without a viewport tag one that fits the popup.",
+    "description": "Fits other extensions' popups to the popup RemBrowse shows them in.",
     "functions": [
       {
         "name": "start",
         "type": "function",
         "description": "Starts watching for extension popups in the extension process.",
         "parameters": []
+      }
+    ],
+    "events": [
+      {
+        "name": "onPopupSize",
+        "type": "function",
+        "description": "A popup written for desktop Firefox reported the size its content wants, in CSS pixels.",
+        "parameters": [
+          {
+            "name": "size",
+            "type": "object",
+            "properties": {
+              "extensionId": { "type": "string" },
+              "width": { "type": "integer" },
+              "height": { "type": "integer" }
+            }
+          }
+        ]
       }
     ]
   }

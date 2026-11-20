@@ -66,7 +66,14 @@ object DefaultAdBlocker {
 data class ExtensionPopupState(
     val extensionId: String,
     val extensionName: String,
-    val sessionId: String
+    val sessionId: String,
+    /**
+     * The size, in dp (CSS pixels), the popup's content asked for, measured by the built-in
+     * popup helper the way desktop Firefox sizes its popup panel. Null until it has reported,
+     * and always for popups made for Android, which take the default size.
+     */
+    val contentWidth: Int? = null,
+    val contentHeight: Int? = null
 )
 
 enum class ExtensionsTab {

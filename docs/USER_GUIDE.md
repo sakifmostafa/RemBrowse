@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.11`)
+# RemBrowse User Guide (`v0.12`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -132,7 +132,7 @@ Extensions are managed in **Settings → Extensions** (`rem://settings/extension
 
 Enabled extensions with a toolbar button appear at the bottom of the tab rail, with their icon and badge; on a phone-sized window they are in the **More** menu.
 
-**Popups.** An extension's popup opens beside its button and closes when you select anything outside it, press Esc or use **×**. Most popups are written for desktop Firefox and leave out the setting that tells a phone browser how wide to lay them out, which used to make them appear shrunk to under half size. RemBrowse now lays them out at the popup's own width at full size; a popup that already sets its own width is left as it is.
+**Popups.** An extension's popup opens beside its button and closes when you select anything outside it, press Esc or use **×**. Most popups are written for desktop Firefox and leave out the setting that tells a phone browser how wide to lay them out, which used to make them appear shrunk to under half size. RemBrowse now lays them out at the popup's own width at full size; a popup that already sets its own width is left as it is. Like desktop Firefox, RemBrowse sizes each such popup to its content, up to 800 × 600 and within the window: a narrow popup shrinks to fit and a wide one (Proton Pass) gets its full width instead of being shrunk. Popups made for phones keep the standard size.
 
 **VPN and proxy extensions.** Extensions such as Proton VPN work by taking control of the browser's proxy setting. Firefox's engine refuses that on Android; RemBrowse ships the engine with that refusal removed, so these extensions can connect. Extensions are also allowed in private browsing, which Firefox requires for this: RemBrowse has no private windows, so the permission exposes nothing, and an extension's "allow in private windows" hint can be ignored.
 

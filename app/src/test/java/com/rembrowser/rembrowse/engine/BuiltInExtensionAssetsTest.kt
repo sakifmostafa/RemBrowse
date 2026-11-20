@@ -54,10 +54,33 @@ class BuiltInExtensionAssetsTest {
     }
 
     @Test
-    fun backgroundPage_loadsTheApi() {
+    fun backgroundPage_loadsTheApi_andPassesPopupSizesToTheApp() {
         val scripts = manifest.getJSONObject("background").getJSONArray("scripts").strings()
         val background = scripts.joinToString("\n") { File(dir, it).readText() }
         assertTrue(background.contains("browser.popupViewport.start()"))
+        assertTrue(background.contains("browser.popupViewport.onPopupSize.addListener"))
+        // The app listens under this name (WebExtension.setMessageDelegate)
+        assertTrue(background.contains("const NATIVE_APP = \"${PopupContentSize.NATIVE_APP}\""))
+        assertTrue(background.contains("sendNativeMessage(NATIVE_APP, { type: \"popupSize\""))
+    }
+
+    @Test
+    fun manifest_asksForTheMessagingGeckoViewRequires() {
+        val permissions = manifest.getJSONArray("permissions").strings()
+        assertTrue("nativeMessaging" in permissions)
+        assertTrue("geckoViewAddons" in permissions)
+    }
+
+    @Test
+    fun schema_declaresTheSizeEvent() {
+        val api = manifest.getJSONObject("experiment_apis").getJSONObject("popupViewport")
+        val schema = JSONArray(File(dir, api.getString("schema")).readText()).getJSONObject(0)
+        val event = schema.getJSONArray("events").getJSONObject(0)
+        assertEquals("onPopupSize", event.getString("name"))
+        val properties = event.getJSONArray("parameters").getJSONObject(0).getJSONObject("properties")
+        assertEquals(setOf("extensionId", "width", "height"), properties.keys().asSequence().toSet())
+        val script = File(dir, api.getJSONObject("child").getString("script")).readText()
+        assertTrue(script.contains("onPopupSize: new ExtensionCommon.EventManager"))
     }
 
     private fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
