@@ -324,7 +324,7 @@ fun RemBrowseScreen(
                         uiState = browserState,
                         compact = compact,
                         onFocusPane = browserViewModel::focusPane,
-                        onResizeSplit = browserViewModel::resizeSplit,
+                        onResizeSplit = browserViewModel::setSplitRatio,
                         onCommitSplit = browserViewModel::commitSplitRatios,
                         onResetSplit = browserViewModel::resetSplit,
                         dragState = tabDrag,

@@ -5,11 +5,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -49,12 +44,19 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -71,6 +73,8 @@ import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.PaneDropTarget
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.ui.theme.RemDimens
+import kotlin.math.abs
+import kotlin.math.sign
 
 /**
  * The content area: one to four panes, arranged by the layout tree, with a draggable divider in
@@ -83,6 +87,8 @@ import com.rembrowser.rembrowse.ui.theme.RemDimens
  * While a page is fullscreen its pane covers the whole area. The other panes stay where they
  * are underneath it, composed but out of reach, so leaving fullscreen shows them at once.
  *
+ * @param onResizeSplit the divider of the split at `path` is being dragged to `ratio`, which may
+ * be outside the allowed range.
  * @param dragState a tab being dragged from the rail; the grid shows where it would land.
  */
 @Composable
@@ -90,7 +96,7 @@ fun TiledBrowserGrid(
     uiState: BrowserUiState,
     compact: Boolean,
     onFocusPane: (Int) -> Unit,
-    onResizeSplit: (path: String, deltaFraction: Float) -> Unit,
+    onResizeSplit: (path: String, ratio: Float) -> Unit,
     onCommitSplit: () -> Unit,
     onResetSplit: (path: String) -> Unit,
     onReloadPane: (Int) -> Unit,
@@ -108,9 +114,18 @@ fun TiledBrowserGrid(
     // A lone pane on a small window uses every pixel; otherwise panes float on the chrome.
     val framed = !fullscreen && (!compact || isSplit)
 
+    // The resize cursor of the divider being dragged, held for the whole area: the pointer
+    // leaves the divider's own bounds whenever it runs ahead of it or past a limit.
+    var resizeCursor by remember { mutableStateOf<PointerIcon?>(null) }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
+            // Must stay on this box, which does not move. Compose only delivers a pointer move
+            // that changed position for some node on its path, measured in the node's own
+            // coordinates; a divider that keeps up with the pointer sees none, and without a
+            // still node above it those moves (and their share of the drag) would be dropped.
+            .pointerHoverIcon(resizeCursor ?: PointerIcon.Default, overrideDescendants = resizeCursor != null)
             .padding(
                 start = if (framed && compact) 6.dp else 0.dp,
                 end = if (framed) 6.dp else 0.dp,
@@ -176,16 +191,24 @@ fun TiledBrowserGrid(
         }
 
         if (!fullscreen) {
+            val ratios = remember(uiState.layout) { uiState.layout.splits().associate { it.path to it.ratio } }
             geometry.dividers.forEach { divider ->
-                key(divider.path) {
+                // A split that turns (side by side to stacked) gets a new divider, not the old
+                // one with a gesture still set up for the other axis
+                key(divider.path, divider.orientation) {
                     val vertical = divider.orientation == SplitOrientation.ROW
                     val extentPx = with(density) { divider.extent.dp.toPx().coerceAtLeast(1f) }
                     val rect = divider.rect
+                    val ratio = ratios[divider.path] ?: 0.5f
+                    // Where the split was when the drag began; the pointer's travel is added to it
+                    val ratioAtDragStart = remember { floatArrayOf(ratio) }
                     SplitDivider(
                         vertical = vertical,
-                        onDragDeltaPx = { delta -> onResizeSplit(divider.path, delta / extentPx) },
+                        onDragStart = { ratioAtDragStart[0] = ratio },
+                        onDragPx = { travel -> onResizeSplit(divider.path, ratioAtDragStart[0] + travel / extentPx) },
                         onDragEnd = onCommitSplit,
                         onReset = { onResetSplit(divider.path) },
+                        onHeldChange = { cursor -> resizeCursor = cursor },
                         modifier = if (vertical) {
                             Modifier
                                 .offset(x = rect.left.dp - DividerGrabMargin, y = rect.top.dp)
@@ -376,44 +399,64 @@ private fun CrashedPane(onReload: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * The gap between panes. Drag to resize, double-tap to reset to an even split. Assistive
- * technology gets the reset as its action, since dragging is not available to it.
+ * The gap between panes. Drag to resize, double-tap or double-click to reset to an even split.
+ * Assistive technology gets the reset as its action, since dragging is not available to it.
+ *
+ * @param onDragPx how far along the split's axis the pointer is from where the drag began.
+ * @param onHeldChange the resize cursor while the divider is pressed, null once it is let go.
  */
 @Composable
 private fun SplitDivider(
     vertical: Boolean,
-    onDragDeltaPx: (Float) -> Unit,
+    onDragStart: () -> Unit,
+    onDragPx: (Float) -> Unit,
     onDragEnd: () -> Unit,
     onReset: () -> Unit,
+    onHeldChange: (PointerIcon?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
-    var isDragging by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-    val highlighted = isDragging || isHovered
+    var isHeld by remember { mutableStateOf(false) }
+    var isHovered by remember { mutableStateOf(false) }
+    val highlighted = isHeld || isHovered
 
-    // pointerInput(Unit) below never restarts, so it must always reach the latest lambdas;
+    // The gesture below outlives recompositions, so it must always reach the latest lambdas;
     // otherwise a resized window would keep dividing by the old width.
-    val latestOnDrag by rememberUpdatedState(onDragDeltaPx)
+    val latestOnDragStart by rememberUpdatedState(onDragStart)
+    val latestOnDrag by rememberUpdatedState(onDragPx)
     val latestOnDragEnd by rememberUpdatedState(onDragEnd)
     val latestOnReset by rememberUpdatedState(onReset)
+    val latestOnHeldChange by rememberUpdatedState(onHeldChange)
 
     val handleColor by animateColorAsState(
         targetValue = if (highlighted) colors.primary else colors.outlineVariant,
         label = "dividerHandle"
     )
-    val resizeIcon = PointerIcon(
-        if (vertical) {
-            android.view.PointerIcon.TYPE_HORIZONTAL_DOUBLE_ARROW
-        } else {
-            android.view.PointerIcon.TYPE_VERTICAL_DOUBLE_ARROW
+    val resizeIcon = remember(vertical) {
+        PointerIcon(
+            if (vertical) {
+                android.view.PointerIcon.TYPE_HORIZONTAL_DOUBLE_ARROW
+            } else {
+                android.view.PointerIcon.TYPE_VERTICAL_DOUBLE_ARROW
+            }
+        )
+    }
+
+    // The grab area reaches over the edges of the pages beside it, and there the page's view
+    // would otherwise show its own cursor
+    val cursorClaim = LocalChromePointerIconClaim.current
+    val claimant = remember { Any() }
+    val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    DisposableEffect(cursorClaim) {
+        onDispose {
+            cursorClaim.set(claimant, false)
+            if (isHeld) latestOnHeldChange(null)
         }
-    )
+    }
 
     Box(
         modifier = modifier
-            .hoverable(interactionSource)
+            .onPlaced { coordinates[0] = it }
             .pointerHoverIcon(resizeIcon)
             .semantics {
                 contentDescription = "Pane divider. Drag to resize"
@@ -422,24 +465,28 @@ private fun SplitDivider(
                     true
                 }
             }
-            .pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { latestOnReset() })
-            }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { isDragging = true },
-                    onDragEnd = {
-                        isDragging = false
-                        latestOnDragEnd()
+            .pointerInput(vertical, cursorClaim) {
+                detectDividerGestures(
+                    vertical = vertical,
+                    // The divider moves under the pointer as it is dragged, so the drag is
+                    // measured where nothing moves
+                    positionInRoot = { local ->
+                        coordinates[0]?.takeIf { it.isAttached }?.localToRoot(local) ?: local
                     },
-                    onDragCancel = {
-                        isDragging = false
-                        latestOnDragEnd()
+                    onPointerOver = { hovered, held ->
+                        // Told at once, not on the next frame: the cursor is chosen right after
+                        // the event that put the pointer here
+                        cursorClaim.set(claimant, hovered || held)
+                        isHovered = hovered
+                        if (held != isHeld) {
+                            isHeld = held
+                            latestOnHeldChange(if (held) resizeIcon else null)
+                        }
                     },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        latestOnDrag(if (vertical) dragAmount.x else dragAmount.y)
-                    }
+                    onDragStart = { latestOnDragStart() },
+                    onDrag = { latestOnDrag(it) },
+                    onDragEnd = { latestOnDragEnd() },
+                    onDoubleClick = { latestOnReset() }
                 )
             }
             .testTag(if (vertical) "split_divider_vertical" else "split_divider_horizontal"),
@@ -448,6 +495,102 @@ private fun SplitDivider(
         DividerHandle(vertical = vertical, color = handleColor, thick = highlighted)
     }
 }
+
+/**
+ * The divider's whole pointer handling, for finger and mouse alike.
+ *
+ * A drag reports the pointer's travel from the press, not step by step: the divider then stays
+ * under the pointer however the steps arrive, and after waiting at a limit it moves again only
+ * when the pointer comes back to it. A press let go without travelling is a click, and two in
+ * quick succession are a double click, even if the mouse slipped a pixel during either: a mouse
+ * starts dragging on the slightest move, which must not cost it the double click.
+ *
+ * @param positionInRoot converts a position on the divider to one in the window.
+ * @param onPointerOver whether a mouse pointer is over the divider, and whether it is pressed.
+ */
+private suspend fun PointerInputScope.detectDividerGestures(
+    vertical: Boolean,
+    positionInRoot: (Offset) -> Offset,
+    onPointerOver: (hovered: Boolean, held: Boolean) -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (travelPx: Float) -> Unit,
+    onDragEnd: () -> Unit,
+    onDoubleClick: () -> Unit
+) {
+    val clickSlop = viewConfiguration.touchSlop
+    val doubleClickMillis = viewConfiguration.doubleTapTimeoutMillis
+    var hovered = false
+
+    // A pressed pointer still gets Enter and Exit as it crosses the divider's edge
+    fun noteHover(event: PointerEvent) {
+        when (event.type) {
+            PointerEventType.Enter -> hovered = true
+            PointerEventType.Exit -> hovered = false
+        }
+    }
+
+    try {
+        awaitPointerEventScope {
+            var lastClickAt: Long? = null
+            while (true) {
+                val event = awaitPointerEvent()
+                noteHover(event)
+                onPointerOver(hovered, false)
+                val down = event.changes.firstOrNull { it.changedToDown() } ?: continue
+                val isMouse = down.type == PointerType.Mouse
+                // The other mouse buttons are not for dragging
+                if (isMouse && !event.buttons.isPrimaryPressed) continue
+                down.consume()
+                onPointerOver(hovered, true)
+
+                val secondClick = lastClickAt?.let { down.uptimeMillis - it <= doubleClickMillis } ?: false
+                lastClickAt = null
+                val dragSlop = if (isMouse) clickSlop * MouseSlopFraction else clickSlop
+                val start = positionInRoot(down.position)
+                var dragOrigin = 0f
+                var dragging = false
+                var strayed = false
+                var clickedAt: Long? = null
+                try {
+                    while (true) {
+                        val next = awaitPointerEvent()
+                        noteHover(next)
+                        val change = next.changes.firstOrNull { it.id == down.id } ?: break
+                        val offset = positionInRoot(change.position) - start
+                        val travel = if (vertical) offset.x else offset.y
+                        if (offset.getDistance() > clickSlop) strayed = true
+                        if (!dragging && abs(travel) > dragSlop) {
+                            dragging = true
+                            // A finger's first few pixels are not counted, so the pane does not jump
+                            dragOrigin = sign(travel) * dragSlop
+                            onDragStart()
+                        }
+                        if (dragging) onDrag(travel - dragOrigin)
+                        if (!change.pressed) {
+                            // Consumed already: the gesture was taken away, not finished
+                            if (!change.isConsumed && !strayed) clickedAt = change.uptimeMillis
+                            change.consume()
+                            break
+                        }
+                        change.consume()
+                    }
+                } finally {
+                    onPointerOver(hovered, false)
+                    if (dragging) onDragEnd()
+                }
+                if (clickedAt != null && secondClick) onDoubleClick() else lastClickAt = clickedAt
+            }
+        }
+    } finally {
+        onPointerOver(false, false)
+    }
+}
+
+/**
+ * A mouse starts dragging almost at once, a finger only after the touch slop. The same ratio
+ * Compose's own drag detection uses.
+ */
+private const val MouseSlopFraction = 0.125f / 18f
 
 /** How far the divider's grab area reaches over the edge of each neighbouring pane. */
 private val DividerGrabMargin = 6.dp

@@ -18,6 +18,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,12 +42,15 @@ import com.rembrowser.rembrowse.data.SharedPrefsDefaultExtensionStore
 import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
+import com.rembrowser.rembrowse.engine.PaneGeckoView
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.BrowserChromeState
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
+import com.rembrowser.rembrowse.ui.components.ChromePointerIconClaim
+import com.rembrowser.rembrowse.ui.components.LocalChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.util.BrowserShortcut
 import com.rembrowser.rembrowse.util.KeyboardShortcuts
@@ -176,6 +180,9 @@ class MainActivity : ComponentActivity() {
     private val holder: BrowserSessionHolder by viewModels()
     private val chrome = BrowserChromeState()
 
+    // Lets the chrome's mouse cursor (a pane divider's resize arrows) show over a page's edge
+    private val chromePointerIcon = ChromePointerIconClaim()
+
     // Which tab each on-screen web view is showing, so keyboard focus can be given to a page.
     private val paneViewTabs = WeakHashMap<GeckoView, String>()
 
@@ -264,79 +271,81 @@ class MainActivity : ComponentActivity() {
 
             RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent) {
                 val pageBackground = MaterialTheme.colorScheme.surfaceContainerLowest.toArgb()
-                RemBrowseScreen(
-                    browserViewModel = holder.browser,
-                    extensionsViewModel = holder.extensions,
-                    chrome = chrome,
-                    versionName = BuildConfig.VERSION_NAME,
-                    downloadsViewModel = holder.downloads,
-                    onPickLocalXpi = {
-                        pickLocalXpiLauncher.launch(arrayOf("*/*"))
-                    },
-                    onOpenDownload = ::openDownloadedFile,
-                    onOpenDownloadsFolder = ::openDownloadsFolder,
-                    onPickFiles = ::pickFilesFor,
-                    updatesViewModel = holder.updates,
-                    onFocusWebContent = { tabId ->
-                        paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
-                    },
-                    paneViewport = { tab, modifier ->
-                        val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
-                        DisposableEffect(Unit) {
-                            onDispose {
-                                geckoViewHolder[0]?.let {
-                                    paneViewTabs.remove(it)
-                                    engine.detachView(it)
+                CompositionLocalProvider(LocalChromePointerIconClaim provides chromePointerIcon) {
+                    RemBrowseScreen(
+                        browserViewModel = holder.browser,
+                        extensionsViewModel = holder.extensions,
+                        chrome = chrome,
+                        versionName = BuildConfig.VERSION_NAME,
+                        downloadsViewModel = holder.downloads,
+                        onPickLocalXpi = {
+                            pickLocalXpiLauncher.launch(arrayOf("*/*"))
+                        },
+                        onOpenDownload = ::openDownloadedFile,
+                        onOpenDownloadsFolder = ::openDownloadsFolder,
+                        onPickFiles = ::pickFilesFor,
+                        updatesViewModel = holder.updates,
+                        onFocusWebContent = { tabId ->
+                            paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
+                        },
+                        paneViewport = { tab, modifier ->
+                            val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
+                            DisposableEffect(Unit) {
+                                onDispose {
+                                    geckoViewHolder[0]?.let {
+                                        paneViewTabs.remove(it)
+                                        engine.detachView(it)
+                                    }
                                 }
                             }
+                            AndroidView(
+                                modifier = modifier,
+                                factory = { ctx ->
+                                    PaneGeckoView(ctx, chromePointerIcon::isClaimed).apply {
+                                        setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
+                                        // Set once: covering again on every update would hide a
+                                        // page that has already painted.
+                                        coverUntilFirstPaint(pageBackground)
+                                        geckoViewHolder[0] = this
+                                        paneViewTabs[this] = tab.id
+                                        engine.attachSessionToView(tab.id, this)
+                                    }
+                                },
+                                update = { view ->
+                                    geckoViewHolder[0] = view
+                                    paneViewTabs[view] = tab.id
+                                    engine.attachSessionToView(tab.id, view)
+                                }
+                            )
+                        },
+                        extensionPopupContent = { modifier ->
+                            val popupViewHolder = remember { arrayOfNulls<GeckoView>(1) }
+                            DisposableEffect(Unit) {
+                                onDispose {
+                                    popupViewHolder[0]?.releaseSession()
+                                }
+                            }
+                            AndroidView(
+                                modifier = modifier,
+                                factory = { ctx ->
+                                    GeckoView(ctx).apply {
+                                        setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
+                                        coverUntilFirstPaint(pageBackground)
+                                        popupViewHolder[0] = this
+                                        extensionManager.getPopupGeckoSession()?.let { setSession(it) }
+                                    }
+                                },
+                                update = { view ->
+                                    val session = extensionManager.getPopupGeckoSession()
+                                    if (session != null && view.session !== session) {
+                                        view.releaseSession()
+                                        view.setSession(session)
+                                    }
+                                }
+                            )
                         }
-                        AndroidView(
-                            modifier = modifier,
-                            factory = { ctx ->
-                                GeckoView(ctx).apply {
-                                    setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
-                                    // Set once: covering again on every update would hide a
-                                    // page that has already painted.
-                                    coverUntilFirstPaint(pageBackground)
-                                    geckoViewHolder[0] = this
-                                    paneViewTabs[this] = tab.id
-                                    engine.attachSessionToView(tab.id, this)
-                                }
-                            },
-                            update = { view ->
-                                geckoViewHolder[0] = view
-                                paneViewTabs[view] = tab.id
-                                engine.attachSessionToView(tab.id, view)
-                            }
-                        )
-                    },
-                    extensionPopupContent = { modifier ->
-                        val popupViewHolder = remember { arrayOfNulls<GeckoView>(1) }
-                        DisposableEffect(Unit) {
-                            onDispose {
-                                popupViewHolder[0]?.releaseSession()
-                            }
-                        }
-                        AndroidView(
-                            modifier = modifier,
-                            factory = { ctx ->
-                                GeckoView(ctx).apply {
-                                    setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
-                                    coverUntilFirstPaint(pageBackground)
-                                    popupViewHolder[0] = this
-                                    extensionManager.getPopupGeckoSession()?.let { setSession(it) }
-                                }
-                            },
-                            update = { view ->
-                                val session = extensionManager.getPopupGeckoSession()
-                                if (session != null && view.session !== session) {
-                                    view.releaseSession()
-                                    view.setSession(session)
-                                }
-                            }
-                        )
-                    }
-                )
+                    )
+                }
             }
         }
     }
