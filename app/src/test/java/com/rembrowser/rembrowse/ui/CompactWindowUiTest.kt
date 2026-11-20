@@ -20,6 +20,7 @@ import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
@@ -155,5 +156,28 @@ class CompactWindowUiTest {
         assertEquals(LayoutMode.SPLIT_2X1, browserVm.uiState.value.layoutMode)
         composeRule.onNodeWithTag("browser_pane_0").assertIsDisplayed()
         composeRule.onNodeWithTag("browser_pane_1").assertIsDisplayed()
+    }
+
+    @Test
+    fun compactWindow_showsALayoutBuiltOnALargerWindow() {
+        // One full-height pane beside two stacked ones, as left behind by a laptop-sized window
+        val first = browserVm.uiState.value.activeTabId!!
+        val second = browserVm.openNewTab("https://two.example/")
+        val third = browserVm.openNewTab("https://three.example/")
+        browserVm.selectTab(first)
+        browserVm.setLayoutMode(LayoutMode.SPLIT_1X2)
+        browserVm.assignTabToPane(1, second)
+        browserVm.dropTabOnPane(third, targetPaneIndex = 1, zone = DropZone.BOTTOM)
+        launch()
+
+        for (pane in 0..2) composeRule.onNodeWithTag("browser_pane_$pane").assertIsDisplayed()
+        composeRule.onNodeWithTag("tab_rail").assertDoesNotExist()
+
+        // The menu still closes a pane, and the split as a whole
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("split_button").performClick()
+        composeRule.onNodeWithTag("split_close_pane").performClick()
+        assertEquals(listOf(first, second), browserVm.uiState.value.paneTabIds)
+        composeRule.onNodeWithTag("browser_pane_2").assertDoesNotExist()
     }
 }

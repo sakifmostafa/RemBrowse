@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.model
 
 import com.rembrowser.rembrowse.util.UrlResolver
 
+/** The fixed layouts offered by the Split menu and the keyboard: quick ways to build a [PaneNode]. */
 enum class LayoutMode(
     val label: String,
     val description: String,
@@ -105,6 +106,12 @@ data class SplitRatios(
         vertical = vertical.coerceIn(MIN_RATIO, MAX_RATIO)
     )
 
+    /** These ratios, updated from the outermost side-by-side and stacked splits of [layout]. */
+    fun following(layout: PaneNode): SplitRatios = SplitRatios(
+        horizontal = layout.firstSplit(SplitOrientation.ROW)?.ratio ?: horizontal,
+        vertical = layout.firstSplit(SplitOrientation.COLUMN)?.ratio ?: vertical
+    )
+
     companion object {
         const val MIN_RATIO = 0.2f
         const val MAX_RATIO = 0.8f
@@ -171,6 +178,12 @@ data class BookmarkItem(
     val createdAtMillis: Long = System.currentTimeMillis()
 )
 
+/**
+ * What is saved between launches. [layout] is the arrangement of panes; it is null in a state
+ * written by a version that only knew the fixed layouts, which is then rebuilt from
+ * [layoutMode], [paneTabIds] and [splitRatios]. Those three are still written, so an older
+ * version reading a newer state finds something it understands.
+ */
 data class PersistedBrowserState(
     val layoutMode: LayoutMode = LayoutMode.SINGLE_1X1,
     val splitRatios: SplitRatios = SplitRatios.DEFAULT,
@@ -178,31 +191,48 @@ data class PersistedBrowserState(
     val paneTabIds: List<String> = emptyList(),
     val activePaneIndex: Int = 0,
     val bookmarks: List<BookmarkItem> = emptyList(),
-    val settings: BrowserSettings = BrowserSettings()
+    val settings: BrowserSettings = BrowserSettings(),
+    val layout: PaneNode? = null
 )
 
 data class BrowserUiState(
-    val layoutMode: LayoutMode = LayoutMode.SINGLE_1X1,
+    /** The panes on screen. The placeholder default is replaced before anything is shown. */
+    val layout: PaneNode = PaneNode.Leaf(""),
+    /**
+     * The sizes the Side by side, Stacked and Grid presets are created with. They follow the
+     * outermost divider of each direction, so a preset reopens at the size last used.
+     */
     val splitRatios: SplitRatios = SplitRatios.DEFAULT,
     val tabs: List<BrowserTab> = emptyList(),
-    val paneTabIds: List<String> = emptyList(),
     val activePaneIndex: Int = 0,
     val bookmarks: List<BookmarkItem> = emptyList(),
     val addressBarInput: String = "",
     val isAddressBarFocused: Boolean = false,
     val settings: BrowserSettings = BrowserSettings(),
     /** Page dialogs (alert/confirm/prompt/select/auth) waiting for an answer, oldest first. */
-    val pendingPrompts: List<PagePrompt> = emptyList()
+    val pendingPrompts: List<PagePrompt> = emptyList(),
+    /** The tab whose page asked to fill the screen (a video, say), or null. Always a visible tab. */
+    val fullscreenTabId: String? = null
 ) {
+    /** Tab ids currently shown in a pane, in pane order. */
+    val paneTabIds: List<String>
+        get() = layout.tabIds
+
+    val paneCount: Int
+        get() = layout.paneCount
+
+    /** The preset the layout has the shape of, or null for an arrangement built by hand. */
+    val layoutMode: LayoutMode?
+        get() = layout.matchingPreset()
+
     val activeTabId: String?
         get() = paneTabIds.getOrNull(activePaneIndex) ?: tabs.firstOrNull()?.id
 
     val activeTab: BrowserTab?
         get() = tabs.firstOrNull { it.id == activeTabId }
 
-    /** Tab ids currently shown in a pane, in pane order. */
     val visibleTabIds: List<String>
-        get() = paneTabIds.take(layoutMode.paneCount)
+        get() = paneTabIds
 
     fun tabForPane(paneIndex: Int): BrowserTab? {
         val tabId = paneTabIds.getOrNull(paneIndex) ?: return null
@@ -210,7 +240,7 @@ data class BrowserUiState(
     }
 
     /** Index of the pane showing [tabId], or -1 when the tab is in the background. */
-    fun paneIndexOf(tabId: String): Int = visibleTabIds.indexOf(tabId)
+    fun paneIndexOf(tabId: String): Int = paneTabIds.indexOf(tabId)
 
     val isActiveTabBookmarked: Boolean
         get() = activeTab?.let { isBookmarked(it.url) } == true
@@ -218,7 +248,7 @@ data class BrowserUiState(
     fun isBookmarked(url: String): Boolean = bookmarks.any { it.url == url }
 
     val isSplit: Boolean
-        get() = layoutMode.paneCount > 1
+        get() = paneCount > 1
 
     /** The oldest pending page dialog that belongs to a tab the user can currently see. */
     val visiblePrompt: PagePrompt?

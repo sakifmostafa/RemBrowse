@@ -10,11 +10,14 @@ import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.DownloadRequest
+import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.util.UrlResolver
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,7 +73,12 @@ class BrowserViewModel(
                         )
                     }
                 }
-                val newState = state.copy(tabs = updatedTabs)
+                // A page whose process died is not showing its video any more
+                val leftFullscreen = update.crashed == true && state.fullscreenTabId == tabId
+                val newState = state.copy(
+                    tabs = updatedTabs,
+                    fullscreenTabId = if (leftFullscreen) null else state.fullscreenTabId
+                )
                 val syncedInput = if (!newState.isAddressBarFocused && newState.activeTabId == tabId && update.url != null) {
                     addressTextFor(newState.activeTab)
                 } else {
@@ -107,6 +115,17 @@ class BrowserViewModel(
             resolvePrompt(promptId)
         }
 
+        override fun onFullScreenChanged(tabId: String, fullScreen: Boolean) {
+            if (!fullScreen) {
+                _uiState.update { if (it.fullscreenTabId == tabId) it.copy(fullscreenTabId = null) else it }
+            } else if (_uiState.value.paneIndexOf(tabId) >= 0) {
+                _uiState.update { it.copy(fullscreenTabId = tabId) }
+            } else {
+                // A page nobody can see has no business taking over the window
+                engine.getSession(tabId)?.exitFullScreen()
+            }
+        }
+
         override fun onDownloadRequested(request: DownloadRequest) {
             val handler = downloadHandler
             if (handler != null) {
@@ -141,21 +160,25 @@ class BrowserViewModel(
             initialTabs.add(createTabModel(BrowserTab.NEW_TAB_URL))
         }
 
-        val layout = if (restore) persisted.layoutMode else LayoutMode.SINGLE_1X1
         val validTabIds = initialTabs.map { it.id }.toSet()
-        val paneTabIds = persisted.paneTabIds.filter { it in validTabIds }.toMutableList()
+        val savedLayout = if (restore) persisted.layout?.sanitized(validTabIds) else null
+        val layout = savedLayout ?: run {
+            // A state from before free-form layouts (or a fresh start): one of the fixed ones
+            val mode = if (restore) persisted.layoutMode else LayoutMode.SINGLE_1X1
+            val paneTabIds = persisted.paneTabIds.filter { it in validTabIds }.toMutableList()
+            ensurePaneSlotsFilled(mode.paneCount, initialTabs, paneTabIds)
+            PaneNode.preset(mode, paneTabIds, persisted.splitRatios)
+        }
 
-        ensurePaneSlotsFilled(layout.paneCount, initialTabs, paneTabIds)
-
-        val activePane = persisted.activePaneIndex.coerceIn(0, layout.paneCount - 1)
-        val activeTab = initialTabs.firstOrNull { it.id == paneTabIds.getOrNull(activePane) }
+        val paneTabIds = layout.tabIds
+        val activePane = persisted.activePaneIndex.coerceIn(0, paneTabIds.lastIndex)
+        val activeTab = initialTabs.firstOrNull { it.id == paneTabIds[activePane] }
 
         engine.setEnhancedPrivacy(persisted.settings.enhancedPrivacy)
         _uiState.value = BrowserUiState(
-            layoutMode = layout,
-            splitRatios = persisted.splitRatios.clamped(),
+            layout = layout,
+            splitRatios = persisted.splitRatios.clamped().following(layout),
             tabs = initialTabs,
-            paneTabIds = paneTabIds.take(layout.paneCount),
             activePaneIndex = activePane,
             bookmarks = persisted.bookmarks,
             addressBarInput = addressTextFor(activeTab),
@@ -167,41 +190,47 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
-    fun setLayoutMode(mode: LayoutMode) {
-        val current = _uiState.value
-        val tabs = current.tabs.toMutableList()
-        val paneIds = current.paneTabIds.toMutableList()
-        val previouslyFocusedTabId = current.activeTabId
-
-        ensurePaneSlotsFilled(mode.paneCount, tabs, paneIds)
-
-        val targetPaneIds = paneIds.take(mode.paneCount).toMutableList()
-        var newActivePane = if (current.activePaneIndex < mode.paneCount) {
-            current.activePaneIndex
-        } else {
-            0
-        }
-
-        // When shrinking layouts (e.g. 2x2 -> 1x1), keep the user's focused tab visible
-        // while all other tabs stay open in the tab rail.
-        if (previouslyFocusedTabId != null && previouslyFocusedTabId !in targetPaneIds) {
-            targetPaneIds[0] = previouslyFocusedTabId
-            newActivePane = 0
-        } else if (previouslyFocusedTabId != null) {
-            newActivePane = targetPaneIds.indexOf(previouslyFocusedTabId).coerceAtLeast(0)
-        }
-
-        val activeTab = tabs.firstOrNull { it.id == targetPaneIds.getOrNull(newActivePane) }
-
+    /**
+     * Shows [layout] with [tabs]. Focus goes to the pane of [focusTabId]; when that tab is not
+     * on screen (or none is given) it stays on the pane position it was on.
+     */
+    private fun applyLayout(
+        current: BrowserUiState,
+        layout: PaneNode,
+        focusTabId: String? = null,
+        tabs: List<BrowserTab> = current.tabs
+    ) {
+        val paneTabIds = layout.tabIds
+        val activePane = paneTabIds.indexOf(focusTabId).takeIf { it >= 0 }
+            ?: current.activePaneIndex.coerceIn(0, paneTabIds.lastIndex)
+        val activeTab = tabs.firstOrNull { it.id == paneTabIds[activePane] }
         _uiState.value = current.copy(
-            layoutMode = mode,
+            layout = layout,
+            splitRatios = current.splitRatios.following(layout),
             tabs = tabs,
-            paneTabIds = targetPaneIds,
-            activePaneIndex = newActivePane,
+            activePaneIndex = activePane,
             addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(activeTab)
         )
         syncSessions()
         persistCurrentState()
+    }
+
+    /** Rearranges the panes into one of the fixed layouts, keeping the tabs already on screen. */
+    fun setLayoutMode(mode: LayoutMode) {
+        val current = _uiState.value
+        val tabs = current.tabs.toMutableList()
+        val paneIds = current.paneTabIds.toMutableList()
+        val focusedTabId = current.activeTabId
+
+        ensurePaneSlotsFilled(mode.paneCount, tabs, paneIds)
+
+        val targetPaneIds = paneIds.take(mode.paneCount).toMutableList()
+        // When shrinking layouts (e.g. 2x2 -> 1x1), keep the user's focused tab visible
+        // while all other tabs stay open in the tab rail.
+        if (focusedTabId != null && focusedTabId !in targetPaneIds) {
+            targetPaneIds[0] = focusedTabId
+        }
+        applyLayout(current, PaneNode.preset(mode, targetPaneIds, current.splitRatios), focusedTabId, tabs)
     }
 
     fun selectTab(tabId: String) {
@@ -225,22 +254,46 @@ class BrowserViewModel(
         selectTab(current.tabs[next].id)
     }
 
-    /** Live resize while a divider is dragged. Call [commitSplitRatios] when the drag ends. */
-    fun updateHorizontalSplit(deltaFraction: Float) {
+    /**
+     * Live resize while the divider of the split at [path] is dragged, by [deltaFraction] of
+     * the split's length. Call [commitSplitRatios] when the drag ends.
+     */
+    fun resizeSplit(path: String, deltaFraction: Float) {
         _uiState.update { state ->
-            val updated = state.splitRatios.copy(
-                horizontal = state.splitRatios.horizontal + deltaFraction
-            ).clamped()
-            state.copy(splitRatios = updated)
+            val layout = state.layout.updateRatio(path) { it + deltaFraction }
+            state.copy(layout = layout, splitRatios = state.splitRatios.following(layout))
         }
     }
 
-    fun updateVerticalSplit(deltaFraction: Float) {
+    /** Back to an even split for the divider at [path]. */
+    fun resetSplit(path: String) {
         _uiState.update { state ->
-            val updated = state.splitRatios.copy(
-                vertical = state.splitRatios.vertical + deltaFraction
-            ).clamped()
-            state.copy(splitRatios = updated)
+            val layout = state.layout.updateRatio(path) { 0.5f }
+            state.copy(layout = layout, splitRatios = state.splitRatios.following(layout))
+        }
+        persistCurrentState()
+    }
+
+    /** Resizes the outermost side-by-side split, or the size the next one opens with. */
+    fun updateHorizontalSplit(deltaFraction: Float) = resizeFirstSplit(SplitOrientation.ROW, deltaFraction)
+
+    /** Resizes the outermost stacked split, or the size the next one opens with. */
+    fun updateVerticalSplit(deltaFraction: Float) = resizeFirstSplit(SplitOrientation.COLUMN, deltaFraction)
+
+    private fun resizeFirstSplit(orientation: SplitOrientation, deltaFraction: Float) {
+        val split = _uiState.value.layout.firstSplit(orientation)
+        if (split != null) {
+            resizeSplit(split.path, deltaFraction)
+            return
+        }
+        _uiState.update { state ->
+            val ratios = state.splitRatios
+            val updated = if (orientation == SplitOrientation.ROW) {
+                ratios.copy(horizontal = ratios.horizontal + deltaFraction)
+            } else {
+                ratios.copy(vertical = ratios.vertical + deltaFraction)
+            }
+            state.copy(splitRatios = updated.clamped())
         }
     }
 
@@ -250,13 +303,13 @@ class BrowserViewModel(
     }
 
     fun resetSplitRatios() {
-        _uiState.update { it.copy(splitRatios = SplitRatios.DEFAULT) }
+        _uiState.update { it.copy(layout = it.layout.withAllRatios(0.5f), splitRatios = SplitRatios.DEFAULT) }
         persistCurrentState()
     }
 
     fun focusPane(paneIndex: Int) {
         val current = _uiState.value
-        if (paneIndex !in 0 until current.layoutMode.paneCount) return
+        if (paneIndex !in 0 until current.paneCount) return
         if (paneIndex == current.activePaneIndex) return
         val paneTab = current.tabForPane(paneIndex)
         _uiState.value = current.copy(
@@ -341,30 +394,18 @@ class BrowserViewModel(
         if (!newTab.isInternalPage) ensureSessionCreated(newTab)
 
         val current = _uiState.value
-        val targetPane = (assignToPane ?: current.activePaneIndex).coerceIn(0, current.layoutMode.paneCount - 1)
+        val targetPane = (assignToPane ?: current.activePaneIndex).coerceIn(0, current.paneCount - 1)
         // Either at the end of the list, or right after the tab it is opened from: the page
         // that asked for it, or else the tab it replaces on screen.
-        val neighbourId = openerTabId ?: current.paneTabIds.getOrNull(targetPane)
+        val replacedTabId = current.paneTabIds[targetPane]
+        val neighbourId = openerTabId ?: replacedTabId
         val neighbourIndex = current.tabs.indexOfFirst { it.id == neighbourId }
         val updatedTabs = if (current.settings.openNewTabsNextToCurrent && neighbourIndex >= 0) {
             current.tabs.toMutableList().apply { add(neighbourIndex + 1, newTab) }
         } else {
             current.tabs + newTab
         }
-        val updatedPaneIds = current.paneTabIds.toMutableList()
-        while (updatedPaneIds.size < current.layoutMode.paneCount) {
-            updatedPaneIds.add(newTab.id)
-        }
-        updatedPaneIds[targetPane] = newTab.id
-
-        _uiState.value = current.copy(
-            tabs = updatedTabs,
-            paneTabIds = updatedPaneIds,
-            activePaneIndex = targetPane,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(newTab)
-        )
-        syncSessions()
-        persistCurrentState()
+        applyLayout(current, current.layout.replaceTab(replacedTabId, newTab.id), newTab.id, updatedTabs)
         return newTab.id
     }
 
@@ -376,37 +417,28 @@ class BrowserViewModel(
         engine.closeSession(tabId)
         tabsWithContent -= tabId
         val remainingTabs = current.tabs.filterNot { it.id == tabId }.toMutableList()
-        val updatedPaneIds = current.paneTabIds.toMutableList()
+        var layout = current.layout
 
         // Refill the closed tab's pane in place. Every other pane keeps its tab, so the rest of
         // the layout does not reshuffle (and its web views do not have to re-attach).
-        for (index in updatedPaneIds.indices) {
-            if (updatedPaneIds[index] != tabId) continue
+        if (layout.contains(tabId)) {
+            val onScreen = current.paneTabIds
             val replacement = current.tabs
-                .filter { it.id != tabId && it.id !in updatedPaneIds }
+                .filter { it.id != tabId && it.id !in onScreen }
                 .minByOrNull { candidate ->
                     val distance = current.tabs.indexOf(candidate) - closedIndex
                     // Prefer the neighbour just after the closed tab, then the one before it
                     abs(distance) * 2 - if (distance > 0) 1 else 0
                 }
                 ?: createTabModel(BrowserTab.NEW_TAB_URL).also { remainingTabs.add(it) }
-            updatedPaneIds[index] = replacement.id
+            layout = layout.replaceTab(tabId, replacement.id)
         }
-        ensurePaneSlotsFilled(current.layoutMode.paneCount, remainingTabs, updatedPaneIds)
 
-        val finalPaneIds = updatedPaneIds.take(current.layoutMode.paneCount)
-        val activePane = current.activePaneIndex.coerceIn(0, current.layoutMode.paneCount - 1)
-        val activeTab = remainingTabs.firstOrNull { it.id == finalPaneIds[activePane] }
-
-        _uiState.value = current.copy(
-            tabs = remainingTabs,
-            paneTabIds = finalPaneIds,
-            activePaneIndex = activePane,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(activeTab),
-            pendingPrompts = current.pendingPrompts.filterNot { it.tabId == tabId }
+        applyLayout(
+            current.copy(pendingPrompts = current.pendingPrompts.filterNot { it.tabId == tabId }),
+            layout,
+            tabs = remainingTabs
         )
-        syncSessions()
-        persistCurrentState()
     }
 
     /** Closes every background tab except [tabId]. Tabs shown in a pane are left alone. */
@@ -421,45 +453,60 @@ class BrowserViewModel(
 
     fun assignTabToPane(paneIndex: Int, tabId: String) {
         val current = _uiState.value
-        if (paneIndex !in 0 until current.layoutMode.paneCount) return
-        val tab = current.tabs.firstOrNull { it.id == tabId } ?: return
+        val shownTabId = current.paneTabIds.getOrNull(paneIndex) ?: return
+        if (current.tabs.none { it.id == tabId }) return
 
-        val updatedPaneIds = current.paneTabIds.toMutableList()
-        val existingPaneWithTab = updatedPaneIds.indexOf(tabId)
-        if (existingPaneWithTab != -1 && existingPaneWithTab != paneIndex) {
+        val layout = if (current.layout.contains(tabId)) {
             // Swap cleanly so two GeckoView panes do not fight over the same GeckoSession
-            updatedPaneIds[existingPaneWithTab] = updatedPaneIds[paneIndex]
+            current.layout.swapTabs(tabId, shownTabId)
+        } else {
+            current.layout.replaceTab(shownTabId, tabId)
         }
-        updatedPaneIds[paneIndex] = tabId
-
-        _uiState.value = current.copy(
-            paneTabIds = updatedPaneIds,
-            activePaneIndex = paneIndex,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(tab)
-        )
-        syncSessions()
-        persistCurrentState()
+        applyLayout(current, layout, tabId)
     }
 
     fun swapPanes(firstPaneIndex: Int, secondPaneIndex: Int) {
         val current = _uiState.value
-        val count = current.layoutMode.paneCount
-        if (firstPaneIndex !in 0 until count || secondPaneIndex !in 0 until count) return
-        if (firstPaneIndex == secondPaneIndex) return
+        val paneTabIds = current.paneTabIds
+        val first = paneTabIds.getOrNull(firstPaneIndex) ?: return
+        val second = paneTabIds.getOrNull(secondPaneIndex) ?: return
+        if (first == second) return
+        applyLayout(current, current.layout.swapTabs(first, second))
+    }
 
-        val updated = current.paneTabIds.toMutableList()
-        val tmp = updated[firstPaneIndex]
-        updated[firstPaneIndex] = updated[secondPaneIndex]
-        updated[secondPaneIndex] = tmp
+    /**
+     * Drops the tab [tabId] (dragged from the rail) on pane [targetPaneIndex].
+     *
+     * On an edge the pane is split in that direction and the tab takes the new half. On the
+     * centre the tab takes the pane over, and the tab that was there stays open in the rail.
+     * A tab that was already on screen moves: the pane it leaves closes. Nothing happens when
+     * the layout is full and a new pane would be needed, or when the tab is dropped on itself.
+     */
+    fun dropTabOnPane(tabId: String, targetPaneIndex: Int, zone: DropZone) {
+        val current = _uiState.value
+        val targetTabId = current.paneTabIds.getOrNull(targetPaneIndex) ?: return
+        if (targetTabId == tabId || current.tabs.none { it.id == tabId }) return
 
-        val newActiveTab = current.tabs.firstOrNull { it.id == updated[current.activePaneIndex] }
+        // Moving a visible tab frees its pane first; the target is another pane, so one remains
+        val withoutDragged = current.layout.remove(tabId) ?: return
+        val layout = if (zone == DropZone.CENTER) {
+            withoutDragged.replaceTab(targetTabId, tabId)
+        } else {
+            withoutDragged.split(targetTabId, tabId, zone)
+        }
+        if (!layout.contains(tabId)) return
+        applyLayout(current, layout, tabId)
+    }
 
-        _uiState.value = current.copy(
-            paneTabIds = updated,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(newActiveTab)
-        )
-        syncSessions()
-        persistCurrentState()
+    /**
+     * Closes pane [paneIndex]: its neighbour takes the room and its tab stays open in the rail.
+     * Focus stays with the page it was on, or moves to the neighbour when that page's pane closed.
+     */
+    fun closePane(paneIndex: Int = _uiState.value.activePaneIndex) {
+        val current = _uiState.value
+        val closingTabId = current.paneTabIds.getOrNull(paneIndex) ?: return
+        val layout = current.layout.remove(closingTabId) ?: return
+        applyLayout(current, layout, current.activeTabId)
     }
 
     /**
@@ -481,7 +528,7 @@ class BrowserViewModel(
     /** Swaps the focused pane with the next one. Focus follows the page the user was on. */
     fun swapFocusedPane() {
         val current = _uiState.value
-        val count = current.layoutMode.paneCount
+        val count = current.paneCount
         if (count < 2) return
         val from = current.activePaneIndex
         val to = (from + 1) % count
@@ -492,7 +539,10 @@ class BrowserViewModel(
     /** Sizes the first pane to [firstPaneFraction] of the split: 0.5 is even, 0.7 is 70/30. */
     fun setSplitPreset(firstPaneFraction: Float) {
         _uiState.update {
-            it.copy(splitRatios = SplitRatios(firstPaneFraction, firstPaneFraction).clamped())
+            it.copy(
+                layout = it.layout.updateRatio("") { firstPaneFraction },
+                splitRatios = SplitRatios(firstPaneFraction, firstPaneFraction).clamped()
+            )
         }
         persistCurrentState()
     }
@@ -500,14 +550,14 @@ class BrowserViewModel(
     fun maximizePane(paneIndex: Int) {
         val current = _uiState.value
         val tab = current.tabForPane(paneIndex) ?: return
-        _uiState.value = current.copy(
-            layoutMode = LayoutMode.SINGLE_1X1,
-            paneTabIds = listOf(tab.id),
-            activePaneIndex = 0,
-            addressBarInput = if (current.isAddressBarFocused) current.addressBarInput else addressTextFor(tab)
-        )
-        syncSessions()
-        persistCurrentState()
+        applyLayout(current, PaneNode.Leaf(tab.id), tab.id)
+    }
+
+    /** Takes the fullscreen page back into its pane. The layout was never changed, so it is as it was. */
+    fun exitFullscreen() {
+        val tabId = _uiState.value.fullscreenTabId ?: return
+        engine.getSession(tabId)?.exitFullScreen()
+        _uiState.update { it.copy(fullscreenTabId = null) }
     }
 
     fun goBack(paneIndex: Int = _uiState.value.activePaneIndex) {
@@ -780,6 +830,12 @@ class BrowserViewModel(
     private fun syncSessions() {
         val state = _uiState.value
         val visibleIds = state.visibleTabIds.toSet()
+        // Fullscreen ends with the tab, or when its pane goes on to show something else
+        val fullscreenId = state.fullscreenTabId
+        if (fullscreenId != null && fullscreenId !in visibleIds) {
+            engine.getSession(fullscreenId)?.exitFullScreen()
+            _uiState.update { it.copy(fullscreenTabId = null) }
+        }
         val activeId = state.activeTabId
         state.tabs.forEach { tab ->
             val isVisible = tab.id in visibleIds
@@ -798,13 +854,15 @@ class BrowserViewModel(
         val state = _uiState.value
         repository.saveState(
             PersistedBrowserState(
-                layoutMode = state.layoutMode,
+                // For a version that only knows the fixed layouts: the nearest one
+                layoutMode = state.layoutMode ?: LayoutMode.GRID_2X2,
                 splitRatios = state.splitRatios,
                 tabs = state.tabs,
                 paneTabIds = state.paneTabIds,
                 activePaneIndex = state.activePaneIndex,
                 bookmarks = state.bookmarks,
-                settings = state.settings
+                settings = state.settings,
+                layout = state.layout
             )
         )
     }

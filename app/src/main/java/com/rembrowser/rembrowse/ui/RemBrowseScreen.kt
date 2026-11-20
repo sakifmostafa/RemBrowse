@@ -54,6 +54,8 @@ import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.SettingsActions
 import com.rembrowser.rembrowse.ui.components.SettingsPage
+import com.rembrowser.rembrowse.ui.components.TabDragGhost
+import com.rembrowser.rembrowse.ui.components.TabDragState
 import com.rembrowser.rembrowse.ui.components.TabRail
 import com.rembrowser.rembrowse.ui.components.TabSwitcher
 import com.rembrowser.rembrowse.ui.components.TiledBrowserGrid
@@ -142,6 +144,11 @@ fun RemBrowseScreen(
         chrome.focusContent()
     }
     BackHandler(enabled = chrome.showTabSwitcher, onBack = closeTabSwitcher)
+    // A fullscreen page (a video) has the whole window: no rail, no toolbar, no other panes.
+    // Back leaves it before doing anything else.
+    val fullscreen = browserState.fullscreenTabId != null
+    BackHandler(enabled = fullscreen, onBack = browserViewModel::exitFullscreen)
+    val tabDrag = remember { TabDragState() }
 
     val openNewTab = {
         browserViewModel.openNewTab()
@@ -212,7 +219,8 @@ fun RemBrowseScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
+            // Fullscreen reaches under the (hidden) system bars and around any cutout
+            .then(if (fullscreen) Modifier else Modifier.safeDrawingPadding())
     ) {
         val compact = maxWidth < RemDimens.CompactWidth
         val toolbarExtensions = remember(extensionsState.installedExtensions) {
@@ -220,7 +228,7 @@ fun RemBrowseScreen(
         }
 
         Row(modifier = Modifier.fillMaxSize()) {
-            if (!compact) {
+            if (!compact && !fullscreen) {
                 TabRail(
                     uiState = browserState,
                     onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
@@ -231,6 +239,9 @@ fun RemBrowseScreen(
                     onCloseTab = browserViewModel::closeTab,
                     onCloseOtherTabs = browserViewModel::closeOtherTabs,
                     onAssignTabToPane = browserViewModel::assignTabToPane,
+                    onClosePane = browserViewModel::closePane,
+                    dragState = tabDrag,
+                    onDropTab = browserViewModel::dropTabOnPane,
                     onNewTab = openNewTab,
                     onOpenBookmark = { url ->
                         browserViewModel.openBookmark(url)
@@ -245,7 +256,7 @@ fun RemBrowseScreen(
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                BrowserTopBar(
+                if (!fullscreen) BrowserTopBar(
                     uiState = browserState,
                     compact = compact,
                     installedExtensions = extensionsState.installedExtensions,
@@ -266,6 +277,7 @@ fun RemBrowseScreen(
                     onSplit = browserViewModel::splitCurrentTab,
                     onSwapPanes = browserViewModel::swapFocusedPane,
                     onSetSplitPreset = browserViewModel::setSplitPreset,
+                    onClosePane = { browserViewModel.closePane() },
                     onNewTab = openNewTab,
                     onCloseActiveTab = closeActiveTab,
                     onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
@@ -282,10 +294,10 @@ fun RemBrowseScreen(
                         uiState = browserState,
                         compact = compact,
                         onFocusPane = browserViewModel::focusPane,
-                        onUpdateHorizontalSplit = browserViewModel::updateHorizontalSplit,
-                        onUpdateVerticalSplit = browserViewModel::updateVerticalSplit,
+                        onResizeSplit = browserViewModel::resizeSplit,
                         onCommitSplit = browserViewModel::commitSplitRatios,
-                        onResetSplitRatios = browserViewModel::resetSplitRatios,
+                        onResetSplit = browserViewModel::resetSplit,
+                        dragState = tabDrag,
                         onReloadPane = browserViewModel::reloadOrStop,
                         contentFocusRequested = chrome.pendingContentFocus,
                         onContentFocusHandled = { chrome.pendingContentFocus = false },
@@ -312,7 +324,7 @@ fun RemBrowseScreen(
                         paneViewport = paneViewport
                     )
 
-                    if (chrome.showTabSwitcher) {
+                    if (chrome.showTabSwitcher && !fullscreen) {
                         TabSwitcher(
                             uiState = browserState,
                             framed = !compact,
@@ -330,6 +342,8 @@ fun RemBrowseScreen(
                 }
             }
         }
+
+        TabDragGhost(dragState = tabDrag, tabs = browserState.tabs)
 
         // Over the page, never in its way for long: it leaves by itself after a few seconds
         DownloadNoticeBar(
@@ -357,7 +371,7 @@ fun RemBrowseScreen(
     }
 
     if (chrome.showCommandPalette) {
-        val isSplit = browserState.layoutMode != LayoutMode.SINGLE_1X1
+        val isSplit = browserState.isSplit
         val commands = listOf(
             PaletteCommand("search", "Search the web", Icons.Outlined.Search, "Ctrl+L") {
                 chrome.focusAddressBar()
