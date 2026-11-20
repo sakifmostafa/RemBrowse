@@ -2,6 +2,18 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.11 (2026-11-20) — VPN extensions, second attempt
+
+### Fixed
+* **Proton VPN still said "Not able to control the browser network settings".** 0.10 let it set the proxy, but two more things in the engine's proxy code only work on desktop. Reading the setting back, which Proton does to check that it is in control, looked up a preference Android builds of Firefox do not have, and failed. Setting it asked the enterprise-policy service, which Android builds do not include, and failed too. Both are now handled the way the engine handles them elsewhere: the preference falls back to its desktop default, and the policy check is skipped when there is no policy service. Running the engine's patched proxy code in a simulated Android environment, Proton's connect request now succeeds and the read-back reports it in control; with 0.10's code it fails exactly as it did on a device.
+* **An extension could open its welcome page by itself after updating to 0.10** (AdGuard showed "Loading extension…"). Giving an installed extension the private-browsing permission restarts it, and some extensions greet a restart with a "thanks for installing" tab. Such tabs are no longer opened. (Extensions already updated by 0.10 keep the permission and will not restart again.)
+
+### Known limits
+* The VPN fix still needs a check on a device with Proton VPN.
+
+### Testing
+189 automated tests. The build applies and verifies all four changes to the engine's proxy code.
+
 ## v0.10 (2026-11-20) — Uploads, and VPN extensions
 
 ### Fixed

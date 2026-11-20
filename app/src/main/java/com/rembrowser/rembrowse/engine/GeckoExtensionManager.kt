@@ -469,10 +469,14 @@ class GeckoExtensionManager(
      * does is unlock APIs that Gecko keeps from extensions without it. VPN extensions need it:
      * `proxy.settings` refuses them otherwise (and shows "possibly a permission is missing").
      * Extensions installed since this change get it at install; this covers those installed
-     * before. If RemBrowse ever gains private windows, this must become the user's choice.
+     * before; the restart that applies it opens no tabs. If RemBrowse ever gains private
+     * windows, this must become the user's choice.
      */
     private fun allowInPrivateBrowsing(extension: WebExtension) {
         if (extension.metaData.allowedInPrivateBrowsing || !privateBrowsingRequested.add(extension.id)) return
+        // Gecko restarts the extension to apply the change, and some (AdGuard) greet a restart
+        // with a "thanks for installing" tab; nothing the user did calls for one
+        quietUntil[extension.id] = SystemClock.uptimeMillis() + WELCOME_TAB_QUIET_MS
         controller.setAllowedInPrivateBrowsing(extension, true).accept(
             { updated ->
                 if (updated != null && rawExtensions.containsKey(updated.id)) {
