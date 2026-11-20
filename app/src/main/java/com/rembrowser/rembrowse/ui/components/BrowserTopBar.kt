@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -517,24 +516,16 @@ private fun MoreMenu(
             onClick = run(onOpenExtensions),
             modifier = Modifier.testTag("menu_extensions")
         )
-        // Toolbar buttons of enabled extensions, e.g. a content blocker's popup
-        extensions.forEach { extension ->
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = extension.name,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 220.dp)
-                    )
-                },
-                trailingIcon = {
-                    val badge = extension.badgeText
-                    if (!badge.isNullOrBlank()) ShortcutHint(badge)
-                },
-                onClick = run { onTriggerExtensionAction(extension.id) },
-                modifier = Modifier.padding(start = 12.dp)
-            )
+        // Toolbar buttons of enabled extensions, e.g. a content blocker's popup. Wider windows
+        // show them at the bottom of the tab rail instead.
+        if (compact) {
+            extensions.forEach { extension ->
+                ExtensionMenuItem(
+                    extension = extension,
+                    onClick = run { onTriggerExtensionAction(extension.id) },
+                    modifier = Modifier.padding(start = 12.dp)
+                )
+            }
         }
         divider()
         DropdownMenuItem(

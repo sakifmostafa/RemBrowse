@@ -1,0 +1,24 @@
+{
+  "manifest_version": 2,
+  "name": "RemBrowse extension popups",
+  "description": "Part of RemBrowse: lays out other extensions' popups at the size RemBrowse shows them.",
+  "version": "1.0.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "extension-popups@rembrowse"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "experiment_apis": {
+    "popupViewport": {
+      "schema": "popupViewport.json",
+      "child": {
+        "scopes": ["addon_child"],
+        "script": "popupViewport.js",
+        "paths": [["popupViewport"]]
+      }
+    }
+  }
+}

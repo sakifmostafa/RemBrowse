@@ -1,5 +1,7 @@
 package com.rembrowser.rembrowse.engine
 
+import android.content.res.Resources
+import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.Log
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
@@ -16,17 +18,30 @@ import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
+import org.mozilla.geckoview.Image
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebExtension.InstallException.ErrorCodes
 import org.mozilla.geckoview.WebExtensionController
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 private const val TAG = "GeckoExtensionManager"
 
 /** How long a freshly installed default extension is kept from opening tabs of its own. */
 private const val WELCOME_TAB_QUIET_MS = 30_000L
+
+/** Toolbar icons are drawn at 20dp; rendering them larger keeps them sharp. */
+private const val ICON_RENDER_DP = 32
+
+/**
+ * RemBrowse's own helper extension, shipped in the APK's assets. It gives other extensions'
+ * popups a viewport that fits the popup; see assets/extensions/popup_viewport/popupViewport.js.
+ * Built-in extensions are never listed to the user.
+ */
+internal const val POPUP_VIEWPORT_EXTENSION_ID = "extension-popups@rembrowse"
+internal const val POPUP_VIEWPORT_EXTENSION_URI = "resource://android/assets/extensions/popup_viewport/"
 
 /**
  * @param openExtensionTab creates a browser tab for [url] and returns its *unopened* session,
@@ -48,6 +63,13 @@ class GeckoExtensionManager(
     private var activeSession: GeckoSession? = null
 
     private var activePopupSession: GeckoSession? = null
+
+    // Toolbar icons, rendered once per icon an extension sets. The Image a bitmap was rendered
+    // from tells us when an extension has switched icons (a VPN showing that it connected).
+    private val iconBitmaps = HashMap<String, Bitmap>()
+    private val iconSources = HashMap<String, Image>()
+    private val iconPixelSize =
+        (ICON_RENDER_DP * Resources.getSystem().displayMetrics.density).roundToInt().coerceAtLeast(ICON_RENDER_DP)
 
     // Ids of default extensions being installed right now; their permission review is skipped.
     private val trustedInstallIds = HashSet<String>()
@@ -71,6 +93,20 @@ class GeckoExtensionManager(
 
     init {
         configureDelegates()
+        installBuiltInHelpers()
+    }
+
+    /**
+     * Installs (or updates, after an app update) the built-in helper. If it cannot be set up,
+     * popups still open; they are just shown the way Gecko lays them out by default.
+     */
+    private fun installBuiltInHelpers() {
+        runCatching {
+            controller.ensureBuiltIn(POPUP_VIEWPORT_EXTENSION_URI, POPUP_VIEWPORT_EXTENSION_ID).accept(
+                { Log.d(TAG, "Popup viewport helper ready") },
+                { error -> Log.w(TAG, "Popup viewport helper could not be installed", error) }
+            )
+        }.onFailure { Log.w(TAG, "Popup viewport helper could not be installed", it) }
     }
 
     fun getPopupGeckoSession(): GeckoSession? = activePopupSession
@@ -164,7 +200,8 @@ class GeckoExtensionManager(
     override suspend fun refreshInstalled(): Result<List<InstalledExtension>> =
         withContext(Dispatchers.Main.immediate) {
             runCatching {
-                val list = controller.list().awaitResult() ?: emptyList()
+                // Built-in helpers are part of the browser, not the user's extensions
+                val list = (controller.list().awaitResult() ?: emptyList()).filterNot { it.isBuiltIn }
                 rawExtensions.clear()
                 list.forEach { ext ->
                     rawExtensions[ext.id] = ext
@@ -172,6 +209,9 @@ class GeckoExtensionManager(
                 }
                 val installedIds = list.map { it.id }.toSet()
                 defaultActions.keys.retainAll(installedIds)
+                iconSources.keys.retainAll(installedIds)
+                iconBitmaps.keys.retainAll(installedIds)
+                list.forEach { requestIcon(it.id) }
                 val models = list.map { toModel(it) }.sortedBy { it.name.lowercase() }
                 _installedExtensions.value = models
                 models
@@ -236,6 +276,8 @@ class GeckoExtensionManager(
                 controller.uninstall(ext).awaitResult()
                 rawExtensions.remove(extensionId)
                 defaultActions.remove(extensionId)
+                iconSources.remove(extensionId)
+                iconBitmaps.remove(extensionId)
                 sessionActions.values.forEach { it.remove(extensionId) }
                 if (_activePopup.value?.extensionId == extensionId) {
                     dismissPopup()
@@ -382,12 +424,46 @@ class GeckoExtensionManager(
         val current = _installedExtensions.value
         if (current.isEmpty()) return
         val updated = current.map { ext ->
-            val action = effectiveAction(ext.id) ?: return@map ext
-            ext.copy(hasBrowserAction = true, badgeText = action.badgeText)
+            requestIcon(ext.id)
+            val icon = iconBitmaps[ext.id] ?: ext.icon
+            val action = effectiveAction(ext.id) ?: return@map ext.copy(icon = icon)
+            ext.copy(
+                hasBrowserAction = true,
+                badgeText = action.badgeText,
+                badgeBackgroundColor = action.badgeBackgroundColor,
+                badgeTextColor = action.badgeTextColor,
+                icon = icon
+            )
         }
         if (updated != current) {
             _installedExtensions.value = updated
         }
+    }
+
+    /**
+     * Renders [extensionId]'s current toolbar icon (the extension's own icon when its action
+     * has none) unless that exact icon has been rendered already. The previous bitmap stays on
+     * screen until the new one is ready, so switching icons does not flicker.
+     */
+    private fun requestIcon(extensionId: String) {
+        val image = effectiveAction(extensionId)?.icon ?: rawExtensions[extensionId]?.metaData?.icon
+        if (image == null) {
+            iconSources.remove(extensionId)
+            iconBitmaps.remove(extensionId)
+            return
+        }
+        if (iconSources[extensionId] === image) return
+        iconSources[extensionId] = image
+        image.getBitmap(iconPixelSize).accept(
+            { bitmap ->
+                // Ignore a render that a newer icon has overtaken
+                if (bitmap != null && iconSources[extensionId] === image) {
+                    iconBitmaps[extensionId] = bitmap
+                    refreshActionModels()
+                }
+            },
+            { error -> Log.w(TAG, "Couldn't render the icon of $extensionId", error) }
+        )
     }
 
     private fun toModel(ext: WebExtension): InstalledExtension {
@@ -401,7 +477,10 @@ class GeckoExtensionManager(
             description = meta.description ?: "",
             enabled = meta.enabled,
             hasBrowserAction = hasAction,
-            badgeText = action?.badgeText
+            badgeText = action?.badgeText,
+            icon = iconBitmaps[ext.id],
+            badgeBackgroundColor = action?.badgeBackgroundColor,
+            badgeTextColor = action?.badgeTextColor
         )
     }
 

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,11 +19,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Tab
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
@@ -47,14 +51,26 @@ import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
+import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 
 /** How many bookmarks are pinned to the rail; the rest live in the bookmarks list. */
 private const val MAX_PINNED_SITES = 6
 
 /**
- * The vertical strip on the left edge: tab switcher, pinned sites, open tabs, new tab.
- * Shown on medium and large windows; compact windows use the tab-count button instead.
+ * How many extension buttons sit at the bottom of the rail. With more extensions than this,
+ * the last place goes to a button listing the rest, so the tabs keep their room.
+ */
+internal const val MAX_RAIL_EXTENSIONS = 4
+
+/**
+ * The vertical strip on the left edge: tab switcher, pinned sites, open tabs, new tab, and the
+ * toolbar buttons of extensions at the bottom.
+ * Shown on medium and large windows; compact windows use the tab-count button instead, and
+ * their extension buttons live in the More menu.
+ *
+ * @param extensions extensions with a toolbar button, in the order they are shown.
+ * @param openPopupExtensionId the extension whose popup is open, marked like a selected tab.
  */
 @Composable
 fun TabRail(
@@ -67,7 +83,11 @@ fun TabRail(
     onNewTab: () -> Unit,
     onOpenBookmark: (String) -> Unit,
     onRemoveBookmark: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    extensions: List<InstalledExtension> = emptyList(),
+    openPopupExtensionId: String? = null,
+    onTriggerExtensionAction: (String) -> Unit = {},
+    onManageExtensions: () -> Unit = {}
 ) {
     val pinned = uiState.bookmarks.take(MAX_PINNED_SITES)
 
@@ -90,43 +110,206 @@ fun TabRail(
             )
         }
 
-        LazyColumn(
-            modifier = Modifier.weight(1f, fill = false),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+        // Tabs and the new-tab button take the room the extensions leave; the new-tab button
+        // follows the last tab until the list has to scroll.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (pinned.isNotEmpty()) {
-                items(pinned, key = { "pin-${it.id}" }) { bookmark ->
-                    PinnedSiteItem(
-                        bookmark = bookmark,
-                        onOpen = { onOpenBookmark(bookmark.url) },
-                        onRemove = { onRemoveBookmark(bookmark.id) }
+            LazyColumn(
+                modifier = Modifier.weight(1f, fill = false),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (pinned.isNotEmpty()) {
+                    items(pinned, key = { "pin-${it.id}" }) { bookmark ->
+                        PinnedSiteItem(
+                            bookmark = bookmark,
+                            onOpen = { onOpenBookmark(bookmark.url) },
+                            onRemove = { onRemoveBookmark(bookmark.id) }
+                        )
+                    }
+                    item(key = "pin-divider") { RailDivider() }
+                }
+                items(uiState.tabs, key = { it.id }) { tab ->
+                    val paneIndex = uiState.paneIndexOf(tab.id)
+                    RailTabItem(
+                        tab = tab,
+                        isActive = tab.id == uiState.activeTabId,
+                        isVisibleInPane = paneIndex >= 0,
+                        paneCount = uiState.layoutMode.paneCount,
+                        onSelect = { onSelectTab(tab.id) },
+                        onClose = { onCloseTab(tab.id) },
+                        onCloseOthers = { onCloseOtherTabs(tab.id) },
+                        onShowInPane = { pane -> onAssignTabToPane(pane, tab.id) }
                     )
                 }
-                item(key = "pin-divider") { RailDivider() }
             }
-            items(uiState.tabs, key = { it.id }) { tab ->
-                val paneIndex = uiState.paneIndexOf(tab.id)
-                RailTabItem(
-                    tab = tab,
-                    isActive = tab.id == uiState.activeTabId,
-                    isVisibleInPane = paneIndex >= 0,
-                    paneCount = uiState.layoutMode.paneCount,
-                    onSelect = { onSelectTab(tab.id) },
-                    onClose = { onCloseTab(tab.id) },
-                    onCloseOthers = { onCloseOtherTabs(tab.id) },
-                    onShowInPane = { pane -> onAssignTabToPane(pane, tab.id) }
-                )
-            }
+
+            RailDivider()
+            RemIconButton(
+                icon = Icons.Outlined.Add,
+                label = "New tab",
+                onClick = onNewTab,
+                modifier = Modifier.testTag("new_tab_button")
+            )
         }
 
+        if (extensions.isNotEmpty()) {
+            RailExtensions(
+                extensions = extensions,
+                openPopupExtensionId = openPopupExtensionId,
+                onTrigger = onTriggerExtensionAction,
+                onManage = onManageExtensions
+            )
+        }
+    }
+}
+
+/** Extension buttons pinned to the bottom of the rail, like a desktop browser's toolbar. */
+@Composable
+private fun RailExtensions(
+    extensions: List<InstalledExtension>,
+    openPopupExtensionId: String?,
+    onTrigger: (String) -> Unit,
+    onManage: () -> Unit
+) {
+    val shown = if (extensions.size > MAX_RAIL_EXTENSIONS) {
+        extensions.take(MAX_RAIL_EXTENSIONS - 1)
+    } else {
+        extensions
+    }
+    val overflow = extensions.drop(shown.size)
+    Column(
+        modifier = Modifier
+            .padding(bottom = 6.dp)
+            .testTag("rail_extensions"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
         RailDivider()
-        RemIconButton(
-            icon = Icons.Outlined.Add,
-            label = "New tab",
-            onClick = onNewTab,
-            modifier = Modifier.testTag("new_tab_button")
-        )
+        shown.forEach { extension ->
+            RailExtensionItem(
+                extension = extension,
+                popupOpen = extension.id == openPopupExtensionId,
+                onClick = { onTrigger(extension.id) },
+                onManage = onManage
+            )
+        }
+        if (overflow.isNotEmpty()) {
+            RailExtensionsOverflow(
+                extensions = overflow,
+                popupOpen = overflow.any { it.id == openPopupExtensionId },
+                onTrigger = onTrigger,
+                onManage = onManage
+            )
+        }
+    }
+}
+
+@Composable
+private fun RailExtensionItem(
+    extension: InstalledExtension,
+    popupOpen: Boolean,
+    onClick: () -> Unit,
+    onManage: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val badge = extension.badgeText?.takeIf { it.isNotBlank() }
+    Box {
+        RailTile(
+            // The badge is part of the name, so a screen reader hears the count too
+            label = if (badge != null) "${extension.name} ($badge)" else extension.name,
+            selected = popupOpen,
+            highlighted = false,
+            role = Role.Button,
+            onClick = onClick,
+            onOpenMenu = { showMenu = true },
+            modifier = Modifier.testTag("rail_extension_${extension.id}")
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ExtensionIcon(
+                    icon = extension.icon,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                if (badge != null) {
+                    ExtensionBadge(
+                        text = badge,
+                        backgroundColor = extension.badgeBackgroundColor,
+                        textColor = extension.badgeTextColor,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 2.dp, end = 1.dp)
+                    )
+                }
+            }
+        }
+        RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = { Text("Open ${extension.name}") },
+                onClick = {
+                    showMenu = false
+                    onClick()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Manage extensions") },
+                onClick = {
+                    showMenu = false
+                    onManage()
+                }
+            )
+        }
+    }
+}
+
+/** The last place on the rail when there are too many extensions: a menu of the rest. */
+@Composable
+private fun RailExtensionsOverflow(
+    extensions: List<InstalledExtension>,
+    popupOpen: Boolean,
+    onTrigger: (String) -> Unit,
+    onManage: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box {
+        RailTile(
+            label = "More extensions",
+            selected = popupOpen,
+            highlighted = showMenu,
+            role = Role.Button,
+            onClick = { showMenu = true },
+            onOpenMenu = { showMenu = true },
+            modifier = Modifier.testTag("rail_extensions_more")
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Extension,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(RemDimens.IconSize)
+            )
+        }
+        RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            extensions.forEach { extension ->
+                ExtensionMenuItem(
+                    extension = extension,
+                    onClick = {
+                        showMenu = false
+                        onTrigger(extension.id)
+                    }
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            DropdownMenuItem(
+                text = { Text("Manage extensions") },
+                onClick = {
+                    showMenu = false
+                    onManage()
+                }
+            )
+        }
     }
 }
 

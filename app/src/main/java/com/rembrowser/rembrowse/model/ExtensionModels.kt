@@ -1,5 +1,7 @@
 package com.rembrowser.rembrowse.model
 
+import android.graphics.Bitmap
+
 data class AmoAddon(
     val id: String,
     val slug: String,
@@ -20,7 +22,12 @@ data class InstalledExtension(
     val description: String,
     val enabled: Boolean,
     val hasBrowserAction: Boolean = false,
-    val badgeText: String? = null
+    val badgeText: String? = null,
+    /** The toolbar button's current icon (extensions such as VPNs change it to show state). */
+    val icon: Bitmap? = null,
+    /** Badge colours the extension chose, as ARGB; null means the browser's own. */
+    val badgeBackgroundColor: Int? = null,
+    val badgeTextColor: Int? = null
 )
 
 /** Why the engine is asking the user to review an extension's permissions. */
