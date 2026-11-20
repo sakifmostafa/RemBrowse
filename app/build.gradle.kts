@@ -1,3 +1,10 @@
+import com.android.build.api.artifact.SingleArtifact
+import java.util.zip.CRC32
+import java.util.zip.Deflater
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -12,8 +19,8 @@ android {
         applicationId = "com.rembrowser.rembrowse"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.09"
+        versionCode = 12
+        versionName = "0.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -104,6 +111,13 @@ androidComponents {
     onVariants(selector().withBuildType("release")) { variant ->
         variant.packaging.jniLibs.useLegacyPackaging.set(true)
     }
+    // Every build ships GeckoView with the proxy.settings patch (see PatchGeckoOmniJa)
+    onVariants { variant ->
+        val patch = tasks.register<PatchGeckoOmniJa>("patch${variant.name.replaceFirstChar(Char::uppercase)}GeckoOmniJa")
+        variant.artifacts.use(patch)
+            .wiredWithDirectories(PatchGeckoOmniJa::inputAssets, PatchGeckoOmniJa::outputAssets)
+            .toTransform(SingleArtifact.ASSETS)
+    }
 }
 
 // Builds the installable APKs and copies them to <repo>/build under stable names, ready to be
@@ -167,4 +181,131 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+/**
+ * Lets extensions use the WebExtensions `proxy.settings` API, which GeckoView refuses on Android.
+ *
+ * Firefox's code for the API (`toolkit/components/extensions/parent/ext-proxy.js`) throws
+ * "proxy.settings is not supported on android." before doing anything on Android (Mozilla bug
+ * 1725981). VPN extensions such as Proton VPN use the API to take control of the proxy
+ * setting, then route each request through `proxy.onRequest`, which Android does support; the
+ * refusal stops them from connecting at all. This rewrites that one script inside GeckoView's
+ * `omni.ja` so its two Android-only refusals are skipped. Every other entry of the archive is
+ * copied unchanged, in the same order and with the same compression method.
+ *
+ * The task checks its own result and fails the build if the code it expects is not found
+ * exactly once, so a GeckoView update that changes the script is noticed instead of shipping
+ * unpatched.
+ */
+abstract class PatchGeckoOmniJa : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val inputAssets: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputAssets: DirectoryProperty
+
+    @TaskAction
+    fun patch() {
+        val input = inputAssets.get().asFile
+        val output = outputAssets.get().asFile
+        output.deleteRecursively()
+        input.copyRecursively(output)
+        val source = File(input, OMNI_JA)
+        check(source.isFile) { "GeckoView's $OMNI_JA is missing from the merged assets" }
+        val target = File(output, OMNI_JA)
+        rewriteOmniJa(source, target)
+        verify(source, target)
+    }
+
+    private fun rewriteOmniJa(source: File, target: File) {
+        var patched = 0
+        ZipFile(source).use { zip ->
+            ZipOutputStream(target.outputStream().buffered()).use { out ->
+                out.setLevel(Deflater.BEST_COMPRESSION)
+                for (entry in zip.entries()) {
+                    var bytes = zip.getInputStream(entry).use { it.readBytes() }
+                    if (entry.name == PROXY_SCRIPT) {
+                        bytes = patchProxyScript(bytes.toString(Charsets.UTF_8)).toByteArray(Charsets.UTF_8)
+                        patched++
+                    }
+                    out.putNextEntry(copyOf(entry, bytes))
+                    out.write(bytes)
+                    out.closeEntry()
+                }
+            }
+        }
+        check(patched == 1) { "$PROXY_SCRIPT was not found in $OMNI_JA" }
+    }
+
+    /**
+     * A new entry like [entry] for [bytes], with every size and checksum filled in up front so
+     * no data descriptors are written: the archive keeps the plain layout Gecko's own build
+     * produces.
+     */
+    private fun copyOf(entry: ZipEntry, bytes: ByteArray): ZipEntry = ZipEntry(entry.name).apply {
+        time = entry.time
+        method = entry.method
+        size = bytes.size.toLong()
+        crc = CRC32().apply { update(bytes) }.value
+        compressedSize = if (entry.method == ZipEntry.STORED) bytes.size.toLong() else deflatedSize(bytes)
+    }
+
+    private fun deflatedSize(bytes: ByteArray): Long {
+        val deflater = Deflater(Deflater.BEST_COMPRESSION, true)
+        try {
+            deflater.setInput(bytes)
+            deflater.finish()
+            val buffer = ByteArray(64 * 1024)
+            var total = 0L
+            while (!deflater.finished()) total += deflater.deflate(buffer)
+            return total
+        } finally {
+            deflater.end()
+        }
+    }
+
+    /** Reads every entry back (which checks its CRC) and checks only the proxy script changed. */
+    private fun verify(source: File, target: File) {
+        ZipFile(source).use { before ->
+            ZipFile(target).use { after ->
+                val names = before.entries().toList().map { it.name }
+                check(after.entries().toList().map { it.name } == names) { "Patched $OMNI_JA lost or reordered entries" }
+                for (name in names) {
+                    val old = before.getInputStream(before.getEntry(name)).use { it.readBytes() }
+                    val new = after.getInputStream(after.getEntry(name)).use { it.readBytes() }
+                    if (name == PROXY_SCRIPT) {
+                        val text = new.toString(Charsets.UTF_8)
+                        check(ANDROID_CHECKS.none { it in text } && text.contains(PATCH_MARKER)) {
+                            "Patched $PROXY_SCRIPT still refuses proxy.settings on Android"
+                        }
+                    } else {
+                        check(old.contentEquals(new)) { "Patched $OMNI_JA changed $name" }
+                    }
+                }
+            }
+        }
+    }
+
+    companion object {
+        const val OMNI_JA = "omni.ja"
+        const val PROXY_SCRIPT = "chrome/toolkit/content/extensions/parent/ext-proxy.js"
+        const val PATCH_MARKER = "RemBrowse: proxy.settings is allowed on Android"
+
+        /** The two refusals in Firefox 138's ext-proxy.js: one in validate(), one in set(). */
+        val ANDROID_CHECKS = listOf(
+            "if (AppConstants.platform == \"android\") {",
+            "if (AppConstants.platform === \"android\") {"
+        )
+
+        fun patchProxyScript(script: String): String = ANDROID_CHECKS.fold(script) { text, check ->
+            val found = text.split(check).size - 1
+            check(found == 1) {
+                "Expected `$check` once in $PROXY_SCRIPT but found it $found times. " +
+                    "GeckoView's proxy code changed: review the patch in app/build.gradle.kts."
+            }
+            text.replace(check, "if (false /* $PATCH_MARKER */) {")
+        }
+    }
 }

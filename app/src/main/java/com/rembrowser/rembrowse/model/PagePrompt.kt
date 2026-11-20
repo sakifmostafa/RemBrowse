@@ -2,7 +2,7 @@ package com.rembrowser.rembrowse.model
 
 /**
  * A dialog that web content asked the browser to show (JavaScript `alert`/`confirm`/`prompt`,
- * HTTP authentication, or an HTML `<select>` picker).
+ * HTTP authentication, an HTML `<select>` picker, or the file picker of an upload button).
  *
  * The engine owns the callbacks; the UI calls exactly one of them and then removes the prompt.
  */
@@ -52,6 +52,23 @@ sealed interface PagePrompt {
         val previousAttemptFailed: Boolean,
         val onResult: (username: String, password: String) -> Unit,
         override val onDismiss: () -> Unit
+    ) : PagePrompt
+
+    /**
+     * A page's file input (an upload button, as on Google Drive or X) asked for files. The UI
+     * opens the system file picker rather than a dialog, then hands back what was chosen as
+     * `content://` addresses, or calls [onDismiss] when nothing was.
+     */
+    data class FilePicker(
+        override val id: String,
+        override val tabId: String,
+        override val title: String?,
+        val multiple: Boolean,
+        /** MIME types to offer, such as `image/png` (a family ends in a wildcard). Never empty. */
+        val mimeTypes: List<String>,
+        val onResult: (uris: List<String>) -> Unit,
+        override val onDismiss: () -> Unit,
+        override val message: String? = null
     ) : PagePrompt
 
     data class Choice(

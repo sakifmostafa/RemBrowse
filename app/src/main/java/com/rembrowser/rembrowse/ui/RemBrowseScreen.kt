@@ -40,6 +40,7 @@ import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
@@ -112,6 +113,11 @@ fun RemBrowseScreen(
     onOpenDownload: (DownloadItem) -> Boolean = { false },
     onOpenDownloadsFolder: () -> Unit = {},
     onFocusWebContent: (tabId: String) -> Unit = {},
+    /**
+     * Opens the system file picker for a page's upload button. The caller answers the prompt
+     * (its onResult or onDismiss) and then resolves it in [browserViewModel].
+     */
+    onPickFiles: (PagePrompt.FilePicker) -> Unit = {},
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     extensionPopupContent: @Composable (Modifier) -> Unit
 ) {
@@ -405,6 +411,11 @@ fun RemBrowseScreen(
     }
 
     browserState.visiblePrompt?.let { prompt ->
+        if (prompt is PagePrompt.FilePicker) {
+            // An upload button: the system file picker answers it, once per request
+            LaunchedEffect(prompt.id) { onPickFiles(prompt) }
+            return@let
+        }
         val origin = browserState.tabs.firstOrNull { it.id == prompt.tabId }
             ?.let { UrlResolver.extractDisplayHost(it.url) }
             ?.takeIf { it.isNotBlank() }

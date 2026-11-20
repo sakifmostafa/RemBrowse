@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **183 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **189 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -64,6 +64,7 @@ Test suites included:
 * `CommandPaletteResultsTest` — what the command palette offers for a typed query.
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
 * `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01, and the saved downloads list.
+* `UploadCacheTest` — copying files picked for an upload button: names kept, same names apart, unreadable files left out, old copies removed, the MIME types offered to the picker.
 * `BuiltInExtensionAssetsTest` — the bundled popup viewport helper: its id, the files its manifest names and its API wiring.
 * `RailExtensionSlotsTest` / `ExtensionPopupDialogTest` — how many extension buttons fit on the rail for its height; where an extension popup's window goes (beside the rail, centred after the window becomes phone-sized, right-to-left).
 * `RemBrowseUiTest` / `CompactWindowUiTest` — the real Compose screen on a laptop-sized and a phone-sized window, including extension buttons on the rail (also on short windows) and in the More menu.
@@ -101,6 +102,14 @@ build/VERSION.txt
 
 Commit those three files to publish a new version. Release APKs are about 85–90 MB: the native engine is stored compressed and unused library code is removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`). Each file must stay under GitHub's 100 MB limit.
 
+### The engine patch
+
+Every build runs `patch<Variant>GeckoOmniJa`, which rewrites one script inside GeckoView's `omni.ja` so extensions may use `proxy.settings` on Android (see the Architecture Guide). After a GeckoView update the build stops with "Expected `if (AppConstants.platform == "android") {` once…" if Mozilla changed that script. Read the new `toolkit/components/extensions/parent/ext-proxy.js` for that version, update `ANDROID_CHECKS` in `app/build.gradle.kts`, and check that the patch still only removes the Android refusal. To see the patched script in an APK:
+
+```bash
+unzip -p app/build/outputs/apk/debug/RemBrowse-*-x86_64-debug.apk assets/omni.ja > /tmp/omni.ja && unzip -p /tmp/omni.ja chrome/toolkit/content/extensions/parent/ext-proxy.js | grep -n RemBrowse
+```
+
 ### Debug builds
 
 ```bash
@@ -126,7 +135,7 @@ APK="build/RemBrowse-x86_64.apk"
 
 ## 5. Signing & Versioning Rules
 
-* **Persistent keystore**: when `signing/rembrowse.jks` exists (4096-bit RSA, alias `rembrowse`; passwords from `REMBROWSE_STORE_PASSWORD` / `REMBROWSE_KEY_PASSWORD`), debug and release builds are signed with it. Keeping this keystore stable lets installed builds upgrade in place. It is intentionally not committed.
+* **Persistent keystore**: when `signing/rembrowse.jks` exists (alias `rembrowse`; passwords from `REMBROWSE_STORE_PASSWORD` / `REMBROWSE_KEY_PASSWORD`, otherwise the defaults in `app/build.gradle.kts`), debug and release builds are signed with it. Releases from 0.09 on are signed with the key whose certificate has the SHA-256 fingerprint `F1:A5:30:6A:47:E4:BE:78:AD:7F:B0:C1:41:88:71:E3:A6:C9:A8:35:13:49:E2:42:39:DB:20:B4:75:B2:BE:06`; check a build with `apksigner verify --print-certs`. Keeping this keystore stable lets installed builds upgrade in place. It is intentionally not committed.
 * **Without the keystore** (a fresh clone, CI, a cloud build), builds are signed with that machine's debug key so they remain installable. Android will not install such a build over one signed with a different key: uninstall the old copy first. **Publish from a machine that has the keystore** if you want downloads to update in place.
 * **Version increments**: for each new release, update `versionName` (e.g. `"0.08"`) and **always increment `versionCode`** (`6` → `7` …) in `app/build.gradle.kts` to avoid `INSTALL_FAILED_VERSION_DOWNGRADE`. APK names and `build/VERSION.txt` follow `versionName` automatically; update the version shown in the README's download section.
 * **Processor types**: `arm64-v8a` covers ARM phones, tablets and laptops; `x86_64` covers Intel/AMD Android laptops.
