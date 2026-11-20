@@ -1,7 +1,10 @@
 package com.rembrowser.rembrowse.engine
 
+import android.annotation.SuppressLint
 import android.content.res.Resources
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
@@ -36,6 +39,13 @@ private const val WELCOME_TAB_QUIET_MS = 30_000L
 private const val ICON_RENDER_DP = 32
 
 /**
+ * How long a changed toolbar icon waits before it is rendered. Every action update (an ad
+ * blocker's badge counting up while a page loads) arrives with a new icon object, usually of
+ * the same picture, so updates in a burst are rendered once.
+ */
+private const val ICON_REFRESH_DELAY_MS = 300L
+
+/**
  * RemBrowse's own helper extension, shipped in the APK's assets. It gives other extensions'
  * popups a viewport that fits the popup; see assets/extensions/popup_viewport/popupViewport.js.
  * Built-in extensions are never listed to the user.
@@ -64,10 +74,13 @@ class GeckoExtensionManager(
 
     private var activePopupSession: GeckoSession? = null
 
-    // Toolbar icons, rendered once per icon an extension sets. The Image a bitmap was rendered
-    // from tells us when an extension has switched icons (a VPN showing that it connected).
+    // Toolbar icons. GeckoView hands over a new Image with every action update, so the Image
+    // last rendered only tells us that something *may* have changed (a VPN showing that it
+    // connected); renders are coalesced and a bitmap that looks the same is not published.
     private val iconBitmaps = HashMap<String, Bitmap>()
     private val iconSources = HashMap<String, Image>()
+    private val iconRendersPending = HashSet<String>()
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val iconPixelSize =
         (ICON_RENDER_DP * Resources.getSystem().displayMetrics.density).roundToInt().coerceAtLeast(ICON_RENDER_DP)
 
@@ -211,6 +224,7 @@ class GeckoExtensionManager(
                 defaultActions.keys.retainAll(installedIds)
                 iconSources.keys.retainAll(installedIds)
                 iconBitmaps.keys.retainAll(installedIds)
+                iconRendersPending.retainAll(installedIds)
                 list.forEach { requestIcon(it.id) }
                 val models = list.map { toModel(it) }.sortedBy { it.name.lowercase() }
                 _installedExtensions.value = models
@@ -278,6 +292,7 @@ class GeckoExtensionManager(
                 defaultActions.remove(extensionId)
                 iconSources.remove(extensionId)
                 iconBitmaps.remove(extensionId)
+                iconRendersPending.remove(extensionId)
                 sessionActions.values.forEach { it.remove(extensionId) }
                 if (_activePopup.value?.extensionId == extensionId) {
                     dismissPopup()
@@ -440,31 +455,61 @@ class GeckoExtensionManager(
         }
     }
 
+    /** The icon [extensionId]'s button should show: its action's, else the extension's own. */
+    private fun currentIcon(extensionId: String): Image? =
+        effectiveAction(extensionId)?.icon ?: rawExtensions[extensionId]?.metaData?.icon
+
     /**
-     * Renders [extensionId]'s current toolbar icon (the extension's own icon when its action
-     * has none) unless that exact icon has been rendered already. The previous bitmap stays on
-     * screen until the new one is ready, so switching icons does not flicker.
+     * Makes sure [extensionId]'s current toolbar icon gets rendered. At most one render per
+     * extension is scheduled or running at a time, and it picks up the newest icon when it
+     * starts. An extension's first icon is rendered at once; later changes wait
+     * [ICON_REFRESH_DELAY_MS], and the previous bitmap stays on screen meanwhile.
      */
     private fun requestIcon(extensionId: String) {
-        val image = effectiveAction(extensionId)?.icon ?: rawExtensions[extensionId]?.metaData?.icon
+        val image = currentIcon(extensionId)
         if (image == null) {
             iconSources.remove(extensionId)
             iconBitmaps.remove(extensionId)
             return
         }
         if (iconSources[extensionId] === image) return
+        if (!iconRendersPending.add(extensionId)) return
+        val delay = if (iconBitmaps.containsKey(extensionId)) ICON_REFRESH_DELAY_MS else 0L
+        mainHandler.postDelayed({ renderIcon(extensionId) }, delay)
+    }
+
+    private fun renderIcon(extensionId: String) {
+        val image = currentIcon(extensionId)
+        if (image == null || !rawExtensions.containsKey(extensionId)) {
+            iconRendersPending.remove(extensionId)
+            return
+        }
         iconSources[extensionId] = image
         image.getBitmap(iconPixelSize).accept(
             { bitmap ->
-                // Ignore a render that a newer icon has overtaken
-                if (bitmap != null && iconSources[extensionId] === image) {
-                    iconBitmaps[extensionId] = bitmap
-                    refreshActionModels()
+                iconRendersPending.remove(extensionId)
+                if (bitmap != null && rawExtensions.containsKey(extensionId)) {
+                    val previous = iconBitmaps[extensionId]
+                    if (previous == null || !looksTheSame(previous, bitmap)) {
+                        iconBitmaps[extensionId] = bitmap
+                        refreshActionModels()
+                    }
                 }
+                // The icon may have changed again while this one was rendering
+                requestIcon(extensionId)
             },
-            { error -> Log.w(TAG, "Couldn't render the icon of $extensionId", error) }
+            { error ->
+                // Not retried for this icon; the button shows the previous one or a puzzle piece
+                iconRendersPending.remove(extensionId)
+                Log.w(TAG, "Couldn't render the icon of $extensionId", error)
+            }
         )
     }
+
+    // Bitmap.sameAs is marked for worker threads because it compares every pixel; these are
+    // toolbar icons of at most a few thousand pixels, compared at most a few times a second.
+    @SuppressLint("WrongThread")
+    private fun looksTheSame(a: Bitmap, b: Bitmap): Boolean = a.sameAs(b)
 
     private fun toModel(ext: WebExtension): InstalledExtension {
         val meta = ext.metaData

@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,6 +48,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
@@ -62,6 +64,26 @@ private const val MAX_PINNED_SITES = 6
  * the last place goes to a button listing the rest, so the tabs keep their room.
  */
 internal const val MAX_RAIL_EXTENSIONS = 4
+
+/** One rail button (its 48dp touch target) and the 2dp gap that follows it. */
+private val RailSlot = 50.dp
+
+/** The extension section's divider (13dp) and its bottom margin (6dp). */
+private val RailExtensionsChrome = 19.dp
+
+/** Room the tabs always keep: two tabs, the divider and the new-tab button. */
+private val MinTabArea = RailSlot * 2 + 13.dp + 48.dp
+
+/**
+ * How many extension buttons, the overflow button included, fit at the foot of a rail
+ * [railHeight] tall without crowding out the tabs. On a short window (a phone in landscape,
+ * or with the keyboard up) that can be a single button listing every extension, which keeps
+ * them all reachable.
+ */
+internal fun railExtensionSlots(railHeight: Dp): Int {
+    val room = railHeight - RemDimens.ToolbarHeight - MinTabArea - RailExtensionsChrome
+    return (room / RailSlot).toInt().coerceIn(1, MAX_RAIL_EXTENSIONS)
+}
 
 /**
  * The vertical strip on the left edge: tab switcher, pinned sites, open tabs, new tab, and the
@@ -91,96 +113,102 @@ fun TabRail(
 ) {
     val pinned = uiState.bookmarks.take(MAX_PINNED_SITES)
 
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .width(RemDimens.RailWidth)
             .fillMaxHeight()
-            .testTag("tab_rail"),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .testTag("tab_rail")
     ) {
-        Box(
-            modifier = Modifier.height(RemDimens.ToolbarHeight),
-            contentAlignment = Alignment.Center
-        ) {
-            RemIconButton(
-                icon = Icons.Outlined.Tab,
-                label = "Tab switcher",
-                onClick = onOpenTabSwitcher,
-                modifier = Modifier.testTag("tab_switcher_button")
-            )
-        }
-
-        // Tabs and the new-tab button take the room the extensions leave; the new-tab button
-        // follows the last tab until the list has to scroll.
+        val extensionSlots = railExtensionSlots(maxHeight)
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            LazyColumn(
-                modifier = Modifier.weight(1f, fill = false),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+            Box(
+                modifier = Modifier.height(RemDimens.ToolbarHeight),
+                contentAlignment = Alignment.Center
             ) {
-                if (pinned.isNotEmpty()) {
-                    items(pinned, key = { "pin-${it.id}" }) { bookmark ->
-                        PinnedSiteItem(
-                            bookmark = bookmark,
-                            onOpen = { onOpenBookmark(bookmark.url) },
-                            onRemove = { onRemoveBookmark(bookmark.id) }
-                        )
-                    }
-                    item(key = "pin-divider") { RailDivider() }
-                }
-                items(uiState.tabs, key = { it.id }) { tab ->
-                    val paneIndex = uiState.paneIndexOf(tab.id)
-                    RailTabItem(
-                        tab = tab,
-                        isActive = tab.id == uiState.activeTabId,
-                        isVisibleInPane = paneIndex >= 0,
-                        paneCount = uiState.layoutMode.paneCount,
-                        onSelect = { onSelectTab(tab.id) },
-                        onClose = { onCloseTab(tab.id) },
-                        onCloseOthers = { onCloseOtherTabs(tab.id) },
-                        onShowInPane = { pane -> onAssignTabToPane(pane, tab.id) }
-                    )
-                }
+                RemIconButton(
+                    icon = Icons.Outlined.Tab,
+                    label = "Tab switcher",
+                    onClick = onOpenTabSwitcher,
+                    modifier = Modifier.testTag("tab_switcher_button")
+                )
             }
 
-            RailDivider()
-            RemIconButton(
-                icon = Icons.Outlined.Add,
-                label = "New tab",
-                onClick = onNewTab,
-                modifier = Modifier.testTag("new_tab_button")
-            )
-        }
+            // Tabs and the new-tab button take the room the extensions leave; the new-tab button
+            // follows the last tab until the list has to scroll.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    if (pinned.isNotEmpty()) {
+                        items(pinned, key = { "pin-${it.id}" }) { bookmark ->
+                            PinnedSiteItem(
+                                bookmark = bookmark,
+                                onOpen = { onOpenBookmark(bookmark.url) },
+                                onRemove = { onRemoveBookmark(bookmark.id) }
+                            )
+                        }
+                        item(key = "pin-divider") { RailDivider() }
+                    }
+                    items(uiState.tabs, key = { it.id }) { tab ->
+                        val paneIndex = uiState.paneIndexOf(tab.id)
+                        RailTabItem(
+                            tab = tab,
+                            isActive = tab.id == uiState.activeTabId,
+                            isVisibleInPane = paneIndex >= 0,
+                            paneCount = uiState.layoutMode.paneCount,
+                            onSelect = { onSelectTab(tab.id) },
+                            onClose = { onCloseTab(tab.id) },
+                            onCloseOthers = { onCloseOtherTabs(tab.id) },
+                            onShowInPane = { pane -> onAssignTabToPane(pane, tab.id) }
+                        )
+                    }
+                }
 
-        if (extensions.isNotEmpty()) {
-            RailExtensions(
-                extensions = extensions,
-                openPopupExtensionId = openPopupExtensionId,
-                onTrigger = onTriggerExtensionAction,
-                onManage = onManageExtensions
-            )
+                RailDivider()
+                RemIconButton(
+                    icon = Icons.Outlined.Add,
+                    label = "New tab",
+                    onClick = onNewTab,
+                    modifier = Modifier.testTag("new_tab_button")
+                )
+            }
+
+            if (extensions.isNotEmpty()) {
+                RailExtensions(
+                    extensions = extensions,
+                    slots = extensionSlots,
+                    openPopupExtensionId = openPopupExtensionId,
+                    onTrigger = onTriggerExtensionAction,
+                    onManage = onManageExtensions
+                )
+            }
         }
     }
 }
 
-/** Extension buttons pinned to the bottom of the rail, like a desktop browser's toolbar. */
+/**
+ * Extension buttons pinned to the bottom of the rail, like a desktop browser's toolbar. When
+ * there are more extensions than [slots], the last slot lists the rest.
+ */
 @Composable
 private fun RailExtensions(
     extensions: List<InstalledExtension>,
+    slots: Int,
     openPopupExtensionId: String?,
     onTrigger: (String) -> Unit,
     onManage: () -> Unit
 ) {
-    val shown = if (extensions.size > MAX_RAIL_EXTENSIONS) {
-        extensions.take(MAX_RAIL_EXTENSIONS - 1)
-    } else {
-        extensions
-    }
+    val shown = if (extensions.size > slots) extensions.take(slots - 1) else extensions
     val overflow = extensions.drop(shown.size)
     Column(
         modifier = Modifier
@@ -201,6 +229,7 @@ private fun RailExtensions(
         if (overflow.isNotEmpty()) {
             RailExtensionsOverflow(
                 extensions = overflow,
+                showsAll = shown.isEmpty(),
                 popupOpen = overflow.any { it.id == openPopupExtensionId },
                 onTrigger = onTrigger,
                 onManage = onManage
@@ -269,6 +298,7 @@ private fun RailExtensionItem(
 @Composable
 private fun RailExtensionsOverflow(
     extensions: List<InstalledExtension>,
+    showsAll: Boolean,
     popupOpen: Boolean,
     onTrigger: (String) -> Unit,
     onManage: () -> Unit
@@ -276,7 +306,7 @@ private fun RailExtensionsOverflow(
     var showMenu by remember { mutableStateOf(false) }
     Box {
         RailTile(
-            label = "More extensions",
+            label = if (showsAll) "Extensions" else "More extensions",
             selected = popupOpen,
             highlighted = showMenu,
             role = Role.Button,
