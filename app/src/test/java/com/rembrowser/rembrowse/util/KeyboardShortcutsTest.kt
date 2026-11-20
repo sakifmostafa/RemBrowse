@@ -48,4 +48,10 @@ class KeyboardShortcutsTest {
         assertNull("Plain arrow keys scroll the page", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_DPAD_LEFT, ctrl = false))
         assertNull("Unmapped Ctrl key", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_C, ctrl = true))
     }
+
+    @Test
+    fun ctrlH_opensTheHistory() {
+        assertEquals(BrowserShortcut.OPEN_HISTORY, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_H, ctrl = true))
+        assertEquals(null, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_H, ctrl = false))
+    }
 }

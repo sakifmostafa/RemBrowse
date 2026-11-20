@@ -61,6 +61,7 @@ enum class SettingsSection(val path: String, val label: String) {
     SEARCH("search", "Search"),
     TABS("tabs", "Tabs"),
     PRIVACY("privacy", "Privacy"),
+    HISTORY("history", "History"),
     DOWNLOADS("downloads", "Downloads"),
     EXTENSIONS("extensions", "Extensions"),
     ABOUT("about", "About");
@@ -93,7 +94,9 @@ data class BrowserSettings(
     /** New tabs ask sites for their desktop version. A tab can still be switched on its own. */
     val desktopSiteByDefault: Boolean = true,
     /** Show a file's name, size and site, and wait for a yes, before saving it. */
-    val askBeforeDownloading: Boolean = true
+    val askBeforeDownloading: Boolean = true,
+    /** Record the pages visited in the browsing history. Turning it off keeps what is there. */
+    val keepHistory: Boolean = true
 )
 
 data class SplitRatios(

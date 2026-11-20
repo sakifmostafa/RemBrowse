@@ -1,6 +1,8 @@
 package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.data.BrowserStateRepository
+import com.rembrowser.rembrowse.data.BrowsingHistoryStore
+import com.rembrowser.rembrowse.data.NoBrowsingHistory
 import com.rembrowser.rembrowse.engine.BrowserEngine
 import com.rembrowser.rembrowse.engine.BrowserSessionHandle
 import com.rembrowser.rembrowse.engine.SessionEventListener
@@ -10,6 +12,7 @@ import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.DownloadRequest
+import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PersistedBrowserState
@@ -17,20 +20,29 @@ import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.util.UrlResolver
+import java.util.UUID
+import kotlin.math.abs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.util.UUID
-import kotlin.math.abs
+
+/** The most pages the history keeps; the oldest drop off. */
+const val MAX_HISTORY_ENTRIES = 1_000
 
 class BrowserViewModel(
     private val engine: BrowserEngine,
     private val repository: BrowserStateRepository,
-    private val idGenerator: () -> String = { UUID.randomUUID().toString() }
+    private val idGenerator: () -> String = { UUID.randomUUID().toString() },
+    private val historyStore: BrowsingHistoryStore = NoBrowsingHistory,
+    private val clock: () -> Long = System::currentTimeMillis
 ) {
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
+
+    /** Pages visited, most recent first; one entry per address (see [HistoryEntry]). */
+    private val _history = MutableStateFlow(historyStore.load())
+    val history: StateFlow<List<HistoryEntry>> = _history.asStateFlow()
 
     private val sessionListener = object : SessionEventListener {
         override fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate) {
@@ -81,6 +93,7 @@ class BrowserViewModel(
             if (update.url != null || update.title != null) {
                 persistCurrentState()
             }
+            recordHistory(tabId, shownUrl, update.title)
         }
 
         override fun onNewTabRequested(url: String, openerTabId: String?) {
@@ -627,6 +640,50 @@ class BrowserViewModel(
     fun setAskBeforeDownloading(enabled: Boolean) {
         _uiState.update { it.copy(settings = it.settings.copy(askBeforeDownloading = enabled)) }
         persistCurrentState()
+    }
+
+    /** Whether visited pages are recorded. Turning it off keeps the history already there. */
+    fun setKeepHistory(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(keepHistory = enabled)) }
+        persistCurrentState()
+    }
+
+    /** Opens a page from the history, the way a bookmark opens. */
+    fun openHistoryEntry(url: String) = openBookmark(url)
+
+    fun removeHistoryEntry(url: String) {
+        updateHistory { entries -> entries.filterNot { it.url == url } }
+    }
+
+    fun clearHistory() {
+        updateHistory { emptyList() }
+    }
+
+    /**
+     * A tab showed a page ([shownUrl]) or learned its title. Only ordinary web pages are kept:
+     * the start page, the settings page, extension pages and other internal addresses are not.
+     */
+    private fun recordHistory(tabId: String, shownUrl: String?, title: String?) {
+        if (!_uiState.value.settings.keepHistory) return
+        val tab = _uiState.value.tabs.firstOrNull { it.id == tabId } ?: return
+        if (!shownUrl.isNullOrBlank() && UrlResolver.isWebUrl(shownUrl)) {
+            val visit = HistoryEntry(url = shownUrl, title = tab.title, visitedAtMillis = clock())
+            updateHistory { entries -> (listOf(visit) + entries.filterNot { it.url == shownUrl }).take(MAX_HISTORY_ENTRIES) }
+        } else if (!title.isNullOrBlank() && UrlResolver.isWebUrl(tab.url)) {
+            // The title usually arrives after the address; it belongs to the entry just made
+            val current = _history.value
+            val index = current.indexOfFirst { it.url == tab.url }
+            if (index >= 0 && current[index].title != title) {
+                updateHistory { entries -> entries.map { if (it.url == tab.url) it.copy(title = title) else it } }
+            }
+        }
+    }
+
+    private fun updateHistory(change: (List<HistoryEntry>) -> List<HistoryEntry>) {
+        val updated = change(_history.value)
+        if (updated == _history.value) return
+        _history.value = updated
+        historyStore.save(updated)
     }
 
     /**

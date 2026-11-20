@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
@@ -64,6 +65,7 @@ import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.DownloadsUiState
 import com.rembrowser.rembrowse.model.ExtensionsUiState
+import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.theme.tones
@@ -77,6 +79,7 @@ private val SettingsSection.icon: ImageVector
         SettingsSection.SEARCH -> Icons.Outlined.Search
         SettingsSection.TABS -> Icons.Outlined.Tab
         SettingsSection.PRIVACY -> Icons.Outlined.Shield
+        SettingsSection.HISTORY -> Icons.Outlined.History
         SettingsSection.DOWNLOADS -> Icons.Outlined.FileDownload
         SettingsSection.EXTENSIONS -> Icons.Outlined.Extension
         SettingsSection.ABOUT -> Icons.Outlined.Info
@@ -92,7 +95,8 @@ class SettingsActions(
     val onSetDesktopSiteByDefault: (Boolean) -> Unit,
     val onSetEnhancedPrivacy: (Boolean) -> Unit,
     val onSetAdBlocker: (Boolean) -> Unit,
-    val onSetAskBeforeDownloading: (Boolean) -> Unit
+    val onSetAskBeforeDownloading: (Boolean) -> Unit,
+    val onSetKeepHistory: (Boolean) -> Unit = {}
 )
 
 /**
@@ -120,7 +124,9 @@ fun SettingsPage(
     actions: SettingsActions,
     extensionActions: ExtensionsPanelActions,
     downloadActions: DownloadsPanelActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    history: List<HistoryEntry> = emptyList(),
+    historyActions: HistoryActions = HistoryActions(onOpen = {}, onRemove = {}, onClear = {})
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -154,6 +160,32 @@ fun SettingsPage(
                     ExtensionsPanel(
                         uiState = extensionsState,
                         actions = extensionActions,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else if (section == SettingsSection.HISTORY) {
+                // The history list scrolls on its own, like the extension lists
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .widthIn(max = ContentMaxWidth)
+                        .padding(start = 24.dp, end = 24.dp, top = 20.dp)
+                ) {
+                    SectionHeader(title = section.label, subtitle = null)
+                    SwitchRow(
+                        title = "Keep browsing history",
+                        description = "Lists the web pages you open, newest first. Turning this off stops recording " +
+                            "and keeps what is already here.",
+                        checked = settings.keepHistory,
+                        onCheckedChange = actions.onSetKeepHistory,
+                        testTag = "setting_keep_history"
+                    )
+                    HorizontalDivider(color = colors.outlineVariant)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HistoryPanel(
+                        entries = history,
+                        keepHistory = settings.keepHistory,
+                        actions = historyActions,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -194,7 +226,7 @@ fun SettingsPage(
                             onSetEnhancedPrivacy = actions.onSetEnhancedPrivacy
                         )
                         SettingsSection.ABOUT -> AboutSection(versionName)
-                        SettingsSection.EXTENSIONS -> Unit
+                        SettingsSection.EXTENSIONS, SettingsSection.HISTORY -> Unit
                     }
                 }
             }

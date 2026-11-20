@@ -3,6 +3,7 @@ package com.rembrowser.rembrowse.ui
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.buildPaletteResults
 import org.junit.Assert.assertEquals
@@ -58,5 +59,26 @@ class CommandPaletteResultsTest {
         assertEquals("t2", selected)
 
         assertTrue(results("new").none { it.id == "tab-t1" })
+    }
+
+    @Test
+    fun matchingPagesFromTheHistory_areOfferedAfterTabs_unlessAlreadyOpen() {
+        val history = listOf(
+            HistoryEntry("https://github.com/sakif/repo", "My repo", 3L),
+            HistoryEntry(tabs[1].url, tabs[1].title, 2L),
+            HistoryEntry("https://news.example/", "News", 1L)
+        )
+        var navigated: String? = null
+        val results = buildPaletteResults("repo", commands, emptyList(), onNavigate = { navigated = it }, onSelectTab = {}, history = history)
+
+        val fromHistory = results.filter { it.id.startsWith("history-") }
+        assertEquals(listOf("My repo"), fromHistory.map { it.label })
+        fromHistory.single().action()
+        assertEquals("https://github.com/sakif/repo", navigated)
+
+        // A page already open in a tab is offered as that tab, not again from the history
+        val openQuery = buildPaletteResults("Mozilla", commands, tabs, {}, {}, history)
+        assertTrue(openQuery.any { it.id == "tab-t2" })
+        assertTrue(openQuery.none { it.id == "history-${tabs[1].url}" })
     }
 }

@@ -801,6 +801,50 @@ class RemBrowseUiTest {
     }
 
     @Test
+    fun history_listsVisitedPages_searchesOpensAndClears() {
+        launch()
+        val tabId = browserVm.uiState.value.activeTabId!!
+        loadPage(tabId, "https://news.example/", "Morning news")
+        loadPage(tabId, "https://github.com/", "GitHub")
+
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_history").performClick()
+
+        composeRule.onNodeWithTag("history_panel").assertIsDisplayed()
+        composeRule.onNodeWithTag("omnibox_input").assert(hasText("rem://settings/history"))
+        composeRule.onNodeWithText("Today").assertIsDisplayed()
+        composeRule.onNodeWithText("Morning news").assertIsDisplayed()
+        composeRule.onNodeWithText("GitHub").assertIsDisplayed()
+
+        // Search narrows the list
+        composeRule.onNodeWithTag("history_search").performTextInput("news")
+        composeRule.onNodeWithText("GitHub").assertDoesNotExist()
+
+        // Removing one entry
+        composeRule.onNodeWithContentDescription("Remove Morning news from history").performClick()
+        assertEquals(listOf("https://github.com/"), browserVm.history.value.map { it.url })
+
+        // Clearing asks first
+        composeRule.onNodeWithTag("history_clear").performClick()
+        composeRule.onNodeWithText("Clear browsing history?").assertIsDisplayed()
+        composeRule.onNodeWithText("Clear").performClick()
+        assertTrue(browserVm.history.value.isEmpty())
+    }
+
+    @Test
+    fun history_selectingAPageOpensIt() {
+        launch()
+        val tabId = browserVm.uiState.value.activeTabId!!
+        loadPage(tabId, "https://news.example/", "Morning news")
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.HISTORY) }
+
+        composeRule.onNodeWithTag("history_entry_https://news.example/").performClick()
+
+        val active = browserVm.uiState.value.activeTab!!
+        assertEquals("https://news.example/", active.url)
+    }
+
+    @Test
     fun railContextMenu_closesATab() {
         browserVm.openNewTab("https://one.example/")
         launch()

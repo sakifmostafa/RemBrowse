@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
@@ -39,8 +40,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
-import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
@@ -50,6 +51,7 @@ import com.rembrowser.rembrowse.ui.components.DownloadsPanelActions
 import com.rembrowser.rembrowse.ui.components.ExtensionInstallPromptDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionPopupDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionsPanelActions
+import com.rembrowser.rembrowse.ui.components.HistoryActions
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.SettingsActions
@@ -163,6 +165,15 @@ fun RemBrowseScreen(
         openSettings(SettingsSection.EXTENSIONS)
     }
     val openDownloads = { openSettings(SettingsSection.DOWNLOADS) }
+    val openHistory = { openSettings(SettingsSection.HISTORY) }
+    val history by browserViewModel.history.collectAsStateWithLifecycle()
+    val historyActions = remember(browserViewModel) {
+        HistoryActions(
+            onOpen = browserViewModel::openHistoryEntry,
+            onRemove = browserViewModel::removeHistoryEntry,
+            onClear = browserViewModel::clearHistory
+        )
+    }
     val settingsActions = remember(browserViewModel, extensionsViewModel) {
         SettingsActions(
             onSetDarkTheme = browserViewModel::setDarkTheme,
@@ -173,7 +184,8 @@ fun RemBrowseScreen(
             onSetDesktopSiteByDefault = browserViewModel::setDesktopSiteByDefault,
             onSetEnhancedPrivacy = browserViewModel::setEnhancedPrivacy,
             onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled,
-            onSetAskBeforeDownloading = browserViewModel::setAskBeforeDownloading
+            onSetAskBeforeDownloading = browserViewModel::setAskBeforeDownloading,
+            onSetKeepHistory = browserViewModel::setKeepHistory
         )
     }
     val openDownload = { id: String -> downloadsViewModel.open(id, onOpenDownload) }
@@ -272,6 +284,7 @@ fun RemBrowseScreen(
                     onOpenCommandPalette = { chrome.showCommandPalette = true },
                     onOpenBookmarks = { chrome.showBookmarks = true },
                     onOpenDownloads = openDownloads,
+                    onOpenHistory = openHistory,
                     onOpenExtensions = openExtensions,
                     onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction
@@ -306,7 +319,9 @@ fun RemBrowseScreen(
                                 actions = settingsActions,
                                 extensionActions = extensionActions,
                                 downloadActions = downloadActions,
-                                modifier = pageModifier
+                                modifier = pageModifier,
+                                history = history,
+                                historyActions = historyActions
                             )
                         },
                         paneViewport = paneViewport
@@ -377,6 +392,7 @@ fun RemBrowseScreen(
             PaletteCommand("bookmarks", "Bookmarks", Icons.Outlined.StarBorder) {
                 chrome.showBookmarks = true
             },
+            PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", openHistory),
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),
             PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,") {
@@ -386,6 +402,7 @@ fun RemBrowseScreen(
         CommandPalette(
             commands = commands,
             tabs = browserState.tabs,
+            history = history,
             onNavigate = { input ->
                 browserViewModel.navigatePane(browserState.activePaneIndex, input)
                 closeTabSwitcher()
