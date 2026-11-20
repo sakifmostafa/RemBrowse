@@ -25,3 +25,6 @@ local.properties
 # Signing keys (keep keystore backed up securely outside public repos)
 signing/*.jks
 signing/*.keystore
+
+# Temporary git worktrees made by Claude Code agents
+.claude/worktrees/
