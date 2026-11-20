@@ -2,6 +2,11 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Changed
+* **Updates come from the repository's new name**, `sakifmostafa/RemBrowse`. 0.13 still asks the old name, which GitHub forwards, so it keeps working until a version with this change is installed.
+
 ## v0.13 (2026-11-20) — Layouts your way, fullscreen video, history and updates
 
 ### Added

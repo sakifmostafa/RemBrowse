@@ -30,7 +30,7 @@ android {
         buildConfigField(
             "String",
             "UPDATE_BASE_URL",
-            "\"https://raw.githubusercontent.com/sakifmostafa/RemBrowser/main/build/\""
+            "\"https://raw.githubusercontent.com/sakifmostafa/RemBrowse/main/build/\""
         )
     }
 
