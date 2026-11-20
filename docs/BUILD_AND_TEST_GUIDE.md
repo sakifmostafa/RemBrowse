@@ -104,7 +104,7 @@ Commit those three files to publish a new version. Release APKs are about 85–9
 
 ### The engine patch
 
-Every build runs `patch<Variant>GeckoOmniJa`, which rewrites one script inside GeckoView's `omni.ja` so extensions may use `proxy.settings` on Android (see the Architecture Guide). After a GeckoView update the build stops with "Expected `if (AppConstants.platform == "android") {` once…" if Mozilla changed that script. Read the new `toolkit/components/extensions/parent/ext-proxy.js` for that version, update `ANDROID_CHECKS` in `app/build.gradle.kts`, and check that the patch still only removes the Android refusal. To see the patched script in an APK:
+Every build runs `patch<Variant>GeckoOmniJa`, which rewrites one script inside GeckoView's `omni.ja` so extensions may use `proxy.settings` on Android (see the Architecture Guide). After a GeckoView update the build stops with "Expected `…` once in …ext-proxy.js" if Mozilla changed that script. Read the new `toolkit/components/extensions/parent/ext-proxy.js` for that version, update `PATCHES` in `app/build.gradle.kts`, and check that each change still only removes an Android-specific failure (the refusals, the desktop-only preference read, the missing policy service). To see the patched script in an APK:
 
 ```bash
 unzip -p app/build/outputs/apk/debug/RemBrowse-*-x86_64-debug.apk assets/omni.ja > /tmp/omni.ja && unzip -p /tmp/omni.ja chrome/toolkit/content/extensions/parent/ext-proxy.js | grep -n RemBrowse

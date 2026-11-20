@@ -19,8 +19,8 @@ android {
         applicationId = "com.rembrowser.rembrowse"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.10"
+        versionCode = 13
+        versionName = "0.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -191,7 +191,9 @@ dependencies {
  * 1725981). VPN extensions such as Proton VPN use the API to take control of the proxy
  * setting, then route each request through `proxy.onRequest`, which Android does support; the
  * refusal stops them from connecting at all. This rewrites that one script inside GeckoView's
- * `omni.ja` so its two Android-only refusals are skipped. Every other entry of the archive is
+ * `omni.ja` so its two Android-only refusals are skipped, and gives a preference that only
+ * desktop Firefox defines a default where the script reads it (see [PATCHES]). Every other
+ * entry of the archive is
  * copied unchanged, in the same order and with the same compression method.
  *
  * The task checks its own result and fails the build if the code it expects is not found
@@ -277,7 +279,7 @@ abstract class PatchGeckoOmniJa : DefaultTask() {
                     val new = after.getInputStream(after.getEntry(name)).use { it.readBytes() }
                     if (name == PROXY_SCRIPT) {
                         val text = new.toString(Charsets.UTF_8)
-                        check(ANDROID_CHECKS.none { it in text } && text.contains(PATCH_MARKER)) {
+                        check(PATCHES.all { (from, to) -> from !in text && to in text }) {
                             "Patched $PROXY_SCRIPT still refuses proxy.settings on Android"
                         }
                     } else {
@@ -293,19 +295,32 @@ abstract class PatchGeckoOmniJa : DefaultTask() {
         const val PROXY_SCRIPT = "chrome/toolkit/content/extensions/parent/ext-proxy.js"
         const val PATCH_MARKER = "RemBrowse: proxy.settings is allowed on Android"
 
-        /** The two refusals in Firefox 138's ext-proxy.js: one in validate(), one in set(). */
-        val ANDROID_CHECKS = listOf(
-            "if (AppConstants.platform == \"android\") {",
-            "if (AppConstants.platform === \"android\") {"
+        /** What is replaced in Firefox 138's ext-proxy.js; each is expected exactly once. */
+        val PATCHES = listOf(
+            // The refusal in validate(), which get(), set(), clear() and onChange all run
+            "if (AppConstants.platform == \"android\") {" to "if (false /* $PATCH_MARKER */) {",
+            // The refusal in set()
+            "if (AppConstants.platform === \"android\") {" to "if (false /* $PATCH_MARKER */) {",
+            // get() reads a preference that only desktop Firefox defines. On Android the read
+            // throws, so get() fails and an extension that checks its control after set()
+            // (Proton VPN does) gives up. Its desktop default is false.
+            "getBoolPref(\n                  \"network.proxy.share_proxy_settings\"\n                )" to
+                "getBoolPref(\n                  \"network.proxy.share_proxy_settings\",\n" +
+                "                  false /* RemBrowse: defined only on desktop */\n                )",
+            // set() asks the enterprise policy service, which Android builds do not include, so
+            // Services.policies is null there and the call throws. Gecko's own code guards it
+            // the same way (Services.policies && ...).
+            "if (!Services.policies.isAllowed(\"changeProxySettings\")) {" to
+                "if (Services.policies && !Services.policies.isAllowed(\"changeProxySettings\")) {"
         )
 
-        fun patchProxyScript(script: String): String = ANDROID_CHECKS.fold(script) { text, check ->
-            val found = text.split(check).size - 1
+        fun patchProxyScript(script: String): String = PATCHES.fold(script) { text, (from, to) ->
+            val found = text.split(from).size - 1
             check(found == 1) {
-                "Expected `$check` once in $PROXY_SCRIPT but found it $found times. " +
+                "Expected `$from` once in $PROXY_SCRIPT but found it $found times. " +
                     "GeckoView's proxy code changed: review the patch in app/build.gradle.kts."
             }
-            text.replace(check, "if (false /* $PATCH_MARKER */) {")
+            text.replace(from, to)
         }
     }
 }
