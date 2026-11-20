@@ -13,6 +13,7 @@ captures/
 /build/*
 !/build/*.apk
 !/build/VERSION.txt
+!/build/update.json
 
 # Local machine configuration
 local.properties
