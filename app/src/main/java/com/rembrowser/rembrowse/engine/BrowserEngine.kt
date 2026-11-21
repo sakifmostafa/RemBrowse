@@ -4,6 +4,7 @@ import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
+import com.rembrowser.rembrowse.model.PageContextMenu
 import com.rembrowser.rembrowse.model.PagePrompt
 import kotlinx.coroutines.flow.StateFlow
 
@@ -53,6 +54,9 @@ interface SessionEventListener {
 
     /** The page in [tabId] started or stopped using the camera or microphone (a call, a recording). */
     fun onRecordingChanged(tabId: String, recording: Boolean) {}
+
+    /** A right click on a page, which the page left to the browser, asks for [menu]. */
+    fun onContextMenuRequested(menu: PageContextMenu) {}
 }
 
 interface BrowserSessionHandle {

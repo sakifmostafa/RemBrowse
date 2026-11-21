@@ -75,6 +75,28 @@ class FakeSessionHandle(
         listener.onRecordingChanged(tabId, recording)
     }
 
+    /** A right click on this page that the page left to the browser: on a link, a picture, or neither. */
+    fun simulateContextMenu(
+        linkUrl: String? = null,
+        linkText: String? = null,
+        mediaUrl: String? = null,
+        mediaType: com.rembrowser.rembrowse.model.PageMediaType = com.rembrowser.rembrowse.model.PageMediaType.NONE,
+        serial: Long = 1
+    ) {
+        listener.onContextMenuRequested(
+            com.rembrowser.rembrowse.model.PageContextMenu(
+                tabId = tabId,
+                linkUrl = linkUrl,
+                linkText = linkText,
+                mediaUrl = mediaUrl,
+                mediaType = mediaType,
+                x = 120f,
+                y = 80f,
+                serial = serial
+            )
+        )
+    }
+
     fun simulatePageLoad(url: String, title: String, canGoBack: Boolean = true) {
         listener.onSessionUpdated(
             tabId,

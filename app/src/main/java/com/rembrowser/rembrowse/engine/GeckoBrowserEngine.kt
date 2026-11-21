@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.engine
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.os.Handler
@@ -9,6 +10,8 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import com.rembrowser.rembrowse.BuildConfig
 import com.rembrowser.rembrowse.data.UploadCache
+import com.rembrowser.rembrowse.model.PageContextMenu
+import com.rembrowser.rembrowse.model.PageMediaType
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PromptOption
 import com.rembrowser.rembrowse.util.ErrorPages
@@ -20,6 +23,7 @@ import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoSession.PromptDelegate
 import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
+import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
 import java.util.UUID
@@ -35,12 +39,23 @@ private const val ADOPTION_POLL_MS = 50L
 /** A second crash this soon after a restore is treated as a crash loop and left for the user. */
 private const val CRASH_LOOP_WINDOW_MS = 10_000L
 
+/**
+ * RemBrowse's page menu helper, shipped in the APK's assets: a content script that reports a
+ * right click a page left to the browser on its background or text, where GeckoView itself
+ * reports nothing (see assets/extensions/page_menu/pageMenu.js).
+ */
+internal const val PAGE_MENU_EXTENSION_ID = "page-menu@rembrowse"
+internal const val PAGE_MENU_EXTENSION_URI = "resource://android/assets/extensions/page_menu/"
+
+/** The name the page menu helper sends its messages to. */
+internal const val PAGE_MENU_NATIVE_APP = "rembrowse_page_menu"
+
 class GeckoSessionHandle(
     override val tabId: String,
     private val runtime: GeckoRuntime,
     val session: GeckoSession,
     private val mainHandler: Handler,
-    private val listener: SessionEventListener,
+    internal val listener: SessionEventListener,
     private val onFocused: (GeckoSession) -> Unit
 ) : BrowserSessionHandle {
 
@@ -273,6 +288,16 @@ class GeckoBrowserEngine(
     private var adoptionArmed = false
     private var adoptedSession: GeckoSession? = null
 
+    /** The page menu helper once it is installed (main thread only); null until then, or if it failed. */
+    private var pageMenuHelper: WebExtension? = null
+
+    /** Tells context menus apart, so the same menu asked for twice opens twice. */
+    private var contextMenuSerial = 0L
+
+    init {
+        installPageMenuHelper()
+    }
+
     override fun createSession(
         tabId: String,
         initialUrl: String,
@@ -316,6 +341,7 @@ class GeckoBrowserEngine(
         )
         handle.lastUrl = initialUrl
         installDelegates(geckoSession, handle, listener)
+        listenForPageMenus(handle)
         sessions[tabId] = handle
 
         if (adopt) {
@@ -445,6 +471,31 @@ class GeckoBrowserEngine(
                 listener.onFullScreenChanged(tabId, fullScreen)
             }
 
+            // A right click (or a touchscreen long press) on a link, picture or media that the
+            // page left to the browser. GeckoView cancels the page's event and shows nothing of
+            // its own: without this, right clicking a link did nothing at all.
+            override fun onContextMenu(
+                session: GeckoSession,
+                screenX: Int,
+                screenY: Int,
+                element: GeckoSession.ContentDelegate.ContextElement
+            ) {
+                val mediaType = when (element.type) {
+                    GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE -> PageMediaType.IMAGE
+                    GeckoSession.ContentDelegate.ContextElement.TYPE_VIDEO -> PageMediaType.VIDEO
+                    GeckoSession.ContentDelegate.ContextElement.TYPE_AUDIO -> PageMediaType.AUDIO
+                    else -> PageMediaType.NONE
+                }
+                listener.onContextMenuRequested(
+                    contextMenuAtPointer(session, tabId).copy(
+                        linkUrl = element.linkUri?.takeIf { it.isNotBlank() },
+                        linkText = element.textContent?.trim()?.takeIf { it.isNotEmpty() },
+                        mediaUrl = element.srcUri?.takeIf { it.isNotBlank() && mediaType != PageMediaType.NONE },
+                        mediaType = mediaType
+                    )
+                )
+            }
+
             override fun onCrash(session: GeckoSession) {
                 Log.w(TAG, "Content process crashed for tab $tabId")
                 handle.onContentProcessGone(crashed = true)
@@ -505,6 +556,59 @@ class GeckoBrowserEngine(
         }
 
         geckoSession.promptDelegate = GeckoPagePrompts(tabId, listener, appContext, uploads)
+    }
+
+    /** A menu for [tabId], opening where the pointer last was on the view showing [session]. */
+    private fun contextMenuAtPointer(session: GeckoSession, tabId: String): PageContextMenu {
+        val pointer = (sessionOwners[session] as? PaneGeckoView)?.lastPointerPosition
+        return PageContextMenu(tabId = tabId, x = pointer?.x, y = pointer?.y, serial = ++contextMenuSerial)
+    }
+
+    /**
+     * Installs (or updates, after an app update) the page menu helper, then listens to it in
+     * every page. Without it links and pictures still get their menu; the page's own does not.
+     *
+     * Lint cannot tell that the result arrives on the main thread: a GeckoResult calls back on
+     * the thread that created it, and the engine is created on the main thread.
+     */
+    @SuppressLint("WrongThread")
+    private fun installPageMenuHelper() {
+        runCatching {
+            runtime.webExtensionController.ensureBuiltIn(PAGE_MENU_EXTENSION_URI, PAGE_MENU_EXTENSION_ID).accept(
+                { helper ->
+                    if (helper != null) {
+                        pageMenuHelper = helper
+                        sessions.values.forEach(::listenForPageMenus)
+                    }
+                },
+                { error -> Log.w(TAG, "Page menu helper could not be installed", error) }
+            )
+        }.onFailure { Log.w(TAG, "Page menu helper could not be installed", it) }
+    }
+
+    /** Hears the page menu helper's content script in [handle]'s page, once the helper is there. */
+    private fun listenForPageMenus(handle: GeckoSessionHandle) {
+        val helper = pageMenuHelper ?: return
+        runOnMain {
+            runCatching {
+                handle.session.webExtensionController.setMessageDelegate(
+                    helper,
+                    object : WebExtension.MessageDelegate {
+                        override fun onMessage(
+                            nativeApp: String,
+                            message: Any,
+                            sender: WebExtension.MessageSender
+                        ): GeckoResult<Any>? {
+                            if (isPageMenuMessage(message)) {
+                                handle.listener.onContextMenuRequested(contextMenuAtPointer(handle.session, handle.tabId))
+                            }
+                            return null
+                        }
+                    },
+                    PAGE_MENU_NATIVE_APP
+                )
+            }.onFailure { Log.w(TAG, "Could not listen for page menus in tab ${handle.tabId}", it) }
+        }
     }
 
     override fun getSession(tabId: String): BrowserSessionHandle? = sessions[tabId]
@@ -605,6 +709,10 @@ class GeckoBrowserEngine(
     }
 
     companion object {
+        /** Whether [message] from the page menu helper asks for the page's own menu. */
+        internal fun isPageMenuMessage(message: Any?): Boolean =
+            (message as? org.json.JSONObject)?.optString("type") == "pageMenu"
+
         fun createRuntime(appContext: Context): GeckoRuntime {
             // Preferences GeckoView has no setter for (see EngineConfig). Null means "none":
             // the builder is then left alone, as before.

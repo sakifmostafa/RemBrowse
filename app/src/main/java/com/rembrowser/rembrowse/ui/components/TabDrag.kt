@@ -112,7 +112,9 @@ fun Modifier.tabDragSource(
                 // take the gesture over by consuming it.
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 val isMouse = down.type == PointerType.Mouse
-                if (isMouse && !currentEvent.buttons.isPrimaryPressed) return@awaitEachGesture
+                // Only the primary button drags; a touchpad's right click comes as a finger
+                val buttons = currentEvent.buttons
+                if (!buttons.isPrimaryPressed && (isMouse || buttons.hasOtherThanPrimary())) return@awaitEachGesture
 
                 fun toRoot(local: Offset): Offset =
                     coordinates?.takeIf { it.isAttached }?.localToRoot(local) ?: local

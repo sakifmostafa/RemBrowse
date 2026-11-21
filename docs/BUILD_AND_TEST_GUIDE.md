@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **325 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **386 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -54,6 +54,8 @@ Run a single test class:
 Test suites included:
 * `SplitDividerMouseTest` / `PaneGeckoViewTest` — dragging a divider with a mouse (every step followed, side by side, stacked and nested, past a limit and back, one save per drag, a split that turns), double-click with and without a slip, the other mouse buttons, the resize cursor over the whole grip and during a drag, finger drag and double-tap; and a pane's web view giving up its cursor while the chrome has the pointer.
 * `OneAndTwoLayoutUiTest` — the One left, two right layout from the Split menu.
+* `TouchpadInputFilterTest` — touchpad input for a page's web view: a touchpad right click (a finger pointer from a mouse source) passed on as a mouse right click with its button and position, a touchpad click-and-drag kept a mouse drag, fingers resting mid-scroll or a small nudge never reaching the page, a scroll passed on whole (press, then the move past the slop) once it moves, and touchscreen input and real mouse clicks left alone.
+* `PageContextMenuTest` / `PageContextMenuUiTest` — the right-click menu: the rows for a link, a picture or video, a linked picture and the page itself, what is not opened or copied (`javascript:`, `mailto:` links are only copied, `blob:` media), Back greyed out with nowhere to go, the copy texts; and on the real screen, opening it for a link, a video and the page, copying to the clipboard and reloading from it.
 * `PageSurfaceTest` — with a real GeckoView, a texture-backed page keeps one compositor surface across frames (stock GeckoView swaps it on every frame) except for the one frame after GeckoView asks for a new surface, and each Page rendering choice sets the view up as described; plus the setting's storage and its radio group in Settings.
 * `FindInPageTest` / `FindInPageUiTest` — find in page: only on web pages, searching as you type, answers for older text dropped, next, previous and match case, clearing, closing with Esc or ×, closing when another tab takes focus, the count after a new page, and how the count reads.
 * `UnseenPanesTest` — panes under a fullscreen page, and every page while the window is away, are paused and resume when seen again; a background tab stays in the background; a page in a call keeps running wherever it is.
@@ -65,7 +67,7 @@ Test suites included:
 * `ErrorPagesTest` — error page content and HTML escaping of the failed address.
 * `EngineConfigTest` — the engine's startup configuration file: which devices get it, its contents as read back by GeckoView's own parser, and starting without it when anything goes wrong.
 * `AmoJsonParserTest` — AMO v5 response parsing, locale fallbacks, duplicate and insecure entry filtering.
-* `BrowserViewModelTest` — layouts, lazy session creation, tab closing, new-window requests, split ratios, prompts, bookmarks, settings (startup, new-tab position, desktop sites), handing downloads over, and the settings page's tab (no engine session, typed `rem://` addresses, refusing them from pages).
+* `BrowserViewModelTest` — layouts, lazy session creation, tab closing, new-window requests, split ratios, prompts, bookmarks, settings (startup, new-tab position, desktop sites), handing downloads over, the page menu (only for a page on screen, closed by a new page or leaving the screen, links opened in the background next to their page or beside it in a split, Back, Reload, bookmark and find from it), and the settings page's tab (no engine session, typed `rem://` addresses, refusing them from pages).
 * `ExtensionsViewModelTest` — catalog loading and cancellation, install validation, cancel and failure handling.
 * `DownloadsViewModelTest` — asking first, saving, declining, failure and cancel clean-up, name collisions, progress, the list and its history.
 * `BrowsingHistoryTest` / `BrowsingHistoryStoreTest` — what is recorded (web pages only, one entry per address, titles filled in, the cap), the Keep history switch, remove and clear, and the saved list.
@@ -76,7 +78,7 @@ Test suites included:
 * `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01, and the saved downloads list.
 * `PopupContentSizeTest` — reading the popup helper's size reports, and ignoring anything else.
 * `UploadCacheTest` — copying files picked for an upload button: names kept, same names apart, unreadable files left out, old copies removed, the MIME types offered to the picker.
-* `BuiltInExtensionAssetsTest` — the bundled popup viewport helper: its id, the files its manifest names, its API and event wiring, and the messaging permissions and channel name the app listens on.
+* `BuiltInExtensionAssetsTest` — the bundled popup viewport helper: its id, the files its manifest names, its API and event wiring, and the messaging permissions and channel name the app listens on; and the page menu helper: its id, a content script in every frame, `nativeMessagingFromContent`, its channel name and message, and that it waits for the page and GeckoView to have answered.
 * `RailExtensionSlotsTest` / `ExtensionPopupDialogTest` — how many extension buttons fit on the rail for its height; where an extension popup's window goes (beside the rail, centred after the window becomes phone-sized, right-to-left) and how big it is (default, sized to its content, within desktop Firefox's limits).
 * `RemBrowseUiTest` / `CompactWindowUiTest` — the real Compose screen on a laptop-sized and a phone-sized window, including extension buttons on the rail (also on short windows) and in the More menu.
 

@@ -27,6 +27,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Split view, your way**: up to four pages in any arrangement. Drag a tab from the rail onto the edge of a page to split it (left, right, above or below), or onto its middle to show it there. Every split has its own draggable divider, and side by side, stacked, grid, one left and two right, swap, sizes and closing a pane are in the **Split** menu. Pages are laid out at their pane's own width, so text keeps its normal size in a narrow pane. The one address bar at the top always acts on the focused pane.
 * **Fullscreen video**: a page's fullscreen button fills the whole screen, even from a split, and Back or Esc returns to the same layout.
 * **Tab switcher**: a searchable grid of every open tab.
+* **Right-click menus**: right-click a link, picture or the page itself, with a mouse or the touchpad, to open a link in a new tab or beside the page, copy addresses, go back, reload, bookmark or find. Sites with their own menus keep them.
 * **Find in page** (`Ctrl+F`): a floating bar on the page you are searching, with every match highlighted, a running count, next and previous, and match case.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.
@@ -37,7 +38,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Downloads**: files a page offers are saved to the device's Downloads folder. You are asked first, with the file's name, size and site; recent downloads are listed in Settings → Downloads (`Ctrl+J`).
 * **Ad blocking out of the box**: AdGuard AdBlocker is set up automatically on first launch and can be switched off or removed at any time (Settings → Privacy).
 * **Real WebExtensions, managed in Settings**: browse and install add-ons from Firefox Add-ons (addons.mozilla.org), or install a signed `.xpi` from a link or a file. Permission requests are reviewed on install, on update and when an extension asks for more. Extension buttons sit at the bottom of the tab rail with their icons and badges, and popups open beside them at full size, sized to their content as in desktop Firefox. VPN and proxy extensions can take control of the browser's proxy setting, which the stock Android engine refuses them.
-* **Built for a laptop**: freeform window resizing, hardware keyboard shortcuts, pointer hover states and resize cursors, with a compact layout for phone-sized windows.
+* **Built for a laptop**: freeform window resizing, hardware keyboard shortcuts, pointer hover states and resize cursors, touchpad right-clicks and two-finger scrolling that behave as on a desktop, with a compact layout for phone-sized windows.
 * **Private by default**: tracking protection that does not break sites, an optional enhanced level, no cloud backup of the browser profile, and only ordinary web links are accepted from other apps.
 
 ---

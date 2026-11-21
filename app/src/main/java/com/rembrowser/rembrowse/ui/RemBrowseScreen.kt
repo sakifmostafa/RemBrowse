@@ -35,14 +35,18 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.pageMenuCopyText
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
@@ -57,6 +61,7 @@ import com.rembrowser.rembrowse.ui.components.ExtensionInstallPromptDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionPopupDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionsPanelActions
 import com.rembrowser.rembrowse.ui.components.HistoryActions
+import com.rembrowser.rembrowse.ui.components.PageContextMenuOverlay
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.SettingsActions
@@ -183,6 +188,8 @@ fun RemBrowseScreen(
     val openHistory = { openSettings(SettingsSection.HISTORY) }
     val history by browserViewModel.history.collectAsStateWithLifecycle()
     val findInPage by browserViewModel.findInPage.collectAsStateWithLifecycle()
+    val pageMenu by browserViewModel.pageMenu.collectAsStateWithLifecycle()
+    val clipboard = LocalClipboardManager.current
     val findActions = remember(browserViewModel) {
         FindInPageActions(
             onQueryChange = browserViewModel::updateFindQuery,
@@ -379,7 +386,22 @@ fun RemBrowseScreen(
                             )
                         },
                         paneViewport = paneViewport,
-                        paneOverlay = { tab -> FindInPageOverlay(tabId = tab.id, find = findInPage, actions = findActions) }
+                        paneOverlay = { tab ->
+                            FindInPageOverlay(tabId = tab.id, find = findInPage, actions = findActions)
+                            PageContextMenuOverlay(
+                                menu = pageMenu,
+                                tab = tab,
+                                canSplit = browserState.paneCount < PaneNode.MAX_PANES,
+                                isBookmarked = browserState.isBookmarked(tab.url),
+                                onAction = { action ->
+                                    pageMenu?.let { menu ->
+                                        pageMenuCopyText(menu, action, tab.url)?.let { clipboard.setText(AnnotatedString(it)) }
+                                    }
+                                    browserViewModel.onPageMenuAction(action)
+                                },
+                                onDismiss = browserViewModel::dismissPageMenu
+                            )
+                        }
                     )
 
                     if (chrome.showTabSwitcher && !fullscreen) {

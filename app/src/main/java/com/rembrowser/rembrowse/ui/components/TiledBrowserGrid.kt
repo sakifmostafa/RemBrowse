@@ -51,6 +51,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.input.pointer.PointerButtons
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -59,6 +60,8 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -584,8 +587,9 @@ private suspend fun PointerInputScope.detectDividerGestures(
                 onPointerOver(hovered, false)
                 val down = event.changes.firstOrNull { it.changedToDown() } ?: continue
                 val isMouse = down.type == PointerType.Mouse
-                // The other mouse buttons are not for dragging
-                if (isMouse && !event.buttons.isPrimaryPressed) continue
+                // The other mouse buttons are not for dragging, nor a touchpad's right click,
+                // which Android reports as a finger with the secondary button down
+                if (!event.buttons.isPrimaryPressed && (isMouse || event.buttons.hasOtherThanPrimary())) continue
                 down.consume()
                 onPointerOver(hovered, true)
 
@@ -631,6 +635,9 @@ private suspend fun PointerInputScope.detectDividerGestures(
         onPointerOver(false, false)
     }
 }
+
+/** Whether a button other than the primary one is down: a right or middle click. */
+internal fun PointerButtons.hasOtherThanPrimary(): Boolean = isSecondaryPressed || isTertiaryPressed
 
 /**
  * A mouse starts dragging almost at once, a finger only after the touch slop. The same ratio

@@ -84,4 +84,45 @@ class BuiltInExtensionAssetsTest {
     }
 
     private fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
+
+    // --- The page menu helper ---
+
+    private val pageMenuDir = File(assets, PAGE_MENU_EXTENSION_URI.removePrefix("resource://android/assets/"))
+    private val pageMenuManifest by lazy { JSONObject(File(pageMenuDir, "manifest.json").readText()) }
+
+    @Test
+    fun pageMenu_isBundledUnderTheIdTheAppInstallsItUnder() {
+        assertTrue(PAGE_MENU_EXTENSION_URI.endsWith("/"))
+        assertEquals(2, pageMenuManifest.getInt("manifest_version"))
+        assertEquals(
+            PAGE_MENU_EXTENSION_ID,
+            pageMenuManifest.getJSONObject("browser_specific_settings").getJSONObject("gecko").getString("id")
+        )
+    }
+
+    @Test
+    fun pageMenu_contentScriptRunsInEveryFrame_andMayMessageTheApp() {
+        val permissions = pageMenuManifest.getJSONArray("permissions").strings()
+        // GeckoView only lets a content script message the app with this permission
+        assertTrue("nativeMessagingFromContent" in permissions)
+        assertTrue("nativeMessaging" in permissions)
+        assertTrue("geckoViewAddons" in permissions)
+
+        val script = pageMenuManifest.getJSONArray("content_scripts").getJSONObject(0)
+        assertEquals(listOf("<all_urls>"), script.getJSONArray("matches").strings())
+        assertTrue(script.getBoolean("all_frames"))
+        val source = script.getJSONArray("js").strings().joinToString("\n") { File(pageMenuDir, it).readText() }
+        assertTrue(source.contains("const NATIVE_APP = \"$PAGE_MENU_NATIVE_APP\""))
+        assertTrue(source.contains("addEventListener(\"contextmenu\""))
+        // Asked for only once the page and GeckoView have both had their say
+        assertTrue(source.contains("event.defaultPrevented"))
+        assertTrue(source.contains("sendNativeMessage(NATIVE_APP, { type: \"pageMenu\" })"))
+    }
+
+    @Test
+    fun pageMenu_messagesAreRecognised() {
+        assertTrue(GeckoBrowserEngine.isPageMenuMessage(JSONObject().put("type", "pageMenu")))
+        assertTrue(!GeckoBrowserEngine.isPageMenuMessage(JSONObject().put("type", "popupSize")))
+        assertTrue(!GeckoBrowserEngine.isPageMenuMessage("pageMenu"))
+    }
 }

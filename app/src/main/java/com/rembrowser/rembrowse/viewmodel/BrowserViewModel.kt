@@ -16,6 +16,8 @@ import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.FindInPageState
 import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.PageContextMenu
+import com.rembrowser.rembrowse.model.PageMenuAction
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PaneNode
@@ -53,6 +55,10 @@ class BrowserViewModel(
     private val _findInPage = MutableStateFlow<FindInPageState?>(null)
     val findInPage: StateFlow<FindInPageState?> = _findInPage.asStateFlow()
 
+    /** The context menu open on a page, if any. Also kept apart from uiState. */
+    private val _pageMenu = MutableStateFlow<PageContextMenu?>(null)
+    val pageMenu: StateFlow<PageContextMenu?> = _pageMenu.asStateFlow()
+
     private val sessionListener = object : SessionEventListener {
         override fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate) {
             // The engine also reports addresses it failed to load, such as a rem:// link a page
@@ -67,6 +73,8 @@ class BrowserViewModel(
             if (update.isPageStart && _findInPage.value?.tabId == tabId) {
                 _findInPage.update { it?.copy(result = null) }
             }
+            // A menu about the page that was there goes with it
+            if (update.isPageStart && _pageMenu.value?.tabId == tabId) _pageMenu.value = null
             // A location reported outside a page start means a document is now showing. A new
             // session's own about:blank does not count.
             val shownUrl = update.url?.takeUnless { update.isPageStart }
@@ -149,6 +157,15 @@ class BrowserViewModel(
             }
             // The panes behind a fullscreen page pause, and wake again when it ends
             syncSessions()
+        }
+
+        override fun onContextMenuRequested(menu: PageContextMenu) {
+            val state = _uiState.value
+            val tab = state.tabs.firstOrNull { it.id == menu.tabId } ?: return
+            // Only a page on screen can have been clicked, and not one under a fullscreen page
+            if (!tab.isWebPage || state.paneIndexOf(tab.id) < 0) return
+            if (state.fullscreenTabId != null && state.fullscreenTabId != tab.id) return
+            _pageMenu.value = menu
         }
 
         override fun onRecordingChanged(tabId: String, recording: Boolean) {
@@ -662,6 +679,75 @@ class BrowserViewModel(
         }
     }
 
+    fun dismissPageMenu() {
+        _pageMenu.value = null
+    }
+
+    /**
+     * Does [action] from the open page menu, and closes the menu. Copying is left to the screen,
+     * which has the clipboard (see [com.rembrowser.rembrowse.model.pageMenuCopyText]).
+     */
+    fun onPageMenuAction(action: PageMenuAction) {
+        val menu = _pageMenu.value ?: return
+        _pageMenu.value = null
+        val pane = _uiState.value.paneIndexOf(menu.tabId)
+        when (action) {
+            PageMenuAction.OPEN_LINK_IN_NEW_TAB -> menu.openableLinkUrl?.let { openTabInBackground(it, menu.tabId) }
+            PageMenuAction.OPEN_LINK_IN_SPLIT -> menu.openableLinkUrl?.let { openBeside(it, menu.tabId) }
+            PageMenuAction.OPEN_MEDIA_IN_NEW_TAB -> menu.openableMediaUrl?.let { openTabInBackground(it, menu.tabId) }
+            PageMenuAction.BACK -> if (pane >= 0) goBack(pane)
+            PageMenuAction.FORWARD -> if (pane >= 0) goForward(pane)
+            PageMenuAction.RELOAD -> engine.getSession(menu.tabId)?.reload()
+            PageMenuAction.BOOKMARK -> if (pane >= 0) {
+                focusPane(pane)
+                toggleBookmarkForActiveTab()
+            }
+            PageMenuAction.FIND_IN_PAGE -> if (pane >= 0) {
+                focusPane(pane)
+                openFindInPage()
+            }
+            PageMenuAction.COPY_LINK,
+            PageMenuAction.COPY_LINK_TEXT,
+            PageMenuAction.COPY_MEDIA_ADDRESS,
+            PageMenuAction.COPY_PAGE_ADDRESS -> Unit
+        }
+    }
+
+    /**
+     * Opens [url] in a new tab that stays in the background, next to the tab it came from (when
+     * Settings say so), as a link opened in a new tab does on a desktop. It starts loading at once.
+     */
+    fun openTabInBackground(url: String, openerTabId: String?): String {
+        val current = _uiState.value
+        val opener = current.tabs.firstOrNull { it.id == openerTabId }
+        val newTab = createTabModel(resolve(url), opener?.desktopMode).copy(openedByPage = opener != null)
+        if (!newTab.isInternalPage) ensureSessionCreated(newTab)
+        val openerIndex = current.tabs.indexOfFirst { it.id == openerTabId }
+        val tabs = if (current.settings.openNewTabsNextToCurrent && openerIndex >= 0) {
+            current.tabs.toMutableList().apply { add(openerIndex + 1, newTab) }
+        } else {
+            current.tabs + newTab
+        }
+        // The layout is unchanged; this pauses the new page, which nobody can see yet
+        applyLayout(current, current.layout, current.activeTabId, tabs)
+        return newTab.id
+    }
+
+    /**
+     * Opens [url] in a new pane beside the one showing [besideTabId], which keeps focus. When no
+     * pane can be added, the page opens in a background tab instead.
+     */
+    fun openBeside(url: String, besideTabId: String) {
+        val current = _uiState.value
+        if (current.paneCount >= PaneNode.MAX_PANES || current.paneIndexOf(besideTabId) < 0) {
+            openTabInBackground(url, besideTabId)
+            return
+        }
+        val newTabId = openTabInBackground(url, besideTabId)
+        val withNewTab = _uiState.value
+        applyLayout(withNewTab, withNewTab.layout.split(besideTabId, newTabId, DropZone.RIGHT), besideTabId)
+    }
+
     /** Takes the fullscreen page back into its pane. The layout was never changed, so it is as it was. */
     fun exitFullscreen() {
         val tabId = _uiState.value.fullscreenTabId ?: return
@@ -1014,6 +1100,10 @@ class BrowserViewModel(
         // The find bar belongs to the focused tab: it closes when focus moves on or the tab goes
         _findInPage.value?.let { find ->
             if (find.tabId != activeId) closeFindInPage()
+        }
+        // So does a page menu, when its page leaves the screen
+        _pageMenu.value?.let { menu ->
+            if (menu.tabId !in visibleIds) _pageMenu.value = null
         }
         state.tabs.forEach { tab ->
             val inPane = tab.id in visibleIds

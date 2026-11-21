@@ -2,6 +2,25 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased — Right-click menus, and a touchpad that behaves
+
+### Fixed
+* **Right-clicking with the touchpad did nothing on web pages.** Android reports a touchpad as a mouse whose pointer is a finger, and the engine (GeckoView) took every touchpad event for a finger on a touchscreen: a two-finger tap or a click in the pad's bottom-right corner reached the page as a plain tap, without its right button, so pages never saw a right click (at most a left click). Touchpad clicks now reach pages as the mouse clicks they are, right button included, and click-and-drag with the touchpad selects text instead of scrolling.
+* **Scrolling with two fingers and pausing opened menus.** Two-finger scrolling reaches the engine as one pretend finger dragged across the page. Fingers that rested before moving far enough counted as a finger held still, and after half a second the engine treated it as a long press: a site's own right-click menu opened, or the word under the pointer was selected with the Copy / Select all toolbar. A small nudge counted as a tap and clicked whatever was under the pointer. A touchpad scroll now reaches the page only once the fingers have moved about 2.5 mm, and then scrolls (and glides on) as before; resting or nudging fingers do nothing.
+* **A touchpad right click next to a split divider** started a resize instead of reaching the page, and could pick up a tab in the rail. Only the main button drags them now, whatever reports it.
+
+### Added
+* **Right-click menus on pages.** RemBrowse had no context menu at all: right-clicking a link or picture did nothing, because the engine leaves that menu to the browser. Right-click (or long-press on a touchscreen) a **link** for Open link in new tab (in the background, next to its page), Open link in split view, Copy link and Copy link text; a **picture, video or sound** for Open in new tab and Copy address; or **anywhere else on the page** for Back, Forward, Reload, Bookmark this page, Copy page address and Find in page. The menu opens where you clicked. Sites with their own right-click menus, such as Google Docs, keep theirs; selected text keeps its Copy toolbar.
+
+### Known limits
+* Not yet tried on a device. If a touchpad right click still does nothing, or scrolling feels late to start, please say so with the device and Android version.
+* No page menu in text fields (use `Ctrl+C`/`Ctrl+X`/`Ctrl+V`), on `about:` pages, on addons.mozilla.org or in the PDF viewer, where extensions cannot run; links and pictures there still get their menu.
+* With a menu open, the first click elsewhere only closes it.
+* No **Save link** or **Save image** yet.
+
+### Testing
+386 automated tests.
+
 ## v0.13.5 (2026-11-21) — Updates show up at once
 
 ### Changed

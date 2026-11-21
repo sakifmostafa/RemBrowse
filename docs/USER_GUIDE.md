@@ -10,7 +10,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 * **Tab switcher** — opens a grid of every open tab.
 * **Pinned sites** — your first six bookmarks. Select one to open it.
-* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#4-split-view)).
+* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#5-split-view)).
 * **+** — opens a new tab.
 * **Extensions (bottom)** — the buttons of your extensions, such as AdGuard AdBlocker or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
 
@@ -42,7 +42,21 @@ Only web pages can be searched, not the start page or Settings.
 
 ---
 
-## 3. Tabs
+## 3. Right-click menus
+
+Right-click on a page, with a mouse or the touchpad (a two-finger tap, or a click in the pad's bottom-right corner), for a menu of what is under the pointer:
+
+* **A link** — **Open link in new tab** (it opens in the background, next to the page it came from, and starts loading), **Open link in split view** (beside this page, which keeps focus; offered while there is room for another pane), **Copy link** and **Copy link text**.
+* **A picture, video or sound** — **Open image in new tab** and **Copy image address** (or video, or audio). A linked picture gets both the link's and the picture's rows.
+* **Anywhere else on the page** — **Back**, **Forward**, **Reload**, **Bookmark this page**, **Copy page address** and **Find in page**.
+
+The menu opens where you clicked; select a row, or click anywhere else (or press Esc) to close it. Sites with their own right-click menus, such as Google Docs, keep showing theirs. With text selected, a right-click shows the toolbar for the selection (Copy, Select all and so on) instead. In a text field, right-click does nothing; use `Ctrl+C`, `Ctrl+X` and `Ctrl+V`. On a touchscreen, long-press a link or picture for the same menu; long-pressing text selects it, as in any Android browser.
+
+**Touchpad scrolling.** Two fingers resting on the pad, or moving only a little, never count as a press on the page: scrolling then pausing no longer opens menus or selects words, and a small nudge no longer clicks whatever is under the pointer. A page starts to scroll once the fingers have moved about 2.5 mm.
+
+---
+
+## 4. Tabs
 
 * **Tab switcher**: select the top icon of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it.
 * `Ctrl+Tab` / `Ctrl+Shift+Tab` move to the next or previous tab.
@@ -51,7 +65,7 @@ Only web pages can be searched, not the start page or Settings.
 
 ---
 
-## 4. Split view
+## 5. Split view
 
 Up to four pages can share the window, in any arrangement: side by side, stacked, a grid, or for example one tall page beside two stacked ones. Nothing is added above the pages, so they keep the full height of the window.
 
@@ -109,7 +123,7 @@ To leave, press **Back** or **Esc**, or the page's own button. The split comes b
 
 ---
 
-## 5. Command palette
+## 6. Command palette
 
 Press `Ctrl+K` (or **More → Command palette**), then type:
 
@@ -122,7 +136,7 @@ Use ↑/↓ to move, Enter to run, Esc to close.
 
 ---
 
-## 6. Settings
+## 7. Settings
 
 Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them in a tab, or switches to that tab if it is already open; an empty new tab is reused. Changes apply as soon as you make them, and you close the page like any other tab.
 
@@ -140,11 +154,11 @@ Sections are listed down the left side (across the top on a phone-sized window):
   * **Open new tabs** — **At the end of the tab list** (the default) or **Next to the current tab**. A tab that a page opens goes next to that page.
   * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**.
 * **Privacy**
-  * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#7-ad-blocking).
+  * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#8-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
 * **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
-* **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#9-downloads).
-* **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#8-extensions-xpi).
+* **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#10-downloads).
+* **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#9-extensions-xpi).
 * **About** — the version you have, and updates. See [Updates](#updates) below.
 
 Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/history`, `rem://settings/downloads`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
@@ -175,7 +189,7 @@ Updates come from the same place as the [download links in the README](../README
 
 ---
 
-## 7. Ad blocking
+## 8. Ad blocking
 
 RemBrowse sets up **AdGuard AdBlocker** for you. The first time the browser starts with an internet connection it downloads the extension from addons.mozilla.org and turns it on; no prompt is shown. If you were offline, it tries again on the next start.
 
@@ -187,7 +201,7 @@ Like any content blocker, AdGuard can read and change the pages you visit in ord
 
 ---
 
-## 8. Extensions (`.xpi`)
+## 9. Extensions (`.xpi`)
 
 Extensions are managed in **Settings → Extensions** (`rem://settings/extensions`). **More → Extensions** opens the same place.
 
@@ -207,7 +221,7 @@ You are asked again whenever an update needs **new permissions** or an extension
 
 ---
 
-## 9. Downloads
+## 10. Downloads
 
 When a page offers a file the browser cannot show (an archive, an installer, a document), RemBrowse asks **Download this file?** and names the file, its size and the site it comes from. Choose **Download** to save it or **Cancel** to drop it. Nothing is fetched until you answer. A PDF's own save button skips the question, since you have already chosen to save.
 
@@ -228,7 +242,7 @@ Good to know:
 
 ---
 
-## 10. Keyboard shortcuts
+## 11. Keyboard shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |

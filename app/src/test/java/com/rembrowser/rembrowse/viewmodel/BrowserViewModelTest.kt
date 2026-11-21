@@ -10,6 +10,8 @@ import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.PageMediaType
+import com.rembrowser.rembrowse.model.PageMenuAction
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PageRendering
@@ -1251,5 +1253,101 @@ class BrowserViewModelTest {
         engine.sessions.getValue(news).simulateFullScreen(true)
         engine.sessions.getValue(news).simulateCrashLoop()
         assertNull("A crashed page shows nothing", viewModel.uiState.value.fullscreenTabId)
+    }
+
+    // --- Page context menu ---
+
+    private fun pageOnScreen(url: String = "https://example.com/"): String {
+        viewModel.navigatePane(0, url)
+        val tabId = viewModel.uiState.value.activeTabId!!
+        engine.sessions.getValue(tabId).simulatePageLoad(url, "Example")
+        return tabId
+    }
+
+    @Test
+    fun pageMenu_opensForAPageOnScreen_andNotForOneInTheBackground() {
+        val shown = pageOnScreen()
+        engine.sessions.getValue(shown).simulateContextMenu(linkUrl = "https://example.com/a")
+        assertEquals(shown, viewModel.pageMenu.value?.tabId)
+        assertEquals("https://example.com/a", viewModel.pageMenu.value?.linkUrl)
+
+        viewModel.dismissPageMenu()
+        val background = viewModel.openTabInBackground("https://other.example/", shown)
+        engine.sessions.getValue(background).simulateContextMenu()
+        assertNull(viewModel.pageMenu.value)
+    }
+
+    @Test
+    fun pageMenu_closesWhenItsPageGoesAwayOrLeavesTheScreen() {
+        val tabId = pageOnScreen()
+        val session = engine.sessions.getValue(tabId)
+
+        session.simulateContextMenu()
+        session.simulatePageStart("https://example.com/next")
+        assertNull("The menu was about the page that was there", viewModel.pageMenu.value)
+
+        session.simulateContextMenu(serial = 2)
+        viewModel.openNewTab("https://elsewhere.example/")
+        assertNull(viewModel.pageMenu.value)
+    }
+
+    @Test
+    fun openLinkInNewTab_opensItInTheBackgroundNextToItsPage() {
+        viewModel.setOpenNewTabsNextToCurrent(true)
+        val tabId = pageOnScreen()
+        val other = viewModel.openTabInBackground("https://last.example/", null)
+        val layoutBefore = viewModel.uiState.value.layout
+
+        engine.sessions.getValue(tabId).simulateContextMenu(linkUrl = "https://example.com/story")
+        viewModel.onPageMenuAction(PageMenuAction.OPEN_LINK_IN_NEW_TAB)
+
+        val state = viewModel.uiState.value
+        assertNull(viewModel.pageMenu.value)
+        assertEquals("The page stays where it is", layoutBefore, state.layout)
+        assertEquals(tabId, state.activeTabId)
+        val opened = state.tabs[state.tabs.indexOfFirst { it.id == tabId } + 1]
+        assertEquals("https://example.com/story", opened.url)
+        assertNotEquals(other, opened.id)
+        assertEquals("It starts loading at once", listOf("https://example.com/story"), engine.sessions.getValue(opened.id).loadedUrls)
+        assertFalse("A page nobody sees is paused", engine.sessions.getValue(opened.id).visibleState)
+    }
+
+    @Test
+    fun openLinkInSplitView_opensItBesideItsPage_whichKeepsFocus() {
+        val tabId = pageOnScreen()
+        engine.sessions.getValue(tabId).simulateContextMenu(linkUrl = "https://example.com/story")
+        viewModel.onPageMenuAction(PageMenuAction.OPEN_LINK_IN_SPLIT)
+
+        val state = viewModel.uiState.value
+        assertEquals(2, state.paneCount)
+        assertEquals(tabId, state.paneTabIds[0])
+        assertEquals("https://example.com/story", state.tabForPane(1)?.url)
+        assertEquals(tabId, state.activeTabId)
+    }
+
+    @Test
+    fun openImageInNewTab_andThePagesOwnActions() {
+        val tabId = pageOnScreen()
+        val session = engine.sessions.getValue(tabId)
+
+        session.simulateContextMenu(mediaUrl = "https://cdn.example.com/p.jpg", mediaType = PageMediaType.IMAGE)
+        viewModel.onPageMenuAction(PageMenuAction.OPEN_MEDIA_IN_NEW_TAB)
+        assertTrue(viewModel.uiState.value.tabs.any { it.url == "https://cdn.example.com/p.jpg" })
+
+        session.simulateContextMenu(serial = 2)
+        viewModel.onPageMenuAction(PageMenuAction.BACK)
+        assertEquals(1, session.goBackCount)
+
+        session.simulateContextMenu(serial = 3)
+        viewModel.onPageMenuAction(PageMenuAction.RELOAD)
+        assertEquals(1, session.reloadCount)
+
+        session.simulateContextMenu(serial = 4)
+        viewModel.onPageMenuAction(PageMenuAction.BOOKMARK)
+        assertTrue(viewModel.uiState.value.isBookmarked("https://example.com/"))
+
+        session.simulateContextMenu(serial = 5)
+        viewModel.onPageMenuAction(PageMenuAction.FIND_IN_PAGE)
+        assertEquals(tabId, viewModel.findInPage.value?.tabId)
     }
 }
