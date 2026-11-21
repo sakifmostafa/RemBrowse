@@ -21,7 +21,9 @@ import kotlin.coroutines.coroutineContext
 data class UpdateManifest(
     val versionName: String,
     val versionCode: Int,
-    val apks: Map<String, UpdateApk>
+    val apks: Map<String, UpdateApk>,
+    /** Where the APKs named in [apks] were published, when the source knows; null for its usual place. */
+    val filesBaseUrl: String? = null
 )
 
 data class UpdateApk(val file: String, val size: Long, val sha256: String)
@@ -58,8 +60,9 @@ object UpdateManifests {
 
     /**
      * The update to offer: a version newer than [currentVersionCode], in the APK for the first
-     * of the device's [supportedAbis] (most preferred first) that was published. Null when
-     * there is nothing newer or no APK fits this device.
+     * of the device's [supportedAbis] (most preferred first) that was published. The APK is
+     * fetched from where the manifest was read ([UpdateManifest.filesBaseUrl]), or else from
+     * [baseUrl]. Null when there is nothing newer or no APK fits this device.
      */
     fun updateFor(
         manifest: UpdateManifest,
@@ -74,7 +77,7 @@ object UpdateManifests {
             versionName = manifest.versionName,
             versionCode = manifest.versionCode,
             abi = abi,
-            url = baseUrl.trimEnd('/') + "/" + apk.file,
+            url = (manifest.filesBaseUrl ?: baseUrl).trimEnd('/') + "/" + apk.file,
             size = apk.size,
             sha256 = apk.sha256
         )
@@ -104,31 +107,63 @@ class UnreadableUpdateException : IOException("Unreadable update information")
 class UpdateHttpException(val code: Int) : IOException("HTTP $code")
 
 /**
- * Reads `update.json` and the APKs from the repository's published `build/` folder (raw
- * files on GitHub), which needs the repository to be public.
+ * Reads `update.json` and the APKs from the repository's published `build/` folder, as raw files
+ * on GitHub, which needs the repository to be public.
+ *
+ * GitHub's raw files are cached for up to 5 minutes, whatever the request asks, so a check made
+ * just after a release could still see the previous one, and an APK fetched then could be the
+ * previous build, failing its checksum. So the files are read at the branch's latest commit,
+ * asked of GitHub's API first (one small request): an address with a commit in it never changes
+ * and is never stale. If the API cannot answer (offline, or past its limit of 60 requests an hour
+ * without an account), the branch itself is read, as before.
+ *
+ * @param repository `owner/name` on GitHub.
  */
 class OkHttpUpdateSource(
-    private val baseUrl: String,
+    private val repository: String,
+    private val branch: String = "main",
+    private val folder: String = "build",
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val userAgent: String = "RemBrowse (Android; GeckoView)"
+    private val userAgent: String = "RemBrowse (Android; GeckoView)",
+    private val apiBaseUrl: String = "https://api.github.com",
+    private val rawBaseUrl: String = "https://raw.githubusercontent.com"
 ) : UpdateSource {
 
     override suspend fun fetchManifest(): Result<UpdateManifest> = withContext(ioDispatcher) {
         runCatching {
+            val commit = runCatching { latestCommit() }.getOrNull()
+            val filesBaseUrl = "${rawBaseUrl.trimEnd('/')}/$repository/${commit ?: branch}/$folder/"
             val request = Request.Builder()
-                .url(baseUrl.trimEnd('/') + "/" + MANIFEST_FILE)
+                .url(filesBaseUrl + MANIFEST_FILE)
                 .header("User-Agent", userAgent)
                 .header("Cache-Control", "no-cache")
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw UpdateHttpException(response.code)
                 val body = response.body?.string() ?: throw IOException("Empty response")
-                UpdateManifests.parse(body) ?: throw UnreadableUpdateException()
+                val manifest = UpdateManifests.parse(body) ?: throw UnreadableUpdateException()
+                manifest.copy(filesBaseUrl = filesBaseUrl)
             }
+        }
+    }
+
+    /** The branch's latest commit, from GitHub's API, which answers with just its 40-character id. */
+    private fun latestCommit(): String {
+        val request = Request.Builder()
+            .url("${apiBaseUrl.trimEnd('/')}/repos/$repository/commits/$branch")
+            .header("User-Agent", userAgent)
+            .header("Accept", "application/vnd.github.sha")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw UpdateHttpException(response.code)
+            val sha = response.body?.string()?.trim().orEmpty()
+            if (!COMMIT_SHA.matches(sha)) throw IOException("Not a commit id")
+            sha
         }
     }
 
@@ -177,6 +212,7 @@ class OkHttpUpdateSource(
 
     companion object {
         const val MANIFEST_FILE = "update.json"
+        private val COMMIT_SHA = Regex("[0-9a-f]{40}")
         private const val BUFFER_BYTES = 64 * 1024
     }
 }

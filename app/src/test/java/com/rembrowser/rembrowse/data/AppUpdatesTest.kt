@@ -92,23 +92,58 @@ class AppUpdatesTest {
     }
 
     @Test
-    fun fetchManifest_readsUpdateJsonFromTheBaseUrl() = runTest {
+    fun fetchManifest_readsTheFilesAtTheBranchsLatestCommit() = runTest {
         val requested = mutableListOf<String>()
+        var accept: String? = null
         val source = source { url ->
             requested += url
-            respond(200, manifestJson())
+            when (url) {
+                COMMIT_API -> {
+                    accept = request().header("Accept")
+                    respond(200, "$SHA\n")
+                }
+                "$RAW/owner/repo/$SHA/build/update.json" -> respond(200, manifestJson())
+                else -> respond(404, "Not Found")
+            }
         }
         val manifest = source.fetchManifest().getOrThrow()
+
         assertEquals(15, manifest.versionCode)
-        assertEquals(listOf("$BASE/update.json"), requested)
+        assertEquals(listOf(COMMIT_API, "$RAW/owner/repo/$SHA/build/update.json"), requested)
+        assertEquals("Just the id, not a JSON commit", "application/vnd.github.sha", accept)
+        // An address with the commit in it never changes, so no cache can serve an older file
+        assertEquals("$RAW/owner/repo/$SHA/build/", manifest.filesBaseUrl)
+        val update = UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), "unused")
+        assertEquals("$RAW/owner/repo/$SHA/build/RemBrowse-x86_64.apk", update!!.url)
+    }
+
+    @Test
+    fun fetchManifest_readsTheBranch_whenTheApiCannotAnswer() = runTest {
+        for (apiAnswer in listOf(403 to "rate limited", 200 to "<html>not a commit</html>")) {
+            val requested = mutableListOf<String>()
+            val source = source { url ->
+                requested += url
+                when (url) {
+                    COMMIT_API -> respond(apiAnswer.first, apiAnswer.second)
+                    "$RAW/owner/repo/main/build/update.json" -> respond(200, manifestJson())
+                    else -> respond(404, "Not Found")
+                }
+            }
+            val manifest = source.fetchManifest().getOrThrow()
+            assertEquals(15, manifest.versionCode)
+            assertEquals("$RAW/owner/repo/main/build/", manifest.filesBaseUrl)
+            assertEquals(listOf(COMMIT_API, "$RAW/owner/repo/main/build/update.json"), requested)
+        }
     }
 
     @Test
     fun fetchManifest_reportsServerErrorsAndUnreadableFiles() = runTest {
-        val missing = source { respond(404, "Not Found") }.fetchManifest().exceptionOrNull()
+        val missing = source { url -> if (url == COMMIT_API) respond(200, SHA) else respond(404, "Not Found") }
+            .fetchManifest().exceptionOrNull()
         assertTrue(missing is UpdateHttpException && missing.code == 404)
 
-        val garbled = source { respond(200, "<html></html>") }.fetchManifest().exceptionOrNull()
+        val garbled = source { url -> if (url == COMMIT_API) respond(200, SHA) else respond(200, "<html></html>") }
+            .fetchManifest().exceptionOrNull()
         assertTrue(garbled is UnreadableUpdateException)
     }
 
@@ -159,7 +194,13 @@ class AppUpdatesTest {
         val client = OkHttpClient.Builder()
             .addInterceptor(Interceptor { chain -> chain.handler(chain.request().url.toString()) })
             .build()
-        return OkHttpUpdateSource(baseUrl = "$BASE/", client = client, ioDispatcher = kotlinx.coroutines.Dispatchers.Unconfined)
+        return OkHttpUpdateSource(
+            repository = "owner/repo",
+            client = client,
+            ioDispatcher = kotlinx.coroutines.Dispatchers.Unconfined,
+            apiBaseUrl = "https://api.test",
+            rawBaseUrl = RAW
+        )
     }
 
     private fun Interceptor.Chain.respond(code: Int, body: String): Response = Response.Builder()
@@ -183,5 +224,8 @@ class AppUpdatesTest {
 
     private companion object {
         const val BASE = "https://example.test/build"
+        const val RAW = "https://raw.test"
+        const val COMMIT_API = "https://api.test/repos/owner/repo/commits/main"
+        const val SHA = "0123456789abcdef0123456789abcdef01234567"
     }
 }

@@ -124,6 +124,18 @@ class UpdatesViewModelTest {
     }
 
     @Test
+    fun theUpdateIsFetchedFromWhereTheSourceReadTheManifest() = updatesTest { vm ->
+        source.manifest = Result.success(
+            manifest(versionCode = 15).copy(filesBaseUrl = "https://raw.test/owner/repo/0123abc/build/")
+        )
+        vm.checkNow()
+        advanceUntilIdle()
+
+        val available = vm.uiState.value.status as UpdateStatus.Available
+        assertEquals("https://raw.test/owner/repo/0123abc/build/RemBrowse-x86_64.apk", available.update.url)
+    }
+
+    @Test
     fun checkNow_saysWhenUpToDateAndNeverShowsTheNotice() = updatesTest { vm ->
         source.manifest = Result.success(manifest(versionCode = 14))
         vm.checkNow()

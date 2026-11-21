@@ -26,12 +26,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Where the app looks for new versions: the APKs and update.json that publishApk
-        // writes, as raw files from the repository (which must be public for this to work)
-        buildConfigField(
-            "String",
-            "UPDATE_BASE_URL",
-            "\"https://raw.githubusercontent.com/sakifmostafa/RemBrowse/main/build/\""
-        )
+        // writes to build/ on main, read from GitHub (the repository must be public)
+        buildConfigField("String", "UPDATE_REPOSITORY", "\"sakifmostafa/RemBrowse\"")
     }
 
     // One APK per CPU type instead of a single 380 MB package carrying both engines.

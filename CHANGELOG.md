@@ -2,6 +2,14 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Changed
+* **Updates show up as soon as they are published.** GitHub keeps its copy of the update information for up to 5 minutes, so "Check for updates" could still say "up to date" just after a release. RemBrowse now asks GitHub for the latest published version directly and downloads the files of exactly that version. If GitHub cannot answer that question, the check works as before.
+
+### Testing
+325 automated tests.
+
 ## v0.13.4 (2026-11-21) — Find in page
 
 ### Added

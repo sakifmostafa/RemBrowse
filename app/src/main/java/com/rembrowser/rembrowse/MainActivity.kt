@@ -132,7 +132,7 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
         browser.downloadHandler = downloads::onDownloadRequested
         updates = UpdatesViewModel(
             source = OkHttpUpdateSource(
-                baseUrl = BuildConfig.UPDATE_BASE_URL,
+                repository = BuildConfig.UPDATE_REPOSITORY,
                 userAgent = "RemBrowse/${BuildConfig.VERSION_NAME} (Android; GeckoView)"
             ),
             installer = AndroidUpdateInstaller(application),
@@ -140,7 +140,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             updatesDir = File(application.cacheDir, UPDATES_DIR),
             currentVersionCode = BuildConfig.VERSION_CODE,
             supportedAbis = Build.SUPPORTED_ABIS.toList(),
-            baseUrl = BuildConfig.UPDATE_BASE_URL,
+            // Only if the source cannot say where it read the files
+            baseUrl = "https://raw.githubusercontent.com/${BuildConfig.UPDATE_REPOSITORY}/main/build/",
             scope = viewModelScope
         )
         updates.onAppStarted()
