@@ -9,6 +9,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -235,6 +237,69 @@ class TerminalUiTest {
 
         composeRule.onNodeWithTag("terminal_header").assertIsDisplayed()
         composeRule.runOnUiThread { terminalVm.setTheme(TerminalThemePreset.DEFAULT) }
+    }
+
+    private fun openTerminalHeader() {
+        launch()
+        composeRule.runOnUiThread {
+            val tab = browserVm.openTerminal()
+            browserVm.showTerminalTarget(tab, com.rembrowser.rembrowse.model.TerminalTarget.Address("me", "server.example"))
+        }
+        waitForTag("terminal_header")
+    }
+
+    @Test
+    fun theHeadersPaletteMenu_hasTheTextSize_andStaysOpenWhileItChanges() {
+        openTerminalHeader()
+        composeRule.onNodeWithTag("terminal_text_size").assertDoesNotExist()
+        composeRule.onNodeWithTag("terminal_theme_button").performClick()
+        composeRule.onNodeWithTag("terminal_theme_menu").assertIsDisplayed()
+        composeRule.onNodeWithTag("terminal_text_size").assertIsDisplayed()
+
+        val before = terminalVm.uiState.value.settings.fontSizeSp
+        composeRule.onNodeWithTag("terminal_text_larger").performClick()
+        waitFor { terminalVm.uiState.value.settings.fontSizeSp == before + 1 }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("terminal_text_size").assertIsDisplayed()
+        composeRule.onNode(hasClickAction() and hasAnyAncestor(hasTestTag("terminal_text_smaller"))).assertIsEnabled()
+        composeRule.runOnUiThread {
+            terminalVm.setFontSize(before)
+            terminalVm.setTheme(TerminalThemePreset.DEFAULT)
+        }
+    }
+
+    @Test
+    fun textSmaller_isDisabledAtTheSmallestSize() {
+        openTerminalHeader()
+        composeRule.runOnUiThread { terminalVm.setFontSize(com.rembrowser.rembrowse.data.TerminalSettings.MIN_FONT_SIZE_SP) }
+        waitFor { terminalVm.uiState.value.settings.fontSizeSp == com.rembrowser.rembrowse.data.TerminalSettings.MIN_FONT_SIZE_SP }
+        composeRule.onNodeWithTag("terminal_theme_button").performClick()
+        // The tag is on the button's outer box; the enabled state lives on the clickable inside it
+        val inside = { tag: String -> hasClickAction() and hasAnyAncestor(hasTestTag(tag)) }
+        composeRule.onNode(inside("terminal_text_smaller")).assertIsNotEnabled()
+        composeRule.onNode(inside("terminal_text_larger")).assertIsEnabled()
+        composeRule.runOnUiThread {
+            terminalVm.setFontSize(com.rembrowser.rembrowse.data.TerminalSettings.DEFAULT_FONT_SIZE_SP)
+            terminalVm.setTheme(TerminalThemePreset.DEFAULT)
+        }
+    }
+
+    @Test
+    fun theQuickConnectField_explainsAnAddressItCantRead_untilItCan() {
+        launch()
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_new_terminal").performClick()
+        val hint = "Type it as user@host, with :port if it isn't 22"
+        composeRule.onNodeWithText(hint).assertDoesNotExist()
+        composeRule.onNodeWithTag("terminal_quick_connect_go").assertIsNotEnabled()
+
+        composeRule.onNodeWithTag("terminal_quick_connect").performTextInput("not an address")
+        composeRule.onNodeWithText(hint).assertIsDisplayed()
+        composeRule.onNodeWithTag("terminal_quick_connect_go").assertIsNotEnabled()
+
+        composeRule.onNodeWithTag("terminal_quick_connect").performTextReplacement("ssh root@10.0.0.2 -p 2222")
+        composeRule.onNodeWithText(hint).assertDoesNotExist()
+        composeRule.onNodeWithTag("terminal_quick_connect_go").assertIsEnabled()
     }
 
     @Test
