@@ -20,6 +20,13 @@ data class SessionNavigationUpdate(
     val isPageStart: Boolean = false
 )
 
+/**
+ * What a find in page turned up for [query]. [current] is the selected match, counted from 1;
+ * [total] is how many there are, or -1 when there are more than the engine counts (1,000).
+ * Both are 0 when nothing matched.
+ */
+data class FindResult(val query: String, val found: Boolean, val current: Int, val total: Int)
+
 interface SessionEventListener {
     fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate)
 
@@ -61,6 +68,17 @@ interface BrowserSessionHandle {
 
     /** Takes the page out of fullscreen, as its own exit button or Esc would. */
     fun exitFullScreen() {}
+
+    /**
+     * Finds [query] on the page and highlights every match, selecting the next one after the
+     * current selection, or the one before it when [backwards]. Searching for the same text
+     * again moves on to the next match. [onResult] is called on the main thread, and not at all
+     * when a newer search overtakes this one.
+     */
+    fun findInPage(query: String, backwards: Boolean, matchCase: Boolean, onResult: (FindResult) -> Unit) {}
+
+    /** Removes the highlighting of a find in page. */
+    fun clearFindInPage() {}
     fun close()
 }
 

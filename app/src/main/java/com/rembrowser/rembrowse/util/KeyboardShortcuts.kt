@@ -23,7 +23,10 @@ enum class BrowserShortcut {
     LAYOUT_GRID,
 
     /** One pane on the left, two stacked on the right. */
-    LAYOUT_ONE_AND_TWO
+    LAYOUT_ONE_AND_TWO,
+    FIND_IN_PAGE,
+    FIND_NEXT,
+    FIND_PREVIOUS
 }
 
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
@@ -44,6 +47,10 @@ object KeyboardShortcuts {
             return BrowserShortcut.RELOAD
         }
 
+        if (!ctrl && !alt && keyCode == KeyEvent.KEYCODE_F3) {
+            return if (shift) BrowserShortcut.FIND_PREVIOUS else BrowserShortcut.FIND_NEXT
+        }
+
         if (alt && !ctrl && !shift) {
             return when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> BrowserShortcut.BACK
@@ -58,6 +65,9 @@ object KeyboardShortcuts {
         if (keyCode == KeyEvent.KEYCODE_TAB) {
             return if (shift) BrowserShortcut.PREVIOUS_TAB else BrowserShortcut.NEXT_TAB
         }
+        if (keyCode == KeyEvent.KEYCODE_G) {
+            return if (shift) BrowserShortcut.FIND_PREVIOUS else BrowserShortcut.FIND_NEXT
+        }
         // Ctrl+Shift+<key> combinations belong to the page or the system, not to us.
         if (shift) return null
 
@@ -71,6 +81,7 @@ object KeyboardShortcuts {
             KeyEvent.KEYCODE_COMMA -> BrowserShortcut.OPEN_SETTINGS
             KeyEvent.KEYCODE_J -> BrowserShortcut.OPEN_DOWNLOADS
             KeyEvent.KEYCODE_H -> BrowserShortcut.OPEN_HISTORY
+            KeyEvent.KEYCODE_F -> BrowserShortcut.FIND_IN_PAGE
             KeyEvent.KEYCODE_BACKSLASH -> BrowserShortcut.TOGGLE_SPLIT_VIEW
             KeyEvent.KEYCODE_1 -> BrowserShortcut.LAYOUT_SINGLE
             KeyEvent.KEYCODE_2 -> BrowserShortcut.LAYOUT_SIDE_BY_SIDE

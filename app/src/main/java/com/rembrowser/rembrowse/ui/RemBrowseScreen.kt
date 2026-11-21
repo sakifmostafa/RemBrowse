@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FindInPage
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -46,6 +47,8 @@ import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
 import com.rembrowser.rembrowse.ui.components.DownloadNoticeBar
+import com.rembrowser.rembrowse.ui.components.FindInPageActions
+import com.rembrowser.rembrowse.ui.components.FindInPageOverlay
 import com.rembrowser.rembrowse.ui.components.UpdateActions
 import com.rembrowser.rembrowse.ui.components.UpdateNoticeBar
 import com.rembrowser.rembrowse.ui.components.DownloadPromptDialog
@@ -179,6 +182,24 @@ fun RemBrowseScreen(
     val openDownloads = { openSettings(SettingsSection.DOWNLOADS) }
     val openHistory = { openSettings(SettingsSection.HISTORY) }
     val history by browserViewModel.history.collectAsStateWithLifecycle()
+    val findInPage by browserViewModel.findInPage.collectAsStateWithLifecycle()
+    val findActions = remember(browserViewModel) {
+        FindInPageActions(
+            onQueryChange = browserViewModel::updateFindQuery,
+            onNext = browserViewModel::findNext,
+            onPrevious = browserViewModel::findPrevious,
+            onMatchCaseChange = browserViewModel::setFindMatchCase,
+            onClose = {
+                browserViewModel.closeFindInPage()
+                // Back to the page that was being searched
+                chrome.focusContent()
+            }
+        )
+    }
+    val openFindInPage = {
+        chrome.showTabSwitcher = false
+        browserViewModel.openFindInPage()
+    }
     val updatesState = updatesViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     val updateActions = remember(updatesViewModel) {
         updatesViewModel?.let { updates ->
@@ -315,6 +336,7 @@ fun RemBrowseScreen(
                     onOpenBookmarks = { chrome.showBookmarks = true },
                     onOpenDownloads = openDownloads,
                     onOpenHistory = openHistory,
+                    onFindInPage = openFindInPage,
                     onOpenExtensions = openExtensions,
                     onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction
@@ -356,7 +378,8 @@ fun RemBrowseScreen(
                                 updateActions = updateActions
                             )
                         },
-                        paneViewport = paneViewport
+                        paneViewport = paneViewport,
+                        paneOverlay = { tab -> FindInPageOverlay(tabId = tab.id, find = findInPage, actions = findActions) }
                     )
 
                     if (chrome.showTabSwitcher && !fullscreen) {
@@ -439,6 +462,7 @@ fun RemBrowseScreen(
             PaletteCommand("bookmarks", "Bookmarks", Icons.Outlined.StarBorder) {
                 chrome.showBookmarks = true
             },
+            PaletteCommand("find_in_page", "Find in page", Icons.Outlined.FindInPage, "Ctrl+F", openFindInPage),
             PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", openHistory),
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),

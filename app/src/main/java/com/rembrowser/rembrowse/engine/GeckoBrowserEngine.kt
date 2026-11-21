@@ -126,6 +126,37 @@ class GeckoSessionHandle(
         runOnMain { if (session.isOpen) session.exitFullScreen() }
     }
 
+    // Whether every match is highlighted yet; set once, on the first search
+    private var findHighlightsAll = false
+
+    override fun findInPage(query: String, backwards: Boolean, matchCase: Boolean, onResult: (FindResult) -> Unit) {
+        runOnMain {
+            if (!session.isOpen) return@runOnMain
+            val finder = session.finder
+            if (!findHighlightsAll) {
+                finder.displayFlags = GeckoSession.FINDER_DISPLAY_HIGHLIGHT_ALL
+                findHighlightsAll = true
+            }
+            var flags = if (backwards) GeckoSession.FINDER_FIND_BACKWARDS else GeckoSession.FINDER_FIND_FORWARD
+            if (matchCase) flags = flags or GeckoSession.FINDER_FIND_MATCH_CASE
+            finder.find(query, flags).accept(
+                { result ->
+                    if (result != null) {
+                        onResult(FindResult(result.searchString, result.found, result.current, result.total))
+                    }
+                },
+                { error ->
+                    Log.w(TAG, "Find in page failed", error)
+                    onResult(FindResult(query, found = false, current = 0, total = 0))
+                }
+            )
+        }
+    }
+
+    override fun clearFindInPage() {
+        runOnMain { if (session.isOpen) session.finder.clear() }
+    }
+
     override fun setFocusedForExtensions(focused: Boolean) {
         runOnMain {
             runCatching {

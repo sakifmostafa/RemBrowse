@@ -105,6 +105,10 @@ The layout is a tree (`model/PaneLayout.kt`): a `PaneNode` is either a `Leaf(tab
 
 When a page calls `window.open` (or an extension calls `tabs.create`), GeckoView expects an *unopened* session back and opens it itself. `GeckoBrowserEngine.adoptNewTab()` asks the view model for a tab, and the session created during that call is flagged `awaitingGeckoOpen`: it is neither opened nor loaded by us, only returned. This keeps `window.opener` and POST data intact. If Gecko never opens it, a timeout opens it directly.
 
+### Find in page
+
+`BrowserViewModel.findInPage` (a `FindInPageState` flow of its own, so typing does not recompose the screen) belongs to the focused tab; `syncSessions()` closes it when focus moves on. Searches go to `BrowserSessionHandle.findInPage`, which is GeckoView's `SessionFinder` with `FINDER_DISPLAY_HIGHLIGHT_ALL`: a new text starts from the current selection, the same text again moves to the next match (`finder.findAgain`). An answer is kept only if it is for the text in the bar now. A new document in the tab clears the count but keeps the bar. The bar (`FindInPageOverlay`) is drawn by `TiledBrowserGrid`'s `paneOverlay` slot inside the pane of the tab being searched, and animates in and out.
+
 ### Pages nobody can see
 
 `syncSessions()` makes a session active (`setVisible`, which is `GeckoSession.setActive`) only while its tab is in a pane, the window is shown, and no other page is fullscreen, or while the page uses the camera or microphone (`MediaDelegate.onRecordingStatusChanged`; a call keeps running even in a background tab). Background tabs are inactive anyway; this also pauses the panes under a fullscreen page and, through `MainActivity.onStop`/`onStart` (`setWindowShown`), every pane while the window is stopped. Gecko pauses a page by itself only when its view's surface is destroyed, and a TextureView's surface outlives a stopped window. `attachSessionToView` activates a session only if it is meant to be active (`handle.isVisible`).

@@ -10,7 +10,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 * **Tab switcher** — opens a grid of every open tab.
 * **Pinned sites** — your first six bookmarks. Select one to open it.
-* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#3-split-view)).
+* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#4-split-view)).
 * **+** — opens a new tab.
 * **Extensions (bottom)** — the buttons of your extensions, such as AdGuard AdBlocker or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
 
@@ -20,7 +20,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, close tab, command palette, bookmarks, history, downloads, extensions, desktop site, settings.
+* **More (⋯)** — new tab, close tab, command palette, find in page, bookmarks, history, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
@@ -29,7 +29,20 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 ---
 
-## 2. Tabs
+## 2. Find in page
+
+Press `Ctrl+F` (or **More → Find in page**) to search the page you are on. A bar drops into the top corner of that page, in a split on the page you are searching, and every match is highlighted as you type.
+
+* **The count** — "3/12" is the third of twelve matches. It turns red with **No results** when nothing matches.
+* **Next and previous** — Enter or `F3` (or `Ctrl+G`) for the next match, Shift+Enter or `Shift+F3` for the one before, or the arrows in the bar. Past the last match it starts again from the top.
+* **Aa** — match upper and lower case exactly.
+* **Close** — Esc or the **×**; the highlighting goes with it. Moving to another tab closes it too. `Ctrl+F` while the bar is open selects its text, ready for a new search.
+
+Only web pages can be searched, not the start page or Settings.
+
+---
+
+## 3. Tabs
 
 * **Tab switcher**: select the top icon of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it.
 * `Ctrl+Tab` / `Ctrl+Shift+Tab` move to the next or previous tab.
@@ -38,7 +51,7 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 ---
 
-## 3. Split view
+## 4. Split view
 
 Up to four pages can share the window, in any arrangement: side by side, stacked, a grid, or for example one tall page beside two stacked ones. Nothing is added above the pages, so they keep the full height of the window.
 
@@ -96,20 +109,20 @@ To leave, press **Back** or **Esc**, or the page's own button. The split comes b
 
 ---
 
-## 4. Command palette
+## 5. Command palette
 
 Press `Ctrl+K` (or **More → Command palette**), then type:
 
 * words to **search the web**, or an address to **open it**;
 * part of a tab's title to **switch to that tab**;
 * part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
-* a command name: new tab, close tab, split view, bookmarks, history, downloads, extensions, settings.
+* a command name: new tab, close tab, find in page, split view, bookmarks, history, downloads, extensions, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
 ---
 
-## 5. Settings
+## 6. Settings
 
 Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them in a tab, or switches to that tab if it is already open; an empty new tab is reused. Changes apply as soon as you make them, and you close the page like any other tab.
 
@@ -127,11 +140,11 @@ Sections are listed down the left side (across the top on a phone-sized window):
   * **Open new tabs** — **At the end of the tab list** (the default) or **Next to the current tab**. A tab that a page opens goes next to that page.
   * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**.
 * **Privacy**
-  * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#6-ad-blocking).
+  * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#7-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
 * **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
-* **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#8-downloads).
-* **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#7-extensions-xpi).
+* **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#9-downloads).
+* **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#8-extensions-xpi).
 * **About** — the version you have, and updates. See [Updates](#updates) below.
 
 Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/history`, `rem://settings/downloads`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
@@ -162,7 +175,7 @@ Updates come from the same place as the [download links in the README](../README
 
 ---
 
-## 6. Ad blocking
+## 7. Ad blocking
 
 RemBrowse sets up **AdGuard AdBlocker** for you. The first time the browser starts with an internet connection it downloads the extension from addons.mozilla.org and turns it on; no prompt is shown. If you were offline, it tries again on the next start.
 
@@ -174,7 +187,7 @@ Like any content blocker, AdGuard can read and change the pages you visit in ord
 
 ---
 
-## 7. Extensions (`.xpi`)
+## 8. Extensions (`.xpi`)
 
 Extensions are managed in **Settings → Extensions** (`rem://settings/extensions`). **More → Extensions** opens the same place.
 
@@ -194,7 +207,7 @@ You are asked again whenever an update needs **new permissions** or an extension
 
 ---
 
-## 8. Downloads
+## 9. Downloads
 
 When a page offers a file the browser cannot show (an archive, an installer, a document), RemBrowse asks **Download this file?** and names the file, its size and the site it comes from. Choose **Download** to save it or **Cancel** to drop it. Nothing is fetched until you answer. A PDF's own save button skips the question, since you have already chosen to save.
 
@@ -215,7 +228,7 @@ Good to know:
 
 ---
 
-## 9. Keyboard shortcuts
+## 10. Keyboard shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |
@@ -224,6 +237,8 @@ Good to know:
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
 | `Ctrl + L` or `Alt + D` | Focus the address bar |
 | `Ctrl + K` | Command palette |
+| `Ctrl + F` | Find in page |
+| `F3` or `Ctrl + G` / `Shift + F3` or `Ctrl + Shift + G` | Next / previous match |
 | `Ctrl + R` or `F5` | Reload / stop |
 | `Alt + ←` / `Alt + →` | Back / forward |
 | `Ctrl + D` | Bookmark this page |

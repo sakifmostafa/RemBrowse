@@ -13,6 +13,7 @@ import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.DropZone
+import com.rembrowser.rembrowse.model.FindInPageState
 import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
@@ -48,6 +49,10 @@ class BrowserViewModel(
     private val _history = MutableStateFlow(historyStore.load())
     val history: StateFlow<List<HistoryEntry>> = _history.asStateFlow()
 
+    // Kept apart from uiState: typing in the find bar should not recompose the whole screen
+    private val _findInPage = MutableStateFlow<FindInPageState?>(null)
+    val findInPage: StateFlow<FindInPageState?> = _findInPage.asStateFlow()
+
     private val sessionListener = object : SessionEventListener {
         override fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate) {
             // The engine also reports addresses it failed to load, such as a rem:// link a page
@@ -58,6 +63,10 @@ class BrowserViewModel(
         }
 
         private fun applySessionUpdate(tabId: String, update: SessionNavigationUpdate) {
+            // A new page has its own matches; the bar stays open, ready to search it again
+            if (update.isPageStart && _findInPage.value?.tabId == tabId) {
+                _findInPage.update { it?.copy(result = null) }
+            }
             // A location reported outside a page start means a document is now showing. A new
             // session's own about:blank does not count.
             val shownUrl = update.url?.takeUnless { update.isPageStart }
@@ -592,6 +601,67 @@ class BrowserViewModel(
         applyLayout(current, PaneNode.Leaf(tab.id), tab.id)
     }
 
+    /**
+     * Opens the find bar on the focused tab, or puts the cursor back in it if it is open. Only
+     * web pages can be searched; RemBrowse's own pages and the start page have nothing to find.
+     */
+    fun openFindInPage() {
+        val tab = _uiState.value.activeTab ?: return
+        if (!tab.isWebPage || engine.getSession(tab.id) == null) return
+        val current = _findInPage.value
+        _findInPage.value = if (current?.tabId == tab.id) {
+            current.copy(focusRequests = current.focusRequests + 1)
+        } else {
+            current?.let { engine.getSession(it.tabId)?.clearFindInPage() }
+            FindInPageState(tabId = tab.id, focusRequests = 1)
+        }
+    }
+
+    /** The text in the find bar changed: the first match from the current place is selected. */
+    fun updateFindQuery(query: String) {
+        val find = _findInPage.value ?: return
+        if (query == find.query) return
+        _findInPage.value = find.copy(query = query, result = null)
+        if (query.isEmpty()) {
+            engine.getSession(find.tabId)?.clearFindInPage()
+        } else {
+            search(find.tabId, query, backwards = false, matchCase = find.matchCase)
+        }
+    }
+
+    fun findNext() = findAgain(backwards = false)
+
+    fun findPrevious() = findAgain(backwards = true)
+
+    fun setFindMatchCase(matchCase: Boolean) {
+        val find = _findInPage.value ?: return
+        if (find.matchCase == matchCase) return
+        _findInPage.value = find.copy(matchCase = matchCase, result = null)
+        if (find.query.isNotEmpty()) search(find.tabId, find.query, backwards = false, matchCase = matchCase)
+    }
+
+    /** Closes the find bar and takes the highlighting off the page. */
+    fun closeFindInPage() {
+        val find = _findInPage.value ?: return
+        engine.getSession(find.tabId)?.clearFindInPage()
+        _findInPage.value = null
+    }
+
+    private fun findAgain(backwards: Boolean) {
+        val find = _findInPage.value ?: return
+        if (find.query.isEmpty()) return
+        search(find.tabId, find.query, backwards, find.matchCase)
+    }
+
+    private fun search(tabId: String, query: String, backwards: Boolean, matchCase: Boolean) {
+        engine.getSession(tabId)?.findInPage(query, backwards, matchCase) { result ->
+            // A result for text that has since changed, or for a bar since closed, is dropped
+            _findInPage.update { find ->
+                if (find != null && find.tabId == tabId && find.query == result.query) find.copy(result = result) else find
+            }
+        }
+    }
+
     /** Takes the fullscreen page back into its pane. The layout was never changed, so it is as it was. */
     fun exitFullscreen() {
         val tabId = _uiState.value.fullscreenTabId ?: return
@@ -941,6 +1011,10 @@ class BrowserViewModel(
         }
         val activeId = state.activeTabId
         recordingTabIds.retainAll(state.tabs.map { it.id }.toSet())
+        // The find bar belongs to the focused tab: it closes when focus moves on or the tab goes
+        _findInPage.value?.let { find ->
+            if (find.tabId != activeId) closeFindInPage()
+        }
         state.tabs.forEach { tab ->
             val inPane = tab.id in visibleIds
             // Internal pages are drawn by the app and never get a session of their own

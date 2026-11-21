@@ -107,6 +107,7 @@ fun BrowserTopBar(
     onOpenBookmarks: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenHistory: () -> Unit,
+    onFindInPage: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onTriggerExtensionAction: (String) -> Unit,
@@ -203,6 +204,7 @@ fun BrowserTopBar(
                 onOpenBookmarks = onOpenBookmarks,
                 onOpenDownloads = onOpenDownloads,
                 onOpenHistory = onOpenHistory,
+                onFindInPage = onFindInPage,
                 onOpenExtensions = onOpenExtensions,
                 onOpenSettings = onOpenSettings,
                 onOpenSplitView = { showLayoutMenu = true },
@@ -454,6 +456,7 @@ private fun MoreMenu(
     onOpenBookmarks: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenHistory: () -> Unit,
+    onFindInPage: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSplitView: () -> Unit,
@@ -498,6 +501,13 @@ private fun MoreMenu(
             trailingIcon = { ShortcutHint("Ctrl+K") },
             onClick = run(onOpenCommandPalette),
             modifier = Modifier.testTag("menu_command_palette")
+        )
+        DropdownMenuItem(
+            text = { Text("Find in page") },
+            trailingIcon = { ShortcutHint("Ctrl+F") },
+            enabled = pageActionsEnabled,
+            onClick = run(onFindInPage),
+            modifier = Modifier.testTag("menu_find_in_page")
         )
         if (compact) {
             DropdownMenuItem(

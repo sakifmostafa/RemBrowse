@@ -503,6 +503,15 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.LAYOUT_STACKED -> browser.setLayoutMode(LayoutMode.SPLIT_2X1)
             BrowserShortcut.LAYOUT_GRID -> browser.setLayoutMode(LayoutMode.GRID_2X2)
             BrowserShortcut.LAYOUT_ONE_AND_TWO -> browser.setLayoutMode(LayoutMode.SPLIT_1_2)
+            BrowserShortcut.FIND_IN_PAGE -> {
+                chrome.showTabSwitcher = false
+                browser.openFindInPage()
+            }
+            // With the bar closed, F3 opens it, as in a desktop browser
+            BrowserShortcut.FIND_NEXT ->
+                if (browser.findInPage.value == null) browser.openFindInPage() else browser.findNext()
+            BrowserShortcut.FIND_PREVIOUS ->
+                if (browser.findInPage.value == null) browser.openFindInPage() else browser.findPrevious()
         }
     }
 

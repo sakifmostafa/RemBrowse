@@ -4,6 +4,7 @@ import com.rembrowser.rembrowse.data.AmoApiClient
 import com.rembrowser.rembrowse.data.BrowserStateRepository
 import com.rembrowser.rembrowse.engine.BrowserEngine
 import com.rembrowser.rembrowse.engine.BrowserSessionHandle
+import com.rembrowser.rembrowse.engine.FindResult
 import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.engine.SessionEventListener
 import com.rembrowser.rembrowse.engine.SessionNavigationUpdate
@@ -46,6 +47,23 @@ class FakeSessionHandle(
     override fun setFocusedForExtensions(focused: Boolean) { focusedForExtensionsState = focused }
     override fun close() { isClosed = true }
     override fun exitFullScreen() { exitFullScreenCount++ }
+
+    /** Every find in page asked of this page: (query, backwards, matchCase). */
+    val finds = mutableListOf<Triple<String, Boolean, Boolean>>()
+    var findClearCount = 0
+    private var pendingFind: ((FindResult) -> Unit)? = null
+
+    override fun findInPage(query: String, backwards: Boolean, matchCase: Boolean, onResult: (FindResult) -> Unit) {
+        finds += Triple(query, backwards, matchCase)
+        pendingFind = onResult
+    }
+
+    override fun clearFindInPage() { findClearCount++ }
+
+    /** The engine answers the latest find. */
+    fun answerFind(result: FindResult) {
+        pendingFind?.invoke(result)
+    }
 
     /** The page pressed (or left) its fullscreen button. */
     fun simulateFullScreen(fullScreen: Boolean) {

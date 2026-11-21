@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.rembrowser.rembrowse.engine.FindResult
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
@@ -331,6 +332,34 @@ class UiSnapshotTest {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()
         save("08-more-menu")
+    }
+
+    @Test
+    fun findInPage() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openFindInPage() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("find_input").performTextInput("design")
+        composeRule.runOnUiThread {
+            engine.sessions.getValue("arch").answerFind(FindResult("design", found = true, current = 3, total = 12))
+        }
+        save("12-find-in-page")
+    }
+
+    @Test
+    fun findInPageNoResultsLightSplit() {
+        launch(settings = BrowserSettings(useDarkTheme = false), layout = LayoutMode.SPLIT_1X2)
+        composeRule.runOnUiThread {
+            browserVm.focusPane(1)
+            browserVm.openFindInPage()
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("find_input").performTextInput("zeppelin")
+        composeRule.onNodeWithTag("find_match_case").performClick()
+        composeRule.runOnUiThread {
+            engine.sessions.getValue("arch").answerFind(FindResult("zeppelin", found = false, current = 0, total = 0))
+        }
+        save("12b-find-no-results-light-split")
     }
 
     @Test

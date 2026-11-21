@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -114,7 +115,9 @@ fun TiledBrowserGrid(
     internalPage: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     modifier: Modifier = Modifier,
-    dragState: TabDragState? = null
+    dragState: TabDragState? = null,
+    /** Drawn over each visible pane's page, such as the find bar of the page being searched. */
+    paneOverlay: @Composable BoxScope.(tab: BrowserTab) -> Unit = {}
 ) {
     val isSplit = uiState.isSplit
     val fullscreenTabId = uiState.fullscreenTabId?.takeIf { it in uiState.paneTabIds }
@@ -187,6 +190,7 @@ fun TiledBrowserGrid(
                     onFocusWebContent = onFocusWebContent,
                     internalPage = internalPage,
                     paneViewport = paneViewport,
+                    paneOverlay = paneOverlay,
                     modifier = if (fillsWindow) {
                         Modifier.zIndex(1f).size(totalWidth, totalHeight)
                     } else {
@@ -291,6 +295,7 @@ private fun BrowserPane(
     onFocusWebContent: (tabId: String) -> Unit,
     internalPage: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
+    paneOverlay: @Composable BoxScope.(tab: BrowserTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val tab = uiState.tabForPane(paneIndex) ?: return
@@ -381,6 +386,8 @@ private fun BrowserPane(
                 trackColor = Color.Transparent
             )
         }
+
+        if (!hidden) paneOverlay(tab)
     }
 }
 
