@@ -3,6 +3,7 @@ package com.rembrowser.rembrowse.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
@@ -14,6 +15,8 @@ import com.rembrowser.rembrowse.model.TerminalCursorStyle
 import com.rembrowser.rembrowse.model.TerminalFont
 import com.rembrowser.rembrowse.model.TerminalThemePreset
 import java.security.KeyStore
+import javax.crypto.AEADBadTagException
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -241,13 +244,25 @@ class KeystoreSecretStore(context: Context) : SecretStore {
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, sealed, 0, IV_BYTES))
             String(cipher.doFinal(sealed, IV_BYTES, sealed.size - IV_BYTES), Charsets.UTF_8)
         } catch (e: Exception) {
-            // The keystore key is gone (a restore onto another device, a reset lock screen):
-            // what was sealed with it can never be opened again
-            Log.w(TAG, "A saved secret could not be opened and was dropped", e)
-            remove(name)
+            if (isUnopenable(e)) {
+                // Sealed with a keystore key that is gone (data restored onto another device, a
+                // reset lock screen), or damaged: it can never be opened again
+                Log.w(TAG, "A saved secret could not be opened and was dropped", e)
+                remove(name)
+            } else {
+                // The keystore failing for now (busy, just after boot): keep the secret for next
+                // time. A generated private key exists nowhere else.
+                Log.w(TAG, "A saved secret could not be opened this time", e)
+            }
             null
         }
     }
+
+    /** Whether [e] means the sealed value itself can't be opened, rather than the keystore failing. */
+    private fun isUnopenable(e: Exception): Boolean =
+        e is AEADBadTagException || e is KeyPermanentlyInvalidatedException ||
+            e is IllegalArgumentException || e is BadPaddingException ||
+            e is ArrayIndexOutOfBoundsException || e is javax.crypto.ShortBufferException
 
     override fun remove(name: String) {
         prefs.edit().remove(name).apply()

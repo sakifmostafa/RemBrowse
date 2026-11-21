@@ -14,6 +14,8 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -40,19 +42,31 @@ class TrileadSshConnector(
         connection.setClient2ServerCiphers(CIPHERS)
         connection.setServer2ClientCiphers(CIPHERS)
         var refusedKey = false
+        // The library's own time limit for the key exchange would also run while the user reads
+        // the server's fingerprint, and fail a connection they then accept. This one stops for that.
+        val watchdog = KeyExchangeWatchdog(keyExchangeTimeoutMillis.toLong()) { connection.close() }
         val verifier = ServerHostKeyVerifier { hostname, port, keyType, key ->
             val check = hostKeyCheck(request.hostname, port, keyType, key, hostKeys.knownKey(request.hostname, port))
                 ?: return@ServerHostKeyVerifier true
-            val accepted = prompts.confirmHostKey(check)
+            watchdog.disarm()
+            val accepted = try {
+                prompts.confirmHostKey(check)
+            } finally {
+                watchdog.arm()
+            }
             if (accepted) hostKeys.remember(check) else refusedKey = true
             accepted
         }
         try {
             try {
-                connection.connect(verifier, connectTimeoutMillis, keyExchangeTimeoutMillis)
+                watchdog.arm()
+                connection.connect(verifier, connectTimeoutMillis, 0)
             } catch (e: IOException) {
                 if (refusedKey) throw SshConnectException("Not connected: the server's identity was not accepted.", e)
+                if (watchdog.fired) throw SshConnectException("${request.hostname}:${request.port} didn't answer in time.", e)
                 throw SshConnectException(connectFailure(request, e), e)
+            } finally {
+                watchdog.stop()
             }
             signIn(connection, request, prompts)
             val session = connection.openSession()
@@ -242,8 +256,53 @@ private class TrileadShell(
     private fun finish(reason: String?) {
         if (!closed.compareAndSet(false, true)) return
         writer.shutdown()
-        runCatching { session.close() }
-        runCatching { connection.close() }
+        // Closing sends the server a goodbye on the calling thread, and Android refuses network
+        // use on the main thread (where Disconnect and closing a tab come from): without a thread
+        // of its own the socket and the server's session were left open
+        Thread({
+            runCatching { session.close() }
+            runCatching { connection.close() }
+        }, "ssh-close").apply { isDaemon = true }.start()
         onClosed(reason)
+    }
+}
+
+/**
+ * Closes a connection whose key exchange takes longer than [timeoutMillis], not counting the time
+ * a question about the server's key is open. [arm] starts (or restarts) the clock, [disarm]
+ * stops it.
+ */
+internal class KeyExchangeWatchdog(private val timeoutMillis: Long, private val onTimeout: () -> Unit) {
+    private val timer = Executors.newSingleThreadScheduledExecutor { runnable ->
+        Thread(runnable, "ssh-kex-watchdog").apply { isDaemon = true }
+    }
+    private var pending: ScheduledFuture<*>? = null
+    private var stopped = false
+
+    @Volatile
+    var fired = false
+        private set
+
+    @Synchronized
+    fun arm() {
+        pending?.cancel(false)
+        if (stopped || timeoutMillis <= 0) return
+        pending = timer.schedule({
+            fired = true
+            runCatching(onTimeout)
+        }, timeoutMillis, TimeUnit.MILLISECONDS)
+    }
+
+    @Synchronized
+    fun disarm() {
+        pending?.cancel(false)
+        pending = null
+    }
+
+    @Synchronized
+    fun stop() {
+        stopped = true
+        disarm()
+        timer.shutdownNow()
     }
 }

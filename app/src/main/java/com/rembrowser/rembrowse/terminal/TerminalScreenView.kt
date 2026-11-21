@@ -24,6 +24,7 @@ import com.rembrowser.rembrowse.model.TerminalFont
 import com.rembrowser.rembrowse.model.TerminalThemePreset
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
+import com.termux.terminal.WcWidth
 import com.termux.view.TerminalRenderer
 import java.nio.charset.StandardCharsets
 import kotlin.math.abs
@@ -191,6 +192,12 @@ class TerminalScreenView(context: Context) : View(context) {
         if (usableWidth <= 0 || usableHeight <= 0 || !hasFontMetrics) return
         val columns = max(MIN_COLUMNS, (usableWidth / renderer.fontWidth).toInt())
         val rows = max(MIN_ROWS, (usableHeight - renderer.fontLineSpacingAndAscent) / renderer.fontLineSpacing)
+        // A new width rewraps the lines, so a selection's cells would point at other text (or
+        // past the end of a row): it goes
+        if (columns != terminal.emulator.mColumns || rows != terminal.emulator.mRows) {
+            selection = null
+            selectionAnchor = null
+        }
         terminal.resize(columns, rows, renderer.fontWidth.roundToInt(), renderer.fontLineSpacing)
         clampTopRow()
     }
@@ -231,7 +238,8 @@ class TerminalScreenView(context: Context) : View(context) {
         if (topRow != 0 || !hasFocus() || !hasFontMetrics) return
         val room = emulator.mColumns - emulator.cursorCol
         if (room <= 0) return
-        val rest = whole.substring(typedLine.length).take(room)
+        // As much of the rest as fits on the row, in cells: wide characters (CJK, emoji) take two
+        val (rest, cells) = fitToCells(whole.substring(typedLine.length), room)
         if (rest.isEmpty()) return
         val colors = emulator.mColors.mCurrentColors
         val foreground = colors[com.termux.terminal.TextStyle.COLOR_INDEX_FOREGROUND]
@@ -250,12 +258,12 @@ class TerminalScreenView(context: Context) : View(context) {
         }
 
         // The "Tab" keycap: not for the last letter or two, nor over a selection
-        if (rest.length < MIN_GHOST_FOR_HINT || selection != null) return
+        if (rest.codePointCount(0, rest.length) < MIN_GHOST_FOR_HINT || selection != null) return
         val hint = "Tab"
         hintPaint.typeface = typeface
         hintPaint.textSize = textSizePx * 0.78f
         val padding = renderer.fontWidth * 0.6f
-        val capLeft = left + (rest.length + 1.5f) * renderer.fontWidth
+        val capLeft = left + (cells + 1.5f) * renderer.fontWidth
         val capWidth = hintPaint.measureText(hint) + 2 * padding
         if (capLeft + capWidth > emulator.mColumns * renderer.fontWidth) return
         val rowCenter = renderer.fontLineSpacingAndAscent + (emulator.cursorRow + 0.5f) * lineSpacing
@@ -276,6 +284,20 @@ class TerminalScreenView(context: Context) : View(context) {
     }
 
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha shl 24)
+
+    /** The start of [text] that fits in [room] cells, whole characters only, and the cells it takes. */
+    private fun fitToCells(text: String, room: Int): Pair<String, Int> {
+        var cells = 0
+        var end = 0
+        while (end < text.length) {
+            val codePoint = text.codePointAt(end)
+            val width = WcWidth.width(codePoint).coerceAtLeast(0)
+            if (cells + width > room) break
+            cells += width
+            end += Character.charCount(codePoint)
+        }
+        return text.substring(0, end) to cells
+    }
 
     private fun onScreenUpdated() {
         val emulator = connection?.emulator ?: return
@@ -331,7 +353,16 @@ class TerminalScreenView(context: Context) : View(context) {
                 val content = editable ?: return
                 val text = content.toString()
                 content.clear()
-                if (text.isNotEmpty()) sendToShell(text.replace('\n', '\r'))
+                when {
+                    text.isEmpty() -> Unit
+                    // The keyboard's Enter
+                    text == "\n" -> sendToShell("\r")
+                    // Several lines or control characters: a paste from the keyboard's clipboard.
+                    // It goes in as a paste, so a shell with bracketed paste doesn't run it line
+                    // by line, and escape sequences in it are dropped
+                    text.any { it == '\n' || it == '\r' || it.isISOControl() } -> pasteText(text)
+                    else -> sendToShell(text)
+                }
             }
         }
     }
@@ -352,10 +383,13 @@ class TerminalScreenView(context: Context) : View(context) {
         // Tab (or → at the end of the line) takes the suggestion; without one, Tab is the shell's
         val plain = !event.isCtrlPressed && !event.isAltPressed && !event.isShiftPressed && !event.isMetaPressed
         if (plain && (keyCode == KeyEvent.KEYCODE_TAB || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && acceptSuggestion()) return true
-        val code = encodeKey(keyCode, event, terminal.emulator) ?: return super.onKeyDown(keyCode, event)
+        val code = encodeKey(keyCode, event, terminal.emulator, deadKey) ?: return super.onKeyDown(keyCode, event)
         if (code.isNotEmpty()) sendToShell(code)
         return true
     }
+
+    /** An accent typed with a dead key, waiting for its letter. */
+    private val deadKey = DeadKey()
 
     /** Types the rest of the suggestion. False when there is none. */
     fun acceptSuggestion(): Boolean {
@@ -637,7 +671,13 @@ class TerminalScreenView(context: Context) : View(context) {
         if (!terminal.isConnected) return
         val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip ?: return
         val text = (0 until clip.itemCount).joinToString("") { clip.getItemAt(it).coerceToText(context).toString() }
-        if (text.isEmpty()) return
+        pasteText(text)
+    }
+
+    /** Pastes [text] into the shell, as the emulator does: bracketed when the shell asks for it. */
+    private fun pasteText(text: String) {
+        val terminal = connection ?: return
+        if (!terminal.isConnected || text.isEmpty()) return
         topRow = 0
         selection = null
         // Pasted text isn't followed: suggestions wait for the next line
@@ -713,7 +753,7 @@ class TerminalScreenView(context: Context) : View(context) {
          * passes it on). Ctrl turns letters into control characters, and Alt sends Escape first
          * (so Alt+B and Alt+F move by words in the shell).
          */
-        fun encodeKey(keyCode: Int, event: KeyEvent, emulator: TerminalEmulator): String? {
+        fun encodeKey(keyCode: Int, event: KeyEvent, emulator: TerminalEmulator, deadKey: DeadKey = DeadKey()): String? {
             var keyMod = 0
             if (event.isCtrlPressed) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
             if (event.isAltPressed) keyMod = keyMod or KeyHandler.KEYMOD_ALT
@@ -722,13 +762,29 @@ class TerminalScreenView(context: Context) : View(context) {
             KeyHandler.getCode(keyCode, keyMod, emulator.isCursorKeysApplicationMode, emulator.isKeypadApplicationMode)
                 ?.let { return it }
 
-            val withoutModifiers = event.metaState and
-                (KeyEvent.META_CTRL_MASK or KeyEvent.META_ALT_MASK or KeyEvent.META_META_MASK).inv()
-            val unicode = event.getUnicodeChar(withoutModifiers)
+            // Right Alt is AltGr on many layouts (German @, { and }, …): what the layout types
+            // with it is the character, not Alt plus a letter. Only where it types nothing is it Alt.
+            val ctrlAndMeta = KeyEvent.META_CTRL_MASK or KeyEvent.META_META_MASK
+            var alt = event.isAltPressed
+            var unicode = 0
+            if (event.metaState and KeyEvent.META_ALT_RIGHT_ON != 0) {
+                unicode = event.getUnicodeChar(event.metaState and (ctrlAndMeta or KeyEvent.META_ALT_LEFT_ON).inv())
+                if (unicode != 0) alt = event.metaState and KeyEvent.META_ALT_LEFT_ON != 0
+            }
+            if (unicode == 0) unicode = event.getUnicodeChar(event.metaState and (ctrlAndMeta or KeyEvent.META_ALT_MASK).inv())
             if (unicode == 0) return null
-            // A dead key (an accent waiting for its letter): nothing to send yet
-            if (unicode and KeyCharacterMap.COMBINING_ACCENT != 0) return ""
-            return encodeCodePoint(unicode, event.isCtrlPressed, event.isAltPressed)
+
+            // A dead key: the accent waits for the next letter (´ then e is é; ´ then space is ´)
+            if (unicode and KeyCharacterMap.COMBINING_ACCENT != 0) {
+                deadKey.accent = unicode and KeyCharacterMap.COMBINING_ACCENT_MASK
+                return ""
+            }
+            if (deadKey.accent != 0) {
+                val combined = KeyCharacterMap.getDeadChar(deadKey.accent, unicode)
+                deadKey.accent = 0
+                if (combined != 0) unicode = combined
+            }
+            return encodeCodePoint(unicode, event.isCtrlPressed, alt)
         }
 
         /** [codePoint] as typed with [ctrl] and [alt] held. */
@@ -752,6 +808,11 @@ class TerminalScreenView(context: Context) : View(context) {
             return if (alt) "\u001b$text" else text
         }
     }
+}
+
+/** The accent of a dead key that was pressed, waiting to combine with the next letter; 0 for none. */
+class DeadKey {
+    var accent: Int = 0
 }
 
 /** A run of text on the terminal, from one cell to another (inclusive), in either direction. */

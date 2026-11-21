@@ -6,6 +6,7 @@ import com.termux.terminal.TerminalOutput
 import com.termux.terminal.TerminalSessionClient
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -152,6 +153,9 @@ class TerminalConnection(
         )
         val prompts = Prompts(thisAttempt, spec)
         runInBackground {
+            // A shell can end before connect() has even returned (a login that only prints a
+            // message, a server's forced command): then it must not be shown as connected
+            val endedEarly = AtomicBoolean(false)
             try {
                 val opened = connector.connect(
                     request = request,
@@ -168,6 +172,7 @@ class TerminalConnection(
                         }
                     },
                     onClosed = { reason ->
+                        endedEarly.set(true)
                         postToMain {
                             if (thisAttempt == attempt) {
                                 shell = null
@@ -178,6 +183,9 @@ class TerminalConnection(
                 )
                 postToMain {
                     if (thisAttempt != attempt) {
+                        opened.close()
+                    } else if (endedEarly.get()) {
+                        // Its end is (or will be) reported as Disconnected
                         opened.close()
                     } else {
                         shell = opened
