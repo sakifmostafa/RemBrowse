@@ -66,6 +66,8 @@ android {
             // Shrink only (see proguard-rules.pro): removes unused library code, mostly the
             // bundled icon set, without renaming or rewriting anything.
             isMinifyEnabled = true
+            // Drops resources nothing uses (about 0.3 MB)
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android.txt"),
                 "proguard-rules.pro"
@@ -112,6 +114,18 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            // Gecko's crash-report analyser: RemBrowse sends no crash reports, and nothing in
+            // GeckoView loads it otherwise. 1.5 MB of the download, 3.8 MB installed.
+            excludes += "**/libminidump_analyzer.so"
+        }
+    }
+
+    androidResources {
+        // GeckoView's omni.ja is opened inside the APK. Compressed, every engine process (main,
+        // web pages, extensions) inflates its own 13 MB copy into memory first; stored, it is
+        // read straight from the mapped APK. Firefox for Android does the same.
+        noCompress += "ja"
     }
 }
 

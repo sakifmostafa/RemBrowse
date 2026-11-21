@@ -1088,7 +1088,10 @@ class RemBrowseUiTest {
         assertEquals(window.width, fullscreenPane.width)
         assertEquals(window.height, fullscreenPane.height)
         composeRule.onNodeWithText("Viewport:https://reddit.com/").assertIsDisplayed()
-        assertTrue("The other page is kept alive behind it", engine.sessions.getValue(youtube).visibleState)
+        assertFalse(
+            "The other page waits behind it, paused (its view is kept, so it comes back at once)",
+            engine.sessions.getValue(youtube).visibleState
+        )
 
         // Back leaves fullscreen: the page is asked to, and the window is as it was
         composeRule.runOnUiThread { backDispatcher!!.onBackPressed() }
@@ -1103,6 +1106,7 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("split_divider_vertical").assertIsDisplayed()
         composeRule.onNodeWithTag("browser_pane_1").assertIsDisplayed()
         composeRule.onNodeWithText("Viewport:https://youtube.com/").assertIsDisplayed()
+        assertTrue("…and runs again", engine.sessions.getValue(youtube).visibleState)
         assertEquals(redditPane, composeRule.onNodeWithTag("browser_pane_0").getUnclippedBoundsInRoot())
 
         // The page leaving by itself (Esc, its own button) does the same

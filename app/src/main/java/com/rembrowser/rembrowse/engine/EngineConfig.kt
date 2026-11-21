@@ -9,9 +9,15 @@ import java.io.File
  * configuration file GeckoView reads (`GeckoRuntimeSettings.Builder.configFilePath`), whose
  * `prefs` become default preference values before the engine starts.
  *
- * Today that is one preference, the desktop viewport width.
+ * Two preferences:
  *
- * A tab that asks for desktop sites gets Gecko's "desktop mode" viewport, whose width is
+ * **Translations off** ([TRANSLATIONS_PREF]), on every device. RemBrowse offers no page
+ * translation, but GeckoView turns the machinery on, and it runs a language-detection worker
+ * in every web content process: measured on a Googlebook with `about:memory`, about 17 MB per
+ * process (`resource://gre/modules/translations/cld-worker.js`), for nothing.
+ *
+ * **Desktop viewport width** ([DESKTOP_WIDTH_PREF]), on large screens only. A tab that asks
+ * for desktop sites gets Gecko's "desktop mode" viewport, whose width is
  * `max(width of the view, browser.viewport.desktopWidth)`; the page is then scaled to fit the
  * view. With Gecko's default of 980 CSS px that is right for a phone, but in a split-view pane
  * narrower than 980 px every page is laid out 980 px wide and shrunk, so its text becomes
@@ -25,6 +31,9 @@ internal object EngineConfig {
     private const val TAG = "EngineConfig"
 
     const val DESKTOP_WIDTH_PREF = "browser.viewport.desktopWidth"
+
+    /** Gecko's page translation, which RemBrowse has no use for (see above). */
+    const val TRANSLATIONS_PREF = "browser.translations.enable"
 
     /** Gecko's own default: a desktop layout, shrunk to fit whatever is narrower. */
     const val GECKO_DESKTOP_WIDTH = 980
@@ -48,17 +57,27 @@ internal object EngineConfig {
     fun desktopViewportWidth(smallestScreenWidthDp: Int): Int =
         if (smallestScreenWidthDp >= LARGE_SCREEN_DP) MIN_PANE_LAYOUT_WIDTH else GECKO_DESKTOP_WIDTH
 
-    /** The configuration file's text for [prefs]. */
-    fun yaml(prefs: Map<String, Int>): String = buildString {
+    /** What RemBrowse sets on a device whose smallest screen side is [smallestScreenWidthDp]. */
+    fun prefsFor(smallestScreenWidthDp: Int): Map<String, Any> = buildMap {
+        put(TRANSLATIONS_PREF, false)
+        val width = desktopViewportWidth(smallestScreenWidthDp)
+        if (width != GECKO_DESKTOP_WIDTH) put(DESKTOP_WIDTH_PREF, width)
+    }
+
+    /** The configuration file's text for [prefs], whose values are numbers or true/false. */
+    fun yaml(prefs: Map<String, Any>): String = buildString {
         append("# Written by RemBrowse at every start. Edits are overwritten.\n")
         append("prefs:\n")
-        prefs.forEach { (name, value) -> append("  ").append(name).append(": ").append(value).append('\n') }
+        prefs.forEach { (name, value) ->
+            require(value is Int || value is Boolean) { "$name: only numbers and true/false are written" }
+            append("  ").append(name).append(": ").append(value).append('\n')
+        }
     }
 
     /**
      * Writes the configuration file into [directory] and returns its path for
-     * `configFilePath`, or null when the engine should start without one: nothing differs
-     * from Gecko's defaults, or the file could not be written and read back.
+     * `configFilePath`, or null when the engine should start without one because the file
+     * could not be written and read back.
      *
      * The file is read back with [readPrefs], the engine's own parser, before its path is
      * returned. If that fails for any reason the engine is started without the file, which
@@ -70,17 +89,13 @@ internal object EngineConfig {
         readPrefs: (File) -> Map<String, Any?>? = ::readWithEngineParser
     ): String? {
         val file = File(directory, FILE_NAME)
-        val width = desktopViewportWidth(smallestScreenWidthDp)
-        if (width == GECKO_DESKTOP_WIDTH) {
-            file.delete()
-            return null
-        }
+        val prefs = prefsFor(smallestScreenWidthDp)
         return try {
             directory.mkdirs()
-            file.writeText(yaml(mapOf(DESKTOP_WIDTH_PREF to width)))
+            file.writeText(yaml(prefs))
             // Any failure here, including an Error from the parser, is caught below
-            val readBack = readPrefs(file)?.get(DESKTOP_WIDTH_PREF)
-            if (readBack == width) {
+            val readBack = readPrefs(file)
+            if (readBack != null && prefs.all { (name, value) -> readBack[name] == value }) {
                 file.absolutePath
             } else {
                 Log.w(TAG, "Engine configuration did not read back as written; starting without it")

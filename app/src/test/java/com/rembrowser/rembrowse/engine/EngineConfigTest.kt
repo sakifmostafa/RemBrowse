@@ -42,13 +42,19 @@ class EngineConfigTest {
     }
 
     @Test
-    fun yaml_isAPrefsMapWithPlainIntegerValues() {
+    fun yaml_isAPrefsMapWithPlainNumbersAndBooleans() {
         assertEquals(
             "# Written by RemBrowse at every start. Edits are overwritten.\n" +
                 "prefs:\n" +
+                "  browser.translations.enable: false\n" +
                 "  browser.viewport.desktopWidth: 320\n",
-            EngineConfig.yaml(mapOf("browser.viewport.desktopWidth" to 320))
+            EngineConfig.yaml(mapOf("browser.translations.enable" to false, "browser.viewport.desktopWidth" to 320))
         )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun yaml_refusesValuesItCannotWritePlainly() {
+        EngineConfig.yaml(mapOf("some.pref" to "text"))
     }
 
     @Test
@@ -59,16 +65,27 @@ class EngineConfigTest {
         assertEquals(file.absolutePath, path)
         // Read with the real parser, not a stand-in: this is what the engine will see
         val prefs = EngineConfig.readWithEngineParser(file)!!
-        assertEquals(mapOf<String, Any?>("browser.viewport.desktopWidth" to 320), prefs)
-        assertTrue("An integer, so it is written as a number preference", prefs.values.single() is Int)
+        assertEquals(
+            mapOf<String, Any?>("browser.translations.enable" to false, "browser.viewport.desktopWidth" to 320),
+            prefs
+        )
+        assertTrue("An integer, so it is written as a number preference", prefs["browser.viewport.desktopWidth"] is Int)
+        assertTrue("A boolean, so it is written as a true/false preference", prefs["browser.translations.enable"] is Boolean)
     }
 
     @Test
-    fun prepare_givesTheEngineNoFileOnAPhone_andRemovesAnOldOne() {
-        val stale = File(folder.root, "geckoview-config.yaml").apply { writeText("prefs:\n  x: 1\n") }
+    fun prepare_onAPhone_turnsTranslationsOffButKeepsTheDesktopLayout() {
+        File(folder.root, "geckoview-config.yaml").writeText("prefs:\n  x: 1\n")
 
-        assertNull(EngineConfig.prepare(folder.root, smallestScreenWidthDp = 411))
-        assertFalse("Left behind, it would be stale", stale.exists())
+        val path = EngineConfig.prepare(folder.root, smallestScreenWidthDp = 411)
+
+        val file = File(folder.root, "geckoview-config.yaml")
+        assertEquals(file.absolutePath, path)
+        assertEquals(
+            "The old file is replaced, not added to",
+            mapOf<String, Any?>("browser.translations.enable" to false),
+            EngineConfig.readWithEngineParser(file)
+        )
     }
 
     @Test
@@ -81,8 +98,21 @@ class EngineConfigTest {
 
         // The parser returns nothing, or something other than what was written
         assertNull(EngineConfig.prepare(folder.root, 800) { null })
-        assertNull(EngineConfig.prepare(folder.root, 800) { mapOf("browser.viewport.desktopWidth" to "320") })
-        assertNull(EngineConfig.prepare(folder.root, 800) { mapOf("browser.viewport.desktopWidth" to 980) })
+        assertNull(
+            EngineConfig.prepare(folder.root, 800) {
+                mapOf("browser.translations.enable" to false, "browser.viewport.desktopWidth" to "320")
+            }
+        )
+        assertNull(
+            EngineConfig.prepare(folder.root, 800) {
+                mapOf("browser.translations.enable" to false, "browser.viewport.desktopWidth" to 980)
+            }
+        )
+        assertNull(
+            "Every preference must come back, not only one",
+            EngineConfig.prepare(folder.root, 800) { mapOf("browser.viewport.desktopWidth" to 320) }
+        )
+        assertNull(EngineConfig.prepare(folder.root, 411) { mapOf("browser.translations.enable" to "false") })
         assertFalse(file.exists())
     }
 

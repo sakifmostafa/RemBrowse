@@ -396,6 +396,18 @@ class MainActivity : ComponentActivity() {
         browser.resolvePrompt(promptId)
     }
 
+    override fun onStart() {
+        super.onStart()
+        holder.browser.setWindowShown(true)
+    }
+
+    // Gecko only pauses a page when its view's surface goes, and a TextureView's survives the
+    // window being minimised; without this the pages on screen would keep running unseen
+    override fun onStop() {
+        super.onStop()
+        holder.browser.setWindowShown(false)
+    }
+
     override fun onResume() {
         super.onResume()
         // Back from the screen that lets RemBrowse install apps: finish a waiting update

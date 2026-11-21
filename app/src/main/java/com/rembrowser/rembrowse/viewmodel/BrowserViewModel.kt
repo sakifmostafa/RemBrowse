@@ -137,6 +137,8 @@ class BrowserViewModel(
                 // A page nobody can see has no business taking over the window
                 engine.getSession(tabId)?.exitFullScreen()
             }
+            // The panes behind a fullscreen page pause, and wake again when it ends
+            syncSessions()
         }
 
         override fun onDownloadRequested(request: DownloadRequest) {
@@ -152,6 +154,9 @@ class BrowserViewModel(
 
     /** Receives the files that pages offer to save. Set by whoever owns the downloads. */
     var downloadHandler: ((DownloadRequest) -> Unit)? = null
+
+    /** Whether the browser window is on screen at all (false while it is minimised or covered). */
+    private var windowShown = true
 
     /** Tabs in which the engine has shown a document since this browser started. */
     private val tabsWithContent = mutableSetOf<String>()
@@ -583,6 +588,18 @@ class BrowserViewModel(
         val tabId = _uiState.value.fullscreenTabId ?: return
         engine.getSession(tabId)?.exitFullScreen()
         _uiState.update { it.copy(fullscreenTabId = null) }
+        syncSessions()
+    }
+
+    /**
+     * The window was minimised or covered ([shown] false), or came back. While it is away no
+     * page is active: they stop painting and their timers slow down, as for a background tab.
+     * Sound keeps playing.
+     */
+    fun setWindowShown(shown: Boolean) {
+        if (windowShown == shown) return
+        windowShown = shown
+        syncSessions()
     }
 
     fun goBack(paneIndex: Int = _uiState.value.activePaneIndex) {
@@ -900,21 +917,25 @@ class BrowserViewModel(
         val state = _uiState.value
         val visibleIds = state.visibleTabIds.toSet()
         // Fullscreen ends with the tab, or when its pane goes on to show something else
-        val fullscreenId = state.fullscreenTabId
+        var fullscreenId = state.fullscreenTabId
         if (fullscreenId != null && fullscreenId !in visibleIds) {
             engine.getSession(fullscreenId)?.exitFullScreen()
             _uiState.update { it.copy(fullscreenTabId = null) }
+            fullscreenId = null
         }
         val activeId = state.activeTabId
         state.tabs.forEach { tab ->
-            val isVisible = tab.id in visibleIds
+            val inPane = tab.id in visibleIds
             // Internal pages are drawn by the app and never get a session of their own
-            val session = if (isVisible && !tab.isInternalPage) {
+            val session = if (inPane && !tab.isInternalPage) {
                 ensureSessionCreated(tab)
             } else {
                 engine.getSession(tab.id) ?: return@forEach
             }
-            session.setVisible(isVisible)
+            // A pane is only worth running while someone can see it: not under a fullscreen
+            // page, and not while the whole window is away
+            val seen = inPane && windowShown && (fullscreenId == null || tab.id == fullscreenId)
+            session.setVisible(seen)
             session.setFocusedForExtensions(tab.id == activeId)
         }
     }
