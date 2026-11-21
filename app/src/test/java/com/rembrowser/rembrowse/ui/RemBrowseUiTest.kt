@@ -31,6 +31,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -56,6 +57,7 @@ import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
@@ -1116,6 +1118,79 @@ class RemBrowseUiTest {
         composeRule.runOnUiThread { engine.sessions.getValue(youtube).simulateFullScreen(false) }
         composeRule.onNodeWithTag("tab_rail").assertIsDisplayed()
         composeRule.onNodeWithText("Viewport:https://reddit.com/").assertIsDisplayed()
+    }
+
+    @Test
+    fun settings_pageRenderingIsChosenUnderAppearance() {
+        launch()
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_settings").performClick()
+
+        composeRule.onNodeWithTag("page_rendering_standard").performScrollTo().assertIsSelected()
+        composeRule.onNodeWithTag("page_rendering_direct").performScrollTo().performClick()
+
+        assertEquals(PageRendering.DIRECT, browserVm.uiState.value.settings.pageRendering)
+        composeRule.onNodeWithTag("page_rendering_direct").assertIsSelected()
+
+        composeRule.onNodeWithTag("page_rendering_legacy").performScrollTo().performClick()
+        assertEquals(PageRendering.LEGACY, browserVm.uiState.value.settings.pageRendering)
+    }
+
+    @Test
+    fun directRendering_aPageUnderAFullscreenPageGivesUpItsView() {
+        redditBesideYouTubeWithNewsInTheRail()
+        browserVm.setPageRendering(PageRendering.DIRECT)
+        var youtubeViews = 0
+        var youtubeViewsDisposed = 0
+        launch { tab, modifier ->
+            if (tab.url == "https://youtube.com/") {
+                DisposableEffect(Unit) {
+                    youtubeViews++
+                    onDispose { youtubeViewsDisposed++ }
+                }
+            }
+            Box(modifier = modifier) { Text(text = "Viewport:${tab.url}") }
+        }
+        val (reddit, youtube) = browserVm.uiState.value.paneTabIds
+        composeRule.onNodeWithText("Viewport:https://reddit.com/").assertIsDisplayed()
+        composeRule.onNodeWithText("Viewport:https://youtube.com/").assertIsDisplayed()
+        assertEquals(1, youtubeViews)
+
+        // Both pages lie behind the window, where this app does not decide which is on top
+        composeRule.runOnUiThread { engine.sessions.getValue(reddit).simulateFullScreen(true) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Viewport:https://reddit.com/").assertIsDisplayed()
+        assertEquals("The covered page's view is gone", 1, youtubeViewsDisposed)
+        assertFalse("Its page is kept, paused", engine.sessions.getValue(youtube).isClosed)
+        assertFalse(engine.sessions.getValue(youtube).visibleState)
+
+        composeRule.runOnUiThread { engine.sessions.getValue(reddit).simulateFullScreen(false) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Viewport:https://youtube.com/").assertIsDisplayed()
+        assertEquals("And back when the fullscreen page leaves", 2, youtubeViews)
+        assertTrue("…running again", engine.sessions.getValue(youtube).visibleState)
+    }
+
+    @Test
+    fun standardRendering_aPageUnderAFullscreenPageKeepsItsView() {
+        redditBesideYouTubeWithNewsInTheRail()
+        var youtubeViewsDisposed = 0
+        launch { tab, modifier ->
+            if (tab.url == "https://youtube.com/") {
+                DisposableEffect(Unit) { onDispose { youtubeViewsDisposed++ } }
+            }
+            Box(modifier = modifier) { Text(text = "Viewport:${tab.url}") }
+        }
+        val reddit = browserVm.uiState.value.paneTabIds.first()
+
+        composeRule.runOnUiThread { engine.sessions.getValue(reddit).simulateFullScreen(true) }
+        composeRule.waitForIdle()
+        composeRule.runOnUiThread { engine.sessions.getValue(reddit).simulateFullScreen(false) }
+        composeRule.waitForIdle()
+
+        assertEquals("In the window, the fullscreen pane simply covers it", 0, youtubeViewsDisposed)
     }
 
     @Test

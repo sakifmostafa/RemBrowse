@@ -12,6 +12,7 @@ import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PaneNode
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
@@ -859,6 +860,18 @@ class BrowserViewModelTest {
         assertTrue(viewModel.uiState.value.settings.askBeforeDownloading)
         viewModel.setAskBeforeDownloading(false)
         assertFalse(repository.storedState.settings.askBeforeDownloading)
+    }
+
+    @Test
+    fun setPageRendering_changesTheSettingAndSavesIt() {
+        val repository = FakeBrowserStateRepository()
+        val viewModel = BrowserViewModel(FakeBrowserEngine(), repository)
+        assertEquals(PageRendering.STANDARD, viewModel.uiState.value.settings.pageRendering)
+
+        viewModel.setPageRendering(PageRendering.DIRECT)
+
+        assertEquals(PageRendering.DIRECT, viewModel.uiState.value.settings.pageRendering)
+        assertEquals(PageRendering.DIRECT, repository.storedState.settings.pageRendering)
     }
 
     @Test

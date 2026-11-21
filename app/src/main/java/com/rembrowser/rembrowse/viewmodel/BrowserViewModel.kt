@@ -16,6 +16,7 @@ import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
@@ -724,6 +725,12 @@ class BrowserViewModel(
     /** Whether visited pages are recorded. Turning it off keeps the history already there. */
     fun setKeepHistory(enabled: Boolean) {
         _uiState.update { it.copy(settings = it.settings.copy(keepHistory = enabled)) }
+        persistCurrentState()
+    }
+
+    /** Changes how pages reach the screen. Pages on screen are shown the new way at once. */
+    fun setPageRendering(rendering: PageRendering) {
+        _uiState.update { it.copy(settings = it.settings.copy(pageRendering = rendering)) }
         persistCurrentState()
     }
 

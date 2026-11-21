@@ -59,6 +59,47 @@ enum class SearchEngine(val label: String, val queryUrl: String) {
     }
 }
 
+/**
+ * How a web page's picture gets from the engine to the screen.
+ *
+ * The engine draws each page into a surface of its own. That surface is shown in one of two
+ * ways: as a texture the app draws along with its own window ([STANDARD], [LEGACY]), or handed
+ * straight to the system's compositor, behind a hole in the window ([DIRECT]).
+ */
+enum class PageRendering(val label: String, val description: String) {
+    /**
+     * A texture in the window, set up once. Everything the browser draws around and over a
+     * page (rounded corners, panes over each other, moving panes) behaves as it always has.
+     */
+    STANDARD(
+        "Standard",
+        "Recommended. Pages are drawn inside the window, without the extra work for every frame " +
+            "that earlier versions did."
+    ),
+
+    /**
+     * The engine's own default: no copy through the app's window and no waiting for the app's
+     * main thread, so it is the smoothest the engine can do. The page lies behind the window.
+     */
+    DIRECT(
+        "Direct (experimental)",
+        "Pages go straight to the screen, which can scroll more smoothly still. " +
+            "A pane may flicker while it is resized or when it opens."
+    ),
+
+    /** [STANDARD] the way RemBrowse 0.13.2 and earlier did it, kept to compare against. */
+    LEGACY(
+        "As in 0.13.2 and earlier",
+        "How earlier versions drew pages. Only useful to compare scrolling against the other two."
+    );
+
+    companion object {
+        val DEFAULT = STANDARD
+
+        fun fromNameOrDefault(name: String?): PageRendering = entries.firstOrNull { it.name == name } ?: DEFAULT
+    }
+}
+
 /** The sections of the settings page. [path] is the last part of its `rem://settings/…` address. */
 enum class SettingsSection(val path: String, val label: String) {
     APPEARANCE("appearance", "Appearance"),
@@ -100,7 +141,9 @@ data class BrowserSettings(
     /** Show a file's name, size and site, and wait for a yes, before saving it. */
     val askBeforeDownloading: Boolean = true,
     /** Record the pages visited in the browsing history. Turning it off keeps what is there. */
-    val keepHistory: Boolean = true
+    val keepHistory: Boolean = true,
+    /** How pages reach the screen; see [PageRendering]. Pages that are open switch at once. */
+    val pageRendering: PageRendering = PageRendering.DEFAULT
 )
 
 data class SplitRatios(

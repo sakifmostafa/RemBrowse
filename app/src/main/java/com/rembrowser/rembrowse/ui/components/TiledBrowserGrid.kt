@@ -39,11 +39,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -65,11 +71,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.DropZone
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PaneDropTarget
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.ui.theme.RemDimens
@@ -300,6 +308,10 @@ private fun BrowserPane(
     // (so the text field that had it lets go), then a web page's own view is focused inside it.
     val paneFocus = remember { FocusRequester() }
     val showsWebContent = tab.isWebPage && !tab.crashed
+    // The page is not in the window but behind it, seen through a hole the size of its view
+    // (see PageRendering.DIRECT). Nothing drawn here can clip it, so the pane's rounded
+    // corners are painted over it instead, in the colour of the chrome around the pane.
+    val pageBehindWindow = showsWebContent && uiState.settings.pageRendering == PageRendering.DIRECT
     LaunchedEffect(contentFocusRequested, isActive, hidden) {
         if (contentFocusRequested && isActive && !hidden) {
             runCatching { paneFocus.requestFocus() }
@@ -310,7 +322,7 @@ private fun BrowserPane(
 
     Box(
         modifier = modifier
-            .clip(shape)
+            .then(if (pageBehindWindow) Modifier else Modifier.clip(shape))
             .background(colors.surfaceContainerLowest)
             .focusRequester(paneFocus)
             .focusProperties { canFocus = !hidden }
@@ -318,6 +330,13 @@ private fun BrowserPane(
             .then(
                 if (framed) {
                     Modifier.border(if (showFocusRing) 1.5.dp else 1.dp, borderColor, shape)
+                } else {
+                    Modifier
+                }
+            )
+            .then(
+                if (pageBehindWindow && framed) {
+                    Modifier.cornersPaintedOver(RemDimens.PaneRadius, colors.background)
                 } else {
                     Modifier
                 }
@@ -345,6 +364,9 @@ private fun BrowserPane(
                 onReload = { onReloadPane(paneIndex) },
                 modifier = Modifier.fillMaxSize()
             )
+            // Pages behind the window are stacked by the system, not by this box: one under
+            // a fullscreen page could show through it, so it gives its view up for the while
+            hidden && pageBehindWindow -> Unit
             else -> paneViewport(tab, Modifier.fillMaxSize())
         }
 
@@ -359,6 +381,23 @@ private fun BrowserPane(
                 trackColor = Color.Transparent
             )
         }
+    }
+}
+
+/**
+ * Paints the area between the pane's rectangle and its rounded outline, after the content and
+ * before whatever is drawn later (the pane's border). For content that cannot be clipped.
+ */
+private fun Modifier.cornersPaintedOver(radius: Dp, color: Color): Modifier = drawWithCache {
+    val bounds = Rect(Offset.Zero, size)
+    val corners = Path().apply {
+        fillType = PathFillType.EvenOdd
+        addRect(bounds)
+        addRoundRect(RoundRect(bounds, CornerRadius(radius.toPx())))
+    }
+    onDrawWithContent {
+        drawContent()
+        drawPath(corners, color)
     }
 }
 
