@@ -42,8 +42,13 @@ import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
-import androidx.compose.material.icons.outlined.TextDecrease
-import androidx.compose.material.icons.outlined.TextIncrease
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -297,36 +302,65 @@ private fun HostPicker(hosts: List<SshHost>, onConnect: (TerminalTarget) -> Unit
                 }
                 Spacer(Modifier.height(28.dp))
 
-                // Quick connect, set in a card like the address bar's pill
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = colors.surface,
-                    border = BorderStroke(1.dp, colors.outlineVariant),
-                    modifier = Modifier.fillMaxWidth()
+                // Quick connect: one pill, like the address bar
+                val invalid = address.isNotBlank() && parsed == null
+                var focused by remember { mutableStateOf(false) }
+                val outline = when {
+                    invalid -> colors.error
+                    focused -> colors.primary
+                    else -> colors.outlineVariant
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(colors.surface)
+                        .border(if (focused || invalid) 1.5.dp else 1.dp, outline, RoundedCornerShape(26.dp))
+                        .padding(start = 18.dp, end = 6.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)) {
-                        OutlinedTextField(
+                    Icon(Icons.Outlined.Terminal, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.weight(1f)) {
+                        if (address.isEmpty()) {
+                            Text(
+                                "user@host or ssh user@host -p 2222",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontFamily = TerminalMono,
+                                color = colors.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        BasicTextField(
                             value = address,
                             onValueChange = { address = it },
-                            label = { Text("Connect to") },
-                            placeholder = { Text("user@host  ·  ssh user@host -p 2222", fontFamily = TerminalMono) },
                             singleLine = true,
-                            isError = address.isNotBlank() && parsed == null,
-                            supportingText = if (address.isNotBlank() && parsed == null) {
-                                { Text("Type it as user@host, with :port if it isn't 22") }
-                            } else {
-                                null
-                            },
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = TerminalMono, color = colors.onSurface),
+                            cursorBrush = SolidColor(colors.primary),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                             keyboardActions = KeyboardActions(onGo = { parsed?.let(onConnect) }),
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = TerminalMono),
-                            modifier = Modifier.weight(1f).focusRequester(focus).testTag("terminal_quick_connect")
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focus)
+                                .onFocusChanged { focused = it.isFocused }
+                                .semantics { contentDescription = "Connect to" }
+                                .testTag("terminal_quick_connect")
                         )
-                        Spacer(Modifier.width(12.dp))
-                        PrimaryDialogButton("Connect", enabled = parsed != null, modifier = Modifier.padding(top = 4.dp).testTag("terminal_quick_connect_go")) {
-                            parsed?.let(onConnect)
-                        }
                     }
+                    Spacer(Modifier.width(8.dp))
+                    PrimaryDialogButton("Connect", enabled = parsed != null, modifier = Modifier.testTag("terminal_quick_connect_go")) {
+                        parsed?.let(onConnect)
+                    }
+                }
+                if (invalid) {
+                    Text(
+                        "Type it as user@host, with :port if it isn't 22",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.error,
+                        modifier = Modifier.padding(start = 20.dp, top = 6.dp)
+                    )
                 }
                 Spacer(Modifier.height(32.dp))
 
@@ -705,128 +739,164 @@ private fun TerminalHeader(
     onDisconnect: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    val foreground = Color(theme.foreground)
     val background = Color(theme.background)
-    val headerBackground = foreground.copy(alpha = 0.05f).compositeOver(background)
-    val dim = foreground.copy(alpha = 0.6f)
+    // Neutral text and icons (the theme's white, or its black on a light theme), not the theme's
+    // text colour: a green-on-navy theme shouldn't turn the bar green
+    val chrome = Color(if (theme.isLight) theme.ansi[0] else theme.ansi[15])
+    val headerBackground = chrome.copy(alpha = 0.05f).compositeOver(background)
+    val dim = chrome.copy(alpha = 0.62f)
     val (dot, state) = when (status) {
         is TerminalStatus.Connected -> Color(theme.ansi[2]) to "Connected"
         is TerminalStatus.Connecting, is TerminalStatus.ConfirmingHostKey, is TerminalStatus.NeedsPassword ->
             Color(theme.ansi[3]) to "Connecting"
         is TerminalStatus.Disconnected -> Color(theme.ansi[1]) to "Disconnected"
-        TerminalStatus.Idle -> foreground.copy(alpha = 0.35f) to "Not connected"
+        TerminalStatus.Idle -> chrome.copy(alpha = 0.30f) to "Not connected"
     }
-    var themesOpen by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
 
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // In a narrow pane the address goes before the name is cut short
+        val showAddress = address != null && address != title && maxWidth >= HEADER_ADDRESS_MIN_WIDTH
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .background(headerBackground)
+                .padding(start = 16.dp, end = 6.dp)
+                .testTag("terminal_header")
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(dot, CircleShape)
+                    .semantics { contentDescription = state }
+            )
+            Spacer(Modifier.width(10.dp))
+            // The name and address take what the buttons leave, and the address gives way first
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Text(title, color = chrome, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (showAddress && address != null) {
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        address,
+                        color = dim,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = TerminalMono,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
+            }
+            Box {
+                RemIconButton(
+                    icon = Icons.Outlined.Palette,
+                    label = "Theme and text size",
+                    tint = dim,
+                    size = 32.dp,
+                    iconSize = 18.dp,
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.testTag("terminal_theme_button")
+                )
+                RemDropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    modifier = Modifier.width(240.dp).testTag("terminal_theme_menu")
+                ) {
+                    TextSizeRow(fontSizeSp = fontSizeSp, onFontSize = onFontSize)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    TerminalThemePreset.entries.forEach { preset ->
+                        DropdownMenuItem(
+                            leadingIcon = { ThemeSwatch(preset, width = 30.dp, height = 22.dp) },
+                            text = { Text(preset.label) },
+                            trailingIcon = {
+                                if (preset == theme) Icon(Icons.Outlined.Check, contentDescription = "Current", tint = MaterialTheme.colorScheme.primary)
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onTheme(preset)
+                            },
+                            modifier = Modifier.testTag("terminal_theme_${preset.name.lowercase()}")
+                        )
+                    }
+                }
+            }
+            when (status) {
+                is TerminalStatus.Connected, is TerminalStatus.Connecting -> RemIconButton(
+                    icon = Icons.Outlined.LinkOff,
+                    label = "Disconnect",
+                    tint = dim,
+                    size = 32.dp,
+                    iconSize = 18.dp,
+                    onClick = onDisconnect,
+                    modifier = Modifier.testTag("terminal_header_disconnect")
+                )
+                is TerminalStatus.Disconnected, TerminalStatus.Idle -> RemIconButton(
+                    icon = Icons.Outlined.Refresh,
+                    label = "Connect",
+                    tint = dim,
+                    size = 32.dp,
+                    iconSize = 18.dp,
+                    onClick = onConnect,
+                    modifier = Modifier.testTag("terminal_header_connect")
+                )
+                else -> Unit
+            }
+            RemIconButton(
+                icon = Icons.Outlined.Settings,
+                label = "Terminal settings",
+                tint = dim,
+                size = 32.dp,
+                iconSize = 18.dp,
+                onClick = onOpenSettings
+            )
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(chrome.copy(alpha = 0.08f)))
+}
+
+/** Below this width the header shows the host's name without its address. */
+private val HEADER_ADDRESS_MIN_WIDTH = 360.dp
+
+/** "Text size  −  14  +" at the top of the theme menu. The menu stays open while it changes. */
+@Composable
+private fun TextSizeRow(fontSizeSp: Int, onFontSize: (Int) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .background(headerBackground)
-            .padding(start = 14.dp, end = 6.dp)
-            .testTag("terminal_header")
+            .height(44.dp)
+            .padding(start = 16.dp, end = 8.dp)
+            .testTag("terminal_text_size")
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(dot, CircleShape)
-                .semantics { contentDescription = state }
-        )
-        Spacer(Modifier.width(10.dp))
-        // The name and address take what the buttons leave, and the address gives way first
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            Text(title, color = foreground, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (address != null && address != title) {
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    address,
-                    color = dim,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = TerminalMono,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-            }
-        }
+        Text("Text size", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
         RemIconButton(
-            icon = Icons.Outlined.TextDecrease,
+            icon = Icons.Outlined.Remove,
             label = "Smaller text",
             enabled = fontSizeSp > TerminalSettings.MIN_FONT_SIZE_SP,
-            tint = dim,
             size = 32.dp,
             iconSize = 18.dp,
-            onClick = { onFontSize(fontSizeSp - 1) }
+            onClick = { onFontSize(fontSizeSp - 1) },
+            modifier = Modifier.testTag("terminal_text_smaller")
         )
-        Text("$fontSizeSp", color = dim, style = MaterialTheme.typography.labelMedium, fontFamily = TerminalMono)
+        Text(
+            "$fontSizeSp",
+            style = MaterialTheme.typography.labelLarge,
+            fontFamily = TerminalMono,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(28.dp)
+        )
         RemIconButton(
-            icon = Icons.Outlined.TextIncrease,
+            icon = Icons.Outlined.Add,
             label = "Larger text",
             enabled = fontSizeSp < TerminalSettings.MAX_FONT_SIZE_SP,
-            tint = dim,
             size = 32.dp,
             iconSize = 18.dp,
-            onClick = { onFontSize(fontSizeSp + 1) }
-        )
-        Box {
-            RemIconButton(
-                icon = Icons.Outlined.Palette,
-                label = "Theme",
-                tint = dim,
-                size = 32.dp,
-                iconSize = 18.dp,
-                onClick = { themesOpen = true },
-                modifier = Modifier.testTag("terminal_theme_button")
-            )
-            RemDropdownMenu(expanded = themesOpen, onDismissRequest = { themesOpen = false }, modifier = Modifier.testTag("terminal_theme_menu")) {
-                TerminalThemePreset.entries.forEach { preset ->
-                    DropdownMenuItem(
-                        leadingIcon = { ThemeSwatch(preset, width = 30.dp, height = 22.dp) },
-                        text = { Text(preset.label) },
-                        trailingIcon = {
-                            if (preset == theme) Icon(Icons.Outlined.Check, contentDescription = "Current", tint = MaterialTheme.colorScheme.primary)
-                        },
-                        onClick = {
-                            themesOpen = false
-                            onTheme(preset)
-                        },
-                        modifier = Modifier.testTag("terminal_theme_${preset.name.lowercase()}")
-                    )
-                }
-            }
-        }
-        when (status) {
-            is TerminalStatus.Connected, is TerminalStatus.Connecting -> RemIconButton(
-                icon = Icons.Outlined.LinkOff,
-                label = "Disconnect",
-                tint = dim,
-                size = 32.dp,
-                iconSize = 18.dp,
-                onClick = onDisconnect,
-                modifier = Modifier.testTag("terminal_header_disconnect")
-            )
-            is TerminalStatus.Disconnected, TerminalStatus.Idle -> RemIconButton(
-                icon = Icons.Outlined.Refresh,
-                label = "Connect",
-                tint = dim,
-                size = 32.dp,
-                iconSize = 18.dp,
-                onClick = onConnect,
-                modifier = Modifier.testTag("terminal_header_connect")
-            )
-            else -> Unit
-        }
-        RemIconButton(
-            icon = Icons.Outlined.Settings,
-            label = "Terminal settings",
-            tint = dim,
-            size = 32.dp,
-            iconSize = 18.dp,
-            onClick = onOpenSettings
+            onClick = { onFontSize(fontSizeSp + 1) },
+            modifier = Modifier.testTag("terminal_text_larger")
         )
     }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(foreground.copy(alpha = 0.08f)))
 }
 
 /**

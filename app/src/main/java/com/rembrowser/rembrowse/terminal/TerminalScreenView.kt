@@ -141,7 +141,9 @@ class TerminalScreenView(context: Context) : View(context) {
     private val hintPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
 
     private var renderer = TerminalRenderer(textSizePx.roundToInt(), typeface)
-    private val inset = (12 * resources.displayMetrics.density).roundToInt()
+    // Room around the text: a little more at the sides, where the header's title starts
+    private val insetX = (16 * resources.displayMetrics.density).roundToInt()
+    private val insetY = (12 * resources.displayMetrics.density).roundToInt()
 
     /** The first row shown: 0 for the live screen, negative while looking back through the history. */
     var topRow = 0
@@ -184,8 +186,8 @@ class TerminalScreenView(context: Context) : View(context) {
 
     private fun updateSize() {
         val terminal = connection ?: return
-        val usableWidth = width - 2 * inset
-        val usableHeight = height - 2 * inset
+        val usableWidth = width - 2 * insetX
+        val usableHeight = height - 2 * insetY
         if (usableWidth <= 0 || usableHeight <= 0 || !hasFontMetrics) return
         val columns = max(MIN_COLUMNS, (usableWidth / renderer.fontWidth).toInt())
         val rows = max(MIN_ROWS, (usableHeight - renderer.fontLineSpacingAndAscent) / renderer.fontLineSpacing)
@@ -205,7 +207,7 @@ class TerminalScreenView(context: Context) : View(context) {
             canvas.restore()
             return
         }
-        canvas.translate(inset.toFloat(), inset.toFloat())
+        canvas.translate(insetX.toFloat(), insetY.toFloat())
         val selected = selection?.normalized()
         renderer.render(
             terminal.emulator,
@@ -220,36 +222,60 @@ class TerminalScreenView(context: Context) : View(context) {
         canvas.restore()
     }
 
-    /** The rest of the suggested command, dimmed, from the cursor on; and a small "Tab" after it. */
+    /**
+     * The rest of the suggested command, dimmed (how much depends on the theme), from the cursor
+     * on; and a "Tab" keycap after it while there is room and more than a couple of letters to take.
+     */
     private fun drawSuggestion(canvas: Canvas, emulator: TerminalEmulator) {
         val whole = suggestion ?: return
         if (topRow != 0 || !hasFocus() || !hasFontMetrics) return
         val room = emulator.mColumns - emulator.cursorCol
         if (room <= 0) return
         val rest = whole.substring(typedLine.length).take(room)
+        if (rest.isEmpty()) return
         val colors = emulator.mColors.mCurrentColors
         val foreground = colors[com.termux.terminal.TextStyle.COLOR_INDEX_FOREGROUND]
-        val baseline = (emulator.cursorRow + 1) * renderer.fontLineSpacing.toFloat()
+        val background = colors[com.termux.terminal.TextStyle.COLOR_INDEX_BACKGROUND]
+        val lineSpacing = renderer.fontLineSpacing.toFloat()
+        val baseline = (emulator.cursorRow + 1) * lineSpacing
         val left = emulator.cursorCol * renderer.fontWidth
         ghostPaint.textSize = textSizePx
-        ghostPaint.color = (foreground and 0x00FFFFFF) or (0x70 shl 24)
+        ghostPaint.color = withAlpha(foreground, TerminalTheme.current.ghostAlpha)
         canvas.drawText(rest, left, baseline, ghostPaint)
+        // A block cursor covers the first letter: draw it again on top, as the cursor shows text
+        if (emulator.cursorStyle == TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK && emulator.shouldCursorBeVisible()) {
+            val first = rest.substring(0, Character.charCount(rest.codePointAt(0)))
+            ghostPaint.color = background or (0xFF shl 24)
+            canvas.drawText(first, left, baseline, ghostPaint)
+        }
 
-        // "Tab" in a pill after the suggestion, where there is room for it
+        // The "Tab" keycap: not for the last letter or two, nor over a selection
+        if (rest.length < MIN_GHOST_FOR_HINT || selection != null) return
         val hint = "Tab"
-        hintPaint.textSize = textSizePx * 0.72f
-        hintPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        val padding = renderer.fontWidth * 0.5f
-        val pillLeft = left + rest.length * renderer.fontWidth + renderer.fontWidth
-        val pillWidth = hintPaint.measureText(hint) + 2 * padding
-        if (pillLeft + pillWidth > emulator.mColumns * renderer.fontWidth) return
-        val pillHeight = hintPaint.textSize * 1.5f
-        val pillTop = baseline - renderer.fontLineSpacing * 0.5f - pillHeight / 2f - renderer.fontLineSpacing * 0.12f
-        hintPaint.color = (foreground and 0x00FFFFFF) or (0x24 shl 24)
-        canvas.drawRoundRect(pillLeft, pillTop, pillLeft + pillWidth, pillTop + pillHeight, pillHeight / 2f, pillHeight / 2f, hintPaint)
-        hintPaint.color = (foreground and 0x00FFFFFF) or (0xA0 shl 24)
-        canvas.drawText(hint, pillLeft + padding, pillTop + pillHeight / 2f + hintPaint.textSize * 0.36f, hintPaint)
+        hintPaint.typeface = typeface
+        hintPaint.textSize = textSizePx * 0.78f
+        val padding = renderer.fontWidth * 0.6f
+        val capLeft = left + (rest.length + 1.5f) * renderer.fontWidth
+        val capWidth = hintPaint.measureText(hint) + 2 * padding
+        if (capLeft + capWidth > emulator.mColumns * renderer.fontWidth) return
+        val rowCenter = renderer.fontLineSpacingAndAscent + (emulator.cursorRow + 0.5f) * lineSpacing
+        val capHeight = lineSpacing * 0.78f
+        val capTop = rowCenter - capHeight / 2f
+        val radius = 4 * resources.displayMetrics.density
+        hintPaint.style = android.graphics.Paint.Style.FILL
+        hintPaint.color = withAlpha(foreground, 0x14)
+        canvas.drawRoundRect(capLeft, capTop, capLeft + capWidth, capTop + capHeight, radius, radius, hintPaint)
+        hintPaint.style = android.graphics.Paint.Style.STROKE
+        hintPaint.strokeWidth = resources.displayMetrics.density
+        hintPaint.color = withAlpha(foreground, 0x40)
+        canvas.drawRoundRect(capLeft, capTop, capLeft + capWidth, capTop + capHeight, radius, radius, hintPaint)
+        hintPaint.style = android.graphics.Paint.Style.FILL
+        hintPaint.color = withAlpha(foreground, 0xB3)
+        val metrics = hintPaint.fontMetrics
+        canvas.drawText(hint, capLeft + padding, rowCenter - (metrics.ascent + metrics.descent) / 2f, hintPaint)
     }
+
+    private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha shl 24)
 
     private fun onScreenUpdated() {
         val emulator = connection?.emulator ?: return
@@ -639,8 +665,8 @@ class TerminalScreenView(context: Context) : View(context) {
         val columns = emulator?.mColumns ?: 1
         val rows = emulator?.mRows ?: 1
         if (!hasFontMetrics) return Cell(0, topRow)
-        val column = ((x - inset) / renderer.fontWidth).toInt().coerceIn(0, columns - 1)
-        val row = ((y - inset - renderer.fontLineSpacingAndAscent) / renderer.fontLineSpacing).toInt().coerceIn(0, rows - 1)
+        val column = ((x - insetX) / renderer.fontWidth).toInt().coerceIn(0, columns - 1)
+        val row = ((y - insetY - renderer.fontLineSpacingAndAscent) / renderer.fontLineSpacing).toInt().coerceIn(0, rows - 1)
         return Cell(column, row + topRow)
     }
 
@@ -672,6 +698,9 @@ class TerminalScreenView(context: Context) : View(context) {
         private const val WHEEL_ROWS = 3
         private const val MAX_DELETE = 64
         private const val MOUSE_RIGHT_BUTTON = 2
+
+        /** The "Tab" keycap shows only while at least this much of a suggestion is left to take. */
+        private const val MIN_GHOST_FOR_HINT = 3
 
         /** How many of a command's last keys may still be on their way back when Enter is pressed. */
         private const val MAX_PENDING_ECHO = 3

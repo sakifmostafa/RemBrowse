@@ -260,19 +260,19 @@ The first time you connect to a server, RemBrowse shows its **key fingerprint** 
 * Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C`, `Ctrl+W`, `Ctrl+R`, `Ctrl+L`, Tab completion…), so the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard; see [Keyboard shortcuts](#12-keyboard-shortcuts).
 * **Select** by dragging, double-click a word or path, and copy with `Ctrl+Shift+C`. Paste with `Ctrl+Shift+V` or `Shift+Insert`. Right-click for **Copy**, **Paste**, **Select all**, and **Disconnect** or **Reconnect**.
 * **Scroll back** through earlier output with the mouse wheel, two fingers on the touchpad, or `Shift+Page Up` / `Shift+Page Down`. Typing returns to the bottom. In full-screen programs (`less`, `man`, `htop`, `vim`), the wheel scrolls the program instead.
-* The **bar above the terminal** shows the host and whether it is connected (green), connecting (yellow) or disconnected (red), with buttons for text size, the colour theme, disconnecting or reconnecting, and the terminal's settings.
+* The **bar above the terminal** shows the host and whether it is connected (green), connecting (yellow) or disconnected (red), with buttons for the theme and text size (one menu), disconnecting or reconnecting, and the terminal's settings.
 * When the connection ends, the last screen stays. Press **Enter** or **Reconnect** to connect again.
 * Closing the tab disconnects.
 
 ### Command suggestions
 
-As you type at the prompt, grey text after the cursor suggests how the command might end: first from the commands you have run before (most recent first), then from a built-in list of common ones (`git status`, `docker compose up -d`, `sudo systemctl restart`…). Press **Tab** or **→** to take the suggestion. With no suggestion showing, Tab is the shell's own completion, as usual.
+As you type at the prompt, dimmed text after the cursor suggests how the command might end: first from the commands you have run before (most recent first), then from a built-in list of common ones (`git status`, `docker compose up -d`, `sudo systemctl restart`…). A small **Tab** key after it shows how to take it: press **Tab** or **→**. With no suggestion showing, Tab is the shell's own completion, as usual.
 
 Suggestions only appear when the screen shows what you typed, so nothing is suggested at a password prompt or inside full-screen programs, and what you type at a password prompt is never remembered. As in most shells, a command you type with a **space in front** is not remembered either. Remembered commands stay on the device. Both settings can be turned off in **Settings → Terminal → Suggestions**, where **Forget remembered commands** clears the list.
 
 ### How it looks
 
-Pick a **theme** from the palette button on the terminal's bar, or in **Settings → Terminal → Appearance**: **RemBrowse** (the default, with the cursor in your accent colour), **Midnight Green** (green on navy, like Ubuntu's terminal), **Dracula**, **Nord**, **Solarized Dark**, **Gruvbox Dark**, or **Paper** (light). Every terminal changes at once. Appearance also has the **font** (JetBrains Mono, the default; Fira Mono; or the system's monospace font), the **cursor** (block, bar or underline; programs such as vim can still change it while they run), and the **text size**.
+Pick a **theme** from the palette button on the terminal's bar (its menu also has the text size), or in **Settings → Terminal → Appearance**: **RemBrowse** (the default, with the cursor in your accent colour), **Midnight Green** (green on navy, like Ubuntu's terminal), **Dracula**, **Nord**, **Solarized Dark**, **Gruvbox Dark**, or **Paper** (light). Every terminal changes at once. Appearance also has the **font** (JetBrains Mono, the default; Fira Mono; or the system's monospace font), the **cursor** (block, bar or underline; programs such as vim can still change it while they run), and the **text size**.
 
 ### Hosts and keys
 

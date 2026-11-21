@@ -170,7 +170,7 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
     Text(text = "Suggestions", style = MaterialTheme.typography.titleSmall)
     ToggleRow(
         title = "Suggest commands as you type",
-        description = "Grey text after the cursor shows how a command you ran before, or a common one, might end. " +
+        description = "Dimmed text after the cursor shows how a command you ran before, or a common one, might end. " +
             "Tab or → takes it; with no suggestion, Tab completes in the shell as usual.",
         checked = state.settings.suggestions,
         onChange = actions.onSetSuggestions,

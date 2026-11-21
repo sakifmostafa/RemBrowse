@@ -51,8 +51,8 @@ class TerminalScreenViewTest {
         return connector.shells.last()
     }
 
-    /** Where the first column starts: the view keeps a 12dp margin. */
-    private val origin = 12f * context.resources.displayMetrics.density
+    /** Where the first column starts: the view keeps a 16dp margin at the sides. */
+    private val origin = 16f * context.resources.displayMetrics.density
 
     private fun key(keyCode: Int, meta: Int = 0) = KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, meta)
 
@@ -383,6 +383,31 @@ class TerminalScreenViewTest {
         assertEquals(TerminalThemePreset.NORD.background.toInt(), other.emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND])
         assertFalse(TerminalThemePreset.NORD.isLight)
         view.setAppearance(TerminalThemePreset.DEFAULT, TerminalTheme.DEFAULT_CURSOR, TerminalFont.DEFAULT, TerminalCursorStyle.DEFAULT)
+    }
+
+    @Test
+    fun cellAt_startsAtTheSideAndTopMargins() {
+        connected()
+        val density = context.resources.displayMetrics.density
+        val cell = cellWidthOf()
+        assertEquals("Left of the margin is the first column", 0, view.cellAt(origin - 1f, 0f).column)
+        assertEquals(0, view.cellAt(origin + 0.25f * cell, 0f).column)
+        assertEquals("One cell in is the second column", 1, view.cellAt(origin + 1.25f * cell, 0f).column)
+        assertEquals(2, view.cellAt(origin + 2.25f * cell, 0f).column)
+
+        val top = 12f * density
+        var y = top
+        while (view.cellAt(origin, y).row == 0 && y < 480f) y += 0.5f
+        assertTrue("A second row starts below the top margin", y < 480f)
+        assertEquals("Above the top margin is the first row", 0, view.cellAt(origin, top - 1f).row)
+        val rowHeight = run {
+            var z = y
+            while (view.cellAt(origin, z).row == 1 && z < 480f) z += 0.5f
+            z - y
+        }
+        // The row boundary sits one line below the margin plus the ascent, so the margin must be the offset
+        assertTrue("Row height $rowHeight", rowHeight > 0f)
+        assertEquals(1, view.cellAt(origin, y + 0.25f * rowHeight).row)
     }
 
     private fun cellWidthOf(): Float {
