@@ -4,6 +4,14 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PointF
 import android.view.MotionEvent
+import androidx.annotation.RequiresApi
+import android.view.inputmethod.TextAttribute
+import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InputConnectionWrapper
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.EditorInfo
+import android.view.KeyEvent
+import android.os.Build
 import android.view.PointerIcon
 import android.view.ViewConfiguration
 import org.mozilla.geckoview.GeckoView
@@ -40,6 +48,51 @@ class PaneGeckoView(
     val lastPointerPosition: PointF?
         get() = if (pointerX.isNaN()) null else PointF(pointerX, pointerY)
 
+    // The keyboard app's connection to the page's focused text box, wrapped to see whether it
+    // holds a word it is still composing
+    @Volatile
+    private var pageInput: ComposingAwareInputConnection? = null
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        val connection = super.onCreateInputConnection(outAttrs)
+        val wrapped = connection?.let(::ComposingAwareInputConnection)
+        pageInput = wrapped
+        return wrapped
+    }
+
+    /**
+     * Sends a physical keyboard's Enter (Shift, Ctrl and Alt included) to the page as the key it
+     * is, past the keyboard app. Keyboard apps keep the word being typed as composing text and
+     * turn Enter into a typed line break, or an Enter marked as part of composing, which chat
+     * boxes rightly ignore: Enter then started a new line instead of sending. Here a word being
+     * composed is committed first, as it would be anyway. False, leaving the key to the keyboard
+     * app, when no text box on the page has the keyboard, or while a Chinese, Japanese or Korean
+     * keyboard composes, where Enter picks the characters.
+     */
+    fun sendEnterPastKeyboardApp(event: KeyEvent): Boolean {
+        val input = pageInput ?: return false
+        if (!onCheckIsTextEditor()) return false
+        if (input.composing && keyboardComposesCharacters()) return false
+        // Input events are recycled once handled: keep a copy for the input connection's thread
+        val copy = KeyEvent(event)
+        val send = Runnable {
+            if (input.composing) input.finishComposingText()
+            input.sendKeyEvent(copy)
+        }
+        val thread = input.handler
+        if (thread != null) thread.post(send) else send.run()
+        return true
+    }
+
+    private fun keyboardComposesCharacters(): Boolean {
+        val subtype = context.getSystemService(InputMethodManager::class.java)?.currentInputMethodSubtype ?: return false
+        val language = subtype.languageTag.ifEmpty {
+            @Suppress("DEPRECATION")
+            subtype.locale
+        }.lowercase()
+        return language.startsWith("zh") || language.startsWith("ja") || language.startsWith("ko")
+    }
+
     override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): PointerIcon? =
         if (chromeHasPointer()) null else super.onResolvePointerIcon(event, pointerIndex)
 
@@ -74,5 +127,51 @@ class PaneGeckoView(
     override fun requestNewSurface() {
         letNextTextureFrameThrough()
         super.requestNewSurface()
+    }
+}
+
+/** Passes everything on to the page's input connection, noting whether a word is being composed. */
+internal class ComposingAwareInputConnection(target: InputConnection) : InputConnectionWrapper(target, true) {
+
+    @Volatile
+    var composing = false
+        private set
+
+    override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+        composing = !text.isNullOrEmpty()
+        return super.setComposingText(text, newCursorPosition)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun setComposingText(text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?): Boolean {
+        composing = text.isNotEmpty()
+        return super.setComposingText(text, newCursorPosition, textAttribute)
+    }
+
+    override fun setComposingRegion(start: Int, end: Int): Boolean {
+        composing = start != end
+        return super.setComposingRegion(start, end)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun setComposingRegion(start: Int, end: Int, textAttribute: TextAttribute?): Boolean {
+        composing = start != end
+        return super.setComposingRegion(start, end, textAttribute)
+    }
+
+    override fun finishComposingText(): Boolean {
+        composing = false
+        return super.finishComposingText()
+    }
+
+    override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+        composing = false
+        return super.commitText(text, newCursorPosition)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun commitText(text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?): Boolean {
+        composing = false
+        return super.commitText(text, newCursorPosition, textAttribute)
     }
 }

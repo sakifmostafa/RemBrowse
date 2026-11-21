@@ -496,6 +496,12 @@ class GeckoBrowserEngine(
                 )
             }
 
+            // window.close(): GeckoView leaves closing to the browser. Without this a sign-in
+            // popup (Sign in with Google, say) stayed open as a tab after it was done.
+            override fun onCloseRequest(session: GeckoSession) {
+                listener.onCloseRequested(tabId)
+            }
+
             override fun onCrash(session: GeckoSession) {
                 Log.w(TAG, "Content process crashed for tab $tabId")
                 handle.onContentProcessGone(crashed = true)

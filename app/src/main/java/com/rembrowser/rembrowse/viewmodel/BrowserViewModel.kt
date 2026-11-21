@@ -131,13 +131,30 @@ class BrowserViewModel(
             val state = _uiState.value
             val opener = state.tabs.firstOrNull { it.id == openerTabId }
             val openerPane = opener?.let { state.paneIndexOf(it.id) }?.takeIf { it >= 0 }
-            openNewTab(
+            val tabId = openNewTab(
                 url = url,
                 assignToPane = openerPane ?: state.activePaneIndex,
                 desktopMode = opener?.desktopMode,
                 openedByPage = true,
                 openerTabId = opener?.id
             )
+            if (opener != null) openers[tabId] = opener.id
+        }
+
+        override fun onCloseRequested(tabId: String) {
+            val state = _uiState.value
+            val tab = state.tabs.firstOrNull { it.id == tabId } ?: return
+            // A page may close only a tab a page opened, never one the user opened
+            if (!tab.openedByPage) return
+            // The page that opened it comes back where it was, as a popup window closing would
+            // show it again: a sign-in popup opens in its opener's pane
+            val opener = openers[tabId]?.takeIf { id -> state.tabs.any { it.id == id } }
+            val pane = state.paneIndexOf(tabId)
+            if (opener != null && pane >= 0) {
+                val openerPane = state.paneIndexOf(opener)
+                if (openerPane < 0) assignTabToPane(pane, opener) else if (pane == state.activePaneIndex) focusPane(openerPane)
+            }
+            closeTab(tabId)
         }
 
         override fun onPromptRequested(prompt: PagePrompt) {
@@ -197,6 +214,9 @@ class BrowserViewModel(
 
     /** Tabs in which the engine has shown a document since this browser started. */
     private val tabsWithContent = mutableSetOf<String>()
+
+    /** The tab that opened each tab a page opened (window.open), for when the page closes it again. */
+    private val openers = HashMap<String, String>()
 
     init {
         restoreInitialState()
@@ -482,6 +502,7 @@ class BrowserViewModel(
         val current = _uiState.value
         val closedIndex = current.tabs.indexOfFirst { it.id == tabId }
         if (closedIndex < 0) return
+        openers.remove(tabId)
 
         engine.closeSession(tabId)
         tabsWithContent -= tabId

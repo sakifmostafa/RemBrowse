@@ -57,6 +57,12 @@ interface SessionEventListener {
 
     /** A right click on a page, which the page left to the browser, asks for [menu]. */
     fun onContextMenuRequested(menu: PageContextMenu) {}
+
+    /**
+     * The page in [tabId] called `window.close()`, and the engine allows it (it closes only
+     * windows opened by script, such as a "Sign in with Google" popup once it is done).
+     */
+    fun onCloseRequested(tabId: String) {}
 }
 
 interface BrowserSessionHandle {

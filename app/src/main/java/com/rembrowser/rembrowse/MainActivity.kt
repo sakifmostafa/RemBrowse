@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import androidx.compose.ui.platform.ComposeView
 import android.widget.FrameLayout
@@ -540,6 +541,7 @@ class MainActivity : ComponentActivity() {
      * this layout.
      */
     private fun interceptShortcutBeforeIme(event: KeyEvent): Boolean {
+        if (interceptEnterBeforeIme(event)) return true
         if (event.action == KeyEvent.ACTION_UP && event.keyCode == shortcutKeyTakenEarly) {
             shortcutKeyTakenEarly = KeyEvent.KEYCODE_UNKNOWN
             return true
@@ -549,6 +551,41 @@ class MainActivity : ComponentActivity() {
         shortcutKeyTakenEarly = event.keyCode
         performShortcut(shortcut)
         return true
+    }
+
+    /** Whether the Enter being held went to a web page past the keyboard app; its release follows. */
+    private var enterSentToPage = false
+
+    /**
+     * A physical Enter in a web page's text box goes to the page as a key press, before the
+     * keyboard app can turn it into a typed line break (see PaneGeckoView.sendEnterPastKeyboardApp).
+     * The release of an Enter that submitted the address bar or a popup is swallowed first, as in
+     * dispatchKeyEvent: focus has moved to the page by then, and it must not see half a key press.
+     */
+    private fun interceptEnterBeforeIme(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_ENTER && event.keyCode != KeyEvent.KEYCODE_NUMPAD_ENTER) return false
+        if (event.action == KeyEvent.ACTION_UP && (swallowEnterKeyUp || chrome.swallowNextEnterUp)) {
+            swallowEnterKeyUp = false
+            chrome.swallowNextEnterUp = false
+            return true
+        }
+        val page = currentFocus as? PaneGeckoView ?: return false
+        return when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                if (event.repeatCount > 0) return enterSentToPage && page.sendEnterPastKeyboardApp(event)
+                val physical = event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD &&
+                    event.flags and KeyEvent.FLAG_SOFT_KEYBOARD == 0
+                enterSentToPage = physical && page.sendEnterPastKeyboardApp(event)
+                enterSentToPage
+            }
+            KeyEvent.ACTION_UP -> {
+                if (!enterSentToPage) return false
+                enterSentToPage = false
+                page.sendEnterPastKeyboardApp(event)
+                true
+            }
+            else -> false
+        }
     }
 
     private fun resolveShortcut(event: KeyEvent): BrowserShortcut? = KeyboardShortcuts.resolve(
