@@ -47,7 +47,7 @@ class PageContextMenuTest {
         assertEquals(
             listOf(
                 listOf(PageMenuAction.OPEN_LINK_IN_NEW_TAB, PageMenuAction.OPEN_LINK_IN_SPLIT, PageMenuAction.COPY_LINK),
-                listOf(PageMenuAction.OPEN_MEDIA_IN_NEW_TAB, PageMenuAction.COPY_MEDIA_ADDRESS)
+                listOf(PageMenuAction.OPEN_MEDIA_IN_NEW_TAB, PageMenuAction.COPY_IMAGE, PageMenuAction.COPY_MEDIA_ADDRESS)
             ),
             actions(menu)
         )
@@ -95,5 +95,30 @@ class PageContextMenuTest {
         assertEquals("https://cdn.example.com/p.jpg", pageMenuCopyText(menu, PageMenuAction.COPY_MEDIA_ADDRESS, tab.url))
         assertEquals(tab.url, pageMenuCopyText(menu, PageMenuAction.COPY_PAGE_ADDRESS, tab.url))
         assertNull(pageMenuCopyText(menu, PageMenuAction.RELOAD, tab.url))
+    }
+
+    @Test
+    fun copyImage_isOfferedForWebAndDataImages_betweenOpenAndCopyAddress() {
+        val expected = listOf(
+            listOf(PageMenuAction.OPEN_MEDIA_IN_NEW_TAB, PageMenuAction.COPY_IMAGE, PageMenuAction.COPY_MEDIA_ADDRESS)
+        )
+        listOf("https://cdn.example.com/p.png", "http://cdn.example.com/p.png").forEach { url ->
+            assertEquals(expected, actions(PageContextMenu(tabId = "t", mediaUrl = url, mediaType = PageMediaType.IMAGE)))
+        }
+        val data = PageContextMenu(tabId = "t", mediaUrl = "data:image/png;base64,iVBORw0KGgo=", mediaType = PageMediaType.IMAGE)
+        assertEquals("data: pictures can't be opened in a tab", listOf(listOf(PageMenuAction.COPY_IMAGE, PageMenuAction.COPY_MEDIA_ADDRESS)), actions(data))
+        assertEquals(data.mediaUrl, data.copyableImageUrl)
+    }
+
+    @Test
+    fun copyImage_isNotOfferedForVideoAudioBlobsOrNonImageData() {
+        listOf(PageMediaType.VIDEO, PageMediaType.AUDIO).forEach { type ->
+            val menu = PageContextMenu(tabId = "t", mediaUrl = "https://cdn.example.com/m.mp4", mediaType = type)
+            assertNull(menu.copyableImageUrl)
+            assertEquals(listOf(listOf(PageMenuAction.OPEN_MEDIA_IN_NEW_TAB, PageMenuAction.COPY_MEDIA_ADDRESS)), actions(menu))
+        }
+        assertNull(PageContextMenu(tabId = "t", mediaUrl = "blob:https://example.com/1", mediaType = PageMediaType.IMAGE).copyableImageUrl)
+        assertNull(PageContextMenu(tabId = "t", mediaUrl = "data:text/html,<b>x</b>", mediaType = PageMediaType.IMAGE).copyableImageUrl)
+        assertNull(PageContextMenu(tabId = "t", linkUrl = "https://example.com/").copyableImageUrl)
     }
 }

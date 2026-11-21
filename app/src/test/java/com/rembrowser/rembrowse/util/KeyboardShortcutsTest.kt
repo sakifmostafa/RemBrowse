@@ -84,4 +84,27 @@ class KeyboardShortcutsTest {
         // Outside a terminal nothing changes
         assertEquals(BrowserShortcut.CLOSE_TAB, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_W, ctrl = true))
     }
+
+    @Test
+    fun ctrlG_isGoToAddress_andCtrlShiftG_isLeftToThePageOutsideTerminals() {
+        assertEquals(BrowserShortcut.GO_TO_ADDRESS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true))
+        assertNull(KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true, shift = true))
+        assertNull("Plain G is typing", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = false))
+        assertNull("A held Ctrl+G does not repeat", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true, repeatCount = 1))
+    }
+
+    @Test
+    fun inATerminal_ctrlShiftG_isGoToAddress_andCtrlGStaysTheShells() {
+        assertEquals(
+            BrowserShortcut.GO_TO_ADDRESS,
+            KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true, shift = true, inTerminal = true)
+        )
+        assertNull(KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true, inTerminal = true))
+    }
+
+    @Test
+    fun f3_stillFindsNextAndPrevious() {
+        assertEquals(BrowserShortcut.FIND_NEXT, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F3, ctrl = false))
+        assertEquals(BrowserShortcut.FIND_PREVIOUS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F3, ctrl = false, shift = true))
+    }
 }

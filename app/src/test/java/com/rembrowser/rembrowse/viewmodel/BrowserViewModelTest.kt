@@ -1393,4 +1393,70 @@ class BrowserViewModelTest {
         assertEquals("rem://terminal/host/abc", tab.url)
         assertEquals("The page stays in its own tab", 2, viewModel.uiState.value.tabs.size)
     }
+
+    @Test
+    fun popupClosingItself_closesAndTheOpenerComesBackInItsPane() {
+        val openerId = viewModel.uiState.value.activeTabId!!
+        engine.sessions.getValue(openerId).simulateNewTab("https://accounts.example/signin")
+        val popupId = viewModel.uiState.value.activeTabId!!
+        assertNotEquals(openerId, popupId)
+        assertEquals("The popup shows in the opener's pane", popupId, viewModel.uiState.value.tabForPane(0)!!.id)
+
+        engine.sessions.getValue(popupId).simulateCloseRequest()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.tabs.none { it.id == popupId })
+        assertFalse(engine.sessions.containsKey(popupId))
+        assertEquals(openerId, state.tabForPane(0)!!.id)
+        assertEquals(openerId, state.activeTabId)
+    }
+
+    @Test
+    fun popupInASplitPane_closesAndTheOpenerIsBackThere() {
+        viewModel.setLayoutMode(LayoutMode.SPLIT_1X2)
+        val openerId = viewModel.uiState.value.paneTabIds[1]
+        viewModel.focusPane(1)
+        engine.sessions.getValue(openerId).simulateNewTab("https://accounts.example/signin")
+        val popupId = viewModel.uiState.value.tabForPane(1)!!.id
+        assertNotEquals(openerId, popupId)
+
+        engine.sessions.getValue(popupId).simulateCloseRequest()
+
+        val state = viewModel.uiState.value
+        assertEquals(openerId, state.tabForPane(1)!!.id)
+        assertEquals(1, state.activePaneIndex)
+        assertEquals(openerId, state.activeTabId)
+        assertTrue(state.tabs.none { it.id == popupId })
+    }
+
+    @Test
+    fun closeRequestedByATheUserOpenedTab_isIgnored() {
+        val userTab = viewModel.openNewTab("https://user.example/")
+        assertFalse(viewModel.uiState.value.tabs.first { it.id == userTab }.openedByPage)
+
+        engine.sessions.getValue(userTab).simulateCloseRequest()
+
+        assertTrue(viewModel.uiState.value.tabs.any { it.id == userTab })
+        assertTrue(engine.sessions.containsKey(userTab))
+        assertEquals(userTab, viewModel.uiState.value.activeTabId)
+    }
+
+    @Test
+    fun popupWhoseOpenerWasClosed_justCloses() {
+        val firstId = viewModel.uiState.value.activeTabId!!
+        val other = viewModel.openNewTab("https://other.example/")
+        viewModel.selectTab(firstId)
+        engine.sessions.getValue(firstId).simulateNewTab("https://popup.example/")
+        val popupId = viewModel.uiState.value.activeTabId!!
+        // The opener sits in the background now; close it
+        viewModel.closeTab(firstId)
+        assertTrue(viewModel.uiState.value.tabs.none { it.id == firstId })
+
+        engine.sessions.getValue(popupId).simulateCloseRequest()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.tabs.none { it.id == popupId })
+        assertTrue(state.tabs.any { it.id == other })
+        assertTrue("A tab is still shown", state.activeTab != null)
+    }
 }

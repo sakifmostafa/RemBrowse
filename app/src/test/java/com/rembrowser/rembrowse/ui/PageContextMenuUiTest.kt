@@ -65,6 +65,7 @@ class PageContextMenuUiTest {
     }
 
     private val clipboard = FakeClipboard()
+    private val copiedImages = mutableListOf<Pair<String, String?>>()
 
     @After
     fun tearDown() {
@@ -80,6 +81,7 @@ class PageContextMenuUiTest {
                         extensionsViewModel = extVm,
                         downloadsViewModel = downloadsVm,
                         versionName = "test",
+                        onCopyImage = { imageUrl, pageUrl -> copiedImages += imageUrl to pageUrl },
                         onPickLocalXpi = {},
                         paneViewport = { _, modifier -> Box(modifier) },
                         extensionPopupContent = { Box(it) }
@@ -141,5 +143,35 @@ class PageContextMenuUiTest {
 
         assertEquals(1, engine.sessions.getValue(tab).reloadCount)
         composeRule.onNodeWithTag("page_context_menu").assertDoesNotExist()
+    }
+
+    @Test
+    fun choosingCopyImage_handsThePictureAndThePageToTheClipboardOfImages() {
+        val tab = launchOnAWebPage()
+        composeRule.runOnUiThread {
+            engine.sessions.getValue(tab).simulateContextMenu(mediaUrl = "https://cdn.example.com/cat.png", mediaType = PageMediaType.IMAGE)
+        }
+
+        composeRule.onNodeWithText("Open image in new tab").assertIsDisplayed()
+        composeRule.onNodeWithText("Copy image address").assertIsDisplayed()
+        composeRule.onNodeWithText("Copy image").assertIsDisplayed()
+        composeRule.onNodeWithTag("page_menu_copy_image").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("https://cdn.example.com/cat.png" to "https://example.com/"), copiedImages)
+        assertNull("The address is not put on the text clipboard", clipboard.copied)
+        assertNull(browserVm.pageMenu.value)
+        composeRule.onNodeWithTag("page_context_menu").assertDoesNotExist()
+    }
+
+    @Test
+    fun aBlobPicture_hasNoCopyImage() {
+        val tab = launchOnAWebPage()
+        composeRule.runOnUiThread {
+            engine.sessions.getValue(tab).simulateContextMenu(mediaUrl = "blob:https://example.com/1", mediaType = PageMediaType.IMAGE)
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("page_menu_copy_image").assertDoesNotExist()
+        assertEquals(emptyList<Pair<String, String?>>(), copiedImages)
     }
 }

@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **485 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **550 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -82,6 +82,10 @@ Test suites included:
 * `UploadCacheTest` — copying files picked for an upload button: names kept, same names apart, unreadable files left out, old copies removed, the MIME types offered to the picker.
 * `BuiltInExtensionAssetsTest` — the bundled popup viewport helper: its id, the files its manifest names, its API and event wiring, and the messaging permissions and channel name the app listens on; and the page menu helper: its id, a content script in every frame, `nativeMessagingFromContent`, its channel name and message, and that it waits for the page and GeckoView to have answered.
 * `RailExtensionSlotsTest` / `ExtensionPopupDialogTest` — how many extension buttons fit on the rail for its height; where an extension popup's window goes (beside the rail, centred after the window becomes phone-sized, right-to-left) and how big it is (default, sized to its content, within desktop Firefox's limits).
+* `GoToAddressUiTest` — Go to address (Ctrl+G): opens with the page's address (empty on the start page), Enter goes there in the same tab, Alt+Enter in a new one, suggestions as you type, Esc and Ctrl+G again close it.
+* `ClipboardImagesTest` — Copy image's parts that need no device: picture types sniffed from their first bytes, `data:` addresses, which formats are kept, and the 25 MB limit.
+* `ComposingAwareInputConnectionTest` — the page input connection that notices a word being composed, for sending Enter past the keyboard app.
+* `TerminalConnectionTest` / `KeyExchangeWatchdogTest` — a shell that ends while connecting shows as disconnected; the key-exchange time limit (armed, paused, restarted, stopped).
 * `SshEndToEndTest` — the real SSH client (`TrileadSshConnector`) against an Apache MINA SSHD server started in the test: password sign-in opening a shell at the terminal's size that echoes what is typed, a new server confirmed once and a changed key flagged, a wrong password asked again and giving up, a generated key signing in once the server has its public half, an imported key with a passphrase, a closed port explained, and only AES ciphers offered (never ChaCha20, which fails on Conscrypt).
 * `TerminalScreenViewTest` — the terminal view on the real emulator and a fake shell: Ctrl and Alt keys, the browser's keys kept out, its size in cells, selecting and copying with the mouse, double-click words, the right-click menu, scrolling the history and full-screen programs; command suggestions (shown only for what the screen echoes, Tab and → taking them, nothing at a password prompt or in a full-screen program, lines edited with keys it can't follow left alone, Backspace followed, Enter remembering a command even with its last keys still on their way); and themes, the accent cursor and the cursor style.
 * `CommandSuggestionsTest` — suggestions from the history first, then common commands; only longer commands that start with exactly what was typed; what is remembered (once, most recent first, capped) and what is not (blank, a leading space, control characters, pasted scripts).

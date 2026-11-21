@@ -135,6 +135,11 @@ class FakeSessionHandle(
     }
 
     /** A page in this tab opened a new window (`window.open` / `target=_blank`). */
+    /** The page called window.close(). */
+    fun simulateCloseRequest() {
+        listener.onCloseRequested(tabId)
+    }
+
     fun simulateNewTab(url: String) {
         listener.onNewTabRequested(url, tabId)
     }

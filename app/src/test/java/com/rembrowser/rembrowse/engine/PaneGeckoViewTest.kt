@@ -3,6 +3,7 @@ package com.rembrowser.rembrowse.engine
 import android.app.Application
 import android.os.SystemClock
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.PointerIcon
 import android.widget.FrameLayout
@@ -60,5 +61,11 @@ class PaneGeckoViewTest {
 
         chromeHasPointer = false
         assertEquals(pageCursor, cursorAt(2f, 150f))
+    }
+
+    @Test
+    fun enterPastTheKeyboardApp_isLeftAloneWhenNoTextBoxHasTheKeyboard() {
+        // No input connection was made for the page, so nothing on it takes typing
+        assertEquals(false, view.sendEnterPastKeyboardApp(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)))
     }
 }
