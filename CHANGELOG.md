@@ -30,6 +30,7 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * Not yet tried on a device.
 * Other text fields keep Android's word rules for double-click, and have no right-click menu yet.
 * The terminal is SSH only (no local shell, Mosh or Telnet), with no port forwarding, SFTP or agent forwarding yet. Commands finished with the shell's own Tab completion or history are not remembered for suggestions.
+* The Enter fix for chat boxes follows from how GeckoView and keyboard apps handle physical keys; it has not been tried on a Googlebook yet. AltGr characters and dead-key accents in the terminal could not be simulated in the automated tests.
 
 ### Testing
 485 automated tests. The SSH client was also tried against a real OpenSSH 9.6 server: password and key sign-in (Ed25519 with a passphrase, RSA, and a key the app generated), the terminal type, size and resizing, and the shell exiting.
