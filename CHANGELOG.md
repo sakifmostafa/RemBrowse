@@ -2,7 +2,7 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## Unreleased — Right-click menus, and a touchpad that behaves
+## v0.13.6 (2026-11-21) — Right-click menus, and a touchpad that behaves
 
 ### Fixed
 * **Right-clicking with the touchpad did nothing on web pages.** Android reports a touchpad as a mouse whose pointer is a finger, and the engine (GeckoView) took every touchpad event for a finger on a touchscreen: a two-finger tap or a click in the pad's bottom-right corner reached the page as a plain tap, without its right button, so pages never saw a right click (at most a left click). Touchpad clicks now reach pages as the mouse clicks they are, right button included, and click-and-drag with the touchpad selects text instead of scrolling.
