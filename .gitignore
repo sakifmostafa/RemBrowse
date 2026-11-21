@@ -31,3 +31,6 @@ signing/keystore.properties
 # Working copies the password script makes while it runs
 signing/.rembrowse.jks.*
 signing/.keystore.properties.*
+
+# The download site's tunnel token
+deploy/site-host/.env

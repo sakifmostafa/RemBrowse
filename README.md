@@ -73,7 +73,9 @@ RemBrowse/
 │       ├── main/java/com/termux/ # Termux's terminal emulator and renderer (Apache 2.0, vendored)
 │       └── test/               # JVM unit, Robolectric and headless Compose UI tests
 ├── signing/                    # Signing keystore and its passwords (never committed)
-├── scripts/                    # Build-server setup and keystore password change
+├── scripts/                    # Build-server setup, keystore password, publishing to the site
+├── site/                       # The download page at browse.example.com
+├── deploy/site-host/           # The site's server: nginx + Cloudflare Tunnel (Docker)
 ├── gradle/                     # Gradle 8.11.1 wrapper
 ├── build.gradle.kts
 ├── settings.gradle.kts
