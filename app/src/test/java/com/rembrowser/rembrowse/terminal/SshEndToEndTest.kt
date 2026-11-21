@@ -382,9 +382,18 @@ class SshEndToEndTest {
             val accepted = mutableListOf<java.net.Socket>()
             val acceptor = Thread {
                 try {
-                    while (true) accepted += silent.accept()
+                    while (true) {
+                        val socket = silent.accept()
+                        synchronized(accepted) { accepted += socket }
+                    }
                 } catch (_: java.io.IOException) {
                 }
+            }.apply { isDaemon = true; start() }
+            // Safety net so a client that never gives up cannot hang the whole test run: after
+            // 12 s the silent server hangs up, which ends the client's read
+            Thread {
+                Thread.sleep(12_000)
+                synchronized(accepted) { accepted.forEach { runCatching { it.close() } } }
             }.apply { isDaemon = true; start() }
             val started = System.currentTimeMillis()
             try {

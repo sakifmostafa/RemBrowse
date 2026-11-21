@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.terminal
 
 import com.trilead.ssh2.Connection
 import com.trilead.ssh2.InteractiveCallback
+import com.trilead.ssh2.ProxyData
 import com.trilead.ssh2.ServerHostKeyVerifier
 import com.trilead.ssh2.Session
 import com.trilead.ssh2.crypto.Base64
@@ -10,6 +11,10 @@ import com.trilead.ssh2.crypto.keys.Ed25519Provider
 import java.io.IOException
 import java.net.ConnectException
 import java.net.NoRouteToHostException
+import java.net.SocketException
+import java.net.Socket
+import java.net.InetSocketAddress
+import java.net.InetAddress
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.ExecutorService
@@ -41,10 +46,15 @@ class TrileadSshConnector(
         val connection = Connection(request.hostname, request.port)
         connection.setClient2ServerCiphers(CIPHERS)
         connection.setServer2ClientCiphers(CIPHERS)
+        // The socket is opened here (the library's proxy hook) so the time limit below can close
+        // it: the library's own close() waits for connect() to finish, which a silent server
+        // never lets happen
+        val socket = OwnSocket()
+        connection.setProxyData(socket)
         var refusedKey = false
         // The library's own time limit for the key exchange would also run while the user reads
         // the server's fingerprint, and fail a connection they then accept. This one stops for that.
-        val watchdog = KeyExchangeWatchdog(keyExchangeTimeoutMillis.toLong()) { connection.close() }
+        val watchdog = KeyExchangeWatchdog(keyExchangeTimeoutMillis.toLong()) { socket.close() }
         val verifier = ServerHostKeyVerifier { hostname, port, keyType, key ->
             val check = hostKeyCheck(request.hostname, port, keyType, key, hostKeys.knownKey(request.hostname, port))
                 ?: return@ServerHostKeyVerifier true
@@ -264,6 +274,45 @@ private class TrileadShell(
             runCatching { connection.close() }
         }, "ssh-close").apply { isDaemon = true }.start()
         onClosed(reason)
+    }
+}
+
+/**
+ * Opens a connection's socket for the library (its proxy hook, used here for a direct
+ * connection), trying each of the host's addresses in turn, and keeps it so it can be closed
+ * from another thread whatever the library is doing.
+ */
+internal class OwnSocket : ProxyData {
+    @Volatile
+    private var socket: Socket? = null
+
+    @Volatile
+    private var closed = false
+
+    override fun openConnection(hostname: String, port: Int, connectTimeout: Int): Socket {
+        var failure: IOException? = null
+        // An unknown host fails here, as the library's own connection would
+        for (address in InetAddress.getAllByName(hostname)) {
+            if (closed) throw SocketException("Socket closed")
+            val attempt = Socket()
+            socket = attempt
+            try {
+                attempt.connect(InetSocketAddress(address, port), connectTimeout)
+                attempt.tcpNoDelay = true
+                if (closed) attempt.close()
+                return attempt
+            } catch (e: IOException) {
+                runCatching { attempt.close() }
+                failure = e
+            }
+        }
+        throw failure ?: ConnectException("No address for $hostname")
+    }
+
+    /** Closes the socket, ending whatever the library is waiting for on it. */
+    fun close() {
+        closed = true
+        runCatching { socket?.close() }
     }
 }
 
