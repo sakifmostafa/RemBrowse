@@ -48,6 +48,7 @@ import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.BrowserChromeState
+import com.rembrowser.rembrowse.ui.FullscreenWindowEffect
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
 import com.rembrowser.rembrowse.ui.components.ChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.components.LocalChromePointerIconClaim
@@ -245,20 +246,19 @@ class MainActivity : ComponentActivity() {
             // A fullscreen page gets the screen to itself: the status and navigation bars go,
             // and come back for a moment on a swipe from the edge, or for good when it ends.
             val pageFullscreen by fullscreenFlow.collectAsStateWithLifecycle(initialValue = false)
-            DisposableEffect(pageFullscreen) {
-                val systemBars = WindowCompat.getInsetsController(window, window.decorView)
-                if (pageFullscreen) {
+            FullscreenWindowEffect(
+                fullscreen = pageFullscreen,
+                onEnter = {
+                    val systemBars = WindowCompat.getInsetsController(window, window.decorView)
                     systemBars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     systemBars.hide(WindowInsetsCompat.Type.systemBars())
                     requestDesktopFullscreen(enter = true)
+                },
+                onExit = {
+                    WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+                    requestDesktopFullscreen(enter = false)
                 }
-                onDispose {
-                    if (pageFullscreen) {
-                        systemBars.show(WindowInsetsCompat.Type.systemBars())
-                        requestDesktopFullscreen(enter = false)
-                    }
-                }
-            }
+            )
             LaunchedEffect(darkTheme) {
                 engine.runtime.settings.setPreferredColorScheme(
                     if (darkTheme) {

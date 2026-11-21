@@ -2,22 +2,26 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## v0.13.1 (2026-11-20) — One left, two right, and a divider that follows the mouse
+## v0.13.2 (2026-11-21) — The window comes back from fullscreen; One left, two right; a divider that follows the mouse
+
+0.13.1 was built but never released; everything in it is part of this version.
+
+### Fixed
+* **The window stayed fullscreen after a page left fullscreen.** Once a page had gone fullscreen (a video, or any site's fullscreen button), RemBrowse never gave the window back its status bar and title bar, and on a Googlebook it never returned the window to its size. The whole browser then stayed fullscreen, and moving the pointer to the top of the screen slid the status bar and title bar over the address bar and the top of the tab rail. Leaving fullscreen now restores the window every time. (If 0.13 left your window like this, the title bar's restore button, or closing and reopening RemBrowse, puts it back.)
+* **Resizing a split with a mouse or touchpad.** The divider could fall behind the pointer (at a steady speed, every other movement step was lost), wander off after reaching its limit, or stop responding after switching between side by side and stacked. It now stays under the pointer. The resize arrows show over the whole grip, not just its middle, and stay for the whole drag. Double-clicking the divider resets the split even if the mouse moves slightly, and only the main button drags it.
+* "Last checked today at 9:23 a.m.." in Settings → About lost its second full stop.
 
 ### Added
 * **One left, two right layout.** The Split menu (and `Ctrl+5`) offers one tall pane on the left with two stacked on the right, next to Side by side, Stacked and Grid. The page you are on takes the tall pane. Building the same shape by dragging a tab onto the bottom edge of the right-hand page is recognised as this layout too.
-
-### Fixed
-* **Resizing a split with a mouse or touchpad.** The divider could fall behind the pointer (at a steady speed, every other movement step was lost), wander off after reaching its limit, or stop responding after switching between side by side and stacked. It now stays under the pointer. The resize arrows show over the whole grip, not just its middle, and stay for the whole drag. Double-clicking the divider resets the split even if the mouse moves slightly, and only the main button drags it.
 
 ### Changed
 * **Updates come from the repository's new name**, `sakifmostafa/RemBrowse` (it was `RemBrowser`). 0.13 asks the old name, which GitHub forwards, so updating from 0.13 works; from this version on, RemBrowse no longer depends on that forwarding.
 
 ### Known limits
-* The first update that can be installed from inside the app: from 0.13, use **Settings → About → Check for updates**. Not yet tried on a device, nor are the divider fixes; if dragging a divider feels heavy on a large page, the cost of resizing the pages while dragging is the next thing to look at.
+* The first update that can be installed from inside the app: from 0.13, use **Settings → About → Check for updates**. Not yet tried on a device, nor are the divider and fullscreen fixes. If dragging a divider feels heavy on a large page, the cost of resizing the pages while dragging is the next thing to look at.
 
 ### Testing
-290 automated tests.
+292 automated tests.
 
 ## v0.13 (2026-11-20) — Layouts your way, fullscreen video, history and updates
 

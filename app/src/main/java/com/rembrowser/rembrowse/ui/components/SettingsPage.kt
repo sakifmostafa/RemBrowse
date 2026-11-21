@@ -623,9 +623,9 @@ private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
     Text(text = "Updates", style = MaterialTheme.typography.titleSmall)
     Text(
         text = when (status) {
-            UpdateStatus.Idle -> lastChecked?.let { "Last checked $it." } ?: "See whether a newer RemBrowse is out."
+            UpdateStatus.Idle -> lastChecked?.let { withFullStop("Last checked $it") } ?: "See whether a newer RemBrowse is out."
             UpdateStatus.Checking -> "Checking for updates…"
-            UpdateStatus.UpToDate -> "RemBrowse is up to date." + (lastChecked?.let { " Last checked $it." } ?: "")
+            UpdateStatus.UpToDate -> "RemBrowse is up to date." + (lastChecked?.let { " " + withFullStop("Last checked $it") } ?: "")
             is UpdateStatus.Available ->
                 "RemBrowse ${status.update.versionName} is available (${ByteSizes.format(status.update.size)})."
             is UpdateStatus.Downloading ->
@@ -700,6 +700,9 @@ private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
         testTag = "setting_check_updates"
     )
 }
+
+/** [text] ending in one full stop, also when it ends with a time such as "9:23 a.m." */
+internal fun withFullStop(text: String): String = if (text.endsWith(".")) text else "$text."
 
 /** "today at 10:42", or "on 18 Nov 2026". */
 private fun lastCheckedText(millis: Long): String {
