@@ -318,6 +318,95 @@ class SshEndToEndTest {
         }
     }
 
+    @Test
+    fun closingTheShell_endsTheServersSession_andReportsClosedOnceWithNoReason() {
+        val closedCalls = java.util.concurrent.atomic.AtomicInteger()
+        val reasons = Collections.synchronizedList(mutableListOf<String?>())
+        val shell = TrileadSshConnector().connect(
+            request(SshCredentials.Password(PASSWORD)),
+            ScriptedPrompts(),
+            MemoryHostKeys(),
+            onOutput = { _, _ -> },
+            onClosed = { reason ->
+                closedCalls.incrementAndGet()
+                reasons += reason
+            }
+        )
+        lastShell()
+        assertEquals("One session is open on the server", 1, server.activeSessions.size)
+
+        // Closing from a thread that may not use the network, as the main thread on Android
+        shell.close()
+        shell.close()
+
+        val deadline = System.currentTimeMillis() + 10_000
+        while (server.activeSessions.isNotEmpty()) {
+            if (System.currentTimeMillis() > deadline) fail("The server's session is still open")
+            Thread.sleep(50)
+        }
+        assertEquals(1, closedCalls.get())
+        assertEquals(listOf<String?>(null), reasons.toList())
+        Thread.sleep(300)
+        assertEquals("Still once", 1, closedCalls.get())
+    }
+
+    @Test
+    fun aSlowHostKeyQuestion_doesNotCountAgainstTheKeyExchangeTimeLimit() {
+        val output = Output()
+        val slowPrompts = object : SshPrompts {
+            override fun confirmHostKey(check: HostKeyCheck): Boolean {
+                Thread.sleep(2_500)
+                return true
+            }
+            override fun askPassword(retry: Boolean, prompt: String?): String? = null
+            override fun passwordAccepted(password: String) {}
+        }
+        val shell = TrileadSshConnector(keyExchangeTimeoutMillis = 1_000).connect(
+            request(SshCredentials.Password(PASSWORD)),
+            slowPrompts,
+            MemoryHostKeys(),
+            onOutput = output::add,
+            onClosed = { reason ->
+                output.closeReason = reason
+                output.closed.countDown()
+            }
+        )
+        shell.write("hello\r".toByteArray())
+        output.waitFor("you typed: hello")
+        shell.close()
+    }
+
+    @Test
+    fun aServerThatNeverAnswers_failsTheKeyExchangeInTime() {
+        java.net.ServerSocket(0, 5, java.net.InetAddress.getByName("127.0.0.1")).use { silent ->
+            val accepted = mutableListOf<java.net.Socket>()
+            val acceptor = Thread {
+                try {
+                    while (true) accepted += silent.accept()
+                } catch (_: java.io.IOException) {
+                }
+            }.apply { isDaemon = true; start() }
+            val started = System.currentTimeMillis()
+            try {
+                TrileadSshConnector(connectTimeoutMillis = 8_000, keyExchangeTimeoutMillis = 1_000).connect(
+                    request(SshCredentials.Password(PASSWORD)).copy(port = silent.localPort),
+                    ScriptedPrompts(),
+                    MemoryHostKeys(),
+                    onOutput = { _, _ -> },
+                    onClosed = {}
+                )
+                fail("A silent server must not connect")
+            } catch (e: SshConnectException) {
+                assertTrue(e.message!!, e.message!!.contains("didn't answer in time"))
+            } finally {
+                synchronized(accepted) { accepted.forEach { runCatching { it.close() } } }
+                acceptor.interrupt()
+            }
+            val took = System.currentTimeMillis() - started
+            assertTrue("Took $took ms", took < 7_000)
+        }
+    }
+
     /** A shell that echoes each line back and remembers its terminal's size. */
     private class EchoShell : Command {
         private lateinit var input: InputStream

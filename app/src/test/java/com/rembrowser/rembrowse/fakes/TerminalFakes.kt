@@ -20,8 +20,13 @@ class FakeSshConnector(
     /** The server's key; null skips the check entirely. */
     var hostKey: HostKeyCheck? = null,
     /** Fails every connection with this message, as an unreachable server would. */
-    var failure: String? = null
+    var failure: String? = null,
+    /** When set, the shell ends (onClosed with this reason, null = exited) before connect returns. */
+    var endBeforeReturning: EarlyEnd? = null
 ) : SshConnector {
+    /** How a shell ends before its connection was handed back. */
+    class EarlyEnd(val reason: String?)
+
     val requests = CopyOnWriteArrayList<SshConnectRequest>()
     val shells = CopyOnWriteArrayList<FakeShell>()
 
@@ -55,7 +60,10 @@ class FakeSshConnector(
                 prompts.passwordAccepted(candidate!!)
             }
         }
-        return FakeShell(request, onOutput, onClosed).also { shells += it }
+        return FakeShell(request, onOutput, onClosed).also {
+            shells += it
+            endBeforeReturning?.let { early -> it.end(early.reason) }
+        }
     }
 
     class FakeShell(

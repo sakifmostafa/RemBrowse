@@ -417,4 +417,130 @@ class TerminalScreenViewTest {
         while (view.cellAt(x, 0f).column == a) x += 0.5f
         return x - origin
     }
+
+    // --- Size change, keyboard commits, dead keys and AltGr ---
+
+    @Test
+    fun aSizeChange_clearsTheSelection() {
+        val shell = connected()
+        shell.print("hello world\r\n")
+        main.drain()
+        view.selectAll()
+        assertTrue(view.selection != null)
+        val columns = connection.emulator.mColumns
+
+        view.measure(View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(480, View.MeasureSpec.EXACTLY))
+        view.layout(0, 0, 400, 480)
+        assertTrue(connection.emulator.mColumns < columns)
+        assertNull(view.selection)
+        assertFalse(view.copySelection())
+    }
+
+    @Test
+    fun aLayoutWithTheSameSize_keepsTheSelection() {
+        connected()
+        view.selectAll()
+        view.layout(0, 0, 800, 480)
+        view.requestLayout()
+        view.measure(View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(480, View.MeasureSpec.EXACTLY))
+        view.layout(0, 0, 800, 480)
+        assertTrue(view.selection != null)
+    }
+
+    private fun commit(text: String) {
+        val input = view.onCreateInputConnection(android.view.inputmethod.EditorInfo())
+        input.commitText(text, 1)
+    }
+
+    @Test
+    fun keyboardCommit_aLoneNewlineIsEnter_andPlainTextGoesThrough() {
+        val shell = connected()
+        commit("abc")
+        commit("\n")
+        assertEquals("abc\r", shell.typed())
+    }
+
+    @Test
+    fun keyboardCommit_multiLineText_isPasted_andBracketedWhenTheShellAsks() {
+        val shell = connected()
+        shell.print("\u001b[?2004h")
+        main.drain()
+        commit("ls\npwd")
+        assertEquals("\u001b[200~ls\rpwd\u001b[201~", shell.typed())
+    }
+
+    @Test
+    fun keyboardCommit_multiLineText_isPastedPlain_withoutBracketedPaste() {
+        val shell = connected()
+        commit("a\r\nb")
+        assertEquals("a\rb", shell.typed())
+    }
+
+    @Test
+    fun keyboardCommit_anEscapeInTheText_isNeverPassedThroughRaw() {
+        val shell = connected()
+        shell.print("\u001b[?2004h")
+        main.drain()
+        commit("rm\u001b[31m x\n")
+        val typed = shell.typed()
+        assertEquals("\u001b[200~rm[31m x\r\u001b[201~", typed)
+        // The only escapes are the paste brackets
+        assertEquals(2, typed.count { it == '\u001b' })
+    }
+
+    @Test
+    fun keyboardCommit_aTabOrOtherControlCharacter_isPasted_notTyped() {
+        val shell = connected()
+        shell.print("\u001b[?2004h")
+        main.drain()
+        commit("a\tb")
+        assertEquals("\u001b[200~a\tb\u001b[201~", shell.typed())
+    }
+
+    private val leftAlt = KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
+    private val rightAlt = KeyEvent.META_ALT_ON or KeyEvent.META_ALT_RIGHT_ON
+
+    @Test
+    fun leftAlt_stillPrefixesEscape() {
+        val emulator = connection.emulator
+        assertEquals("\u001bb", TerminalScreenView.encodeKey(KeyEvent.KEYCODE_B, key(KeyEvent.KEYCODE_B, leftAlt), emulator, DeadKey()))
+        assertEquals("b", TerminalScreenView.encodeKey(KeyEvent.KEYCODE_B, key(KeyEvent.KEYCODE_B), emulator, DeadKey()))
+    }
+
+    @Test
+    fun rightAlt_whereTheLayoutTypesNothingWithIt_isAltLikeBefore() {
+        // The test environment's key map types nothing for Right Alt + b (see the report)
+        val emulator = connection.emulator
+        val event = key(KeyEvent.KEYCODE_B, rightAlt)
+        if (event.getUnicodeChar(event.metaState and KeyEvent.META_ALT_LEFT_ON.inv()) == 0) {
+            assertEquals("\u001bb", TerminalScreenView.encodeKey(KeyEvent.KEYCODE_B, event, emulator, DeadKey()))
+        }
+    }
+
+    @Test
+    fun aPendingDeadKey_isCombinedWithTheNextLetter_andThenCleared() {
+        val emulator = connection.emulator
+        val dead = DeadKey().apply { accent = '\u0301'.code }
+        val combined = TerminalScreenView.encodeKey(KeyEvent.KEYCODE_E, key(KeyEvent.KEYCODE_E), emulator, dead)
+        assertEquals("é", combined)
+        assertEquals(0, dead.accent)
+        assertEquals("Nothing pending any more", "e", TerminalScreenView.encodeKey(KeyEvent.KEYCODE_E, key(KeyEvent.KEYCODE_E), emulator, dead))
+    }
+
+    @Test
+    fun aPendingDeadKey_thenSpace_givesTheSpacingAccent() {
+        val emulator = connection.emulator
+        val dead = DeadKey().apply { accent = '\u0301'.code }
+        val result = TerminalScreenView.encodeKey(KeyEvent.KEYCODE_SPACE, key(KeyEvent.KEYCODE_SPACE), emulator, dead)
+        assertEquals("\u00b4", result)
+        assertEquals(0, dead.accent)
+    }
+
+    @Test
+    fun aPendingDeadKey_withALetterItCannotCombineWith_typesTheLetter() {
+        val emulator = connection.emulator
+        val dead = DeadKey().apply { accent = '\u0301'.code }
+        assertEquals("x", TerminalScreenView.encodeKey(KeyEvent.KEYCODE_X, key(KeyEvent.KEYCODE_X), emulator, dead))
+        assertEquals(0, dead.accent)
+    }
 }
