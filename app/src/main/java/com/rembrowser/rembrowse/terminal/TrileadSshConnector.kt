@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.terminal
 
+import com.rembrowser.rembrowse.model.DEFAULT_SSH_PORT
 import com.trilead.ssh2.Connection
 import com.trilead.ssh2.InteractiveCallback
 import com.trilead.ssh2.ProxyData
@@ -91,6 +92,10 @@ class TrileadSshConnector(
 
     private fun signIn(connection: Connection, request: SshConnectRequest, prompts: SshPrompts) {
         val user = request.username
+        // Some servers sign in without a password or key: Tailscale SSH knows the device by its
+        // tailnet identity. Asking with no method first is how OpenSSH's client finds out too;
+        // other servers refuse it and say which methods they take.
+        if (connection.authenticateWithNone(user)) return
         when (val credentials = request.credentials) {
             is SshCredentials.Key -> {
                 if (!connection.isAuthMethodAvailable(user, "publickey")) {
@@ -148,19 +153,50 @@ class TrileadSshConnector(
         ): Array<String> = Array(numPrompts) { i -> if (echo?.getOrNull(i) == true) "" else password }
     }
 
-    private fun connectFailure(request: SshConnectRequest, e: IOException): String {
-        val where = "${request.hostname}:${request.port}"
-        val cause = generateSequence<Throwable>(e) { it.cause }.toList()
-        return when {
-            cause.any { it is UnknownHostException } -> "Couldn't find $where. Check the host name."
-            cause.any { it is ConnectException } -> "$where refused the connection. Is an SSH server running there?"
-            cause.any { it is NoRouteToHostException } -> "No route to $where. Check the network."
-            cause.any { it is SocketTimeoutException } -> "$where didn't answer in time."
-            else -> "Couldn't connect to $where: ${e.message ?: "the connection failed"}."
-        }
-    }
+    private fun connectFailure(request: SshConnectRequest, e: IOException): String = connectFailureMessage(request.hostname, request.port, e)
 
     companion object {
+        /**
+         * What went wrong connecting to [hostname]:[port], in words. Android reports a refused
+         * connection, an unreachable network and a connection the device itself blocked (a VPN
+         * or firewall) all as ConnectException; the system's error code in the message tells
+         * them apart.
+         */
+        fun connectFailureMessage(hostname: String, port: Int, e: IOException): String {
+            val where = "$hostname:$port"
+            val cause = generateSequence<Throwable>(e) { it.cause }.toList()
+            val detail = cause.joinToString(" ") { it.message.orEmpty() }
+            val tailscale = if (isTailscaleAddress(hostname)) {
+                " It's a Tailscale address: check Tailscale is connected on this device, and that RemBrowse isn't excluded from it."
+            } else {
+                ""
+            }
+            val unreachable = listOf("ENETUNREACH", "Network is unreachable", "EHOSTUNREACH", "Host is unreachable")
+            val blocked = listOf("EACCES", "EPERM", "Permission denied", "Operation not permitted")
+            return when {
+                cause.any { it is UnknownHostException } -> "Couldn't find $hostname. Check the host name.$tailscale"
+                cause.any { it is NoRouteToHostException } || unreachable.any { it in detail } ->
+                    "Can't reach $where from this device: there's no network route to it.$tailscale"
+                cause.any { it is ConnectException } && blocked.any { it in detail } ->
+                    "This device didn't let RemBrowse connect to $where. A VPN or firewall setting may be blocking it."
+                cause.any { it is ConnectException } ->
+                    "$where refused the connection: nothing there is accepting SSH connections on port $port." +
+                        if (port != DEFAULT_SSH_PORT) " SSH usually uses port $DEFAULT_SSH_PORT; check the port in the host's settings." else " Is the SSH server running?"
+                cause.any { it is SocketTimeoutException } -> "$where didn't answer in time.$tailscale"
+                else -> "Couldn't connect to $where: ${e.message ?: "the connection failed"}."
+            }
+        }
+
+        /** A tailnet address: 100.64.0.0/10, or a MagicDNS name. */
+        fun isTailscaleAddress(hostname: String): Boolean {
+            val host = hostname.trim().lowercase().trimEnd('.')
+            if (host.endsWith(".ts.net")) return true
+            val parts = host.split('.')
+            if (parts.size != 4) return false
+            val octets = parts.map { it.toIntOrNull() ?: return false }
+            return octets[0] == 100 && octets[1] in 64..127
+        }
+
         const val MAX_PASSWORD_ATTEMPTS = 3
 
         /**

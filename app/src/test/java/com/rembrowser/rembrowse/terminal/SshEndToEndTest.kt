@@ -202,6 +202,20 @@ class SshEndToEndTest {
     }
 
     @Test
+    fun aServerThatSignsInWithoutAPassword_isNotAskedForOne() {
+        // Tailscale SSH signs devices in by their tailnet identity: the "none" method succeeds
+        server.userAuthFactories = listOf(org.apache.sshd.server.auth.UserAuthNoneFactory.INSTANCE)
+        val prompts = ScriptedPrompts()
+        val output = Output()
+        val shell = connect(SshCredentials.Password(saved = null), prompts, output = output)
+
+        assertTrue("No password asked for", prompts.passwordRequests.isEmpty())
+        shell.write("hello\r".toByteArray())
+        output.waitFor("you typed: hello")
+        shell.close()
+    }
+
+    @Test
     fun aNewServerIsConfirmedOnce_andAChangedKeyIsFlagged() {
         val hostKeys = MemoryHostKeys()
         val first = ScriptedPrompts()
