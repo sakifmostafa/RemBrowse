@@ -107,8 +107,13 @@ class UnreadableUpdateException : IOException("Unreadable update information")
 class UpdateHttpException(val code: Int) : IOException("HTTP $code")
 
 /**
- * Reads `update.json` and the APKs from the repository's published `build/` folder, as raw files
- * on GitHub, which needs the repository to be public.
+ * Reads `update.json`, and the APKs beside it, from a web address: [hostedAt] when set (RemBrowse's
+ * own download site), otherwise the repository's published `build/` folder as raw files on
+ * GitHub, which needs the repository to be public.
+ *
+ * At [hostedAt], `update.json` is asked for with a changing query string and `no-cache`, so a
+ * cache in front of the site cannot hand back the previous release; the APKs are checked against
+ * the manifest's SHA-256 whatever the cache does.
  *
  * GitHub's raw files are cached for up to 5 minutes, whatever the request asks, so a check made
  * just after a release could still see the previous one, and an APK fetched then could be the
@@ -120,7 +125,9 @@ class UpdateHttpException(val code: Int) : IOException("HTTP $code")
  * @param repository `owner/name` on GitHub.
  */
 class OkHttpUpdateSource(
-    private val repository: String,
+    private val repository: String = "",
+    /** The address `update.json` and the APKs are published at, ending in `/`; null for GitHub. */
+    private val hostedAt: String? = null,
     private val branch: String = "main",
     private val folder: String = "build",
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -135,10 +142,18 @@ class OkHttpUpdateSource(
 
     override suspend fun fetchManifest(): Result<UpdateManifest> = withContext(ioDispatcher) {
         runCatching {
-            val commit = runCatching { latestCommit() }.getOrNull()
-            val filesBaseUrl = "${rawBaseUrl.trimEnd('/')}/$repository/${commit ?: branch}/$folder/"
+            val filesBaseUrl: String
+            val manifestUrl: String
+            if (hostedAt != null) {
+                filesBaseUrl = hostedAt.trimEnd('/') + "/"
+                manifestUrl = filesBaseUrl + MANIFEST_FILE + "?t=" + System.currentTimeMillis()
+            } else {
+                val commit = runCatching { latestCommit() }.getOrNull()
+                filesBaseUrl = "${rawBaseUrl.trimEnd('/')}/$repository/${commit ?: branch}/$folder/"
+                manifestUrl = filesBaseUrl + MANIFEST_FILE
+            }
             val request = Request.Builder()
-                .url(filesBaseUrl + MANIFEST_FILE)
+                .url(manifestUrl)
                 .header("User-Agent", userAgent)
                 .header("Cache-Control", "no-cache")
                 .build()

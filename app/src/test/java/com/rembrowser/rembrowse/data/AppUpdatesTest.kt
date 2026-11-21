@@ -118,6 +118,34 @@ class AppUpdatesTest {
     }
 
     @Test
+    fun fetchManifest_onRemBrowsesOwnSite_readsTheFilesThere_withoutAskingGitHub() = runTest {
+        val requested = mutableListOf<String>()
+        var cacheControl: String? = null
+        val client = OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                val url = chain.request().url.toString()
+                requested += url
+                cacheControl = chain.request().header("Cache-Control")
+                if (url.startsWith("https://downloads.test/rem/update.json?t=")) chain.respond(200, manifestJson()) else chain.respond(404, "Not Found")
+            })
+            .build()
+        val source = OkHttpUpdateSource(
+            hostedAt = "https://downloads.test/rem",
+            client = client,
+            ioDispatcher = kotlinx.coroutines.Dispatchers.Unconfined
+        )
+        val manifest = source.fetchManifest().getOrThrow()
+
+        assertEquals(15, manifest.versionCode)
+        assertEquals("One request, to the site itself", 1, requested.size)
+        assertTrue("A query no cache has seen", requested.single().startsWith("https://downloads.test/rem/update.json?t="))
+        assertEquals("no-cache", cacheControl)
+        assertEquals("https://downloads.test/rem/", manifest.filesBaseUrl)
+        val update = UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), "unused")
+        assertEquals("The APK beside update.json", "https://downloads.test/rem/RemBrowse-x86_64.apk", update!!.url)
+    }
+
+    @Test
     fun fetchManifest_readsTheBranch_whenTheApiCannotAnswer() = runTest {
         for (apiAnswer in listOf(403 to "rate limited", 200 to "<html>not a commit</html>")) {
             val requested = mutableListOf<String>()

@@ -27,7 +27,11 @@ android {
 
         // Where the app looks for new versions: the APKs and update.json that publishApk
         // writes to build/ on main, read from GitHub (the repository must be public)
-        buildConfigField("String", "UPDATE_REPOSITORY", "\"sakifmostafa/RemBrowse\"")
+        // Where installed copies look for updates: update.json and the APKs published beside it
+        // (./gradlew publishApk writes them to build/). The repository is private, so they are
+        // served from RemBrowse's own site. -Prembrowse.updateUrl=... builds one that looks elsewhere.
+        val updateUrl = (project.findProperty("rembrowse.updateUrl") as String?) ?: "https://browse.example.com/"
+        buildConfigField("String", "UPDATE_URL", "\"${updateUrl.trimEnd('/')}/\"")
     }
 
     // One APK per CPU type instead of a single 380 MB package carrying both engines.

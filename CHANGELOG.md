@@ -4,6 +4,9 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 
 ## v0.13.8 (2026-11-21) — Terminal: Tailscale SSH, and clearer connection errors
 
+### Changed
+* **Updates come from [browse.example.com](https://browse.example.com/)**, RemBrowse's own download site, instead of the GitHub repository, which is now private. Copies of 0.13.7 and older still look on GitHub and will not find this version: download it from the site once, and updates arrive as before from then on.
+
 ### Fixed
 * **Servers that sign you in without a password or key, such as Tailscale SSH** (`tailscale up --ssh`), failed with "doesn't accept passwords". The terminal now asks the server first whether it needs anything, as OpenSSH's client does.
 * **"Refused the connection" was shown for every connection failure.** Android reports a refused connection, an unreachable network and a connection blocked by a VPN or firewall the same way. The terminal now says which it was, points at the port when a server refuses one other than 22, and for a Tailscale address (100.64.0.0/10 or a `.ts.net` name) reminds you to check that Tailscale is connected and not excluding RemBrowse.
