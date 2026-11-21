@@ -26,7 +26,10 @@ enum class BrowserShortcut {
     LAYOUT_ONE_AND_TWO,
     FIND_IN_PAGE,
     FIND_NEXT,
-    FIND_PREVIOUS
+    FIND_PREVIOUS,
+
+    /** The Go to address popup (Ctrl+G). */
+    GO_TO_ADDRESS
 }
 
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
@@ -73,8 +76,10 @@ object KeyboardShortcuts {
         if (keyCode == KeyEvent.KEYCODE_TAB) {
             return if (shift) BrowserShortcut.PREVIOUS_TAB else BrowserShortcut.NEXT_TAB
         }
+        // Ctrl+G is Go to address; finding the next and previous match stays on F3, Shift+F3 and
+        // Enter in the find bar. Ctrl+Shift+G is left to the page.
         if (keyCode == KeyEvent.KEYCODE_G) {
-            return if (shift) BrowserShortcut.FIND_PREVIOUS else BrowserShortcut.FIND_NEXT
+            return if (shift) null else BrowserShortcut.GO_TO_ADDRESS
         }
         // Ctrl+Shift+<key> combinations belong to the page or the system, not to us.
         if (shift) return null
@@ -109,6 +114,7 @@ object KeyboardShortcuts {
             KeyEvent.KEYCODE_W -> BrowserShortcut.CLOSE_TAB
             KeyEvent.KEYCODE_L -> BrowserShortcut.FOCUS_ADDRESS_BAR
             KeyEvent.KEYCODE_K -> BrowserShortcut.COMMAND_PALETTE
+            KeyEvent.KEYCODE_G -> BrowserShortcut.GO_TO_ADDRESS
             KeyEvent.KEYCODE_COMMA -> BrowserShortcut.OPEN_SETTINGS
             KeyEvent.KEYCODE_BACKSLASH -> BrowserShortcut.TOGGLE_SPLIT_VIEW
             else -> null

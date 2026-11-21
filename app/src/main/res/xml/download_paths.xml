@@ -5,4 +5,6 @@
     <files-path name="downloads_internal" path="Download/" />
     <!-- A downloaded update of RemBrowse itself, handed to the system installer -->
     <cache-path name="updates" path="updates/" />
+    <!-- A picture copied from a page (Copy image), read by the app it is pasted into -->
+    <cache-path name="clipboard" path="clipboard/" />
 </paths>

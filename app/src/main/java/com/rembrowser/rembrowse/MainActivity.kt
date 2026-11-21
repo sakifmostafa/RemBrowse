@@ -13,11 +13,13 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
+import androidx.compose.ui.platform.ComposeView
+import android.widget.FrameLayout
+import android.content.Context
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -36,6 +38,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.rembrowser.rembrowse.data.ImageClipboard
+import com.rembrowser.rembrowse.data.GeckoImageClipboard
 import com.rembrowser.rembrowse.data.AndroidDownloadStorage
 import com.rembrowser.rembrowse.data.AndroidUpdateInstaller
 import com.rembrowser.rembrowse.data.KeystoreSecretStore
@@ -111,8 +115,12 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
      */
     var filePickerPromptId: String? = null
 
+    /** Puts pictures from pages on the clipboard (the page menu's Copy image). */
+    val imageClipboard: ImageClipboard
+
     init {
         val runtime = (application as RemBrowseApplication).geckoRuntime
+        imageClipboard = GeckoImageClipboard(application, runtime)
         engine = GeckoBrowserEngine(application, providedRuntime = runtime)
         extensionManager = GeckoExtensionManager(
             runtime = runtime,
@@ -261,140 +269,146 @@ class MainActivity : ComponentActivity() {
         val settingsFlow = holder.browser.uiState.map { it.settings }.distinctUntilChanged()
         val fullscreenFlow = holder.browser.uiState.map { it.fullscreenTabId != null }.distinctUntilChanged()
 
-        setContent {
-            val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
-            val darkTheme = settings.useDarkTheme
+        val content = ComposeView(this).apply {
+            setContent {
+                val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
+                val darkTheme = settings.useDarkTheme
 
-            // Keep system bar icons legible against the chrome, and let pages that honour
-            // prefers-color-scheme match the browser.
-            DisposableEffect(darkTheme) {
-                val style = if (darkTheme) {
-                    SystemBarStyle.dark(AndroidColor.TRANSPARENT)
-                } else {
-                    SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
-                }
-                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
-                onDispose { }
-            }
-            // A fullscreen page gets the screen to itself: the status and navigation bars go,
-            // and come back for a moment on a swipe from the edge, or for good when it ends.
-            val pageFullscreen by fullscreenFlow.collectAsStateWithLifecycle(initialValue = false)
-            FullscreenWindowEffect(
-                fullscreen = pageFullscreen,
-                onEnter = {
-                    val systemBars = WindowCompat.getInsetsController(window, window.decorView)
-                    systemBars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    systemBars.hide(WindowInsetsCompat.Type.systemBars())
-                    requestDesktopFullscreen(enter = true)
-                },
-                onExit = {
-                    WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
-                    requestDesktopFullscreen(enter = false)
-                }
-            )
-            LaunchedEffect(darkTheme) {
-                engine.runtime.settings.setPreferredColorScheme(
-                    if (darkTheme) {
-                        GeckoRuntimeSettings.COLOR_SCHEME_DARK
+                // Keep system bar icons legible against the chrome, and let pages that honour
+                // prefers-color-scheme match the browser.
+                DisposableEffect(darkTheme) {
+                    val style = if (darkTheme) {
+                        SystemBarStyle.dark(AndroidColor.TRANSPARENT)
                     } else {
-                        GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
+                        SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+                    }
+                    enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                    onDispose { }
+                }
+                // A fullscreen page gets the screen to itself: the status and navigation bars go,
+                // and come back for a moment on a swipe from the edge, or for good when it ends.
+                val pageFullscreen by fullscreenFlow.collectAsStateWithLifecycle(initialValue = false)
+                FullscreenWindowEffect(
+                    fullscreen = pageFullscreen,
+                    onEnter = {
+                        val systemBars = WindowCompat.getInsetsController(window, window.decorView)
+                        systemBars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        systemBars.hide(WindowInsetsCompat.Type.systemBars())
+                        requestDesktopFullscreen(enter = true)
+                    },
+                    onExit = {
+                        WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+                        requestDesktopFullscreen(enter = false)
                     }
                 )
-            }
+                LaunchedEffect(darkTheme) {
+                    engine.runtime.settings.setPreferredColorScheme(
+                        if (darkTheme) {
+                            GeckoRuntimeSettings.COLOR_SCHEME_DARK
+                        } else {
+                            GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
+                        }
+                    )
+                }
 
-            RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent) {
-                val pageBackground = MaterialTheme.colorScheme.surfaceContainerLowest.toArgb()
-                CompositionLocalProvider(LocalChromePointerIconClaim provides chromePointerIcon) {
-                    RemBrowseScreen(
-                        browserViewModel = holder.browser,
-                        extensionsViewModel = holder.extensions,
-                        chrome = chrome,
-                        versionName = BuildConfig.VERSION_NAME,
-                        downloadsViewModel = holder.downloads,
-                        onPickLocalXpi = {
-                            pickLocalXpiLauncher.launch(arrayOf("*/*"))
-                        },
-                        onOpenDownload = ::openDownloadedFile,
-                        onOpenDownloadsFolder = ::openDownloadsFolder,
-                        onPickFiles = ::pickFilesFor,
-                        updatesViewModel = holder.updates,
-                        terminalViewModel = holder.terminal,
-                        onFocusWebContent = { tabId ->
-                            paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
-                        },
-                        paneViewport = { tab, modifier ->
-                            // A page shown another way needs another view: the choice is made
-                            // once, when the view is created
-                            val rendering = settings.pageRendering
-                            key(rendering) {
-                                val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
+                RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent) {
+                    val pageBackground = MaterialTheme.colorScheme.surfaceContainerLowest.toArgb()
+                    CompositionLocalProvider(LocalChromePointerIconClaim provides chromePointerIcon) {
+                        RemBrowseScreen(
+                            browserViewModel = holder.browser,
+                            extensionsViewModel = holder.extensions,
+                            chrome = chrome,
+                            versionName = BuildConfig.VERSION_NAME,
+                            downloadsViewModel = holder.downloads,
+                            onPickLocalXpi = {
+                                pickLocalXpiLauncher.launch(arrayOf("*/*"))
+                            },
+                            onOpenDownload = ::openDownloadedFile,
+                            onOpenDownloadsFolder = ::openDownloadsFolder,
+                            onCopyImage = holder.imageClipboard::copyImage,
+                            onPickFiles = ::pickFilesFor,
+                            updatesViewModel = holder.updates,
+                            terminalViewModel = holder.terminal,
+                            onFocusWebContent = { tabId ->
+                                paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
+                            },
+                            paneViewport = { tab, modifier ->
+                                // A page shown another way needs another view: the choice is made
+                                // once, when the view is created
+                                val rendering = settings.pageRendering
+                                key(rendering) {
+                                    val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
+                                    DisposableEffect(Unit) {
+                                        onDispose {
+                                            geckoViewHolder[0]?.let {
+                                                paneViewTabs.remove(it)
+                                                engine.detachView(it)
+                                            }
+                                        }
+                                    }
+                                    AndroidView(
+                                        modifier = modifier,
+                                        factory = { ctx ->
+                                            PaneGeckoView(ctx, chromePointerIcon::isClaimed).apply {
+                                                usePageRendering(rendering)
+                                                // Set once: covering again on every update would hide
+                                                // a page that has already painted.
+                                                coverUntilFirstPaint(pageBackground)
+                                                geckoViewHolder[0] = this
+                                                paneViewTabs[this] = tab.id
+                                                engine.attachSessionToView(tab.id, this)
+                                            }
+                                        },
+                                        update = { view ->
+                                            geckoViewHolder[0] = view
+                                            paneViewTabs[view] = tab.id
+                                            engine.attachSessionToView(tab.id, view)
+                                        }
+                                    )
+                                }
+                            },
+                            extensionPopupContent = { modifier ->
+                                val popupViewHolder = remember { arrayOfNulls<GeckoView>(1) }
                                 DisposableEffect(Unit) {
                                     onDispose {
-                                        geckoViewHolder[0]?.let {
-                                            paneViewTabs.remove(it)
-                                            engine.detachView(it)
-                                        }
+                                        popupViewHolder[0]?.releaseSession()
                                     }
                                 }
                                 AndroidView(
                                     modifier = modifier,
                                     factory = { ctx ->
-                                        PaneGeckoView(ctx, chromePointerIcon::isClaimed).apply {
-                                            usePageRendering(rendering)
-                                            // Set once: covering again on every update would hide
-                                            // a page that has already painted.
+                                        PaneGeckoView(ctx).apply {
+                                            // Always a texture: the popup's window fades in and
+                                            // has rounded corners of its own
+                                            usePageRendering(
+                                                if (settings.pageRendering == PageRendering.LEGACY) {
+                                                    PageRendering.LEGACY
+                                                } else {
+                                                    PageRendering.STANDARD
+                                                }
+                                            )
                                             coverUntilFirstPaint(pageBackground)
-                                            geckoViewHolder[0] = this
-                                            paneViewTabs[this] = tab.id
-                                            engine.attachSessionToView(tab.id, this)
+                                            popupViewHolder[0] = this
+                                            extensionManager.getPopupGeckoSession()?.let { setSession(it) }
                                         }
                                     },
                                     update = { view ->
-                                        geckoViewHolder[0] = view
-                                        paneViewTabs[view] = tab.id
-                                        engine.attachSessionToView(tab.id, view)
+                                        val session = extensionManager.getPopupGeckoSession()
+                                        if (session != null && view.session !== session) {
+                                            view.releaseSession()
+                                            view.setSession(session)
+                                        }
                                     }
                                 )
                             }
-                        },
-                        extensionPopupContent = { modifier ->
-                            val popupViewHolder = remember { arrayOfNulls<GeckoView>(1) }
-                            DisposableEffect(Unit) {
-                                onDispose {
-                                    popupViewHolder[0]?.releaseSession()
-                                }
-                            }
-                            AndroidView(
-                                modifier = modifier,
-                                factory = { ctx ->
-                                    PaneGeckoView(ctx).apply {
-                                        // Always a texture: the popup's window fades in and
-                                        // has rounded corners of its own
-                                        usePageRendering(
-                                            if (settings.pageRendering == PageRendering.LEGACY) {
-                                                PageRendering.LEGACY
-                                            } else {
-                                                PageRendering.STANDARD
-                                            }
-                                        )
-                                        coverUntilFirstPaint(pageBackground)
-                                        popupViewHolder[0] = this
-                                        extensionManager.getPopupGeckoSession()?.let { setSession(it) }
-                                    }
-                                },
-                                update = { view ->
-                                    val session = extensionManager.getPopupGeckoSession()
-                                    if (session != null && view.session !== session) {
-                                        view.releaseSession()
-                                        view.setSession(session)
-                                    }
-                                }
-                            )
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
+        // The window's content sits in a layout that reads the browser's shortcuts before the
+        // keyboard app (input method) sees them: see ShortcutKeysLayout
+        setContentView(ShortcutKeysLayout(this, ::interceptShortcutBeforeIme).apply { addView(content) })
     }
 
     /**
@@ -498,21 +512,14 @@ class MainActivity : ComponentActivity() {
         if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 swallowEnterKeyUp = holder.browser.uiState.value.isAddressBarFocused || chrome.isTabSearchFocused
-            } else if (event.action == KeyEvent.ACTION_UP && swallowEnterKeyUp) {
+            } else if (event.action == KeyEvent.ACTION_UP && (swallowEnterKeyUp || chrome.swallowNextEnterUp)) {
                 swallowEnterKeyUp = false
+                chrome.swallowNextEnterUp = false
                 return true
             }
         }
         if (event.action == KeyEvent.ACTION_DOWN) {
-            val shortcut = KeyboardShortcuts.resolve(
-                keyCode = event.keyCode,
-                ctrl = event.isCtrlPressed,
-                shift = event.isShiftPressed,
-                alt = event.isAltPressed,
-                meta = event.isMetaPressed,
-                repeatCount = event.repeatCount,
-                inTerminal = currentFocus is TerminalScreenView
-            )
+            val shortcut = resolveShortcut(event)
             if (shortcut != null) {
                 performShortcut(shortcut)
                 return true
@@ -520,6 +527,39 @@ class MainActivity : ComponentActivity() {
         }
         return super.dispatchKeyEvent(event)
     }
+
+    /** The key of a shortcut taken before the keyboard app saw it, whose release is ours too. */
+    private var shortcutKeyTakenEarly = KeyEvent.KEYCODE_UNKNOWN
+
+    /**
+     * Shortcuts, read before the keyboard app (input method). With a text box focused, keys reach
+     * the keyboard app first, and one that handles physical keys may type them itself, or pass
+     * them back through the text box's input connection, which for a web page's text box goes
+     * straight to the page (GeckoView's `GeckoInputConnection.sendKeyEvent`): either way the
+     * activity never saw Ctrl+T. dispatchKeyEvent below still reads them for windows without
+     * this layout.
+     */
+    private fun interceptShortcutBeforeIme(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_UP && event.keyCode == shortcutKeyTakenEarly) {
+            shortcutKeyTakenEarly = KeyEvent.KEYCODE_UNKNOWN
+            return true
+        }
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        val shortcut = resolveShortcut(event) ?: return false
+        shortcutKeyTakenEarly = event.keyCode
+        performShortcut(shortcut)
+        return true
+    }
+
+    private fun resolveShortcut(event: KeyEvent): BrowserShortcut? = KeyboardShortcuts.resolve(
+        keyCode = event.keyCode,
+        ctrl = event.isCtrlPressed,
+        shift = event.isShiftPressed,
+        alt = event.isAltPressed,
+        meta = event.isMetaPressed,
+        repeatCount = event.repeatCount,
+        inTerminal = currentFocus is TerminalScreenView
+    )
 
     private fun performShortcut(shortcut: BrowserShortcut) {
         val browser = holder.browser
@@ -537,6 +577,7 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.PREVIOUS_TAB -> browser.selectAdjacentTab(-1)
             BrowserShortcut.TOGGLE_BOOKMARK -> browser.toggleBookmarkForActiveTab()
             BrowserShortcut.COMMAND_PALETTE -> chrome.showCommandPalette = true
+            BrowserShortcut.GO_TO_ADDRESS -> chrome.toggleGoToAddress()
             BrowserShortcut.OPEN_SETTINGS -> {
                 chrome.showTabSwitcher = false
                 browser.openSettings()
@@ -608,4 +649,18 @@ class MainActivity : ComponentActivity() {
             Log.w(TAG, "Ignored VIEW intent with a non-web URL scheme")
         }
     }
+}
+
+/**
+ * The root of the window's content. Before a key reaches the keyboard app (input method), Android
+ * passes it down the focused views' ancestors (`dispatchKeyEventPreIme`); this layout offers it to
+ * [interceptBeforeIme] first, so browser shortcuts work in any text box, a web page's included.
+ */
+@SuppressLint("ViewConstructor")
+private class ShortcutKeysLayout(
+    context: Context,
+    private val interceptBeforeIme: (KeyEvent) -> Boolean
+) : FrameLayout(context) {
+    override fun dispatchKeyEventPreIme(event: KeyEvent): Boolean =
+        interceptBeforeIme(event) || super.dispatchKeyEventPreIme(event)
 }

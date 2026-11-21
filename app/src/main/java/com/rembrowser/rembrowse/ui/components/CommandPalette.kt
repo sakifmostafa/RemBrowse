@@ -223,7 +223,7 @@ fun CommandPalette(
 }
 
 @Composable
-private fun PaletteRow(command: PaletteCommand, isHighlighted: Boolean, onClick: () -> Unit) {
+internal fun PaletteRow(command: PaletteCommand, isHighlighted: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val content = if (isHighlighted) colors.onPrimaryContainer else colors.onSurface
     Row(

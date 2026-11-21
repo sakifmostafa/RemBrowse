@@ -710,8 +710,10 @@ class BrowserViewModel(
                 focusPane(pane)
                 openFindInPage()
             }
+            // Copying happens in the UI, which has the clipboard
             PageMenuAction.COPY_LINK,
             PageMenuAction.COPY_LINK_TEXT,
+            PageMenuAction.COPY_IMAGE,
             PageMenuAction.COPY_MEDIA_ADDRESS,
             PageMenuAction.COPY_PAGE_ADDRESS -> Unit
         }

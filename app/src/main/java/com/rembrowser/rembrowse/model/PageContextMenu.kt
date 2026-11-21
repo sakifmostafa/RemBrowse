@@ -30,6 +30,16 @@ data class PageContextMenu(
     val copyableLinkUrl: String? get() = linkUrl?.takeUnless(::isScript)
     val copyableMediaUrl: String? get() = mediaUrl?.takeUnless { isScript(it) || it.startsWith("blob:", ignoreCase = true) }
 
+    /**
+     * A picture whose pixels can be put on the clipboard: one at a web address (fetched again,
+     * with the site's cookies) or inside the page as a `data:image/…` address. A `blob:` picture
+     * lives only inside the page.
+     */
+    val copyableImageUrl: String?
+        get() = mediaUrl?.takeIf {
+            mediaType == PageMediaType.IMAGE && (isWebAddress(it) || it.startsWith("data:image/", ignoreCase = true))
+        }
+
     val isPageMenu: Boolean get() = linkUrl == null && mediaUrl == null
 
     private companion object {
@@ -47,6 +57,7 @@ enum class PageMenuAction {
     COPY_LINK,
     COPY_LINK_TEXT,
     OPEN_MEDIA_IN_NEW_TAB,
+    COPY_IMAGE,
     COPY_MEDIA_ADDRESS,
     BACK,
     FORWARD,
@@ -79,6 +90,7 @@ fun pageMenuSections(menu: PageContextMenu, tab: BrowserTab?, canSplit: Boolean)
 
     val media = buildList {
         if (menu.openableMediaUrl != null) add(PageMenuEntry(PageMenuAction.OPEN_MEDIA_IN_NEW_TAB))
+        if (menu.copyableImageUrl != null) add(PageMenuEntry(PageMenuAction.COPY_IMAGE))
         if (menu.copyableMediaUrl != null) add(PageMenuEntry(PageMenuAction.COPY_MEDIA_ADDRESS))
     }
     if (media.isNotEmpty()) add(media)

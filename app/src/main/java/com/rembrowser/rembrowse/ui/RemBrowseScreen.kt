@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FindInPage
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
@@ -49,10 +50,12 @@ import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.TerminalTarget
 import com.rembrowser.rembrowse.model.TerminalUrls
+import com.rembrowser.rembrowse.model.PageMenuAction
 import com.rembrowser.rembrowse.model.pageMenuCopyText
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
 import com.rembrowser.rembrowse.ui.components.CommandPalette
+import com.rembrowser.rembrowse.ui.components.GoToAddressDialog
 import com.rembrowser.rembrowse.ui.components.DownloadNoticeBar
 import com.rembrowser.rembrowse.ui.components.FindInPageActions
 import com.rembrowser.rembrowse.ui.components.FindInPageOverlay
@@ -95,6 +98,31 @@ class BrowserChromeState {
     var showCommandPalette by mutableStateOf(false)
     var showBookmarks by mutableStateOf(false)
 
+    /** The Go to address popup (Ctrl+G). */
+    var showGoToAddress by mutableStateOf(false)
+        private set
+
+    /**
+     * Set when a popup window took an Enter press and closed: the release of that Enter arrives
+     * in the browser's window, where it must not reach the page.
+     */
+    var swallowNextEnterUp = false
+
+    /** Opens the Go to address popup, or closes it if it is open. */
+    fun toggleGoToAddress() {
+        if (showGoToAddress) {
+            showGoToAddress = false
+            return
+        }
+        showCommandPalette = false
+        showTabSwitcher = false
+        showGoToAddress = true
+    }
+
+    fun closeGoToAddress() {
+        showGoToAddress = false
+    }
+
     val addressBarFocusRequester = FocusRequester()
 
     internal var addressFocusRequests by mutableIntStateOf(0)
@@ -135,6 +163,8 @@ fun RemBrowseScreen(
     onOpenDownload: (DownloadItem) -> Boolean = { false },
     onOpenDownloadsFolder: () -> Unit = {},
     onFocusWebContent: (tabId: String) -> Unit = {},
+    /** Copies the picture at an address (the page menu's Copy image), shown on the given page. */
+    onCopyImage: (imageUrl: String, pageUrl: String?) -> Unit = { _, _ -> },
     /**
      * Opens the system file picker for a page's upload button. The caller answers the prompt
      * (its onResult or onDismiss) and then resolves it in [browserViewModel].
@@ -457,6 +487,9 @@ fun RemBrowseScreen(
                                 onAction = { action ->
                                     pageMenu?.let { menu ->
                                         pageMenuCopyText(menu, action, tab.url)?.let { clipboard.setText(AnnotatedString(it)) }
+                                        if (action == PageMenuAction.COPY_IMAGE) {
+                                            menu.copyableImageUrl?.let { onCopyImage(it, tab.url) }
+                                        }
                                     }
                                     browserViewModel.onPageMenuAction(action)
                                 },
@@ -530,6 +563,9 @@ fun RemBrowseScreen(
             PaletteCommand("search", "Search the web", Icons.Outlined.Search, "Ctrl+L") {
                 chrome.focusAddressBar()
             },
+            PaletteCommand("go_to_address", "Go to address…", Icons.Outlined.Language, "Ctrl+G") {
+                chrome.toggleGoToAddress()
+            },
             PaletteCommand("switch_tab", "Switch to tab…", Icons.Outlined.Tab) {
                 chrome.showTabSwitcher = true
             },
@@ -573,6 +609,33 @@ fun RemBrowseScreen(
                 closeTabSwitcher()
             },
             onDismiss = { chrome.showCommandPalette = false }
+        )
+    }
+
+    if (chrome.showGoToAddress) {
+        val tab = browserState.activeTab
+        // The window's own width, as the layout measures it (a freeform window included)
+        val windowIsCompact = LocalConfiguration.current.screenWidthDp.dp < RemDimens.CompactWidth
+        GoToAddressDialog(
+            currentAddress = tab?.takeUnless { it.isNewTabPage || it.isInternalPage }?.url.orEmpty(),
+            tabs = browserState.tabs,
+            history = history,
+            compact = windowIsCompact,
+            onNavigate = { input ->
+                browserViewModel.navigatePane(browserState.activePaneIndex, input)
+                closeTabSwitcher()
+            },
+            onNavigateInNewTab = { input ->
+                browserViewModel.openNewTab()
+                browserViewModel.navigatePane(browserViewModel.uiState.value.activePaneIndex, input)
+                closeTabSwitcher()
+            },
+            onSelectTab = { tabId ->
+                browserViewModel.selectTab(tabId)
+                closeTabSwitcher()
+            },
+            onEnterTaken = { chrome.swallowNextEnterUp = true },
+            onDismiss = chrome::closeGoToAddress
         )
     }
 

@@ -54,8 +54,8 @@ class KeyboardShortcutsTest {
     fun ctrlH_opensTheHistory() {
         assertEquals(BrowserShortcut.OPEN_HISTORY, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_H, ctrl = true))
         assertEquals(BrowserShortcut.FIND_IN_PAGE, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F, ctrl = true))
-        assertEquals(BrowserShortcut.FIND_NEXT, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true))
-        assertEquals(BrowserShortcut.FIND_PREVIOUS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true, shift = true))
+        assertEquals("Ctrl+G is Go to address", BrowserShortcut.GO_TO_ADDRESS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true))
+        assertEquals("Ctrl+Shift+G is left to the page", null, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true, shift = true))
         assertEquals(BrowserShortcut.FIND_NEXT, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F3, ctrl = false))
         assertEquals(BrowserShortcut.FIND_PREVIOUS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F3, ctrl = false, shift = true))
         assertEquals(null, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_H, ctrl = false))

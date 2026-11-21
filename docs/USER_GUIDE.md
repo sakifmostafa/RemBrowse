@@ -27,6 +27,10 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 **Start page** — a new tab shows a clock and the date instead of loading a website. Just start typing in the address bar.
 
+### Go to address (`Ctrl+G`)
+
+`Ctrl+G` opens the address in the middle of the window, over a blur of everything behind it (a darkened window where the device has blur turned off, as in battery saver). It starts with the current page's address selected, so you can type over it. As you type, it offers the address or search, open tabs and pages from your history; Up and Down choose, **Enter** goes there in the focused pane, **Alt+Enter** opens it in a new tab, and Esc, a click outside or `Ctrl+G` again closes it. It is also in the command palette as **Go to address…**. In a terminal, use `Ctrl+Shift+G`.
+
 ---
 
 ## 2. Find in page
@@ -34,7 +38,7 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 Press `Ctrl+F` (or **More → Find in page**) to search the page you are on. A bar drops into the top corner of that page, in a split on the page you are searching, and every match is highlighted as you type.
 
 * **The count** — "3/12" is the third of twelve matches. It turns red with **No results** when nothing matches.
-* **Next and previous** — Enter or `F3` (or `Ctrl+G`) for the next match, Shift+Enter or `Shift+F3` for the one before, or the arrows in the bar. Past the last match it starts again from the top.
+* **Next and previous** — Enter or `F3` for the next match, Shift+Enter or `Shift+F3` for the one before, or the arrows in the bar. (`Ctrl+G` is now [Go to address](#go-to-address-ctrlg).) Past the last match it starts again from the top.
 * **Aa** — match upper and lower case exactly.
 * **Close** — Esc or the **×**; the highlighting goes with it. Moving to another tab closes it too. `Ctrl+F` while the bar is open selects its text, ready for a new search.
 
@@ -47,7 +51,7 @@ Only web pages can be searched, not the start page or Settings.
 Right-click on a page, with a mouse or the touchpad (a two-finger tap, or a click in the pad's bottom-right corner), for a menu of what is under the pointer:
 
 * **A link** — **Open link in new tab** (it opens in the background, next to the page it came from, and starts loading), **Open link in split view** (beside this page, which keeps focus; offered while there is room for another pane), **Copy link** and **Copy link text**.
-* **A picture, video or sound** — **Open image in new tab** and **Copy image address** (or video, or audio). A linked picture gets both the link's and the picture's rows.
+* **A picture, video or sound** — **Open image in new tab**, **Copy image** and **Copy image address** (or video, or audio, which have no Copy). **Copy image** puts the picture itself on the clipboard, ready to paste into a document, a chat or an image editor; it is fetched again as the page loaded it, with the site's sign-in, and WebP and AVIF pictures are turned into PNG so other apps can paste them. A linked picture gets both the link's and the picture's rows.
 * **Anywhere else on the page** — **Back**, **Forward**, **Reload**, **Bookmark this page**, **Copy page address** and **Find in page**.
 
 The menu opens where you clicked; select a row, or click anywhere else (or press Esc) to close it. Sites with their own right-click menus, such as Google Docs, keep showing theirs. With text selected, a right-click shows the toolbar for the selection (Copy, Select all and so on) instead. In a page's text fields, right-click does nothing; use `Ctrl+C`, `Ctrl+X` and `Ctrl+V` (the address bar has its own right-click menu). On a touchscreen, long-press a link or picture for the same menu; long-pressing text selects it, as in any Android browser.
@@ -301,9 +305,10 @@ Passwords and private keys are encrypted with a key held by Android's keystore, 
 | `Ctrl + W` | Close tab |
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
 | `Ctrl + L` or `Alt + D` | Focus the address bar |
+| `Ctrl + G` | Go to address (a popup over the page) |
 | `Ctrl + K` | Command palette |
 | `Ctrl + F` | Find in page |
-| `F3` or `Ctrl + G` / `Shift + F3` or `Ctrl + Shift + G` | Next / previous match |
+| `F3` / `Shift + F3` | Next / previous match |
 | `Ctrl + R` or `F5` | Reload / stop |
 | `Alt + ←` / `Alt + →` | Back / forward |
 | `Ctrl + D` | Bookmark this page |
@@ -312,3 +317,17 @@ Passwords and private keys are encrypted with a key held by Android's keystore, 
 | `Ctrl + J` | Downloads |
 | `Ctrl + \` | Toggle split view |
 | `Ctrl + 1` … `Ctrl + 5` | Single pane, side by side, stacked, grid, one left and two right |
+
+These work anywhere in the window, also while you are typing in a web page's text box.
+
+**In a terminal**, the shell keeps `Ctrl` and `Alt`, so the browser's shortcuts take `Ctrl+Shift` instead:
+
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl + Shift + T` / `Ctrl + Shift + W` | New tab / close tab |
+| `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
+| `Ctrl + Shift + L` / `Ctrl + Shift + G` / `Ctrl + Shift + K` | Address bar / Go to address / command palette |
+| `Ctrl + Shift + ,` / `Ctrl + Shift + \` | Settings / toggle split view |
+| `Ctrl + Shift + C` / `Ctrl + Shift + V` (or `Shift + Insert`) | Copy / paste |
+| `Shift + Page Up` / `Shift + Page Down` | Scroll back through earlier output |
+| `Tab` or `→` | Take the suggested command |

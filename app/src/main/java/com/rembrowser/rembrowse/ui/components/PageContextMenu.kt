@@ -84,6 +84,7 @@ private fun labelFor(action: PageMenuAction, mediaType: PageMediaType, isBookmar
         PageMenuAction.COPY_LINK -> "Copy link"
         PageMenuAction.COPY_LINK_TEXT -> "Copy link text"
         PageMenuAction.OPEN_MEDIA_IN_NEW_TAB -> "Open $media in new tab"
+        PageMenuAction.COPY_IMAGE -> "Copy image"
         PageMenuAction.COPY_MEDIA_ADDRESS -> "Copy $media address"
         PageMenuAction.BACK -> "Back"
         PageMenuAction.FORWARD -> "Forward"
