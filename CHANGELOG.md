@@ -16,7 +16,7 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **The download site is in the repository**: the page (`site/`), its server (`deploy/site-host/`: nginx behind a Cloudflare Tunnel) and `scripts/publish-to-site.sh`, which checks a release (sizes, SHA-256, version, signing key) before putting the APKs up and `update.json` last. The page shows the current version, sizes and SHA-256 from `update.json` and suggests the file for the visitor's device. Tried in Chromium at phone and desktop widths; not yet opened in RemBrowse itself or on a real phone.
 
 ### Testing
-557 automated tests, including sign-in to an SSH server that needs no password or key, as Tailscale SSH does.
+558 automated tests, including sign-in to an SSH server that needs no password or key, as Tailscale SSH does.
 
 ## v0.13.7 (2026-11-21) — SSH terminal tabs; selecting text with the touchpad, and a desktop address bar
 
