@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -129,7 +130,10 @@ fun BrowserTopBar(
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onTriggerExtensionAction: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNewTerminal: () -> Unit = {},
+    /** What the unfocused address bar shows instead of the address (a terminal's `ssh user@host`). */
+    addressDisplay: String? = null
 ) {
     val activeTab = uiState.activeTab
     // True for anything that is not a web page: the start page and RemBrowse's own pages
@@ -179,6 +183,7 @@ fun BrowserTopBar(
             onFocusChange = onAddressBarFocusChange,
             onSubmit = onSubmitAddressBar,
             onLeave = onLeaveAddressBar,
+            displayOverride = addressDisplay,
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 4.dp)
@@ -217,6 +222,7 @@ fun BrowserTopBar(
                 desktopMode = activeTab?.desktopMode != false,
                 extensions = installedExtensions.filter { it.enabled && it.hasBrowserAction },
                 onNewTab = onNewTab,
+                onNewTerminal = onNewTerminal,
                 onCloseActiveTab = onCloseActiveTab,
                 onOpenCommandPalette = onOpenCommandPalette,
                 onOpenBookmarks = onOpenBookmarks,
@@ -299,7 +305,8 @@ private fun AddressPill(
     onFocusChange: (Boolean) -> Unit,
     onSubmit: () -> Unit,
     onLeave: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    displayOverride: String? = null
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -310,7 +317,7 @@ private fun AddressPill(
 
     // Unfocused: the tidy display form. Focused: the full address, selected, ready to replace.
     // In a split this one bar always shows, and acts on, the focused pane.
-    val shown = if (isFocused) input else UrlResolver.toDisplayUrl(input)
+    val shown = if (isFocused) input else displayOverride ?: UrlResolver.toDisplayUrl(input)
     var value by remember { mutableStateOf(TextFieldValue(shown)) }
     val presses = remember { AddressFieldPresses() }
     // The right-click menu, open at this spot in the field
@@ -583,6 +590,12 @@ private fun AddressStatusIcon(activeTab: BrowserTab?, isEditing: Boolean) {
     val colors = MaterialTheme.colorScheme
     val iconModifier = Modifier.size(18.dp)
     when {
+        !isEditing && activeTab?.isTerminal == true -> Icon(
+            imageVector = Icons.Outlined.Terminal,
+            contentDescription = "Terminal",
+            tint = colors.primary,
+            modifier = iconModifier
+        )
         isEditing || activeTab == null || activeTab.isNewTabPage -> Icon(
             imageVector = Icons.Outlined.Search,
             contentDescription = null,
@@ -652,6 +665,7 @@ private fun MoreMenu(
     desktopMode: Boolean,
     extensions: List<InstalledExtension>,
     onNewTab: () -> Unit,
+    onNewTerminal: () -> Unit,
     onCloseActiveTab: () -> Unit,
     onOpenCommandPalette: () -> Unit,
     onOpenBookmarks: () -> Unit,
@@ -691,6 +705,11 @@ private fun MoreMenu(
             trailingIcon = { ShortcutHint("Ctrl+T") },
             onClick = run(onNewTab),
             modifier = Modifier.testTag("menu_new_tab")
+        )
+        DropdownMenuItem(
+            text = { Text("New terminal") },
+            onClick = run(onNewTerminal),
+            modifier = Modifier.testTag("menu_new_terminal")
         )
         DropdownMenuItem(
             text = { Text("Close tab") },

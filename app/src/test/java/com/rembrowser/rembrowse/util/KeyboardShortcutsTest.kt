@@ -60,4 +60,28 @@ class KeyboardShortcutsTest {
         assertEquals(BrowserShortcut.FIND_PREVIOUS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F3, ctrl = false, shift = true))
         assertEquals(null, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_H, ctrl = false))
     }
+
+    @Test
+    fun inATerminal_theShellKeepsCtrlAndAlt_andTheBrowserMovesToCtrlShift() {
+        fun inTerminal(keyCode: Int, ctrl: Boolean = false, shift: Boolean = false, alt: Boolean = false) =
+            KeyboardShortcuts.resolve(keyCode, ctrl = ctrl, shift = shift, alt = alt, inTerminal = true)
+
+        // The shell's own: delete word, reverse search, clear, kill line, find, EOF, back and forward a word
+        listOf(KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_R, KeyEvent.KEYCODE_L, KeyEvent.KEYCODE_K, KeyEvent.KEYCODE_F, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_T)
+            .forEach { assertNull(inTerminal(it, ctrl = true)) }
+        assertNull(inTerminal(KeyEvent.KEYCODE_DPAD_LEFT, alt = true))
+        assertNull(inTerminal(KeyEvent.KEYCODE_F5))
+        assertNull(inTerminal(KeyEvent.KEYCODE_F3))
+        assertNull("Copy is the terminal's", inTerminal(KeyEvent.KEYCODE_C, ctrl = true, shift = true))
+
+        assertEquals(BrowserShortcut.NEW_TAB, inTerminal(KeyEvent.KEYCODE_T, ctrl = true, shift = true))
+        assertEquals(BrowserShortcut.CLOSE_TAB, inTerminal(KeyEvent.KEYCODE_W, ctrl = true, shift = true))
+        assertEquals(BrowserShortcut.FOCUS_ADDRESS_BAR, inTerminal(KeyEvent.KEYCODE_L, ctrl = true, shift = true))
+        assertEquals(BrowserShortcut.COMMAND_PALETTE, inTerminal(KeyEvent.KEYCODE_K, ctrl = true, shift = true))
+        assertEquals(BrowserShortcut.NEXT_TAB, inTerminal(KeyEvent.KEYCODE_TAB, ctrl = true))
+        assertEquals(BrowserShortcut.PREVIOUS_TAB, inTerminal(KeyEvent.KEYCODE_TAB, ctrl = true, shift = true))
+
+        // Outside a terminal nothing changes
+        assertEquals(BrowserShortcut.CLOSE_TAB, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_W, ctrl = true))
+    }
 }

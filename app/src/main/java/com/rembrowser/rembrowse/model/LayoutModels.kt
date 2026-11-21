@@ -109,6 +109,7 @@ enum class SettingsSection(val path: String, val label: String) {
     HISTORY("history", "History"),
     DOWNLOADS("downloads", "Downloads"),
     EXTENSIONS("extensions", "Extensions"),
+    TERMINAL("terminal", "Terminal"),
     ABOUT("about", "About");
 
     val url: String
@@ -198,6 +199,10 @@ data class BrowserTab(
     val isSettingsPage: Boolean
         get() = url.startsWith(SETTINGS_URL, ignoreCase = true)
 
+    /** A terminal (`rem://terminal…`): an SSH session drawn by the app, not a web page. */
+    val isTerminal: Boolean
+        get() = TerminalUrls.isTerminalUrl(url)
+
     /** True when the tab shows a page from the web (not the start page or an internal page). */
     val isWebPage: Boolean
         get() = !isNewTabPage && !isInternalPage
@@ -207,6 +212,7 @@ data class BrowserTab(
         get() = when {
             isNewTabPage -> NEW_TAB_TITLE
             isSettingsPage -> SETTINGS_TITLE
+            isTerminal -> title.ifBlank { TERMINAL_TITLE }
             title.isNotBlank() -> title
             else -> UrlResolver.extractDisplayHost(url)
         }
@@ -217,6 +223,7 @@ data class BrowserTab(
         const val INTERNAL_SCHEME = "rem://"
         const val SETTINGS_URL = "rem://settings"
         const val SETTINGS_TITLE = "Settings"
+        const val TERMINAL_TITLE = "Terminal"
     }
 }
 

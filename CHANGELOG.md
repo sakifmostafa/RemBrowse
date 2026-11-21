@@ -2,7 +2,7 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## Unreleased — Selecting text with the touchpad, and a desktop address bar
+## Unreleased — SSH terminal tabs; selecting text with the touchpad, and a desktop address bar
 
 ### Fixed
 * **Selecting text with the touchpad did nothing in RemBrowse's own fields.** In the address bar, the find bar, the command palette and the search fields, a touchpad double-click, triple-click or click-and-drag selected nothing. The interface took touchpad clicks for finger taps, the same mix-up 0.13.6 fixed for web pages. Touchpad clicks now count as mouse clicks across the whole window and in dialogs, so text selects as it does with a mouse. The pointer also gets the interface's hover highlights and resize cursors.
@@ -13,14 +13,21 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **Double-clicking a word in the address bar selects just that word**, stopping at dots, slashes and hyphens as desktop browsers do: `example` in `www.example.com`, `some` in `some-path`. It used to select `www.example.com` or `some-path` whole.
 
 ### Added
+* **Terminal tabs.** **More → New terminal** (or `rem://terminal`) opens an SSH terminal in a tab of its own: it sits in the tab rail, splits beside web pages, and keeps its connection while you work elsewhere. Pick a saved host or type `user@host`, `user@host:2222` or a whole `ssh user@host -p 2222` command.
+  * **Hosts and keys in Settings → Terminal.** Save hosts with a password (remembered or asked each time) or a key. Generate an Ed25519 key and copy its public half for `authorized_keys`, or import an OpenSSH or PEM private key, passphrase and all. Passwords and private keys are encrypted with a key that never leaves Android's keystore.
+  * **Servers are checked.** The first connection shows the server's `SHA256:` fingerprint to trust; a changed key is flagged before anything is sent. Trusted servers are listed in Settings, where they can be forgotten.
+  * **A real terminal**: 256 and true colours, full-screen programs (`htop`, `vim`, `less`, `tmux`), mouse support for programs that ask for it, 5,000 lines of scrollback with the wheel or touchpad, selecting with drag and double-click, `Ctrl+Shift+C`/`V` to copy and paste, and a right-click menu. While a terminal has the keyboard the shell keeps `Ctrl` and `Alt`, and the browser's shortcuts move to `Ctrl+Shift`.
+  * **Command suggestions.** As you type, grey text suggests how the command ends, from the commands you have run (most recent first) and a list of common ones; **Tab** or **→** takes it, and without a suggestion Tab is the shell's own completion. Nothing is suggested or remembered at a password prompt, a command typed with a leading space is never remembered, and both can be turned off.
+  * **Make it yours**: seven themes (RemBrowse, Midnight Green, Dracula, Nord, Solarized Dark, Gruvbox Dark and the light Paper), JetBrains Mono, Fira Mono or the system font, a block, bar or underline cursor, and the text size, from the bar above the terminal or Settings → Terminal → Appearance.
 * **Right-click menu in the address bar:** Cut, Copy, Paste, Paste and go, and Select all. It keeps the bar's selection and any address you were typing.
 
 ### Known limits
 * Not yet tried on a device.
 * Other text fields keep Android's word rules for double-click, and have no right-click menu yet.
+* The terminal is SSH only (no local shell, Mosh or Telnet), with no port forwarding, SFTP or agent forwarding yet. Commands finished with the shell's own Tab completion or history are not remembered for suggestions.
 
 ### Testing
-408 automated tests.
+485 automated tests. The SSH client was also tried against a real OpenSSH 9.6 server: password and key sign-in (Ed25519 with a passphrase, RSA, and a key the app generated), the terminal type, size and resizing, and the shell exiting.
 
 ## v0.13.6 (2026-11-21) — Right-click menus, and a touchpad that behaves
 

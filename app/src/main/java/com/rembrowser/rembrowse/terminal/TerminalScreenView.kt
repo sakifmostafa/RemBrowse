@@ -1,0 +1,744 @@
+package com.rembrowser.rembrowse.terminal
+
+import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Typeface
+import android.text.InputType
+import android.view.InputDevice
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.PointerIcon
+import android.view.View
+import android.view.ViewConfiguration
+import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
+import com.rembrowser.rembrowse.R
+import com.rembrowser.rembrowse.model.TerminalCursorStyle
+import com.rembrowser.rembrowse.model.TerminalFont
+import com.rembrowser.rembrowse.model.TerminalThemePreset
+import com.termux.terminal.KeyHandler
+import com.termux.terminal.TerminalEmulator
+import com.termux.view.TerminalRenderer
+import java.nio.charset.StandardCharsets
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
+
+/**
+ * Shows a [TerminalConnection]'s screen and sends it what is typed.
+ *
+ * - **Keyboard**: every key goes to the shell, Ctrl and Alt combinations included (the browser's
+ *   own shortcuts move to Ctrl+Shift while a terminal has focus). Ctrl+Shift+C and Ctrl+Shift+V
+ *   (and Shift+Insert) copy and paste; Shift+Page Up and Page Down scroll the history.
+ * - **Mouse and touchpad**: drag to select, double-click for a word, triple-click for a line;
+ *   right-click for the menu ([onContextMenu]). When the program asks for the mouse (vim, htop,
+ *   tmux with `mouse on`), presses and the wheel go to it instead; Shift still selects.
+ * - **Wheel and two-finger scrolling** move through the history, or send arrow keys to full-screen
+ *   programs that keep no history of their own (`less`, `man`).
+ * - **Touchscreen**: drag to scroll, tap to type (opens the on-screen keyboard).
+ */
+@SuppressLint("ViewConstructor")
+class TerminalScreenView(context: Context) : View(context) {
+
+    /** The terminal shown. Setting it starts at the bottom of its screen, with nothing selected. */
+    var connection: TerminalConnection? = null
+        set(value) {
+            if (field === value) return
+            field?.onScreenChanged = null
+            field = value
+            topRow = 0
+            selection = null
+            value?.emulator?.clearScrollCounter()
+            value?.applyTheme()
+            value?.setCursorStyle(cursorStyle.emulatorStyle)
+            resetLine()
+            value?.onScreenChanged = ::onScreenUpdated
+            updateSize()
+            invalidate()
+        }
+
+    /** A right click where the program has not asked for the mouse: the screen opens its menu here. */
+    var onContextMenu: ((x: Float, y: Float) -> Unit)? = null
+
+    /** Enter on a terminal that has disconnected: the screen offers to connect again. */
+    var onReconnectRequested: (() -> Unit)? = null
+
+    /** Text size in pixels. */
+    var textSizePx: Float = 14f * resources.displayMetrics.scaledDensity
+        set(value) {
+            if (field == value) return
+            field = value
+            renderer = TerminalRenderer(value.roundToInt(), typeface)
+            ghostPaint.textSize = value
+            updateSize()
+            invalidate()
+        }
+
+    /**
+     * How terminals look: the [theme] (with [accentCursor], RemBrowse's accent, for its cursor
+     * unless the theme has its own), the [font] and the [cursorStyle]. Themes apply to every
+     * terminal; each picks the change up when it is next shown.
+     */
+    fun setAppearance(theme: TerminalThemePreset, accentCursor: Int, font: TerminalFont, cursorStyle: TerminalCursorStyle) {
+        TerminalTheme.apply(theme, accentCursor)
+        connection?.applyTheme()
+        if (font != this.font) {
+            this.font = font
+            typeface = typefaceFor(font)
+            renderer = TerminalRenderer(textSizePx.roundToInt(), typeface)
+            ghostPaint.typeface = typeface
+            updateSize()
+        }
+        this.cursorStyle = cursorStyle
+        connection?.setCursorStyle(cursorStyle.emulatorStyle)
+        invalidate()
+    }
+
+    private var font = TerminalFont.DEFAULT
+    private var cursorStyle = TerminalCursorStyle.DEFAULT
+    private var typeface: Typeface = typefaceFor(font)
+
+    /** The bundled fonts (SIL Open Font License), or the system's monospace font. */
+    private fun typefaceFor(font: TerminalFont): Typeface {
+        val resource = when (font) {
+            TerminalFont.JETBRAINS_MONO -> R.font.jetbrains_mono
+            TerminalFont.FIRA_MONO -> R.font.fira_mono
+            TerminalFont.SYSTEM -> return Typeface.MONOSPACE
+        }
+        return runCatching { resources.getFont(resource) }.getOrNull() ?: Typeface.MONOSPACE
+    }
+
+    /**
+     * Suggests how the command being typed ends (the whole command), or null. Set while
+     * suggestions are on; see [CommandSuggestions].
+     */
+    var suggest: ((typed: String) -> String?)? = null
+        set(value) {
+            field = value
+            updateSuggestion()
+        }
+
+    /** A command was run at the prompt (Enter on a line the view followed), for the history. */
+    var onCommandRun: ((String) -> Unit)? = null
+
+    /** The suggestion shown after the cursor: the whole command, which starts with what was typed. */
+    var suggestion: String? = null
+        private set
+
+    // The line being typed at the prompt, as far as the view can follow it: printable keys,
+    // Backspace, Enter, Ctrl+C and Ctrl+U. Anything else (arrows, the shell's own Tab completion,
+    // history, Ctrl+W) makes the line unknown until the next Enter, and nothing is suggested.
+    private val typedLine = StringBuilder()
+    private var lineFollowed = true
+
+    private val ghostPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val hintPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+
+    private var renderer = TerminalRenderer(textSizePx.roundToInt(), typeface)
+    private val inset = (12 * resources.displayMetrics.density).roundToInt()
+
+    /** The first row shown: 0 for the live screen, negative while looking back through the history. */
+    var topRow = 0
+        private set
+
+    /** What is selected, in screen cells (rows < 0 are in the history), or null. */
+    var selection: TerminalSelection? = null
+        private set
+
+    // Scrolling by finger or touchpad: what is left over from whole rows
+    private var scrollRemainder = 0f
+    private var lastTouchY = 0f
+    private var touchMoved = false
+
+    // Mouse selection
+    private var selectionAnchor: Cell? = null
+    private var lastClickAt = 0L
+    private var lastClickCell: Cell? = null
+    private var clickCount = 0
+    private var mousePressedForProgram = false
+
+    init {
+        isFocusable = true
+        isFocusableInTouchMode = true
+        TerminalTheme.ensureApplied()
+        ghostPaint.typeface = typeface
+    }
+
+    val hasSelection: Boolean get() = selection != null
+
+    // Zero only where text is not measured at all (a zero text size): nothing can be laid out then
+    private val hasFontMetrics: Boolean get() = renderer.fontWidth > 0f && renderer.fontLineSpacing > 0
+
+    // --- Size and drawing ---
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        updateSize()
+    }
+
+    private fun updateSize() {
+        val terminal = connection ?: return
+        val usableWidth = width - 2 * inset
+        val usableHeight = height - 2 * inset
+        if (usableWidth <= 0 || usableHeight <= 0 || !hasFontMetrics) return
+        val columns = max(MIN_COLUMNS, (usableWidth / renderer.fontWidth).toInt())
+        val rows = max(MIN_ROWS, (usableHeight - renderer.fontLineSpacingAndAscent) / renderer.fontLineSpacing)
+        terminal.resize(columns, rows, renderer.fontWidth.roundToInt(), renderer.fontLineSpacing)
+        clampTopRow()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val terminal = connection
+        // Compose draws this view without clipping it, so stay inside its own bounds: a bare
+        // drawColor would paint over the header above it
+        canvas.save()
+        canvas.clipRect(0, 0, width, height)
+        canvas.drawColor(terminal?.emulator?.mColors?.mCurrentColors?.get(com.termux.terminal.TextStyle.COLOR_INDEX_BACKGROUND) ?: TerminalTheme.BACKGROUND)
+        // Nothing printed yet (connecting, or a question on top): a clean background, no lone cursor
+        if (terminal == null || !terminal.hasOutput) {
+            canvas.restore()
+            return
+        }
+        canvas.translate(inset.toFloat(), inset.toFloat())
+        val selected = selection?.normalized()
+        renderer.render(
+            terminal.emulator,
+            canvas,
+            topRow,
+            selected?.startRow ?: -1,
+            selected?.endRow ?: -1,
+            selected?.startColumn ?: -1,
+            selected?.endColumn ?: -1
+        )
+        drawSuggestion(canvas, terminal.emulator)
+        canvas.restore()
+    }
+
+    /** The rest of the suggested command, dimmed, from the cursor on; and a small "Tab" after it. */
+    private fun drawSuggestion(canvas: Canvas, emulator: TerminalEmulator) {
+        val whole = suggestion ?: return
+        if (topRow != 0 || !hasFocus() || !hasFontMetrics) return
+        val room = emulator.mColumns - emulator.cursorCol
+        if (room <= 0) return
+        val rest = whole.substring(typedLine.length).take(room)
+        val colors = emulator.mColors.mCurrentColors
+        val foreground = colors[com.termux.terminal.TextStyle.COLOR_INDEX_FOREGROUND]
+        val baseline = (emulator.cursorRow + 1) * renderer.fontLineSpacing.toFloat()
+        val left = emulator.cursorCol * renderer.fontWidth
+        ghostPaint.textSize = textSizePx
+        ghostPaint.color = (foreground and 0x00FFFFFF) or (0x70 shl 24)
+        canvas.drawText(rest, left, baseline, ghostPaint)
+
+        // "Tab" in a pill after the suggestion, where there is room for it
+        val hint = "Tab"
+        hintPaint.textSize = textSizePx * 0.72f
+        hintPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        val padding = renderer.fontWidth * 0.5f
+        val pillLeft = left + rest.length * renderer.fontWidth + renderer.fontWidth
+        val pillWidth = hintPaint.measureText(hint) + 2 * padding
+        if (pillLeft + pillWidth > emulator.mColumns * renderer.fontWidth) return
+        val pillHeight = hintPaint.textSize * 1.5f
+        val pillTop = baseline - renderer.fontLineSpacing * 0.5f - pillHeight / 2f - renderer.fontLineSpacing * 0.12f
+        hintPaint.color = (foreground and 0x00FFFFFF) or (0x24 shl 24)
+        canvas.drawRoundRect(pillLeft, pillTop, pillLeft + pillWidth, pillTop + pillHeight, pillHeight / 2f, pillHeight / 2f, hintPaint)
+        hintPaint.color = (foreground and 0x00FFFFFF) or (0xA0 shl 24)
+        canvas.drawText(hint, pillLeft + padding, pillTop + pillHeight / 2f + hintPaint.textSize * 0.36f, hintPaint)
+    }
+
+    private fun onScreenUpdated() {
+        val emulator = connection?.emulator ?: return
+        // Output scrolled the screen by this many rows: whatever is being looked at or selected
+        // in the history moves up with it, so it stays in place on screen
+        val scrolled = emulator.scrollCounter
+        if (scrolled != 0) {
+            if (topRow < 0) topRow -= scrolled
+            selection = selection?.shiftedUp(scrolled)
+            emulator.clearScrollCounter()
+        }
+        clampTopRow()
+        updateSuggestion()
+        invalidate()
+    }
+
+    private fun clampTopRow() {
+        val emulator = connection?.emulator ?: return
+        val history = emulator.screen.activeTranscriptRows
+        topRow = topRow.coerceIn(-history, 0)
+    }
+
+    // --- Keyboard ---
+
+    override fun onCheckIsTextEditor(): Boolean = true
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+        // Visible-password text: on-screen keyboards then offer no suggestions or corrections,
+        // which would otherwise rewrite commands as they are typed
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        return object : BaseInputConnection(this, true) {
+            override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
+                super.commitText(text, newCursorPosition)
+                sendEditable()
+                return true
+            }
+
+            override fun finishComposingText(): Boolean {
+                super.finishComposingText()
+                sendEditable()
+                return true
+            }
+
+            override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+                repeat(beforeLength.coerceAtMost(MAX_DELETE)) { sendToShell("\u007f") }
+                return super.deleteSurroundingText(beforeLength, afterLength)
+            }
+
+            private fun sendEditable() {
+                val content = editable ?: return
+                val text = content.toString()
+                content.clear()
+                if (text.isNotEmpty()) sendToShell(text.replace('\n', '\r'))
+            }
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val terminal = connection ?: return super.onKeyDown(keyCode, event)
+        if (handleViewShortcut(keyCode, event)) return true
+        if (keyCode == KeyEvent.KEYCODE_BACK || event.isSystem && keyCode != KeyEvent.KEYCODE_ENTER) {
+            return super.onKeyDown(keyCode, event)
+        }
+        if (!terminal.isConnected) {
+            if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                if (terminal.status.value is TerminalStatus.Disconnected) onReconnectRequested?.invoke()
+                return true
+            }
+            return super.onKeyDown(keyCode, event)
+        }
+        // Tab (or → at the end of the line) takes the suggestion; without one, Tab is the shell's
+        val plain = !event.isCtrlPressed && !event.isAltPressed && !event.isShiftPressed && !event.isMetaPressed
+        if (plain && (keyCode == KeyEvent.KEYCODE_TAB || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && acceptSuggestion()) return true
+        val code = encodeKey(keyCode, event, terminal.emulator) ?: return super.onKeyDown(keyCode, event)
+        if (code.isNotEmpty()) sendToShell(code)
+        return true
+    }
+
+    /** Types the rest of the suggestion. False when there is none. */
+    fun acceptSuggestion(): Boolean {
+        val whole = suggestion ?: return false
+        sendToShell(whole.substring(typedLine.length))
+        return true
+    }
+
+    /** Follows [text] being sent from the keyboard into the line typed at the prompt. */
+    private fun followTyped(text: String) {
+        for (char in text) {
+            when {
+                char == '\r' -> {
+                    val command = typedLine.toString()
+                    // Only a line the screen shows: what is typed at a prompt that doesn't echo
+                    // (a password) is never remembered. The last few keys may not have come back
+                    // over the network yet
+                    val shown = connection?.emulator?.let {
+                        !it.isAlternateBufferActive && echoedAtCursor(it, command, notYetEchoed = MAX_PENDING_ECHO)
+                    } == true
+                    if (lineFollowed && command.isNotBlank() && shown) onCommandRun?.invoke(command)
+                    resetLine()
+                }
+                char == '\u0003' || char == '\u0015' -> resetLine()
+                char == '\u007f' || char == '\b' -> if (typedLine.isNotEmpty()) {
+                    val end = typedLine.length
+                    typedLine.delete(Character.offsetByCodePoints(typedLine, end, -1), end)
+                }
+                // Escape sequences (arrows, Alt+…), Tab, Ctrl+W and the like: the line can't be
+                // followed until the next Enter
+                char.isISOControl() -> lineFollowed = false
+                lineFollowed -> typedLine.append(char)
+            }
+        }
+    }
+
+    private fun resetLine() {
+        typedLine.clear()
+        lineFollowed = true
+        if (suggestion != null) {
+            suggestion = null
+            invalidate()
+        }
+    }
+
+    /**
+     * Works out what to suggest for the line typed so far. Only when the screen shows that line
+     * just before the cursor with nothing after it: a prompt that hides what is typed (a password)
+     * or a full-screen program gets no suggestion.
+     */
+    private fun updateSuggestion() {
+        val next = run {
+            val suggest = suggest ?: return@run null
+            val emulator = connection?.emulator ?: return@run null
+            if (!lineFollowed || typedLine.isEmpty() || emulator.isAlternateBufferActive) return@run null
+            if (!echoedAtCursor(emulator, typedLine.toString())) return@run null
+            suggest(typedLine.toString())?.takeIf { it.length > typedLine.length && it.startsWith(typedLine) }
+        }
+        if (next != suggestion) {
+            suggestion = next
+            invalidate()
+        }
+    }
+
+    /**
+     * Whether the screen shows [typed] just before the cursor, with nothing after it. Up to
+     * [notYetEchoed] of the last characters may be missing (still on their way back), as long as
+     * at least three, or all of a shorter line, are there.
+     */
+    private fun echoedAtCursor(emulator: TerminalEmulator, typed: String, notYetEchoed: Int = 0): Boolean {
+        val row = emulator.cursorRow
+        val column = emulator.cursorCol
+        if (column <= 0) return false
+        val after = if (column < emulator.mColumns) emulator.screen.getSelectedText(column, row, emulator.mColumns - 1, row) else ""
+        if (after.isNotBlank()) return false
+        val shown = emulator.screen.getSelectedText(0, row, column - 1, row).trimEnd()
+        val shortest = maxOf(typed.length - notYetEchoed, minOf(typed.length, 3))
+        return (typed.length downTo shortest).any { length ->
+            val part = typed.substring(0, length).trimEnd()
+            part.isNotEmpty() && shown.endsWith(part)
+        }
+    }
+
+    /** Copy, paste and scrolling the history: the keys a terminal keeps for itself. */
+    private fun handleViewShortcut(keyCode: Int, event: KeyEvent): Boolean {
+        val ctrlShift = event.isCtrlPressed && event.isShiftPressed && !event.isAltPressed
+        return when {
+            ctrlShift && keyCode == KeyEvent.KEYCODE_C -> {
+                copySelection()
+                true
+            }
+            ctrlShift && keyCode == KeyEvent.KEYCODE_V || event.isShiftPressed && !event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_INSERT -> {
+                paste()
+                true
+            }
+            event.isShiftPressed && !event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_PAGE_UP -> {
+                scrollHistory(-(connection?.emulator?.mRows ?: 1))
+                true
+            }
+            event.isShiftPressed && !event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_PAGE_DOWN -> {
+                scrollHistory(connection?.emulator?.mRows ?: 1)
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun sendToShell(text: String) {
+        val terminal = connection ?: return
+        if (!terminal.isConnected) return
+        // Typing goes back to the live screen
+        if (topRow != 0 || selection != null) {
+            topRow = 0
+            selection = null
+            invalidate()
+        }
+        followTyped(text)
+        terminal.sendInput(text.toByteArray(StandardCharsets.UTF_8))
+        updateSuggestion()
+    }
+
+    // --- Pointer ---
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val terminal = connection ?: return false
+        val isMouse = event.isFromSource(InputDevice.SOURCE_MOUSE) && event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE
+        if (isMouse) return onMouseEvent(event, terminal.emulator)
+        // A finger tap: type here
+        if (onFingerEvent(event)) performClick()
+        return true
+    }
+
+    private fun onMouseEvent(event: MotionEvent, emulator: TerminalEmulator): Boolean {
+        val cell = cellAt(event.x, event.y)
+        val toProgram = emulator.isMouseTrackingActive && event.metaState and KeyEvent.META_SHIFT_ON == 0
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                requestFocus()
+                val secondary = event.buttonState and MotionEvent.BUTTON_SECONDARY != 0
+                when {
+                    toProgram -> {
+                        mousePressedForProgram = true
+                        val button = if (secondary) MOUSE_RIGHT_BUTTON else TerminalEmulator.MOUSE_LEFT_BUTTON
+                        emulator.sendMouseEvent(button, cell.column + 1, cell.row - topRow + 1, true)
+                    }
+                    secondary -> onContextMenu?.invoke(event.x, event.y)
+                    else -> startSelection(cell, event.eventTime)
+                }
+            }
+            MotionEvent.ACTION_MOVE -> when {
+                mousePressedForProgram -> emulator.sendMouseEvent(TerminalEmulator.MOUSE_LEFT_BUTTON_MOVED, cell.column + 1, cell.row - topRow + 1, true)
+                selectionAnchor != null -> extendSelection(cell)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (mousePressedForProgram) {
+                    mousePressedForProgram = false
+                    emulator.sendMouseEvent(TerminalEmulator.MOUSE_LEFT_BUTTON, cell.column + 1, cell.row - topRow + 1, false)
+                }
+                selectionAnchor = null
+            }
+        }
+        return true
+    }
+
+    private fun startSelection(cell: Cell, time: Long) {
+        val again = lastClickCell?.let { it.row == cell.row && abs(it.column - cell.column) <= 1 } == true &&
+            time - lastClickAt <= ViewConfiguration.getDoubleTapTimeout()
+        clickCount = if (again) clickCount + 1 else 1
+        lastClickAt = time
+        lastClickCell = cell
+        selection = when (clickCount) {
+            1 -> null
+            2 -> wordAt(cell)
+            else -> lineAt(cell)
+        }
+        selectionAnchor = cell.takeIf { clickCount == 1 }
+        invalidate()
+    }
+
+    private fun extendSelection(cell: Cell) {
+        val anchor = selectionAnchor ?: return
+        selection = TerminalSelection(anchor.column, anchor.row, cell.column, cell.row)
+        invalidate()
+    }
+
+    /** Scrolls with a dragged finger. True when the finger was lifted without moving: a tap. */
+    private fun onFingerEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastTouchY = event.y
+                scrollRemainder = 0f
+                touchMoved = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = lastTouchY - event.y
+                lastTouchY = event.y
+                if (abs(dy) > 0f) touchMoved = true
+                scrollRemainder += dy
+                val rows = if (hasFontMetrics) (scrollRemainder / renderer.fontLineSpacing).toInt() else 0
+                if (rows != 0) {
+                    scrollRemainder -= rows * renderer.fontLineSpacing
+                    scrollBy(rows)
+                }
+            }
+            MotionEvent.ACTION_UP -> return !touchMoved && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)
+        }
+        return false
+    }
+
+    /** A tap, or an accessibility service's click: the keyboard comes up to type into the terminal. */
+    override fun performClick(): Boolean {
+        super.performClick()
+        requestFocus()
+        context.getSystemService(InputMethodManager::class.java)?.showSoftInput(this, 0)
+        return true
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_SCROLL && event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) {
+            val notches = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+            if (notches != 0f) {
+                val rows = -(notches * WHEEL_ROWS).roundToInt().let { if (it == 0) (if (notches > 0) 1 else -1) else it }
+                scrollBy(rows)
+                return true
+            }
+        }
+        return super.onGenericMotionEvent(event)
+    }
+
+    override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): PointerIcon? {
+        val program = connection?.emulator?.isMouseTrackingActive == true
+        return if (program) super.onResolvePointerIcon(event, pointerIndex) else PointerIcon.getSystemIcon(context, PointerIcon.TYPE_TEXT)
+    }
+
+    /**
+     * Scrolls by [rows] (positive toward the newest output). A program that asked for the mouse
+     * gets wheel events; a full-screen program without history (`less`) gets arrow keys; at the
+     * shell, the view moves through the history.
+     */
+    fun scrollBy(rows: Int) {
+        val emulator = connection?.emulator ?: return
+        when {
+            emulator.isMouseTrackingActive -> {
+                val button = if (rows < 0) TerminalEmulator.MOUSE_WHEELUP_BUTTON else TerminalEmulator.MOUSE_WHEELDOWN_BUTTON
+                repeat(abs(rows)) { emulator.sendMouseEvent(button, 1, 1, true) }
+            }
+            emulator.isAlternateBufferActive -> {
+                val key = if (rows < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
+                val code = KeyHandler.getCode(key, 0, emulator.isCursorKeysApplicationMode, emulator.isKeypadApplicationMode)
+                if (code != null && connection?.isConnected == true) repeat(abs(rows)) { connection?.sendInput(code) }
+            }
+            else -> scrollHistory(rows)
+        }
+    }
+
+    private fun scrollHistory(rows: Int) {
+        topRow += rows
+        clampTopRow()
+        invalidate()
+    }
+
+    // --- Selection, copy and paste ---
+
+    fun copySelection(): Boolean {
+        val text = selectedText() ?: return false
+        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Terminal", text))
+        return true
+    }
+
+    fun selectedText(): String? {
+        val emulator = connection?.emulator ?: return null
+        val range = selection?.normalized() ?: return null
+        return emulator.screen.getSelectedText(range.startColumn, range.startRow, range.endColumn, range.endRow)
+            .takeIf { it.isNotEmpty() }
+    }
+
+    fun paste() {
+        val terminal = connection ?: return
+        if (!terminal.isConnected) return
+        val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip ?: return
+        val text = (0 until clip.itemCount).joinToString("") { clip.getItemAt(it).coerceToText(context).toString() }
+        if (text.isEmpty()) return
+        topRow = 0
+        selection = null
+        // Pasted text isn't followed: suggestions wait for the next line
+        lineFollowed = false
+        suggestion = null
+        invalidate()
+        terminal.emulator.paste(text)
+    }
+
+    /** Selects the whole history and screen. */
+    fun selectAll() {
+        val emulator = connection?.emulator ?: return
+        selection = TerminalSelection(0, -emulator.screen.activeTranscriptRows, emulator.mColumns - 1, emulator.mRows - 1)
+        invalidate()
+    }
+
+    fun clearSelection() {
+        selection = null
+        invalidate()
+    }
+
+    /** The cell under a point of the view; rows count from the live screen's top (negative in the history). */
+    fun cellAt(x: Float, y: Float): Cell {
+        val emulator = connection?.emulator
+        val columns = emulator?.mColumns ?: 1
+        val rows = emulator?.mRows ?: 1
+        if (!hasFontMetrics) return Cell(0, topRow)
+        val column = ((x - inset) / renderer.fontWidth).toInt().coerceIn(0, columns - 1)
+        val row = ((y - inset - renderer.fontLineSpacingAndAscent) / renderer.fontLineSpacing).toInt().coerceIn(0, rows - 1)
+        return Cell(column, row + topRow)
+    }
+
+    private fun cellText(column: Int, row: Int): String =
+        connection?.emulator?.screen?.getSelectedText(column, row, column, row).orEmpty()
+
+    private fun wordAt(cell: Cell): TerminalSelection? {
+        val columns = connection?.emulator?.mColumns ?: return null
+        fun isWordCell(column: Int) = cellText(column, cell.row).let { it.isNotBlank() && it.none { c -> c in WORD_STOPS } }
+        if (!isWordCell(cell.column)) return null
+        var start = cell.column
+        while (start > 0 && isWordCell(start - 1)) start--
+        var end = cell.column
+        while (end < columns - 1 && isWordCell(end + 1)) end++
+        return TerminalSelection(start, cell.row, end, cell.row)
+    }
+
+    private fun lineAt(cell: Cell): TerminalSelection? {
+        val columns = connection?.emulator?.mColumns ?: return null
+        return TerminalSelection(0, cell.row, columns - 1, cell.row)
+    }
+
+    /** A screen cell: [row] counts from the live screen's top, negative in the history. */
+    data class Cell(val column: Int, val row: Int)
+
+    companion object {
+        private const val MIN_COLUMNS = 4
+        private const val MIN_ROWS = 4
+        private const val WHEEL_ROWS = 3
+        private const val MAX_DELETE = 64
+        private const val MOUSE_RIGHT_BUTTON = 2
+
+        /** How many of a command's last keys may still be on their way back when Enter is pressed. */
+        private const val MAX_PENDING_ECHO = 3
+
+        /** Characters a double-click word stops at, besides spaces: brackets and quotes. */
+        private const val WORD_STOPS = "()[]{}<>\"'`|;,"
+
+        /**
+         * What a key press sends to the shell, or null when it is not for the shell (the view
+         * passes it on). Ctrl turns letters into control characters, and Alt sends Escape first
+         * (so Alt+B and Alt+F move by words in the shell).
+         */
+        fun encodeKey(keyCode: Int, event: KeyEvent, emulator: TerminalEmulator): String? {
+            var keyMod = 0
+            if (event.isCtrlPressed) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
+            if (event.isAltPressed) keyMod = keyMod or KeyHandler.KEYMOD_ALT
+            if (event.isShiftPressed) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
+            if (event.isNumLockOn) keyMod = keyMod or KeyHandler.KEYMOD_NUM_LOCK
+            KeyHandler.getCode(keyCode, keyMod, emulator.isCursorKeysApplicationMode, emulator.isKeypadApplicationMode)
+                ?.let { return it }
+
+            val withoutModifiers = event.metaState and
+                (KeyEvent.META_CTRL_MASK or KeyEvent.META_ALT_MASK or KeyEvent.META_META_MASK).inv()
+            val unicode = event.getUnicodeChar(withoutModifiers)
+            if (unicode == 0) return null
+            // A dead key (an accent waiting for its letter): nothing to send yet
+            if (unicode and KeyCharacterMap.COMBINING_ACCENT != 0) return ""
+            return encodeCodePoint(unicode, event.isCtrlPressed, event.isAltPressed)
+        }
+
+        /** [codePoint] as typed with [ctrl] and [alt] held. */
+        fun encodeCodePoint(codePoint: Int, ctrl: Boolean, alt: Boolean): String {
+            var cp = codePoint
+            if (ctrl) {
+                cp = when (cp) {
+                    in 'a'.code..'z'.code -> cp - 'a'.code + 1
+                    in 'A'.code..'Z'.code -> cp - 'A'.code + 1
+                    ' '.code, '2'.code, '@'.code -> 0
+                    '['.code, '3'.code -> 27
+                    '\\'.code, '4'.code -> 28
+                    ']'.code, '5'.code -> 29
+                    '^'.code, '6'.code -> 30
+                    '_'.code, '7'.code, '/'.code -> 31
+                    '8'.code, '?'.code -> 127
+                    else -> cp
+                }
+            }
+            val text = String(Character.toChars(cp))
+            return if (alt) "\u001b$text" else text
+        }
+    }
+}
+
+/** A run of text on the terminal, from one cell to another (inclusive), in either direction. */
+data class TerminalSelection(val anchorColumn: Int, val anchorRow: Int, val focusColumn: Int, val focusRow: Int) {
+
+    /** From the earlier cell to the later one. */
+    fun normalized(): Range {
+        val anchorFirst = anchorRow < focusRow || anchorRow == focusRow && anchorColumn <= focusColumn
+        return if (anchorFirst) {
+            Range(anchorColumn, anchorRow, focusColumn, focusRow)
+        } else {
+            Range(focusColumn, focusRow, anchorColumn, anchorRow)
+        }
+    }
+
+    fun shiftedUp(rows: Int) = copy(anchorRow = anchorRow - rows, focusRow = focusRow - rows)
+
+    data class Range(val startColumn: Int, val startRow: Int, val endColumn: Int, val endRow: Int)
+}

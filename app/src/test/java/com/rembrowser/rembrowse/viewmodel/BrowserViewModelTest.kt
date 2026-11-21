@@ -20,6 +20,7 @@ import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
+import com.rembrowser.rembrowse.model.TerminalTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -1349,5 +1350,47 @@ class BrowserViewModelTest {
         session.simulateContextMenu(serial = 5)
         viewModel.onPageMenuAction(PageMenuAction.FIND_IN_PAGE)
         assertEquals(tabId, viewModel.findInPage.value?.tabId)
+    }
+
+    // --- Terminal tabs ---
+
+    @Test
+    fun aTerminal_takesOverAnUntouchedStartPage_andHasNoEngineSession() {
+        val startPage = viewModel.uiState.value.activeTabId!!
+        val terminal = viewModel.openTerminal()
+        assertEquals("The start page became the terminal", startPage, terminal)
+        val tab = viewModel.uiState.value.tabs.single()
+        assertEquals("rem://terminal", tab.url)
+        assertTrue(tab.isTerminal)
+        assertEquals("Terminal", tab.displayTitle)
+        assertNull("Drawn by the app, not the web engine", engine.sessions[terminal])
+    }
+
+    @Test
+    fun aTerminal_opensBesideAWebPage_andFollowsTheHostPickedInIt() {
+        viewModel.navigatePane(0, "https://example.com/")
+        val page = viewModel.uiState.value.activeTabId!!
+        val terminal = viewModel.openTerminal()
+        assertNotEquals(page, terminal)
+        assertEquals(terminal, viewModel.uiState.value.activeTabId)
+
+        viewModel.showTerminalTarget(terminal, TerminalTarget.Address("root", "10.0.0.2", 2222))
+        assertEquals("rem://terminal/ssh/root@10.0.0.2:2222", viewModel.uiState.value.activeTab!!.url)
+        assertEquals("rem://terminal/ssh/root@10.0.0.2:2222", repository.storedState.tabs.first { it.id == terminal }.url)
+
+        viewModel.setTerminalTitle(terminal, "root@box: ~")
+        assertEquals("root@box: ~", viewModel.uiState.value.activeTab!!.displayTitle)
+        // Only terminals take a terminal title
+        viewModel.setTerminalTitle(page, "nope")
+        assertNotEquals("nope", viewModel.uiState.value.tabs.first { it.id == page }.title)
+    }
+
+    @Test
+    fun typingATerminalAddress_opensATerminal() {
+        viewModel.navigatePane(0, "https://example.com/")
+        viewModel.navigatePane(0, "rem://terminal/host/abc")
+        val tab = viewModel.uiState.value.activeTab!!
+        assertEquals("rem://terminal/host/abc", tab.url)
+        assertEquals("The page stays in its own tab", 2, viewModel.uiState.value.tabs.size)
     }
 }

@@ -28,6 +28,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Fullscreen video**: a page's fullscreen button fills the whole screen, even from a split, and Back or Esc returns to the same layout.
 * **Tab switcher**: a searchable grid of every open tab.
 * **Right-click menus**: right-click a link, picture or the page itself, with a mouse or the touchpad, to open a link in a new tab or beside the page, copy addresses, go back, reload, bookmark or find. Sites with their own menus keep them.
+* **SSH terminal tabs**: open a terminal like a tab (**More → New terminal**), connect to a saved host or any `user@host`, and keep it beside your pages in a split. Hosts, keys (generate or import) and trusted servers live in Settings → Terminal, with passwords and private keys encrypted by the device's keystore. Seven themes (including a green-on-navy Midnight Green), two bundled coding fonts, cursor styles, and fish-style suggestions from your own commands and common ones, taken with Tab.
 * **Find in page** (`Ctrl+F`): a floating bar on the page you are searching, with every match highlighted, a running count, next and previous, and match case.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.
@@ -52,9 +53,9 @@ RemBrowse/
 ├── build/                      # Published APKs (./gradlew publishApk) linked from "Download latest"
 ├── docs/
 │   ├── assets/                 # Logo artwork
-│   ├── ARCHITECTURE.md         # State, engine lifecycle, extensions and design tokens
+│   ├── ARCHITECTURE.md         # State, engine lifecycle, terminal, extensions and design tokens
 │   ├── BUILD_AND_TEST_GUIDE.md # Toolchain, tests, UI renders, publishing and signing
-│   └── USER_GUIDE.md           # The interface, split view, settings, extensions, downloads
+│   └── USER_GUIDE.md           # The interface, split view, settings, extensions, downloads, terminal
 ├── app/
 │   ├── build.gradle.kts        # Android app config (compileSdk/targetSdk 35)
 │   └── src/
@@ -64,9 +65,11 @@ RemBrowse/
 │       │   ├── model/          # Layout, tab, settings, extension and page-prompt models
 │       │   ├── util/           # UrlResolver, KeyboardShortcuts, ErrorPages, DownloadFileNames
 │       │   ├── engine/         # BrowserEngine interfaces + GeckoView implementations
-│       │   ├── data/           # AMO catalog client, state store, download storage and history
-│       │   ├── viewmodel/      # BrowserViewModel, ExtensionsViewModel, DownloadsViewModel
+│       │   ├── data/           # AMO catalog client, state store, download storage and history, terminal store
+│       │   ├── terminal/       # SSH connection, terminal view, themes, command suggestions
+│       │   ├── viewmodel/      # BrowserViewModel, ExtensionsViewModel, DownloadsViewModel, TerminalViewModel
 │       │   └── ui/             # RemBrowseScreen, theme tokens and components
+│       ├── main/java/com/termux/ # Termux's terminal emulator and renderer (Apache 2.0, vendored)
 │       └── test/               # JVM unit, Robolectric and headless Compose UI tests
 ├── signing/                    # Your signing keystore (not committed)
 ├── gradle/                     # Gradle 8.11.1 wrapper

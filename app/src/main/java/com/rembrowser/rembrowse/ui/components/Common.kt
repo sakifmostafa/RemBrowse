@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -68,6 +69,7 @@ import coil.compose.AsyncImage
 import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.TerminalUrls
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
 
@@ -152,9 +154,9 @@ fun SiteIcon(
     isNewTab: Boolean = false,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
-    if (url.startsWith(BrowserTab.SETTINGS_URL, ignoreCase = true)) {
+    if (url.startsWith(BrowserTab.SETTINGS_URL, ignoreCase = true) || TerminalUrls.isTerminalUrl(url)) {
         Icon(
-            imageVector = Icons.Outlined.Settings,
+            imageVector = if (TerminalUrls.isTerminalUrl(url)) Icons.Outlined.Terminal else Icons.Outlined.Settings,
             contentDescription = null,
             tint = tint,
             modifier = modifier.size(size)

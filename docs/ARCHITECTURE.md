@@ -204,7 +204,34 @@ Downloads live in the browser process; there is no foreground service, so a down
 
 ---
 
-## 5. Native WebExtensions (`.xpi`) Pipeline
+## 5. Terminal
+
+A terminal tab is an internal page (`rem://terminal…`, parsed by `TerminalUrls`) whose pane shows `TerminalPage` instead of a web view. `rem://terminal` is a new terminal (the host picker), `rem://terminal/host/<id>` a saved host and `rem://terminal/ssh/user@host:port` a typed address, so a tab's target is saved and restored with the tab like any other address. Like settings, terminal tabs never get an engine session, and web content cannot open them.
+
+```mermaid
+flowchart LR
+    PAGE["TerminalPage (header, host picker, questions)"] --> VIEW["TerminalScreenView (draws, keys, mouse, suggestions)"]
+    PAGE --> TVM["TerminalViewModel (hosts, keys, trusted servers, settings, one connection per tab)"]
+    VIEW --> CONN["TerminalConnection (emulator + status)"]
+    TVM --> CONN
+    CONN --> EMU["TerminalEmulator (Termux, vendored)"]
+    CONN --> SSH["SshConnector -> TrileadSshConnector (ConnectBot sshlib)"]
+    TVM --> STORE["TerminalStore (SharedPreferences)"]
+    TVM --> SECRETS["SecretStore (Android keystore, AES-GCM)"]
+```
+
+* **Emulator**: Termux's `terminal-emulator` and its `TerminalRenderer` are vendored under `com.termux` (Apache 2.0; see `com/termux/README.md` for what was taken and the one change). It handles xterm escape sequences, 256 and true colours, the alternate screen, mouse reporting, bracketed paste and the scrollback (5,000 rows). `TerminalScreenView` is RemBrowse's own view around it: it draws with the renderer, turns keys into what a shell expects (`encodeKey()`/`encodeCodePoint()`: Ctrl letters, Alt as Escape, the cursor keys in normal and application mode, function keys), types from on-screen keyboards through an `InputConnection` that hides suggestions, selects with the mouse or touchpad (drag, double-click a word or path, triple-click a line), scrolls the history with the wheel (or sends arrow keys to full-screen programs) and passes mouse clicks to programs that ask for them, unless Shift is held. Compose draws the view without clipping it, so `onDraw` clips to its own bounds before filling the background.
+* **SSH**: `SshConnector` is the seam; `TrileadSshConnector` implements it with ConnectBot's `sshlib` (the maintained Trilead SSH-2 fork, with Ed25519, ECDSA and RSA keys and current key exchanges). The shell is opened with a PTY (`xterm-256color`, the view's size in cells and pixels) and resized as the view changes. The ciphers are pinned to AES-GCM and AES-CTR: Robolectric (and some Android builds) put Conscrypt first among the security providers, and sshlib's ChaCha20-Poly1305 fails its MAC check on Conscrypt's ChaCha20 (`MAC verification failed`) against a real OpenSSH 9.6 server. `SshEndToEndTest` guards that ChaCha20 is never offered. Release builds keep sshlib and the libraries it uses whole (`proguard-rules.pro`): it creates its ciphers, MACs and key exchanges with `Class.forName`, so shrinking would leave a release build that cannot connect.
+* **Connections**: `TerminalViewModel` keeps one `TerminalConnection` per terminal tab, owned by `BrowserSessionHolder`, so connections outlive the activity (rotation, a window resize) and end when their tab closes (`retainSessions()` follows the tab list) or the app's view model is cleared. Connecting runs on a background thread; a question (trust this server? the password?) parks that thread until the UI answers through the connection's status flow, with a timeout. Output is fed to the emulator on the main thread.
+* **Host keys**: trust on first use. An unknown server's key is shown with its `SHA256:` fingerprint (as `ssh-keygen -lf` prints it) and saved as a `KnownHost` only once accepted; a different key for a known `host:port` is shown as changed, with the old fingerprint, and nothing is sent until the user decides.
+* **Secrets**: `SecretStore` keeps passwords and private keys. `KeystoreSecretStore` seals each with AES-256-GCM under a key generated inside the Android keystore (hardware-backed where the device has it), which cannot be exported or backed up; a secret that can no longer be opened (data restored onto another device) is dropped and asked for again. Hosts, public keys and trusted servers are plain JSON in `SharedPrefsTerminalStore`; the terminal's data is outside cloud backup like the rest of the app. An imported key with a passphrase is decrypted once and kept unencrypted in OpenSSH form, sealed by the keystore key like everything else in the `SecretStore`; one without is kept as pasted.
+* **Appearance**: `TerminalThemePreset` holds the themes (background, text, cursor and the 16 ANSI colours; a null cursor means the accent colour). The emulator keeps one colour scheme for all terminals (`TerminalColors.COLOR_SCHEME`), which `TerminalTheme.apply()` replaces; each `TerminalConnection` notices the new `generation` and resets its copy (`applyTheme()`), so every terminal changes together. `TerminalTheme.ensureApplied()` runs before the first emulator is created, so a new terminal never starts in Termux's default colours. Fonts (`res/font`: JetBrains Mono and Fira Mono, SIL OFL) and the cursor style (`TerminalEmulator.setCursorStyle()`, which programs can still override) are applied per view.
+* **Suggestions**: `TerminalScreenView` follows the line being typed at the prompt from the keys it sends: printable characters, Backspace, Enter, Ctrl+C and Ctrl+U. Any other control key (arrows, the shell's Tab completion and history, Ctrl+W) or a paste makes the line unknown until the next Enter. While the line is known, `updateSuggestion()` asks `TerminalViewModel.suggestCommand()` (`CommandSuggestions.suggest()`: the remembered commands, most recent first, then a built-in list of common commands) for a longer command that starts with exactly what was typed, but only if the screen shows that text just before the cursor with nothing after it and no full-screen program is running. The rest of the command is drawn in the foreground colour at 44% opacity with a small "Tab" pill; Tab or → types it. On Enter, a known line is reported through `onCommandRun` and remembered (`CommandSuggestions.remember()`: no blank lines, no lines starting with a space, no control characters, at most 300 characters, 1,000 commands, kept on the device) only if the screen shows it, allowing for up to three last keys not yet echoed back; so input at a prompt that doesn't echo, such as a password, is never remembered.
+* **Keyboard**: while a `TerminalScreenView` has focus, `MainActivity` resolves shortcuts with `inTerminal = true`: the shell keeps Ctrl and Alt, and the browser's letter shortcuts move to Ctrl+Shift (`KeyboardShortcuts.resolveInTerminal()`). Ctrl+Tab still switches tabs.
+
+---
+
+## 6. Native WebExtensions (`.xpi`) Pipeline
 
 * **Discovery (`OkHttpAmoApiClient` + `AmoJsonParser`)**: queries `https://addons.mozilla.org/api/v5/addons/search/?app=android&type=extension&lang=en-US`. The parser handles AMO's locale maps (including the `null` + `_default` shape), skips entries without an id, duplicates and non-HTTPS downloads.
 * **Installation (`GeckoExtensionManager`)**: accepts `https://` `.xpi` URLs or a `file://` copy of a picked document (copied off the main thread into `cacheDir/xpi_imports/` and deleted afterwards). Install errors are mapped to plain-language messages; a cancelled prompt is not an error.
@@ -219,7 +246,7 @@ Downloads live in the browser process; there is no foreground service, so a down
 
 ---
 
-## 6. Design tokens
+## 7. Design tokens
 
 All colours, type and shapes come from `ui/theme/Theme.kt`; components read `MaterialTheme` roles and never hardcode values.
 
@@ -240,13 +267,14 @@ Sizes shared by the chrome are in `RemDimens`. Interactive elements have a 48dp 
 
 ---
 
-## 7. State Persistence & Testing Strategy
+## 8. State Persistence & Testing Strategy
 
 * **Persistence**: `SharedPrefsBrowserStateRepository` stores `PersistedBrowserState` (the layout tree and the legacy layout fields, clamped split ratios, tabs, pane assignments, bookmarks and settings, including the chosen search engine) as JSON. Data written by older versions loads with defaults for missing fields. Split ratios are saved once per drag, not on every pointer move.
 * **Unit tests (plain JVM)**: `UrlResolver`, `KeyboardShortcuts`, `ErrorPages`, `DownloadFileNames`, download request parsing, the engine configuration file (read back with GeckoView's real parser), `AmoJsonParser`, command palette results, theme contrast, and the three view models against the fakes in `BrowserFakes.kt` (including a fake download storage and a response body that can fail or be cancelled part-way).
 * **Robolectric**: real `SharedPreferences` round trips for browser state, the downloads list and the browsing history.
 * **Updates**: `AppUpdatesTest` runs `OkHttpUpdateSource` against canned HTTP responses (a damaged, truncated or oversized APK is deleted); `UpdatesViewModelTest` covers the daily check, closed notices, progress, cancel, retries and the install permission round trip with a fake source and installer.
 * **Headless Compose UI tests**: `RemBrowseUiTest` (laptop-sized window) and `CompactWindowUiTest` (phone-sized) drive the real screen with a fake engine, including the extension buttons on the rail and in the More menu.
-* **UI renders**: `UiSnapshotTest` writes PNGs of the main screens on request (see the Build & Test Guide).
+* **UI renders**: `UiSnapshotTest` and `TerminalSnapshotTest` write PNGs of the main screens and the terminal on request (see the Build & Test Guide).
+* **Terminal**: `SshEndToEndTest` runs the real `TrileadSshConnector` against an in-process Apache MINA SSHD server (password and key sign-in, host keys, a PTY of the right size, echo, a wrong password, a closed port, the cipher list); `TerminalScreenViewTest` drives the real view and emulator against a fake shell (keys, selection, scrolling, suggestions, themes); `TerminalViewModelTest`, `TerminalStoreTest`, `CommandSuggestionsTest` and `TerminalModelsTest` cover the rest on the JVM, and `TerminalUiTest` the screens.
 
 Behaviour that depends on the real engine or the device (new-window adoption, crash recovery, prompts, extension delegates and popups, the popup viewport helper, the download callback, MediaStore and opening files, and the system installer) is written against the GeckoView 138 sources and compiled against the real library, but is not exercised by automated tests: it needs a device.

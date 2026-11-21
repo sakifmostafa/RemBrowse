@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Shield
@@ -73,6 +74,7 @@ import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.viewmodel.TerminalUiState
 import com.rembrowser.rembrowse.model.UpdateStatus
 import com.rembrowser.rembrowse.model.UpdatesUiState
 import com.rembrowser.rembrowse.ui.theme.tones
@@ -96,6 +98,7 @@ private val SettingsSection.icon: ImageVector
         SettingsSection.HISTORY -> Icons.Outlined.History
         SettingsSection.DOWNLOADS -> Icons.Outlined.FileDownload
         SettingsSection.EXTENSIONS -> Icons.Outlined.Extension
+        SettingsSection.TERMINAL -> Icons.Outlined.Terminal
         SettingsSection.ABOUT -> Icons.Outlined.Info
     }
 
@@ -144,7 +147,10 @@ fun SettingsPage(
     historyActions: HistoryActions = HistoryActions(onOpen = {}, onRemove = {}, onClear = {}),
     /** The app's own updates, for About; null leaves the update controls out. */
     updates: UpdatesUiState? = null,
-    updateActions: UpdateActions? = null
+    updateActions: UpdateActions? = null,
+    /** Saved hosts and keys, for Terminal; null leaves the section empty. */
+    terminal: TerminalUiState? = null,
+    terminalActions: TerminalSettingsActions? = null
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -245,6 +251,9 @@ fun SettingsPage(
                             onSetEnhancedPrivacy = actions.onSetEnhancedPrivacy
                         )
                         SettingsSection.ABOUT -> AboutSection(versionName, updates, updateActions)
+                        SettingsSection.TERMINAL -> if (terminal != null && terminalActions != null) {
+                            TerminalSettingsSection(state = terminal, actions = terminalActions)
+                        }
                         SettingsSection.EXTENSIONS, SettingsSection.HISTORY -> Unit
                     }
                 }

@@ -3,4 +3,11 @@
     <!-- Reported against ExoPlayer's notification helper bundled inside GeckoView.
          RemBrowse itself never posts notifications, so it does not request the permission. -->
     <issue id="NotificationPermission" severity="ignore" />
+    <!-- The terminal emulator is Termux's code, kept as it is upstream (see com/termux/README.md). -->
+    <issue id="DefaultLocale">
+        <ignore path="src/main/java/com/termux/**" />
+    </issue>
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/java/com/termux/**" />
+    </issue>
 </lint>

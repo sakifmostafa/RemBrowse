@@ -26,6 +26,8 @@ import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
+import com.rembrowser.rembrowse.model.TerminalTarget
+import com.rembrowser.rembrowse.model.TerminalUrls
 import com.rembrowser.rembrowse.util.UrlResolver
 import java.util.UUID
 import kotlin.math.abs
@@ -418,8 +420,10 @@ class BrowserViewModel(
         val resolvedUrl = resolve(rawInput)
         if (isInternalUrl(resolvedUrl)) {
             // RemBrowse's own pages are drawn by the app; the web engine is not involved.
-            // A page that is open in this tab stays where it is: settings get their own tab.
-            openSettings(SettingsSection.fromUrl(resolvedUrl))
+            // A page that is open in this tab stays where it is: settings and terminals get
+            // their own tab.
+            val terminal = TerminalUrls.parse(resolvedUrl)
+            if (terminal != null) openTerminal(terminal) else openSettings(SettingsSection.fromUrl(resolvedUrl))
             return
         }
         val session = ensureSessionCreated(tab)
@@ -452,7 +456,7 @@ class BrowserViewModel(
         /** The tab whose page asked for this one, when a page did. */
         openerTabId: String? = null
     ): String {
-        val resolved = url?.let { resolve(it) } ?: BrowserTab.NEW_TAB_URL
+        val resolved = url?.let { if (isInternalUrl(it)) it.trim() else resolve(it) } ?: BrowserTab.NEW_TAB_URL
         val newTab = createTabModel(resolved, desktopMode).copy(openedByPage = openedByPage)
         // Created before anything else so the engine can hand this exact session back to a
         // page that asked for a new window. An internal page has no session at all.
@@ -970,6 +974,38 @@ class BrowserViewModel(
             active != null && active.isNewTabPage && !active.canGoBack && !active.canGoForward ->
                 showInternalPage(active.id, url)
             else -> openNewTab(url)
+        }
+    }
+
+    /**
+     * Opens a terminal tab on [target] (a new terminal offers the saved hosts) and returns its
+     * id. An untouched start page becomes the terminal; otherwise it gets a tab of its own.
+     */
+    fun openTerminal(target: TerminalTarget = TerminalTarget.Picker): String {
+        val url = TerminalUrls.urlFor(target)
+        val active = _uiState.value.activeTab
+        return if (active != null && active.isNewTabPage && !active.canGoBack && !active.canGoForward) {
+            showInternalPage(active.id, url)
+            active.id
+        } else {
+            openNewTab(url)
+        }
+    }
+
+    /** Terminal tab [tabId] was pointed at [target] (a host picked in a new terminal). */
+    fun showTerminalTarget(tabId: String, target: TerminalTarget) {
+        val tab = _uiState.value.tabs.firstOrNull { it.id == tabId } ?: return
+        if (!tab.isTerminal) return
+        showInternalPage(tabId, TerminalUrls.urlFor(target))
+    }
+
+    /**
+     * What terminal tab [tabId] is called now: the title its shell set, or the server's name.
+     * Not saved on its own: shells change it at every prompt.
+     */
+    fun setTerminalTitle(tabId: String, title: String) {
+        _uiState.update { state ->
+            state.copy(tabs = state.tabs.map { if (it.id == tabId && it.isTerminal && it.title != title) it.copy(title = title) else it })
         }
     }
 

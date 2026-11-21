@@ -15,3 +15,11 @@
 # finds fields and constructors by reflection. Keep it whole, so nothing it needs at startup
 # can be shrunk away.
 -keep class org.yaml.snakeyaml.** { *; }
+
+# The SSH library (ConnectBot sshlib, Trilead's API) creates its ciphers, MACs and key
+# exchanges from class names, and Tink and the Kyber code it uses look classes up too. Keep
+# them whole, so a release build connects exactly like a debug one.
+-keep class com.trilead.ssh2.** { *; }
+-keep class org.connectbot.** { *; }
+-keep class com.google.crypto.tink.** { *; }
+-keep class asia.hombre.** { *; }

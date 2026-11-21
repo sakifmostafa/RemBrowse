@@ -38,10 +38,18 @@ object KeyboardShortcuts {
         shift: Boolean = false,
         alt: Boolean = false,
         meta: Boolean = false,
-        repeatCount: Int = 0
+        repeatCount: Int = 0,
+        /**
+         * A terminal has the keyboard. Its shell owns Ctrl+W, Ctrl+R, Ctrl+L and the rest, Alt
+         * combinations and the function keys, so the browser keeps only Ctrl+Tab and moves its
+         * letter shortcuts to Ctrl+Shift (Ctrl+Shift+T opens a tab, Ctrl+Shift+W closes one), as
+         * terminal apps do. Ctrl+Shift+C and V copy and paste in the terminal itself.
+         */
+        inTerminal: Boolean = false
     ): BrowserShortcut? {
         // A held key must not open a tab (or close one) per auto-repeat tick.
         if (repeatCount > 0 || meta) return null
+        if (inTerminal) return resolveInTerminal(keyCode, ctrl, shift, alt)
 
         if (!ctrl && !alt && !shift && keyCode == KeyEvent.KEYCODE_F5) {
             return BrowserShortcut.RELOAD
@@ -88,6 +96,21 @@ object KeyboardShortcuts {
             KeyEvent.KEYCODE_3 -> BrowserShortcut.LAYOUT_STACKED
             KeyEvent.KEYCODE_4 -> BrowserShortcut.LAYOUT_GRID
             KeyEvent.KEYCODE_5 -> BrowserShortcut.LAYOUT_ONE_AND_TWO
+            else -> null
+        }
+    }
+
+    private fun resolveInTerminal(keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean): BrowserShortcut? {
+        if (!ctrl || alt) return null
+        if (keyCode == KeyEvent.KEYCODE_TAB) return if (shift) BrowserShortcut.PREVIOUS_TAB else BrowserShortcut.NEXT_TAB
+        if (!shift) return null
+        return when (keyCode) {
+            KeyEvent.KEYCODE_T -> BrowserShortcut.NEW_TAB
+            KeyEvent.KEYCODE_W -> BrowserShortcut.CLOSE_TAB
+            KeyEvent.KEYCODE_L -> BrowserShortcut.FOCUS_ADDRESS_BAR
+            KeyEvent.KEYCODE_K -> BrowserShortcut.COMMAND_PALETTE
+            KeyEvent.KEYCODE_COMMA -> BrowserShortcut.OPEN_SETTINGS
+            KeyEvent.KEYCODE_BACKSLASH -> BrowserShortcut.TOGGLE_SPLIT_VIEW
             else -> null
         }
     }

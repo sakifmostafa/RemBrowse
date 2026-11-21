@@ -9,6 +9,8 @@ import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -36,13 +38,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.rembrowser.rembrowse.data.AndroidDownloadStorage
 import com.rembrowser.rembrowse.data.AndroidUpdateInstaller
-import com.rembrowser.rembrowse.data.OkHttpUpdateSource
-import com.rembrowser.rembrowse.data.SharedPrefsUpdatePreferences
+import com.rembrowser.rembrowse.data.KeystoreSecretStore
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
+import com.rembrowser.rembrowse.data.OkHttpUpdateSource
 import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
 import com.rembrowser.rembrowse.data.SharedPrefsBrowsingHistoryStore
 import com.rembrowser.rembrowse.data.SharedPrefsDefaultExtensionStore
 import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
+import com.rembrowser.rembrowse.data.SharedPrefsTerminalStore
+import com.rembrowser.rembrowse.data.SharedPrefsUpdatePreferences
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.engine.PaneGeckoView
@@ -53,6 +57,8 @@ import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.terminal.TerminalScreenView
+import com.rembrowser.rembrowse.terminal.TrileadSshConnector
 import com.rembrowser.rembrowse.ui.BrowserChromeState
 import com.rembrowser.rembrowse.ui.FullscreenWindowEffect
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
@@ -65,7 +71,10 @@ import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
+import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
 import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
+import org.mozilla.geckoview.GeckoRuntimeSettings
+import org.mozilla.geckoview.GeckoView
 import java.io.File
 import java.util.WeakHashMap
 import kotlinx.coroutines.Dispatchers
@@ -73,8 +82,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.mozilla.geckoview.GeckoRuntimeSettings
-import org.mozilla.geckoview.GeckoView
 
 private const val TAG = "MainActivity"
 
@@ -96,6 +103,7 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     val extensions: ExtensionsViewModel
     val downloads: DownloadsViewModel
     val updates: UpdatesViewModel
+    val terminal: TerminalViewModel
 
     /**
      * The upload request the system file picker is open for. Kept here, not in the activity, so
@@ -148,6 +156,23 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             scope = viewModelScope
         )
         updates.onAppStarted()
+
+        val mainHandler = Handler(Looper.getMainLooper())
+        terminal = TerminalViewModel(
+            store = SharedPrefsTerminalStore(application),
+            secrets = KeystoreSecretStore(application),
+            connector = TrileadSshConnector(),
+            scope = viewModelScope,
+            postToMain = { mainHandler.post(it) },
+            onTabTitleChanged = browser::setTerminalTitle
+        )
+        // A terminal tab that closes takes its connection with it
+        viewModelScope.launch {
+            browser.uiState
+                .map { state -> state.tabs.filter { it.isTerminal }.map { it.id }.toSet() }
+                .distinctUntilChanged()
+                .collect(terminal::retainSessions)
+        }
     }
 
     private fun openTabForExtension(url: String) {
@@ -177,6 +202,7 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     }
 
     override fun onCleared() {
+        terminal.closeAll()
         downloads.shutdown()
         browser.shutdown()
         extensionManager.dismissPopup()
@@ -292,6 +318,7 @@ class MainActivity : ComponentActivity() {
                         onOpenDownloadsFolder = ::openDownloadsFolder,
                         onPickFiles = ::pickFilesFor,
                         updatesViewModel = holder.updates,
+                        terminalViewModel = holder.terminal,
                         onFocusWebContent = { tabId ->
                             paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
                         },
@@ -483,7 +510,8 @@ class MainActivity : ComponentActivity() {
                 shift = event.isShiftPressed,
                 alt = event.isAltPressed,
                 meta = event.isMetaPressed,
-                repeatCount = event.repeatCount
+                repeatCount = event.repeatCount,
+                inTerminal = currentFocus is TerminalScreenView
             )
             if (shortcut != null) {
                 performShortcut(shortcut)

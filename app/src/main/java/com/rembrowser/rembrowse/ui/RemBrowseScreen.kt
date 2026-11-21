@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Tab
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +47,8 @@ import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.TerminalTarget
+import com.rembrowser.rembrowse.model.TerminalUrls
 import com.rembrowser.rembrowse.model.pageMenuCopyText
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
@@ -70,12 +73,16 @@ import com.rembrowser.rembrowse.ui.components.TabDragGhost
 import com.rembrowser.rembrowse.ui.components.TabDragState
 import com.rembrowser.rembrowse.ui.components.TabRail
 import com.rembrowser.rembrowse.ui.components.TabSwitcher
+import com.rembrowser.rembrowse.ui.components.TerminalPage
+import com.rembrowser.rembrowse.ui.components.TerminalSettingsActions
 import com.rembrowser.rembrowse.ui.components.TiledBrowserGrid
 import com.rembrowser.rembrowse.ui.theme.RemDimens
+import com.rembrowser.rembrowse.ui.theme.tones
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
+import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
 import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
 
 /**
@@ -135,6 +142,8 @@ fun RemBrowseScreen(
     onPickFiles: (PagePrompt.FilePicker) -> Unit = {},
     /** RemBrowse's own updates; null leaves them out (as in tests that don't need them). */
     updatesViewModel: UpdatesViewModel? = null,
+    /** Terminal tabs and Settings → Terminal; null leaves them empty (as in tests that don't need them). */
+    terminalViewModel: TerminalViewModel? = null,
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     extensionPopupContent: @Composable (Modifier) -> Unit
 ) {
@@ -183,6 +192,42 @@ fun RemBrowseScreen(
     val openExtensions = {
         extensionsViewModel.refreshInstalled()
         openSettings(SettingsSection.EXTENSIONS)
+    }
+    // A terminal tab on [target]; a chosen server starts connecting at once
+    val openTerminal = { target: TerminalTarget ->
+        chrome.showTabSwitcher = false
+        val tabId = browserViewModel.openTerminal(target)
+        if (target != TerminalTarget.Picker) terminalViewModel?.connect(tabId, target)
+        Unit
+    }
+    val terminalState = terminalViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    // A terminal's address bar names the server, the way `ssh` is typed, not its rem:// address
+    val terminalAddress = browserState.activeTab?.takeIf { it.isTerminal }?.let { tab ->
+        when (val target = TerminalUrls.parse(tab.url)) {
+            TerminalTarget.Picker, null -> "New terminal"
+            is TerminalTarget.Address -> "ssh ${target.display}"
+            is TerminalTarget.SavedHost -> terminalState?.hosts?.firstOrNull { it.id == target.hostId }?.let { "ssh ${it.address}" } ?: "Terminal"
+        }
+    }
+    val terminalActions = remember(terminalViewModel) {
+        terminalViewModel?.let { terminal ->
+            TerminalSettingsActions(
+                onSaveHost = { host, password, forget -> terminal.saveHost(host, password, forget) },
+                onDeleteHost = terminal::deleteHost,
+                onConnectHost = { host -> openTerminal(TerminalTarget.SavedHost(host.id)) },
+                onGenerateKey = terminal::generateKey,
+                onImportKey = terminal::importKey,
+                onDeleteKey = terminal::deleteKey,
+                onForgetKnownHost = terminal::forgetKnownHost,
+                onSetFontSize = terminal::setFontSize,
+                onSetTheme = terminal::setTheme,
+                onSetFont = terminal::setFont,
+                onSetCursorStyle = terminal::setCursorStyle,
+                onSetSuggestions = terminal::setSuggestions,
+                onSetRememberCommands = terminal::setRememberCommands,
+                onClearCommandHistory = terminal::clearCommandHistory
+            )
+        }
     }
     val openDownloads = { openSettings(SettingsSection.DOWNLOADS) }
     val openHistory = { openSettings(SettingsSection.HISTORY) }
@@ -346,7 +391,9 @@ fun RemBrowseScreen(
                     onFindInPage = openFindInPage,
                     onOpenExtensions = openExtensions,
                     onOpenSettings = { openSettings(null) },
-                    onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction
+                    onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
+                    onNewTerminal = { openTerminal(TerminalTarget.Picker) },
+                    addressDisplay = terminalAddress
                 )
 
                 Box(modifier = Modifier.weight(1f)) {
@@ -363,6 +410,17 @@ fun RemBrowseScreen(
                         onContentFocusHandled = { chrome.pendingContentFocus = false },
                         onFocusWebContent = onFocusWebContent,
                         internalPage = { tab, pageModifier ->
+                            if (tab.isTerminal && terminalViewModel != null) {
+                                TerminalPage(
+                                    tab = tab,
+                                    terminal = terminalViewModel,
+                                    isActive = browserState.activeTabId == tab.id && !browserState.isAddressBarFocused,
+                                    onChooseTarget = { target -> browserViewModel.showTerminalTarget(tab.id, target) },
+                                    onOpenSettings = { openSettings(SettingsSection.TERMINAL) },
+                                    modifier = pageModifier,
+                                    cursorColor = browserState.settings.accent.tones().darkPrimary
+                                )
+                            } else {
                             SettingsPage(
                                 section = SettingsSection.fromUrl(tab.url),
                                 onSelectSection = { section ->
@@ -382,8 +440,11 @@ fun RemBrowseScreen(
                                 history = history,
                                 historyActions = historyActions,
                                 updates = updatesState,
-                                updateActions = updateActions
+                                updateActions = updateActions,
+                                terminal = terminalState,
+                                terminalActions = terminalActions
                             )
+                            }
                         },
                         paneViewport = paneViewport,
                         paneOverlay = { tab ->
@@ -480,6 +541,9 @@ fun RemBrowseScreen(
                 action = toggleSplitView
             ),
             PaletteCommand("new_tab", "New tab", Icons.Outlined.Add, "Ctrl+T", openNewTab),
+            PaletteCommand("new_terminal", "New terminal", Icons.Outlined.Terminal) {
+                openTerminal(TerminalTarget.Picker)
+            },
             PaletteCommand("close_tab", "Close tab", Icons.Outlined.Close, "Ctrl+W", closeActiveTab),
             PaletteCommand("bookmarks", "Bookmarks", Icons.Outlined.StarBorder) {
                 chrome.showBookmarks = true
@@ -491,7 +555,11 @@ fun RemBrowseScreen(
             PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,") {
                 openSettings(null)
             }
-        )
+        ) + terminalState?.hosts.orEmpty().map { host ->
+            PaletteCommand("ssh_${host.id}", "SSH: ${host.displayName}", Icons.Outlined.Terminal) {
+                openTerminal(TerminalTarget.SavedHost(host.id))
+            }
+        }
         CommandPalette(
             commands = commands,
             tabs = browserState.tabs,

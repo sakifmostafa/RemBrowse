@@ -20,7 +20,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, close tab, command palette, find in page, bookmarks, history, downloads, extensions, desktop site, settings.
+* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, bookmarks, history, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
@@ -161,9 +161,10 @@ Sections are listed down the left side (across the top on a phone-sized window):
 * **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
 * **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#10-downloads).
 * **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#9-extensions-xpi).
+* **Terminal** — your SSH hosts and keys, the servers you trust, and how terminals look and suggest commands. See [Terminal](#11-terminal).
 * **About** — the version you have, and updates. See [Updates](#updates) below.
 
-Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/history`, `rem://settings/downloads`, `rem://settings/extensions` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
+Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/history`, `rem://settings/downloads`, `rem://settings/extensions`, `rem://settings/terminal` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
 
 Back, reload and bookmark do nothing on the settings page. Typing a web address or a search into the address bar while on it loads that page in the same tab.
 
@@ -244,7 +245,55 @@ Good to know:
 
 ---
 
-## 11. Keyboard shortcuts
+## 11. Terminal
+
+A terminal tab connects to a server over SSH, like a page in its own tab. It sits in the tab rail, splits beside pages, and keeps its connection while you work in other tabs.
+
+### Opening one
+
+**More → New terminal** (or **New terminal** in the command palette, or the address `rem://terminal`) opens a new terminal. It lists your saved hosts; select one to connect, or type an address in **Connect to**: `user@host`, `user@host:2222`, or a whole `ssh user@host -p 2222` command. Saved hosts are added and edited in **Settings → Terminal**.
+
+The first time you connect to a server, RemBrowse shows its **key fingerprint** (`SHA256:…`, as `ssh-keygen -lf` prints it) and asks whether to trust it. If a trusted server's key ever changes, you are warned before anything is sent and nothing connects until you choose. A server that asks for a password gets a password box, with **Remember on this device**.
+
+### Working in it
+
+* Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C`, `Ctrl+W`, `Ctrl+R`, `Ctrl+L`, Tab completion…), so the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard; see [Keyboard shortcuts](#12-keyboard-shortcuts).
+* **Select** by dragging, double-click a word or path, and copy with `Ctrl+Shift+C`. Paste with `Ctrl+Shift+V` or `Shift+Insert`. Right-click for **Copy**, **Paste**, **Select all**, and **Disconnect** or **Reconnect**.
+* **Scroll back** through earlier output with the mouse wheel, two fingers on the touchpad, or `Shift+Page Up` / `Shift+Page Down`. Typing returns to the bottom. In full-screen programs (`less`, `man`, `htop`, `vim`), the wheel scrolls the program instead.
+* The **bar above the terminal** shows the host and whether it is connected (green), connecting (yellow) or disconnected (red), with buttons for text size, the colour theme, disconnecting or reconnecting, and the terminal's settings.
+* When the connection ends, the last screen stays. Press **Enter** or **Reconnect** to connect again.
+* Closing the tab disconnects.
+
+### Command suggestions
+
+As you type at the prompt, grey text after the cursor suggests how the command might end: first from the commands you have run before (most recent first), then from a built-in list of common ones (`git status`, `docker compose up -d`, `sudo systemctl restart`…). Press **Tab** or **→** to take the suggestion. With no suggestion showing, Tab is the shell's own completion, as usual.
+
+Suggestions only appear when the screen shows what you typed, so nothing is suggested at a password prompt or inside full-screen programs, and what you type at a password prompt is never remembered. As in most shells, a command you type with a **space in front** is not remembered either. Remembered commands stay on the device. Both settings can be turned off in **Settings → Terminal → Suggestions**, where **Forget remembered commands** clears the list.
+
+### How it looks
+
+Pick a **theme** from the palette button on the terminal's bar, or in **Settings → Terminal → Appearance**: **RemBrowse** (the default, with the cursor in your accent colour), **Midnight Green** (green on navy, like Ubuntu's terminal), **Dracula**, **Nord**, **Solarized Dark**, **Gruvbox Dark**, or **Paper** (light). Every terminal changes at once. Appearance also has the **font** (JetBrains Mono, the default; Fira Mono; or the system's monospace font), the **cursor** (block, bar or underline; programs such as vim can still change it while they run), and the **text size**.
+
+### Hosts and keys
+
+In **Settings → Terminal**:
+
+* **Hosts** — **Add host** with a name, the address, port and username, and whether it signs in with a **password** (saved on the device or asked each time) or a **key**. Each host can be connected to, edited or deleted from here.
+* **Keys** — **Generate key** makes an Ed25519 key; **Public key** shows the line to add to the server's `~/.ssh/authorized_keys`, with a button to copy it. **Import a private key…** takes a pasted OpenSSH (`BEGIN OPENSSH PRIVATE KEY`) or PEM private key (Ed25519, ECDSA or RSA), with its passphrase if it has one. The passphrase is needed only then: the key is kept encrypted on the device, as passwords are (below).
+* **Trusted servers** — the servers whose keys you accepted, with their fingerprints. **Forget** one to be asked again next time.
+
+Passwords and private keys are encrypted with a key held by Android's keystore, which never leaves the device; they are not backed up and cannot be read from a copy of the app's data. Host names, public keys and fingerprints are stored as ordinary settings.
+
+### Limits
+
+* SSH only: no local shell, Mosh, Telnet or serial connections.
+* No port forwarding, SFTP file transfer or SSH agent forwarding yet.
+* Commands you run through the shell's own history or Tab completion are not remembered for suggestions, because the terminal can't see the finished line.
+* Not yet tried on a device.
+
+---
+
+## 12. Keyboard shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |
