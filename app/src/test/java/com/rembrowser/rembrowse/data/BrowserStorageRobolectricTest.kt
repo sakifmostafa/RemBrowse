@@ -12,6 +12,7 @@ import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.DownloadStatus
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PaneNode
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SplitOrientation
@@ -80,11 +81,24 @@ class BrowserStorageRobolectricTest {
             restoreTabsOnStartup = false,
             openNewTabsNextToCurrent = true,
             desktopSiteByDefault = false,
-            askBeforeDownloading = false
+            askBeforeDownloading = false,
+            pageRendering = PageRendering.DIRECT
         )
         repository.saveState(PersistedBrowserState(settings = settings))
 
         assertEquals(settings, repository.loadState().settings)
+    }
+
+    @Test
+    fun pageRendering_isStandardUntilChosenAndForANameThisVersionDoesNotKnow() {
+        assertEquals(PageRendering.STANDARD, repository.loadState().settings.pageRendering)
+        assertEquals(PageRendering.STANDARD, PageRendering.fromNameOrDefault("VULKAN"))
+        assertEquals(PageRendering.STANDARD, PageRendering.fromNameOrDefault(null))
+
+        PageRendering.entries.forEach { rendering ->
+            repository.saveState(PersistedBrowserState(settings = BrowserSettings(pageRendering = rendering)))
+            assertEquals(rendering, repository.loadState().settings.pageRendering)
+        }
     }
 
     @Test

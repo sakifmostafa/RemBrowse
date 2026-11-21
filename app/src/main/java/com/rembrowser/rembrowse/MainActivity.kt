@@ -22,6 +22,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
@@ -43,9 +44,11 @@ import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.engine.PaneGeckoView
+import com.rembrowser.rembrowse.engine.usePageRendering
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.BrowserChromeState
 import com.rembrowser.rembrowse.ui.FullscreenWindowEffect
@@ -289,34 +292,39 @@ class MainActivity : ComponentActivity() {
                             paneViewTabs.entries.firstOrNull { it.value == tabId }?.key?.requestFocus()
                         },
                         paneViewport = { tab, modifier ->
-                            val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
-                            DisposableEffect(Unit) {
-                                onDispose {
-                                    geckoViewHolder[0]?.let {
-                                        paneViewTabs.remove(it)
-                                        engine.detachView(it)
+                            // A page shown another way needs another view: the choice is made
+                            // once, when the view is created
+                            val rendering = settings.pageRendering
+                            key(rendering) {
+                                val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
+                                DisposableEffect(Unit) {
+                                    onDispose {
+                                        geckoViewHolder[0]?.let {
+                                            paneViewTabs.remove(it)
+                                            engine.detachView(it)
+                                        }
                                     }
                                 }
+                                AndroidView(
+                                    modifier = modifier,
+                                    factory = { ctx ->
+                                        PaneGeckoView(ctx, chromePointerIcon::isClaimed).apply {
+                                            usePageRendering(rendering)
+                                            // Set once: covering again on every update would hide
+                                            // a page that has already painted.
+                                            coverUntilFirstPaint(pageBackground)
+                                            geckoViewHolder[0] = this
+                                            paneViewTabs[this] = tab.id
+                                            engine.attachSessionToView(tab.id, this)
+                                        }
+                                    },
+                                    update = { view ->
+                                        geckoViewHolder[0] = view
+                                        paneViewTabs[view] = tab.id
+                                        engine.attachSessionToView(tab.id, view)
+                                    }
+                                )
                             }
-                            AndroidView(
-                                modifier = modifier,
-                                factory = { ctx ->
-                                    PaneGeckoView(ctx, chromePointerIcon::isClaimed).apply {
-                                        setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
-                                        // Set once: covering again on every update would hide a
-                                        // page that has already painted.
-                                        coverUntilFirstPaint(pageBackground)
-                                        geckoViewHolder[0] = this
-                                        paneViewTabs[this] = tab.id
-                                        engine.attachSessionToView(tab.id, this)
-                                    }
-                                },
-                                update = { view ->
-                                    geckoViewHolder[0] = view
-                                    paneViewTabs[view] = tab.id
-                                    engine.attachSessionToView(tab.id, view)
-                                }
-                            )
                         },
                         extensionPopupContent = { modifier ->
                             val popupViewHolder = remember { arrayOfNulls<GeckoView>(1) }
@@ -329,7 +337,15 @@ class MainActivity : ComponentActivity() {
                                 modifier = modifier,
                                 factory = { ctx ->
                                     GeckoView(ctx).apply {
-                                        setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
+                                        // Always a texture: the popup's window fades in and
+                                        // has rounded corners of its own
+                                        usePageRendering(
+                                            if (settings.pageRendering == PageRendering.LEGACY) {
+                                                PageRendering.LEGACY
+                                            } else {
+                                                PageRendering.STANDARD
+                                            }
+                                        )
                                         coverUntilFirstPaint(pageBackground)
                                         popupViewHolder[0] = this
                                         extensionManager.getPopupGeckoSession()?.let { setSession(it) }

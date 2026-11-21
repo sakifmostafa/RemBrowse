@@ -70,6 +70,7 @@ import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.DownloadsUiState
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.HistoryEntry
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.UpdateStatus
@@ -109,7 +110,8 @@ class SettingsActions(
     val onSetEnhancedPrivacy: (Boolean) -> Unit,
     val onSetAdBlocker: (Boolean) -> Unit,
     val onSetAskBeforeDownloading: (Boolean) -> Unit,
-    val onSetKeepHistory: (Boolean) -> Unit = {}
+    val onSetKeepHistory: (Boolean) -> Unit = {},
+    val onSetPageRendering: (PageRendering) -> Unit = {}
 )
 
 /**
@@ -218,7 +220,8 @@ fun SettingsPage(
                         SettingsSection.APPEARANCE -> AppearanceSection(
                             settings = settings,
                             onSetDarkTheme = actions.onSetDarkTheme,
-                            onSetAccent = actions.onSetAccent
+                            onSetAccent = actions.onSetAccent,
+                            onSetPageRendering = actions.onSetPageRendering
                         )
                         SettingsSection.SEARCH -> SearchSection(
                             selected = settings.searchEngine,
@@ -499,7 +502,8 @@ private fun SectionNavItem(
 private fun AppearanceSection(
     settings: BrowserSettings,
     onSetDarkTheme: (Boolean) -> Unit,
-    onSetAccent: (AccentColor) -> Unit
+    onSetAccent: (AccentColor) -> Unit,
+    onSetPageRendering: (PageRendering) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     Text(text = "Theme color", style = MaterialTheme.typography.titleSmall)
@@ -552,6 +556,28 @@ private fun AppearanceSection(
         onCheckedChange = onSetDarkTheme,
         testTag = "setting_dark_theme"
     )
+    HorizontalDivider(color = colors.outlineVariant)
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(text = "Page rendering", style = MaterialTheme.typography.titleSmall)
+    Text(
+        text = "How web pages are put on the screen. Try another choice if scrolling stutters; " +
+            "pages that are open switch at once.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.onSurfaceVariant,
+        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+    )
+    Column(modifier = Modifier.selectableGroup()) {
+        PageRendering.entries.forEach { rendering ->
+            RadioRow(
+                title = rendering.label,
+                description = rendering.description,
+                selected = rendering == settings.pageRendering,
+                onClick = { onSetPageRendering(rendering) },
+                testTag = "page_rendering_${rendering.name.lowercase()}"
+            )
+        }
+    }
 }
 
 @Composable

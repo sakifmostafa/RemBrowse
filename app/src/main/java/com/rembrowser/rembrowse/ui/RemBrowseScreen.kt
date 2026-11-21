@@ -209,7 +209,8 @@ fun RemBrowseScreen(
             onSetEnhancedPrivacy = browserViewModel::setEnhancedPrivacy,
             onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled,
             onSetAskBeforeDownloading = browserViewModel::setAskBeforeDownloading,
-            onSetKeepHistory = browserViewModel::setKeepHistory
+            onSetKeepHistory = browserViewModel::setKeepHistory,
+            onSetPageRendering = browserViewModel::setPageRendering
         )
     }
     val openDownload = { id: String -> downloadsViewModel.open(id, onOpenDownload) }

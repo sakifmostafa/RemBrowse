@@ -7,6 +7,7 @@ import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
@@ -91,6 +92,7 @@ class SharedPrefsBrowserStateRepository(
                     put("desktopSiteByDefault", state.settings.desktopSiteByDefault)
                     put("askBeforeDownloading", state.settings.askBeforeDownloading)
                     put("keepHistory", state.settings.keepHistory)
+                    put("pageRendering", state.settings.pageRendering.name)
                 }
             )
 
@@ -167,7 +169,8 @@ class SharedPrefsBrowserStateRepository(
                     ),
                     desktopSiteByDefault = settingsObj.optBoolean("desktopSiteByDefault", defaults.desktopSiteByDefault),
                     askBeforeDownloading = settingsObj.optBoolean("askBeforeDownloading", defaults.askBeforeDownloading),
-                    keepHistory = settingsObj.optBoolean("keepHistory", defaults.keepHistory)
+                    keepHistory = settingsObj.optBoolean("keepHistory", defaults.keepHistory),
+                    pageRendering = PageRendering.fromNameOrDefault(settingsObj.optString("pageRendering", ""))
                 )
             }
 
