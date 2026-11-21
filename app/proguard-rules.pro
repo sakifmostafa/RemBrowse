@@ -17,9 +17,15 @@
 -keep class org.yaml.snakeyaml.** { *; }
 
 # The SSH library (ConnectBot sshlib, Trilead's API) creates its ciphers, MACs and key
-# exchanges from class names, and Tink and the Kyber code it uses look classes up too. Keep
-# them whole, so a release build connects exactly like a debug one.
+# exchanges from class names. Keep it, and the post-quantum key exchange code it calls, whole,
+# so a release build connects exactly like a debug one.
 -keep class com.trilead.ssh2.** { *; }
 -keep class org.connectbot.** { *; }
--keep class com.google.crypto.tink.** { *; }
 -keep class asia.hombre.** { *; }
+
+# sshlib uses only Tink's Ed25519 and X25519 primitives, which it calls directly (so they are
+# kept). Tink's keysets, JWT and key downloading need protobuf, Gson and Google's HTTP client,
+# which sshlib leaves out on purpose; that code is never reached.
+-dontwarn com.google.protobuf.**
+-dontwarn com.google.gson.**
+-dontwarn com.google.api.client.**
