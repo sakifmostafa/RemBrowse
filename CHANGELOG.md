@@ -2,10 +2,13 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## Unreleased
+## v0.13.4 (2026-11-21) — Find in page
 
 ### Added
 * **Find in page** (`Ctrl+F`, or More → Find in page, or the command palette). A bar drops into the top corner of the page you are searching (in a split, that page), highlights every match as you type and counts them ("3/12", or "No results"). Enter or `F3` for the next match, Shift+Enter or `Shift+F3` for the previous one, **Aa** to match case, Esc to close.
+
+### Known limits
+* Not yet tried on a device.
 
 ### Testing
 323 automated tests.
