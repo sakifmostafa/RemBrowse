@@ -115,7 +115,12 @@ Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them
 
 Sections are listed down the left side (across the top on a phone-sized window):
 
-* **Appearance** — theme colour (six choices) and **Use dark theme**.
+* **Appearance** — theme colour (six choices), **Use dark theme**, and **Page rendering**, how web pages are put on the screen:
+  * **Standard** (the default) — pages are drawn inside the window, set up once rather than again for every frame as before 0.13.3.
+  * **Direct (experimental)** — pages go straight to the screen, which may scroll more smoothly still; a pane may flicker while it is resized or opens.
+  * **As in 0.13.2 and earlier** — the old way, to compare against if scrolling is still not smooth, or if pages ever stay blank on the others.
+
+  Open pages switch at once.
 * **Search** — the search engine used when you type words into the address bar or the command palette: Google (the default), DuckDuckGo, Bing, Brave Search or Startpage.
 * **Tabs**
   * **When RemBrowse starts** — **Continue where you left off** (the default) reopens last time's tabs and layout. **Open a new tab** starts on a single empty tab instead: the previous tabs are closed, including when Android stopped the browser in the background. Bookmarks and settings are kept either way.

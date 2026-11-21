@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **296 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **309 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -54,6 +54,7 @@ Run a single test class:
 Test suites included:
 * `SplitDividerMouseTest` / `PaneGeckoViewTest` — dragging a divider with a mouse (every step followed, side by side, stacked and nested, past a limit and back, one save per drag, a split that turns), double-click with and without a slip, the other mouse buttons, the resize cursor over the whole grip and during a drag, finger drag and double-tap; and a pane's web view giving up its cursor while the chrome has the pointer.
 * `OneAndTwoLayoutUiTest` — the One left, two right layout from the Split menu.
+* `PageSurfaceTest` — with a real GeckoView, a texture-backed page keeps one compositor surface across frames (stock GeckoView swaps it on every frame), and each Page rendering choice sets the view up as described; plus the setting's storage and its radio group in Settings.
 * `UnseenPanesTest` — panes under a fullscreen page, and every page while the window is away, are paused and resume when seen again; a background tab stays in the background.
 * `FullscreenWindowEffectTest` — every time a page goes fullscreen, the window is restored when it leaves (or when the screen goes away), and the update status never ends in two full stops.
 * `PaneLayoutTest` — the layout tree: presets, splitting a pane on each side, replacing and moving tabs, the four-pane limit, removing panes, ratios, geometry and drop zones, and cleaning up invalid trees.

@@ -2,7 +2,13 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## v0.13.3 (2026-11-21) — Lighter on memory and battery
+## v0.13.3 (2026-11-21) — Smoother scrolling, lighter on memory and battery
+
+### Fixed
+* **Scrolling stuttered on busy pages such as the x.com feed.** For every frame of a page, the engine set its drawing surface up again from scratch: a new surface, a blocking round trip to the graphics process, and a forced extra frame, all on the app's main thread. RemBrowse now sets the surface up once, as the engine does on its own default path. This also saves work whenever a page animates.
+
+### Added
+* **Settings → Appearance → Page rendering**, to compare on your device: **Standard** (the fix, the default), **Direct (experimental)**, which sends pages straight to the screen and may scroll more smoothly still but can flicker when a pane is resized or opens, and **As in 0.13.2 and earlier**. Open pages switch at once.
 
 ### Changed
 * **Less memory for the engine.** Each of the engine's processes (main, web pages, extensions) used to unpack its own 13 MB copy of the engine's resource file into memory; it is now read in place from the app, as Firefox for Android does. Firefox's page-translation machinery, which RemBrowse doesn't offer, is switched off: its language detector took about 17 MB in every web page process (measured with `about:memory` on a Googlebook). Together, roughly 80 MB less with a few tabs open (estimated from those figures).
@@ -10,10 +16,11 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **Smaller download.** About 1.3 MB less: Gecko's crash-report analyser (RemBrowse sends no crash reports) and unused resources are left out.
 
 ### Known limits
+* Not yet tried on a device. If scrolling still stutters, try Direct; if pages ever stay blank, switch to "As in 0.13.2 and earlier" and tell us. `about:support` shows whether the graphics run on the GPU ("WebRender") or in software.
 * The memory and battery savings are estimated from measurements and the engine's source; compare `about:memory` before and after to see them on your device.
 
 ### Testing
-296 automated tests.
+309 automated tests.
 
 ## v0.13.2 (2026-11-21) — The window comes back from fullscreen; One left, two right; a divider that follows the mouse
 
