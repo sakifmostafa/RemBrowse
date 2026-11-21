@@ -6,6 +6,14 @@ This guide covers building, testing, and signing **RemBrowse** (`com.rembrowser.
 
 ## 1. Prerequisites
 
+On Ubuntu 22.04 or later, one script sets up everything below (a JDK, the Android SDK's command-line tools, platform 35, build tools 35.0.0 and platform tools, and `ANDROID_HOME` in `~/.bashrc`). It is safe to run again:
+
+```bash
+bash scripts/setup-build-server.sh
+```
+
+Or by hand:
+
 * **JDK 21** (OpenJDK 21; project compiles bytecode targeting Java 17):
   ```bash
   sudo apt-get update && sudo apt-get install -y openjdk-21-jdk-headless unzip
