@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **292 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **296 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -54,6 +54,7 @@ Run a single test class:
 Test suites included:
 * `SplitDividerMouseTest` / `PaneGeckoViewTest` — dragging a divider with a mouse (every step followed, side by side, stacked and nested, past a limit and back, one save per drag, a split that turns), double-click with and without a slip, the other mouse buttons, the resize cursor over the whole grip and during a drag, finger drag and double-tap; and a pane's web view giving up its cursor while the chrome has the pointer.
 * `OneAndTwoLayoutUiTest` — the One left, two right layout from the Split menu.
+* `UnseenPanesTest` — panes under a fullscreen page, and every page while the window is away, are paused and resume when seen again; a background tab stays in the background.
 * `FullscreenWindowEffectTest` — every time a page goes fullscreen, the window is restored when it leaves (or when the screen goes away), and the update status never ends in two full stops.
 * `PaneLayoutTest` — the layout tree: presets, splitting a pane on each side, replacing and moving tabs, the four-pane limit, removing panes, ratios, geometry and drop zones, and cleaning up invalid trees.
 * `UrlResolverTest` — address vs. search detection, display form, favicon location, extension link validation.
@@ -109,7 +110,7 @@ build/VERSION.txt
 build/update.json
 ```
 
-Commit those four files together to publish a new version. `update.json` holds the version and each APK's size and SHA-256; copies of RemBrowse already installed read it for **Settings → About → Updates** and the daily check, so it must always describe the APKs next to it. Release APKs are about 85–90 MB: the native engine is stored compressed and unused library code is removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`). Each file must stay under GitHub's 100 MB limit.
+Commit those four files together to publish a new version. `update.json` holds the version and each APK's size and SHA-256; copies of RemBrowse already installed read it for **Settings → About → Updates** and the daily check, so it must always describe the APKs next to it. Release APKs are about 85–89 MB: the native engine is stored compressed, GeckoView's `omni.ja` is stored uncompressed so the engine can read it in place, Gecko's crash-report analyser is left out, and unused library code and resources are removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`). Each file must stay under GitHub's 100 MB limit.
 
 ### The engine patch
 

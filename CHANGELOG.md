@@ -2,6 +2,19 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.3 (2026-11-21) — Lighter on memory and battery
+
+### Changed
+* **Less memory for the engine.** Each of the engine's processes (main, web pages, extensions) used to unpack its own 13 MB copy of the engine's resource file into memory; it is now read in place from the app, as Firefox for Android does. Firefox's page-translation machinery, which RemBrowse doesn't offer, is switched off: its language detector took about 17 MB in every web page process (measured with `about:memory` on a Googlebook). Together, roughly 80 MB less with a few tabs open (estimated from those figures).
+* **Pages nobody can see are paused.** The pages behind a fullscreen video, and every page while the RemBrowse window is minimised or covered, stop drawing and slow their timers until they are seen again, saving CPU and battery. Sound keeps playing.
+* **Smaller download.** About 1.3 MB less: Gecko's crash-report analyser (RemBrowse sends no crash reports) and unused resources are left out.
+
+### Known limits
+* The memory and battery savings are estimated from measurements and the engine's source; compare `about:memory` before and after to see them on your device.
+
+### Testing
+296 automated tests.
+
 ## v0.13.2 (2026-11-21) — The window comes back from fullscreen; One left, two right; a divider that follows the mouse
 
 0.13.1 was built but never released; everything in it is part of this version.
