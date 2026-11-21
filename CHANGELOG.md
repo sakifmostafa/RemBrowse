@@ -11,6 +11,9 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **Servers that sign you in without a password or key, such as Tailscale SSH** (`tailscale up --ssh`), failed with "doesn't accept passwords". The terminal now asks the server first whether it needs anything, as OpenSSH's client does.
 * **"Refused the connection" was shown for every connection failure.** Android reports a refused connection, an unreachable network and a connection blocked by a VPN or firewall the same way. The terminal now says which it was, points at the port when a server refuses one other than 22, and for a Tailscale address (100.64.0.0/10 or a `.ts.net` name) reminds you to check that Tailscale is connected and not excluding RemBrowse.
 
+### Building
+* **A release build now needs the signing key and its passwords** (`signing/keystore.properties` or `REMBROWSE_STORE_PASSWORD` / `REMBROWSE_KEY_PASSWORD`), and stops with an error when either is missing. Before, it fell back to a password written in the build file, or, with no keystore, signed with the machine's debug key, which makes an APK that can't update installed copies. `scripts/change-keystore-password.sh` changes the keystore password safely. Debug builds, tests and lint don't need the key.
+
 ### Testing
 557 automated tests, including sign-in to an SSH server that needs no password or key, as Tailscale SSH does.
 

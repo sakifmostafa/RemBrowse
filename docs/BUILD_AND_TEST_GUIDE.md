@@ -18,6 +18,7 @@ Or by hand:
   ```bash
   sudo apt-get update && sudo apt-get install -y openjdk-21-jdk-headless unzip
   ```
+  A Java runtime without the compiler (`javac`) isn't enough: Gradle stops with "does not provide the required capabilities: [JAVA_COMPILER]". Without sudo, unpack a JDK 21 such as [Eclipse Temurin](https://adoptium.net/temurin/releases/?version=21) in your home folder and set `JAVA_HOME` to it, then run the script with `SKIP_APT=1`. The build server does this: its JDK is at `~/android-sdk/jdk-21`, set in `~/.bashrc`.
 * **Android CLI** (`android`) & Android SDK 35:
   ```bash
   curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
@@ -175,7 +176,12 @@ APK="build/RemBrowse-x86_64.apk"
 
 ## 5. Signing & Versioning Rules
 
-* **Persistent keystore**: when `signing/rembrowse.jks` exists (alias `rembrowse`; passwords from `REMBROWSE_STORE_PASSWORD` / `REMBROWSE_KEY_PASSWORD`, otherwise the defaults in `app/build.gradle.kts`), debug and release builds are signed with it. Releases from 0.09 on are signed with the key whose certificate has the SHA-256 fingerprint `F1:A5:30:6A:47:E4:BE:78:AD:7F:B0:C1:41:88:71:E3:A6:C9:A8:35:13:49:E2:42:39:DB:20:B4:75:B2:BE:06`; check a build with `apksigner verify --print-certs`. Keeping this keystore stable lets installed builds upgrade in place. It is intentionally not committed.
-* **Without the keystore** (a fresh clone, CI, a cloud build), builds are signed with that machine's debug key so they remain installable. Android will not install such a build over one signed with a different key: uninstall the old copy first. **Publish from a machine that has the keystore** if you want downloads to update in place.
+* **Persistent keystore**: releases are signed with `signing/rembrowse.jks` (alias `rembrowse`). Its passwords come from `signing/keystore.properties`:
+  ```properties
+  storePassword=...
+  keyPassword=...
+  ```
+  or, when that file doesn't have them, from `REMBROWSE_STORE_PASSWORD` and `REMBROWSE_KEY_PASSWORD`. There is no default password in the build. Both files are gitignored: never commit, paste or upload them, and keep a copy of each off the build machine. The keystore is PKCS12, so the key password is always the same as the store password. `bash scripts/change-keystore-password.sh` changes it (it asks for the new one without showing it, or makes a random one with `--generate`) and writes `keystore.properties`. The key itself doesn't change, so later builds still update installed copies. Releases from 0.09 on are signed with the key whose certificate has the SHA-256 fingerprint `F1:A5:30:6A:47:E4:BE:78:AD:7F:B0:C1:41:88:71:E3:A6:C9:A8:35:13:49:E2:42:39:DB:20:B4:75:B2:BE:06`; check a build with `apksigner verify --print-certs`. Keeping this keystore stable lets installed builds upgrade in place.
+* **Without the key or its passwords**, a release build (`assembleRelease`, `publishApk`) stops at once with an error saying what is missing. It never signs a release with another key, because such an APK can't update installed copies. Tests, lint and debug builds still work: debug builds are signed with that machine's debug key. Android won't install a debug build like that over a copy signed with a different key, so uninstall the old copy first. With the key set up, debug builds are signed with it too.
 * **Version increments**: for each new release, update `versionName` and **always increment `versionCode`** (`15` → `16` …) in `app/build.gradle.kts` to avoid `INSTALL_FAILED_VERSION_DOWNGRADE`. A small fix or change is a patch version (`0.13` → `0.13.1` → `0.13.2`); a bigger update moves to the next minor version (`0.14`). The in-app update check compares `versionCode` only, so any of these is offered as long as the code went up. APK names and `build/VERSION.txt` follow `versionName` automatically; update the version shown in the README's download section.
 * **Processor types**: `arm64-v8a` covers ARM phones, tablets and laptops; `x86_64` covers Intel/AMD Android laptops.

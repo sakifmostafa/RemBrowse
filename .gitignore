@@ -26,3 +26,8 @@ local.properties
 # Signing keys (keep keystore backed up securely outside public repos)
 signing/*.jks
 signing/*.keystore
+# The keystore passwords (scripts/change-keystore-password.sh writes this file)
+signing/keystore.properties
+# Working copies the password script makes while it runs
+signing/.rembrowse.jks.*
+signing/.keystore.properties.*

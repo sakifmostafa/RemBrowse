@@ -1,5 +1,6 @@
 import com.android.build.api.artifact.SingleArtifact
 import java.security.MessageDigest
+import java.util.Properties
 import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
@@ -10,6 +11,36 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+/**
+ * The release key (signing/rembrowse.jks, never committed) and its passwords, read from
+ * signing/keystore.properties (storePassword, keyPassword; also never committed, written by
+ * scripts/change-keystore-password.sh) or else from REMBROWSE_STORE_PASSWORD and
+ * REMBROWSE_KEY_PASSWORD. There is deliberately no default password.
+ */
+class ReleaseSigning(val keystore: File, val storePassword: String?, val keyPassword: String?) {
+    val ready: Boolean get() = keystore.isFile && storePassword != null && keyPassword != null
+
+    /** What is missing for signing a release, in words for the build error */
+    val missing: List<String> get() = buildList {
+        if (!keystore.isFile) add("the keystore (signing/rembrowse.jks)")
+        if (storePassword == null) add("the store password")
+        if (keyPassword == null) add("the key password")
+    }
+}
+
+val releaseSigning = run {
+    val properties = Properties()
+    val file = rootProject.file("signing/keystore.properties")
+    if (file.isFile) file.inputStream().use { properties.load(it) }
+    fun password(key: String, env: String): String? =
+        properties.getProperty(key)?.takeIf { it.isNotEmpty() } ?: System.getenv(env)?.takeIf { it.isNotEmpty() }
+    ReleaseSigning(
+        keystore = rootProject.file("signing/rembrowse.jks"),
+        storePassword = password("storePassword", "REMBROWSE_STORE_PASSWORD"),
+        keyPassword = password("keyPassword", "REMBROWSE_KEY_PASSWORD"),
+    )
 }
 
 android {
@@ -25,8 +56,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Where the app looks for new versions: the APKs and update.json that publishApk
-        // writes to build/ on main, read from GitHub (the repository must be public)
         // Where installed copies look for updates: update.json and the APKs published beside it
         // (./gradlew publishApk writes them to build/). The repository is private, so they are
         // served from RemBrowse's own site. -Prembrowse.updateUrl=... builds one that looks elsewhere.
@@ -44,21 +73,22 @@ android {
         }
     }
 
-    val keystoreFile = rootProject.file("signing/rembrowse.jks")
     signingConfigs {
         create("rembrowseKey") {
-            if (keystoreFile.exists()) {
-                storeFile = keystoreFile
-                storePassword = System.getenv("REMBROWSE_STORE_PASSWORD") ?: "rembrowse-dev-key"
+            if (releaseSigning.ready) {
+                storeFile = releaseSigning.keystore
+                storePassword = releaseSigning.storePassword
                 keyAlias = "rembrowse"
-                keyPassword = System.getenv("REMBROWSE_KEY_PASSWORD") ?: "rembrowse-dev-key"
+                keyPassword = releaseSigning.keyPassword
             }
         }
     }
 
     buildTypes {
         debug {
-            if (keystoreFile.exists()) {
+            // With the key and its passwords, debug builds are signed like releases so they can
+            // be installed over one. Without them they use this machine's debug key.
+            if (releaseSigning.ready) {
                 signingConfig = signingConfigs.getByName("rembrowseKey")
             }
         }
@@ -72,12 +102,10 @@ android {
                 getDefaultProguardFile("proguard-android.txt"),
                 "proguard-rules.pro"
             )
-            // Without the project keystore the build is signed with the local debug key so it
-            // can still be installed. Such a build cannot update one signed with the real key.
-            signingConfig = if (keystoreFile.exists()) {
-                signingConfigs.getByName("rembrowseKey")
-            } else {
-                signingConfigs.getByName("debug")
+            // Only ever signed with the RemBrowse key: without it, packaging a release stops with
+            // an error (see the check below the android block) rather than signing with another key.
+            if (releaseSigning.ready) {
+                signingConfig = signingConfigs.getByName("rembrowseKey")
             }
         }
     }
@@ -126,6 +154,42 @@ android {
         // web pages, extensions) inflates its own 13 MB copy into memory first; stored, it is
         // read straight from the mapped APK. Firefox for Android does the same.
         noCompress += "ja"
+    }
+}
+
+// A release is signed with the RemBrowse key or not built at all: an APK signed with any other key
+// can't update installed copies. This runs once Gradle knows which tasks it will run, so tests,
+// lint and debug builds work without the key; only packaging a release needs it.
+gradle.taskGraph.whenReady {
+    // Every task that writes a signed (or would-be signed) release APK or bundle, for any flavour:
+    // packageRelease, packageReleaseUniversalApk, packageReleaseBundle, signReleaseBundle,
+    // bundleRelease, makeApkFromBundleForRelease, extractApks(FromBundle)ForRelease,
+    // zipApksForRelease, installRelease. Not packageReleaseResources or
+    // bundleReleaseClassesTo*Jar, which tests and lint of the release variant use.
+    val releasePackaging = Regex(
+        "^(package|bundle|install|makeApkFromBundleFor|extractApksFor|extractApksFromBundleFor|zipApksFor)" +
+            "[A-Za-z]*Release(UniversalApk|Bundle)?$|^sign[A-Za-z]*ReleaseBundle$"
+    )
+    if (allTasks.none { it.project == project && releasePackaging.matches(it.name) }) return@whenReady
+    // Android Studio's "Generate Signed APK" passes its own keystore this way, which would take
+    // the place of the RemBrowse key without any error
+    (findProperty("android.injected.signing.store.file") as String?)?.let { injected ->
+        if (file(injected).canonicalFile != releaseSigning.keystore.canonicalFile) {
+            throw GradleException(
+                "A release build must be signed with signing/rembrowse.jks, not $injected " +
+                    "(android.injected.signing.store.file)."
+            )
+        }
+    }
+    if (!releaseSigning.ready) {
+        throw GradleException(
+            "A release build must be signed with the RemBrowse key, and " +
+                releaseSigning.missing.joinToString(" and ") +
+                (if (releaseSigning.missing.size == 1) " is missing. " else " are missing. ") +
+                "Put the keystore at signing/rembrowse.jks and its passwords in signing/keystore.properties " +
+                "(storePassword=... and keyPassword=...), or set REMBROWSE_STORE_PASSWORD and " +
+                "REMBROWSE_KEY_PASSWORD. See docs/BUILD_AND_TEST_GUIDE.md, section 5."
+        )
     }
 }
 
