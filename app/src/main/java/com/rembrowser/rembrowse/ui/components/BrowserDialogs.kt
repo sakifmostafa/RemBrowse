@@ -177,6 +177,7 @@ fun PagePromptDialog(prompt: PagePrompt, originLabel: String, onResolved: () -> 
                 onDismissRequest = ::dismiss,
                 title = { PromptTitle(title ?: "$originLabel asks") },
                 text = {
+                    TouchpadAsMouseInDialog()
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         PromptMessage(prompt.message)
                         OutlinedTextField(
@@ -206,6 +207,7 @@ fun PagePromptDialog(prompt: PagePrompt, originLabel: String, onResolved: () -> 
                 onDismissRequest = ::dismiss,
                 title = { PromptTitle(title ?: "Sign in to $originLabel") },
                 text = {
+                    TouchpadAsMouseInDialog()
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         PromptMessage(prompt.message)
                         if (prompt.previousAttemptFailed) {

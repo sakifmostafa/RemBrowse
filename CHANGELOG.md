@@ -2,6 +2,26 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased — Selecting text with the touchpad, and a desktop address bar
+
+### Fixed
+* **Selecting text with the touchpad did nothing in RemBrowse's own fields.** In the address bar, the find bar, the command palette and the search fields, a touchpad double-click, triple-click or click-and-drag selected nothing. The interface took touchpad clicks for finger taps, the same mix-up 0.13.6 fixed for web pages. Touchpad clicks now count as mouse clicks across the whole window and in dialogs, so text selects as it does with a mouse. The pointer also gets the interface's hover highlights and resize cursors.
+* **Resting two fingers mid-scroll on the tab rail could open a tab's menu**, as on web pages before 0.13.6. A touchpad scroll now has to move before anything sees it, everywhere in the window.
+* **Dragging across the unfocused address bar started the selection at the beginning of the address.** Clicking into the bar still selects the whole address, but a press that drags now selects what it covers.
+
+### Changed
+* **Double-clicking a word in the address bar selects just that word**, stopping at dots, slashes and hyphens as desktop browsers do: `example` in `www.example.com`, `some` in `some-path`. It used to select `www.example.com` or `some-path` whole.
+
+### Added
+* **Right-click menu in the address bar:** Cut, Copy, Paste, Paste and go, and Select all. It keeps the bar's selection and any address you were typing.
+
+### Known limits
+* Not yet tried on a device.
+* Other text fields keep Android's word rules for double-click, and have no right-click menu yet.
+
+### Testing
+408 automated tests.
+
 ## v0.13.6 (2026-11-21) — Right-click menus, and a touchpad that behaves
 
 ### Fixed

@@ -145,6 +145,25 @@ class TouchpadInputFilterTest {
     }
 
     @Test
+    fun aTouchpadsHoveringPointerIsAMouse_andOtherGenericEventsAreLeftAlone() {
+        val hover = touchpad(MotionEvent.ACTION_HOVER_MOVE, 40f, 50f)
+        TouchpadInputFilter.filterGeneric(hover) { forwarded += MotionEvent.obtain(it) }
+        assertEquals(MotionEvent.TOOL_TYPE_MOUSE, forwarded.single().getToolType(0))
+        assertEquals(MotionEvent.ACTION_HOVER_MOVE, forwarded.single().actionMasked)
+        assertEquals(40f, forwarded.single().x, 0f)
+
+        // A button notice keeps its action button, so it is not re-created
+        val press = touchpad(MotionEvent.ACTION_BUTTON_PRESS, 40f, 50f, buttons = MotionEvent.BUTTON_SECONDARY)
+        var passed: MotionEvent? = null
+        TouchpadInputFilter.filterGeneric(press) { passed = it }
+        assertTrue(passed === press)
+
+        val wheel = event(MotionEvent.ACTION_SCROLL, 40f, 50f, InputDevice.SOURCE_MOUSE, MotionEvent.TOOL_TYPE_MOUSE)
+        TouchpadInputFilter.filterGeneric(wheel) { passed = it }
+        assertTrue(passed === wheel)
+    }
+
+    @Test
     fun scrollSlop_isATenthOfAnInch_butNeverLessThanTheTouchSlop() {
         assertEquals(16f, TouchpadInputFilter.scrollSlopPx(dpi = 160f, touchSlopPx = 8), 0.001f)
         assertEquals(32f, TouchpadInputFilter.scrollSlopPx(dpi = 320f, touchSlopPx = 16), 0.001f)

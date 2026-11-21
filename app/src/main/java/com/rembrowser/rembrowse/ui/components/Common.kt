@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.PopupProperties
 import coil.compose.AsyncImage
 import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.BrowserTab
@@ -267,6 +268,8 @@ fun RemDropdownMenu(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     offset: DpOffset = DpOffset(0.dp, 4.dp),
+    /** Not focusable for a menu that acts on a text field, which must keep its focus meanwhile. */
+    properties: PopupProperties = PopupProperties(focusable = true),
     content: @Composable ColumnScope.() -> Unit
 ) {
     DropdownMenu(
@@ -274,6 +277,7 @@ fun RemDropdownMenu(
         onDismissRequest = onDismissRequest,
         modifier = modifier.widthIn(min = 220.dp),
         offset = offset,
+        properties = properties,
         shape = MaterialTheme.shapes.medium,
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
@@ -314,6 +318,7 @@ fun RemDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        TouchpadAsMouseInDialog()
         Surface(
             modifier = modifier
                 .padding(16.dp)

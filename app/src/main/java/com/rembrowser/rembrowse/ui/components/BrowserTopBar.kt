@@ -4,11 +4,14 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,13 +45,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
@@ -56,18 +62,28 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
@@ -75,6 +91,8 @@ import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /**
  * The single toolbar row: back, reload, address pill, bookmark, more, split view.
@@ -285,23 +303,50 @@ private fun AddressPill(
 ) {
     val colors = MaterialTheme.colorScheme
 
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    val viewConfiguration = LocalViewConfiguration.current
+    val density = LocalDensity.current
+
     // Unfocused: the tidy display form. Focused: the full address, selected, ready to replace.
     // In a split this one bar always shows, and acts on, the focused pane.
     val shown = if (isFocused) input else UrlResolver.toDisplayUrl(input)
     var value by remember { mutableStateOf(TextFieldValue(shown)) }
+    val presses = remember { AddressFieldPresses() }
+    // The right-click menu, open at this spot in the field
+    var menuAt by remember { mutableStateOf<Offset?>(null) }
+
     LaunchedEffect(isFocused) {
-        value = if (isFocused) {
-            TextFieldValue(input, TextRange(0, input.length))
-        } else {
-            TextFieldValue(shown)
+        if (!isFocused) {
+            value = TextFieldValue(shown)
+            menuAt = null
         }
     }
     LaunchedEffect(shown) {
         if (value.text != shown) {
             // Unfocused, the caret goes to the start: a text field scrolls to its caret, and an
-            // address too long for the bar must show its site, not the tail of its path.
-            value = TextFieldValue(shown, if (isFocused) TextRange(shown.length) else TextRange.Zero)
+            // address too long for the bar must show its site, not the tail of its path. Focused
+            // (the short form giving way to the full address), the selection stays.
+            value = if (isFocused) value.withTextKeepingSelection(shown) else TextFieldValue(shown, TextRange.Zero)
         }
+    }
+
+    // Focus selects the whole address, as in desktop browsers, but only once the press that gave
+    // it focus is over and only if that press did not select something by dragging. A frame later,
+    // because the text field places its caret for a click after focus has arrived.
+    fun selectAllIfPending() {
+        scope.launch {
+            withFrameNanos { }
+            if (presses.selectAllPending && !presses.pressed) {
+                presses.selectAllPending = false
+                if (value.selection.collapsed) value = value.copy(selection = TextRange(0, value.text.length))
+            }
+        }
+    }
+
+    fun edit(next: TextFieldValue) {
+        value = next
+        if (next.text != input) onChange(next.text)
     }
 
     val borderColor by animateColorAsState(
@@ -320,59 +365,215 @@ private fun AddressPill(
     ) {
         AddressStatusIcon(activeTab = activeTab, isEditing = isFocused)
         Spacer(modifier = Modifier.width(10.dp))
-        BasicTextField(
-            value = value,
-            onValueChange = { newValue ->
-                value = newValue
-                if (newValue.text != input) onChange(newValue.text)
-            },
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface),
-            cursorBrush = SolidColor(colors.primary),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Go,
-                autoCorrectEnabled = false
-            ),
-            keyboardActions = KeyboardActions(
-                onGo = {
-                    onSubmit()
-                    // Focus is handed to the page, never just cleared: clearing it lets Android
-                    // refocus the first button in the window, and the Enter key's release
-                    // would then press that button.
-                    onLeave()
-                }
-            ),
-            modifier = Modifier
-                .weight(1f)
-                .testTag("omnibox_input")
-                .semantics { contentDescription = "Address and search bar" }
-                .focusRequester(focusRequester)
-                .onFocusChanged { onFocusChange(it.isFocused) }
-                .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
-                        // Abandon the edit and show the current page's address again
-                        onLeave()
-                        true
-                    } else {
-                        false
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            BasicTextField(
+                value = value,
+                onValueChange = { newValue ->
+                    var next = newValue
+                    if (newValue.selection.collapsed) {
+                        presses.lastCaret = newValue.selection.start
+                    } else if (newValue.text == value.text && presses.isDoubleClickWord(newValue.selection)) {
+                        // A double click: stop the word at the address's punctuation
+                        presses.wordNarrowed = true
+                        addressWordAt(newValue.text, presses.lastCaret!!)?.let { next = newValue.copy(selection = it) }
                     }
+                    edit(next)
                 },
-            decorationBox = { innerTextField ->
-                Box(contentAlignment = Alignment.CenterStart) {
-                    if (value.text.isEmpty()) {
-                        Text(
-                            text = "Search or enter a web address",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface),
+                cursorBrush = SolidColor(colors.primary),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Uri,
+                    imeAction = ImeAction.Go,
+                    autoCorrectEnabled = false
+                ),
+                keyboardActions = KeyboardActions(
+                    onGo = {
+                        onSubmit()
+                        // Focus is handed to the page, never just cleared: clearing it lets Android
+                        // refocus the first button in the window, and the Enter key's release
+                        // would then press that button.
+                        onLeave()
                     }
-                    innerTextField()
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("omnibox_input")
+                    .semantics { contentDescription = "Address and search bar" }
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { state ->
+                        if (state.isFocused && !presses.focused) {
+                            presses.selectAllPending = true
+                            if (!presses.pressed) selectAllIfPending()
+                        } else if (!state.isFocused) {
+                            presses.selectAllPending = false
+                        }
+                        presses.focused = state.isFocused
+                        onFocusChange(state.isFocused)
+                    }
+                    // Watches presses before the text field handles them, without taking them,
+                    // except a right click, which opens the field's own menu
+                    .pointerInput(Unit) {
+                        val clickSlop = with(density) { DoubleClickSlop.toPx() }
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            if (currentEvent.buttons.isSecondaryPressed) {
+                                down.consume()
+                                if (!presses.focused) focusRequester.requestFocus()
+                                menuAt = down.position
+                                do {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    event.changes.forEach { it.consume() }
+                                } while (event.changes.any { it.pressed })
+                                return@awaitEachGesture
+                            }
+                            presses.press(down.uptimeMillis, down.position, viewConfiguration.doubleTapTimeoutMillis, clickSlop)
+                            try {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    presses.move(change.position, viewConfiguration.touchSlop)
+                                    if (!change.pressed) break
+                                }
+                            } finally {
+                                presses.release()
+                                if (presses.selectAllPending) selectAllIfPending()
+                            }
+                        }
+                    }
+                    .onPreviewKeyEvent { event ->
+                        if (menuAt != null && event.type == KeyEventType.KeyDown) {
+                            // Typing, or Esc, closes the menu first
+                            menuAt = null
+                            if (event.key == Key.Escape) return@onPreviewKeyEvent true
+                        }
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                            // Abandon the edit and show the current page's address again
+                            onLeave()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                decorationBox = { innerTextField ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (value.text.isEmpty()) {
+                            Text(
+                                text = "Search or enter a web address",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        innerTextField()
+                    }
                 }
+            )
+
+            menuAt?.let { at ->
+                AddressFieldMenu(
+                    at = at,
+                    hasSelection = value.selection.length > 0,
+                    hasText = value.text.isNotEmpty(),
+                    canPaste = clipboard.hasText(),
+                    onCut = {
+                        clipboard.setText(AnnotatedString(value.selectedText()))
+                        edit(value.replaceSelection(""))
+                    },
+                    onCopy = { clipboard.setText(AnnotatedString(value.selectedText())) },
+                    onPaste = {
+                        val pasted = pastedOnOneLine(clipboard.getText()?.text.orEmpty())
+                        if (pasted.isNotEmpty()) edit(value.replaceSelection(pasted))
+                    },
+                    onPasteAndGo = {
+                        val pasted = pastedOnOneLine(clipboard.getText()?.text.orEmpty())
+                        if (pasted.isNotEmpty()) {
+                            edit(TextFieldValue(pasted, TextRange(pasted.length)))
+                            onSubmit()
+                            onLeave()
+                        }
+                    },
+                    onSelectAll = { value = value.copy(selection = TextRange(0, value.text.length)) },
+                    onDismiss = { menuAt = null }
+                )
             }
-        )
+        }
+    }
+}
+
+/** How far apart two clicks may be and still be a double click; Compose's own figure for text. */
+private val DoubleClickSlop = 50.dp
+
+/**
+ * The address bar's right-click menu, opened at [at] in the field. It does not take focus, so the
+ * field keeps its text, selection and caret while it is open.
+ */
+@Composable
+private fun AddressFieldMenu(
+    at: Offset,
+    hasSelection: Boolean,
+    hasText: Boolean,
+    canPaste: Boolean,
+    onCut: () -> Unit,
+    onCopy: () -> Unit,
+    onPaste: () -> Unit,
+    onPasteAndGo: () -> Unit,
+    onSelectAll: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    fun run(action: () -> Unit): () -> Unit = {
+        onDismiss()
+        action()
+    }
+    Box(
+        modifier = Modifier
+            .offset { IntOffset(at.x.roundToInt(), at.y.roundToInt()) }
+            .size(0.dp)
+    ) {
+        RemDropdownMenu(
+            expanded = true,
+            onDismissRequest = onDismiss,
+            offset = DpOffset.Zero,
+            properties = PopupProperties(focusable = false),
+            modifier = Modifier.testTag("address_menu")
+        ) {
+            DropdownMenuItem(
+                text = { Text("Cut") },
+                trailingIcon = { ShortcutHint("Ctrl+X") },
+                enabled = hasSelection,
+                onClick = run(onCut),
+                modifier = Modifier.testTag("address_menu_cut")
+            )
+            DropdownMenuItem(
+                text = { Text("Copy") },
+                trailingIcon = { ShortcutHint("Ctrl+C") },
+                enabled = hasSelection,
+                onClick = run(onCopy),
+                modifier = Modifier.testTag("address_menu_copy")
+            )
+            DropdownMenuItem(
+                text = { Text("Paste") },
+                trailingIcon = { ShortcutHint("Ctrl+V") },
+                enabled = canPaste,
+                onClick = run(onPaste),
+                modifier = Modifier.testTag("address_menu_paste")
+            )
+            DropdownMenuItem(
+                text = { Text("Paste and go") },
+                enabled = canPaste,
+                onClick = run(onPasteAndGo),
+                modifier = Modifier.testTag("address_menu_paste_and_go")
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            DropdownMenuItem(
+                text = { Text("Select all") },
+                trailingIcon = { ShortcutHint("Ctrl+A") },
+                enabled = hasText,
+                onClick = run(onSelectAll),
+                modifier = Modifier.testTag("address_menu_select_all")
+            )
+        }
     }
 }
 

@@ -11,6 +11,8 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -44,6 +46,7 @@ import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.engine.PaneGeckoView
+import com.rembrowser.rembrowse.engine.TouchpadInputFilter
 import com.rembrowser.rembrowse.engine.usePageRendering
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
@@ -435,6 +438,30 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent)
+    }
+
+    // Touchpad clicks reach the whole window as mouse clicks, and resting fingers mid-scroll are
+    // never a press (see TouchpadInputFilter). Created on first use: it needs the display.
+    private val touchpad by lazy {
+        TouchpadInputFilter(
+            TouchpadInputFilter.scrollSlopPx(
+                dpi = resources.displayMetrics.let { maxOf(it.densityDpi.toFloat(), it.xdpi, it.ydpi) },
+                touchSlopPx = ViewConfiguration.get(this).scaledTouchSlop
+            )
+        )
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // A touchpad scroll held back is still the window's gesture
+        var handled = true
+        touchpad.filter(event) { handled = super.dispatchTouchEvent(it) }
+        return handled
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        var handled = false
+        TouchpadInputFilter.filterGeneric(event) { handled = super.dispatchGenericMotionEvent(it) }
+        return handled
     }
 
     // Shortcuts are read here, before the focused view, so they also work while a web page has

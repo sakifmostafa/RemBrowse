@@ -116,6 +116,7 @@ fun CommandPalette(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        TouchpadAsMouseInDialog()
         Surface(
             modifier = Modifier
                 .padding(16.dp)

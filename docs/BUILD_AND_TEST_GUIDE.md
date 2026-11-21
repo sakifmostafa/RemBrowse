@@ -36,7 +36,7 @@ PROJECT_CACHE_DIR="$HOME/.cache/projects/$(basename "$PWD")-$(pwd -P | sha1sum |
 
 ## 3. Running Automated Tests
 
-Run all **386 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
+Run all **408 tests** (JVM unit tests, Robolectric persistence and headless Jetpack Compose UI tests):
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon \
@@ -55,6 +55,8 @@ Test suites included:
 * `SplitDividerMouseTest` / `PaneGeckoViewTest` — dragging a divider with a mouse (every step followed, side by side, stacked and nested, past a limit and back, one save per drag, a split that turns), double-click with and without a slip, the other mouse buttons, the resize cursor over the whole grip and during a drag, finger drag and double-tap; and a pane's web view giving up its cursor while the chrome has the pointer.
 * `OneAndTwoLayoutUiTest` — the One left, two right layout from the Split menu.
 * `TouchpadInputFilterTest` — touchpad input for a page's web view: a touchpad right click (a finger pointer from a mouse source) passed on as a mouse right click with its button and position, a touchpad click-and-drag kept a mouse drag, fingers resting mid-scroll or a small nudge never reaching the page, a scroll passed on whole (press, then the move past the slop) once it moves, and touchscreen input and real mouse clicks left alone.
+* `AddressBarSelectionTest` / `AddressFieldTest` — the address bar with a mouse and with a touchpad (through the same filter as the window), on real text measurement: a click into the bar selects the address and a second click places the caret, double-click selects the word between punctuation (also straight away on the unfocused bar), drags select what they cover (also from the unfocused bar), triple-click selects all, focus from the keyboard selects all, and the right-click menu cuts, copies, pastes (on one line), pastes and goes, selects all and greys out what it cannot do; plus the word, paste and click-counting rules on their own.
+* `TouchpadWindowsTest` — a touchpad click in a dialog reaches it as a mouse click.
 * `PageContextMenuTest` / `PageContextMenuUiTest` — the right-click menu: the rows for a link, a picture or video, a linked picture and the page itself, what is not opened or copied (`javascript:`, `mailto:` links are only copied, `blob:` media), Back greyed out with nowhere to go, the copy texts; and on the real screen, opening it for a link, a video and the page, copying to the clipboard and reloading from it.
 * `PageSurfaceTest` — with a real GeckoView, a texture-backed page keeps one compositor surface across frames (stock GeckoView swaps it on every frame) except for the one frame after GeckoView asks for a new surface, and each Page rendering choice sets the view up as described; plus the setting's storage and its radio group in Settings.
 * `FindInPageTest` / `FindInPageUiTest` — find in page: only on web pages, searching as you type, answers for older text dropped, next, previous and match case, clearing, closing with Esc or ×, closing when another tab takes focus, the count after a new page, and how the count reads.

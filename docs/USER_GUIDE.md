@@ -18,7 +18,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 * **Back**, and **Forward** when there is somewhere to go forward to.
 * **Reload** (becomes **Stop** while a page loads).
-* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Selecting the bar selects the whole address; Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
+* **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
 * **More (⋯)** — new tab, close tab, command palette, find in page, bookmarks, history, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
@@ -50,7 +50,9 @@ Right-click on a page, with a mouse or the touchpad (a two-finger tap, or a clic
 * **A picture, video or sound** — **Open image in new tab** and **Copy image address** (or video, or audio). A linked picture gets both the link's and the picture's rows.
 * **Anywhere else on the page** — **Back**, **Forward**, **Reload**, **Bookmark this page**, **Copy page address** and **Find in page**.
 
-The menu opens where you clicked; select a row, or click anywhere else (or press Esc) to close it. Sites with their own right-click menus, such as Google Docs, keep showing theirs. With text selected, a right-click shows the toolbar for the selection (Copy, Select all and so on) instead. In a text field, right-click does nothing; use `Ctrl+C`, `Ctrl+X` and `Ctrl+V`. On a touchscreen, long-press a link or picture for the same menu; long-pressing text selects it, as in any Android browser.
+The menu opens where you clicked; select a row, or click anywhere else (or press Esc) to close it. Sites with their own right-click menus, such as Google Docs, keep showing theirs. With text selected, a right-click shows the toolbar for the selection (Copy, Select all and so on) instead. In a page's text fields, right-click does nothing; use `Ctrl+C`, `Ctrl+X` and `Ctrl+V` (the address bar has its own right-click menu). On a touchscreen, long-press a link or picture for the same menu; long-pressing text selects it, as in any Android browser.
+
+**The touchpad is a mouse everywhere.** Touchpad clicks work like mouse clicks in pages and in RemBrowse's own fields and buttons: double-click selects a word, click-and-drag selects text, triple-click selects a line, and the pointer shows hover highlights and resize cursors.
 
 **Touchpad scrolling.** Two fingers resting on the pad, or moving only a little, never count as a press on the page: scrolling then pausing no longer opens menus or selects words, and a small nudge no longer clicks whatever is under the pointer. A page starts to scroll once the fingers have moved about 2.5 mm.
 

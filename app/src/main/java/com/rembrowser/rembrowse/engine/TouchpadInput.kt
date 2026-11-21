@@ -30,6 +30,13 @@ import kotlin.math.hypot
  * Touchscreen and stylus input, real mouse clicks, and touchpad streams of more than one pointer
  * (a pinch) are passed on as they come.
  *
+ * Used twice: by the activity for its whole window, so the browser's own controls get mouse
+ * clicks from the touchpad too (Compose decides by tool type as well: a touchpad click was a tap,
+ * so double-click, drag and triple-click selected nothing in its text fields, and resting fingers
+ * long-pressed the tab rail), and by every page's web view, which also covers the ones shown in
+ * windows of their own (extension popups). Filtering twice is harmless: what the first filter
+ * hands on passes the second unchanged or, for a scroll, released at once.
+ *
  * Main thread only, as views are.
  *
  * @param scrollSlopPx how far a touchpad scroll travels before the page sees it; it must be more
@@ -127,6 +134,20 @@ class TouchpadInputFilter(private val scrollSlopPx: Float) {
         /** [SCROLL_SLOP_INCHES] on a screen of [dpi], but never less than [touchSlopPx]. */
         fun scrollSlopPx(dpi: Float, touchSlopPx: Int): Float =
             maxOf(SCROLL_SLOP_INCHES * dpi, touchSlopPx.toFloat())
+
+        /**
+         * Hover events come through `dispatchGenericMotionEvent`, apart from presses. A touchpad's
+         * hovering pointer is handed on as a mouse too, so the window sees one mouse from hover
+         * to click to hover (Compose then shows hover states and cursors for it). Everything else,
+         * including the button press and release notices, is handed on unchanged.
+         */
+        fun filterGeneric(event: MotionEvent, forward: (MotionEvent) -> Unit) {
+            val hover = when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_EXIT -> true
+                else -> false
+            }
+            if (hover && isTouchpadFinger(event)) forwardAsMouse(event, forward) else forward(event)
+        }
 
         /** A touchpad reported the Android way: a mouse source whose pointer is not a mouse. */
         fun isTouchpadFinger(event: MotionEvent): Boolean =
