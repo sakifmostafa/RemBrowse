@@ -54,7 +54,9 @@ class GeckoSessionHandle(
     internal var lastState: GeckoSession.SessionState? = null
 
     private var needsRestore = false
-    private var isVisible = false
+    /** Whether the page is meant to be active: what [setVisible] was last told. */
+    internal var isVisible = false
+        private set
     private var lastRestoreAt = 0L
     private var closed = false
 
@@ -370,6 +372,19 @@ class GeckoBrowserEngine(
             }
         }
 
+        // A call must not be paused with the window minimised or the tab in the background
+        geckoSession.mediaDelegate = object : GeckoSession.MediaDelegate {
+            override fun onRecordingStatusChanged(
+                session: GeckoSession,
+                devices: Array<GeckoSession.MediaDelegate.RecordingDevice>
+            ) {
+                val recording = devices.any {
+                    it.status == GeckoSession.MediaDelegate.RecordingDevice.Status.RECORDING
+                }
+                listener.onRecordingChanged(tabId, recording)
+            }
+        }
+
         geckoSession.contentDelegate = object : GeckoSession.ContentDelegate {
             override fun onTitleChange(session: GeckoSession, title: String?) {
                 if (!title.isNullOrBlank()) {
@@ -493,9 +508,10 @@ class GeckoBrowserEngine(
             }
 
             geckoView.setSession(targetSession)
-            // Make sure the compositor is active so a newly shown tab paints immediately
+            // A newly shown tab paints at once; a pane nobody can see (under a fullscreen page,
+            // or while the window is away) stays paused
             if (targetSession.isOpen) {
-                targetSession.setActive(true)
+                targetSession.setActive(handle.isVisible)
             }
             sessionOwners[targetSession] = geckoView
         }

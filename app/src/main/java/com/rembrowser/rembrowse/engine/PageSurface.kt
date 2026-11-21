@@ -57,10 +57,31 @@ internal fun ViewGroup.setUpSurfaceOncePerTexture(): Boolean {
     return true
 }
 
-/** Passes on everything about a texture's life to [delegate], and nothing about its frames. */
+/**
+ * GeckoView asked for a new surface because its compositor could not use the one it had
+ * (`GeckoView.requestNewSurface`). For a texture, GeckoView gets one only through the next frame
+ * callback, so that one frame is let through.
+ */
+internal fun ViewGroup.letNextTextureFrameThrough() {
+    val texture = children.filterIsInstance<TextureView>().firstOrNull() ?: return
+    (texture.surfaceTextureListener as? OncePerTextureListener)?.letNextFrameThrough()
+}
+
+/**
+ * Passes on everything about a texture's life to [delegate], and nothing about its frames,
+ * except one when GeckoView asks for a new surface ([letNextFrameThrough]).
+ */
 internal class OncePerTextureListener(
     private val delegate: TextureView.SurfaceTextureListener
 ) : TextureView.SurfaceTextureListener {
+
+    // Used on the main thread only, as the texture's callbacks are
+    private var passNextFrame = false
+
+    /** The next frame reaches GeckoView, which then sets its compositor up again on the texture. */
+    fun letNextFrameThrough() {
+        passNextFrame = true
+    }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) =
         delegate.onSurfaceTextureAvailable(surface, width, height)
@@ -71,6 +92,12 @@ internal class OncePerTextureListener(
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean =
         delegate.onSurfaceTextureDestroyed(surface)
 
-    // A new frame is on screen. The surface it was drawn into has not changed.
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+    // A new frame is on screen. The surface it was drawn into has not changed, unless GeckoView
+    // asked for it to be set up again.
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        if (passNextFrame) {
+            passNextFrame = false
+            delegate.onSurfaceTextureUpdated(surface)
+        }
+    }
 }

@@ -142,6 +142,11 @@ class BrowserViewModel(
             syncSessions()
         }
 
+        override fun onRecordingChanged(tabId: String, recording: Boolean) {
+            val changed = if (recording) recordingTabIds.add(tabId) else recordingTabIds.remove(tabId)
+            if (changed) syncSessions()
+        }
+
         override fun onDownloadRequested(request: DownloadRequest) {
             val handler = downloadHandler
             if (handler != null) {
@@ -158,6 +163,9 @@ class BrowserViewModel(
 
     /** Whether the browser window is on screen at all (false while it is minimised or covered). */
     private var windowShown = true
+
+    /** Tabs using the camera or microphone, such as a call. They are never paused. */
+    private val recordingTabIds = mutableSetOf<String>()
 
     /** Tabs in which the engine has shown a document since this browser started. */
     private val tabsWithContent = mutableSetOf<String>()
@@ -594,8 +602,9 @@ class BrowserViewModel(
 
     /**
      * The window was minimised or covered ([shown] false), or came back. While it is away no
-     * page is active: they stop painting and their timers slow down, as for a background tab.
-     * Sound keeps playing.
+     * page is active, as for a background tab: it stops painting, and Gecko on Android suspends
+     * it (timers, workers). Pages playing sound stay awake, and so do pages using the camera or
+     * microphone.
      */
     fun setWindowShown(shown: Boolean) {
         if (windowShown == shown) return
@@ -931,6 +940,7 @@ class BrowserViewModel(
             fullscreenId = null
         }
         val activeId = state.activeTabId
+        recordingTabIds.retainAll(state.tabs.map { it.id }.toSet())
         state.tabs.forEach { tab ->
             val inPane = tab.id in visibleIds
             // Internal pages are drawn by the app and never get a session of their own
@@ -940,9 +950,9 @@ class BrowserViewModel(
                 engine.getSession(tab.id) ?: return@forEach
             }
             // A pane is only worth running while someone can see it: not under a fullscreen
-            // page, and not while the whole window is away
+            // page, and not while the whole window is away. A call keeps running wherever it is.
             val seen = inPane && windowShown && (fullscreenId == null || tab.id == fullscreenId)
-            session.setVisible(seen)
+            session.setVisible(seen || tab.id in recordingTabIds)
             session.setFocusedForExtensions(tab.id == activeId)
         }
     }

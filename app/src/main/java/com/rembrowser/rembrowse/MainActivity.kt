@@ -336,7 +336,7 @@ class MainActivity : ComponentActivity() {
                             AndroidView(
                                 modifier = modifier,
                                 factory = { ctx ->
-                                    GeckoView(ctx).apply {
+                                    PaneGeckoView(ctx).apply {
                                         // Always a texture: the popup's window fades in and
                                         // has rounded corners of its own
                                         usePageRendering(

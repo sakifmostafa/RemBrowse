@@ -43,6 +43,9 @@ interface SessionEventListener {
 
     /** The page in [tabId] asked to fill the screen (a video's fullscreen button), or left it. */
     fun onFullScreenChanged(tabId: String, fullScreen: Boolean) {}
+
+    /** The page in [tabId] started or stopped using the camera or microphone (a call, a recording). */
+    fun onRecordingChanged(tabId: String, recording: Boolean) {}
 }
 
 interface BrowserSessionHandle {

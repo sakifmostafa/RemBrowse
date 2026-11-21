@@ -52,6 +52,11 @@ class FakeSessionHandle(
         listener.onFullScreenChanged(tabId, fullScreen)
     }
 
+    /** The page started or stopped using the camera or microphone. */
+    fun simulateRecording(recording: Boolean) {
+        listener.onRecordingChanged(tabId, recording)
+    }
+
     fun simulatePageLoad(url: String, title: String, canGoBack: Boolean = true) {
         listener.onSessionUpdated(
             tabId,

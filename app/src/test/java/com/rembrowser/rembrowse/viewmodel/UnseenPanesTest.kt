@@ -67,6 +67,28 @@ class UnseenPanesTest {
     }
 
     @Test
+    fun aCallKeepsRunning_minimised_behindFullscreen_orInTheBackground() {
+        val (left, right, hidden) = twoPanesAndABackgroundTab()
+        engine.sessions.getValue(right).simulateRecording(true)
+        engine.sessions.getValue(hidden).simulateRecording(true)
+        assertTrue("A call in a background tab is not frozen", active(hidden))
+
+        viewModel.setWindowShown(false)
+        assertFalse(active(left))
+        assertTrue("…nor while the window is away", active(right))
+
+        viewModel.setWindowShown(true)
+        engine.sessions.getValue(left).simulateFullScreen(true)
+        assertTrue("…nor under a fullscreen video", active(right))
+
+        // Once the call ends, the tab is paused like any other
+        engine.sessions.getValue(left).simulateFullScreen(false)
+        engine.sessions.getValue(hidden).simulateRecording(false)
+        assertFalse(active(hidden))
+        assertTrue(active(right))
+    }
+
+    @Test
     fun aTabShownWhileTheWindowIsAway_waitsForTheWindow() {
         val (_, right, hidden) = twoPanesAndABackgroundTab()
         viewModel.setWindowShown(false)

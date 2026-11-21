@@ -133,6 +133,36 @@ class PageSurfaceTest {
     }
 
     @Test
+    fun whenGeckoViewAsksForANewSurface_theNextFrameIsLetThrough_once() {
+        val gecko = RecordingListener()
+        val listener = OncePerTextureListener(gecko)
+        val texture = SurfaceTexture(0)
+
+        listener.onSurfaceTextureUpdated(texture)
+        listener.letNextFrameThrough()
+        repeat(3) { listener.onSurfaceTextureUpdated(texture) }
+
+        assertEquals("Exactly the frame after the request", listOf("frame"), gecko.calls)
+    }
+
+    @Test
+    fun aPanesWebView_letsAFrameThroughWhenItsCompositorAsksForANewSurface() {
+        val view = PaneGeckoView(context).apply { usePageRendering(PageRendering.STANDARD) }
+        val texture = textureOf(view)!!
+        val wrapper = texture.surfaceTextureListener as OncePerTextureListener
+        val gecko = RecordingListener()
+        // Watch what reaches GeckoView's own listener, through the same wrapper
+        val watched = OncePerTextureListener(gecko)
+        texture.surfaceTextureListener = watched
+
+        view.requestNewSurface()
+        watched.onSurfaceTextureUpdated(SurfaceTexture(0))
+
+        assertEquals(listOf("frame"), gecko.calls)
+        assertTrue(wrapper !== watched)
+    }
+
+    @Test
     fun thePanesOwnWebView_takesTheSameSetUp() {
         val view = PaneGeckoView(context) { false }.apply { usePageRendering(PageRendering.STANDARD) }
 

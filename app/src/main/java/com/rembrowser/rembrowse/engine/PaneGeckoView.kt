@@ -13,8 +13,21 @@ import org.mozilla.geckoview.GeckoView
  * the view, also under chrome drawn on top of its edge.
  */
 @SuppressLint("ViewConstructor") // Only ever created in code
-class PaneGeckoView(context: Context, private val chromeHasPointer: () -> Boolean) : GeckoView(context) {
+class PaneGeckoView(
+    context: Context,
+    private val chromeHasPointer: () -> Boolean = { false }
+) : GeckoView(context) {
 
     override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): PointerIcon? =
         if (chromeHasPointer()) null else super.onResolvePointerIcon(event, pointerIndex)
+
+    /**
+     * The compositor could not use its surface and asks for a new one. GeckoView provokes it by
+     * toggling the texture's visibility, which only produces a frame callback; with Standard
+     * rendering frame callbacks are held back, so the next one is let through (see PageSurface).
+     */
+    override fun requestNewSurface() {
+        letNextTextureFrameThrough()
+        super.requestNewSurface()
+    }
 }
