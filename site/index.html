@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RemBrowse · the tiled browser for Android</title>
 <meta name="description" content="RemBrowse puts up to four web pages side by side on Android laptops, tablets and phones. Firefox's engine, real Firefox add-ons and an SSH terminal that opens like a tab.">
-<meta name="theme-color" content="#14161b">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f2f3" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark light">
 <link rel="canonical" href="https://browse.example.com/">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -17,8 +18,8 @@
 <meta property="og:image" content="https://browse.example.com/assets/img/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="assets/fonts/source-serif-4-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/site.css?v=1">
-<script src="assets/site.js?v=1" defer></script>
+<link rel="stylesheet" href="assets/site.css?v=2">
+<script src="assets/site.js?v=2" defer></script>
 </head>
 <body>
 <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
@@ -275,7 +276,7 @@ active
             <span data-dl-label>Download for Intel or AMD</span>
           </a>
           <div class="sha" data-sha-row hidden>
-            <span>SHA-256</span><code data-sha></code>
+            <span class="sha-label">SHA-256</span><code data-sha></code>
             <button class="copy-btn" type="button" data-copy aria-label="Copy the SHA-256 of the Intel or AMD download"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
           </div>
         </article>
@@ -288,7 +289,7 @@ active
             <span data-dl-label>Download for ARM</span>
           </a>
           <div class="sha" data-sha-row hidden>
-            <span>SHA-256</span><code data-sha></code>
+            <span class="sha-label">SHA-256</span><code data-sha></code>
             <button class="copy-btn" type="button" data-copy aria-label="Copy the SHA-256 of the ARM download"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
           </div>
         </article>

@@ -27,19 +27,103 @@
     let held = false; // pointer or keyboard focus on the demo
     let timer = null;
 
-    const setLayout = (name, announce) => {
+    // Which panes and dividers each layout shows (the CSS hides the rest; keep the two in step)
+    const SHOWN = {
+      side: [".p1", ".p2", ".gv1"],
+      stacked: [".p1", ".p2", ".gh"],
+      grid: [".p1", ".p2", ".p3", ".p4", ".gv1", ".gv2", ".gh"],
+      onetwo: [".p1", ".p2", ".p3", ".gv1", ".gh"],
+    };
+    const parts = Array.from(win.querySelectorAll(".pane, .grip"));
+    const shownIn = (name) => new Set(SHOWN[name].map((sel) => win.querySelector(sel)));
+    const MOVE = { duration: 420, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" };
+    const EXIT = { duration: 160, easing: "cubic-bezier(0.4, 0, 1, 1)" };
+    const ENTER_EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
+    const near = (a, b, by) => Math.abs(a - b) <= by;
+
+    // Switches layout. The new geometry is set at once by the CSS; the change is then played with
+    // transforms and opacity only (FLIP: from where each part is on screen to where it now
+    // belongs), so nothing is laid out again while it moves. A pane whose size changes fades its
+    // contents out and back in rather than showing them stretched. Every animation starts from
+    // what is on screen at that moment, so a switch made mid-move carries on smoothly, and none
+    // of them is needed for the final state, which the CSS already holds.
+    const morph = (name) => {
+      if (reduceMotion.matches || typeof win.animate !== "function") {
+        setLayout(name);
+        return;
+      }
+      const now = new Map(
+        parts.map((el) => {
+          const page = el.querySelector(".pg");
+          return [el, {
+            rect: el.getBoundingClientRect(),
+            opacity: parseFloat(getComputedStyle(el).opacity),
+            content: page ? parseFloat(getComputedStyle(page).opacity) : 1,
+          }];
+        })
+      );
+      for (const el of win.querySelectorAll(".pane, .grip, .pg")) el.getAnimations().forEach((a) => a.cancel());
+      setLayout(name);
+      const after = shownIn(name);
+      let entering = 0;
+      for (const el of parts) {
+        const was = now.get(el);
+        const isGrip = el.classList.contains("grip");
+        const shown = after.has(el);
+        const onScreen = was.opacity > 0.02;
+        if (!onScreen && !shown) continue;
+        if (!onScreen) {
+          // Appears: grows into place from its own centre
+          el.animate(
+            [
+              { opacity: 0, transformOrigin: "50% 50%", transform: isGrip ? "translate(-50%, -50%) scale(0.8)" : "scale(0.96)" },
+              { opacity: 1, transformOrigin: "50% 50%", transform: isGrip ? "translate(-50%, -50%)" : "none" },
+            ],
+            { duration: 260, delay: 140 + entering++ * 40, easing: ENTER_EASE, fill: "backwards" }
+          );
+          continue;
+        }
+        const to = el.getBoundingClientRect();
+        if (to.width && to.height) {
+          const dx = was.rect.left - to.left;
+          const dy = was.rect.top - to.top;
+          if (isGrip) {
+            if (!near(dx, 0, 0.5) || !near(dy, 0, 0.5)) {
+              el.animate([{ transform: "translate(calc(-50% + " + dx + "px), calc(-50% + " + dy + "px))" }, { transform: "translate(-50%, -50%)" }], MOVE);
+            }
+          } else {
+            const sx = was.rect.width / to.width;
+            const sy = was.rect.height / to.height;
+            if (!near(dx, 0, 0.5) || !near(dy, 0, 0.5) || !near(sx, 1, 0.01) || !near(sy, 1, 0.01)) {
+              el.animate([{ transform: "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")" }, { transform: "none" }], MOVE);
+              const page = el.querySelector(".pg");
+              if (page && (!near(sx, 1, 0.02) || !near(sy, 1, 0.02))) {
+                page.animate([{ opacity: was.content }, { opacity: 0, offset: 0.15 }, { opacity: 0, offset: 0.55 }, { opacity: 1 }], MOVE);
+              }
+            }
+          }
+        }
+        if (!shown) {
+          // Leaves: fades out from wherever its opacity is, kept visible until the fade ends
+          el.animate([{ opacity: was.opacity, visibility: "visible" }, { opacity: 0, visibility: "visible" }], EXIT);
+        } else if (was.opacity < 0.99) {
+          el.animate([{ opacity: was.opacity }, { opacity: 1 }], { duration: 200, easing: ENTER_EASE });
+        }
+      }
+    };
+
+    const setLayout = (name) => {
       win.dataset.layout = name;
       index = order.indexOf(name);
       for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.layoutBtn === name));
       win.setAttribute("aria-label", "A RemBrowse window with " + descriptions[name] + ".");
-      if (announce && status) status.textContent = names[name] + ": " + descriptions[name] + ".";
     };
 
     const sync = () => {
       clearInterval(timer);
       timer = null;
       if (playing && onScreen && !held && !document.hidden) {
-        timer = setInterval(() => setLayout(order[(index + 1) % order.length], false), 3400);
+        timer = setInterval(() => morph(order[(index + 1) % order.length]), 3400);
       }
       if (pauseBtn) {
         pauseBtn.hidden = reduceMotion.matches;
@@ -51,7 +135,8 @@
     for (const b of buttons) {
       b.addEventListener("click", () => {
         playing = false;
-        setLayout(b.dataset.layoutBtn, true);
+        morph(b.dataset.layoutBtn);
+        if (status) status.textContent = names[b.dataset.layoutBtn] + ": " + descriptions[b.dataset.layoutBtn] + ".";
         sync();
       });
     }
@@ -193,10 +278,15 @@
       // A new address for each version, so no cache anywhere can hand out an older file
       link.href = apk.file + "?v=" + release.versionCode;
       link.setAttribute("download", "RemBrowse-" + release.versionName + "-" + abi + ".apk");
-      card.querySelector("[data-dl-label]").textContent = "Download for " + ABI_NAMES[abi] + " · " + megabytes(apk.size);
+      // Seen: "Download · 89.6 MB" (the card's heading names the processor). Heard: "Download for
+      // Intel or AMD · 89.6 MB", which still begins with the visible words.
+      const label = card.querySelector("[data-dl-label]");
+      const hidden = document.createElement("span");
+      hidden.className = "visually-hidden";
+      hidden.textContent = " for " + ABI_NAMES[abi];
+      label.replaceChildren("Download", hidden, " · " + megabytes(apk.size));
       const row = card.querySelector("[data-sha-row]");
       row.querySelector("[data-sha]").textContent = apk.sha256;
-      row.querySelector("[data-sha]").title = apk.sha256;
       row.hidden = false;
     }
     if (missing && statusLine) {
