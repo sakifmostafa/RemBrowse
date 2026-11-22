@@ -1,8 +1,8 @@
 {
-  "versionName": "0.13.12",
-  "versionCode": 27,
+  "versionName": "0.13.13",
+  "versionCode": 28,
   "apks": {
-    "arm64-v8a": {"file": "RemBrowse-arm64-v8a.apk", "size": 84377671, "sha256": "78d44e33e813fed5fba69cbab5d56bc1dde9f78a02bb83f22fa4832f3cdfe546"},
-    "x86_64": {"file": "RemBrowse-x86_64.apk", "size": 89593722, "sha256": "1346176ff8bf3e74fa9bc3826bdffd77236ede09d28c8632a9d4cc8107c9e3b8"}
+    "arm64-v8a": {"file": "RemBrowse-arm64-v8a.apk", "size": 84377807, "sha256": "c2ecb253a99d27976d58eba38bffe187970f10d35453f5ce81ee389abff7e0f6"},
+    "x86_64": {"file": "RemBrowse-x86_64.apk", "size": 89593858, "sha256": "cc9d792cc5ab47cdcfb5c2455b8cf842d1c83617db13d7fe6314bcf7de55804d"}
   }
 }
