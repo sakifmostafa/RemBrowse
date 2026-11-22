@@ -131,6 +131,7 @@ fun BrowserTopBar(
     onOpenSettings: () -> Unit,
     onTriggerExtensionAction: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onPrint: () -> Unit = {},
     onNewTerminal: () -> Unit = {},
     /** What the unfocused address bar shows instead of the address (a terminal's `ssh user@host`). */
     addressDisplay: String? = null
@@ -230,6 +231,7 @@ fun BrowserTopBar(
                 onOpenDownloads = onOpenDownloads,
                 onOpenHistory = onOpenHistory,
                 onFindInPage = onFindInPage,
+                onPrint = onPrint,
                 onOpenExtensions = onOpenExtensions,
                 onOpenSettings = onOpenSettings,
                 onOpenSplitView = { showLayoutMenu = true },
@@ -673,6 +675,7 @@ private fun MoreMenu(
     onOpenDownloads: () -> Unit,
     onOpenHistory: () -> Unit,
     onFindInPage: () -> Unit,
+    onPrint: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSplitView: () -> Unit,
@@ -730,6 +733,13 @@ private fun MoreMenu(
             enabled = pageActionsEnabled,
             onClick = run(onFindInPage),
             modifier = Modifier.testTag("menu_find_in_page")
+        )
+        DropdownMenuItem(
+            text = { Text("Print…") },
+            trailingIcon = { ShortcutHint("Ctrl+P") },
+            enabled = pageActionsEnabled,
+            onClick = run(onPrint),
+            modifier = Modifier.testTag("menu_print")
         )
         if (compact) {
             DropdownMenuItem(

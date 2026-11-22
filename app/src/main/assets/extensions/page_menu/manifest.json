@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "RemBrowse page menu",
-  "description": "Part of RemBrowse: tells RemBrowse when a page leaves a right click to the browser, so RemBrowse can show the page's context menu.",
-  "version": "1.0.0",
+  "description": "Part of RemBrowse: tells RemBrowse when a page leaves a right click to the browser, so RemBrowse can show the page's context menu, and when a link is Ctrl+clicked or middle-clicked, so RemBrowse can open it in a new tab.",
+  "version": "1.1.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "page-menu@rembrowse"

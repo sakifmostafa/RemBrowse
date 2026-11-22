@@ -450,6 +450,30 @@ class RemBrowseUiTest {
     }
 
     @Test
+    fun moreMenu_printRow_isEnabledOnAWebPage_andPrintsIt() {
+        val tabId = browserVm.uiState.value.activeTabId!!
+        loadPage(tabId, "https://example.org/", "Example")
+        launch()
+
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_print").performScrollTo().assertIsEnabled().performClick()
+
+        assertEquals(1, engine.sessions.getValue(tabId).printCount)
+        composeRule.onNodeWithTag("menu_print").assertDoesNotExist()
+    }
+
+    @Test
+    fun moreMenu_printRow_isDisabledOnTheNewTabPage() {
+        launch()
+        composeRule.onNodeWithTag("new_tab_page").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_print").performScrollTo().assertIsNotEnabled().performClick()
+
+        assertEquals(0, engine.sessions.values.sumOf { it.printCount })
+    }
+
+    @Test
     fun moreMenu_opensTheExtensionsManager() {
         launch()
 

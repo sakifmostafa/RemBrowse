@@ -3,6 +3,8 @@ package com.rembrowser.rembrowse.engine
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -124,5 +126,66 @@ class BuiltInExtensionAssetsTest {
         assertTrue(GeckoBrowserEngine.isPageMenuMessage(JSONObject().put("type", "pageMenu")))
         assertTrue(!GeckoBrowserEngine.isPageMenuMessage(JSONObject().put("type", "popupSize")))
         assertTrue(!GeckoBrowserEngine.isPageMenuMessage("pageMenu"))
+    }
+
+    @Test
+    fun pageMenu_scriptOpensCtrlAndMiddleClickedLinksThroughTheApp() {
+        val script = pageMenuManifest.getJSONArray("content_scripts").getJSONObject(0)
+        val source = script.getJSONArray("js").strings().joinToString("\n") { File(pageMenuDir, it).readText() }
+        assertTrue(source.contains("addEventListener(\"click\""))
+        assertTrue(source.contains("addEventListener(\"auxclick\""))
+        assertTrue("A page must not be able to fake the click", source.contains("event.isTrusted"))
+        assertTrue("A page that handled the click keeps it", source.contains("event.defaultPrevented"))
+        assertTrue(source.contains("type: \"openLink\""))
+        // Capturing, so a page that only stops the click from bubbling still gets the tab
+        assertEquals(2, Regex("""\}, \{ capture: true \}\);""").findAll(source).count())
+    }
+
+    @Test
+    fun pageMenu_versionWasBumpedSoInstalledCopiesUpdate() {
+        assertTrue(pageMenuManifest.getString("version") != "1.0.0")
+    }
+
+    private fun openLink(url: Any?, type: Any? = "openLink", foreground: Boolean? = null): JSONObject =
+        JSONObject().apply {
+            if (type != null) put("type", type)
+            if (url != null) put("url", url)
+            if (foreground != null) put("foreground", foreground)
+        }
+
+    @Test
+    fun linkOpenRequest_acceptsHttpAndHttps_inAnyLetterCase() {
+        for (url in listOf("http://example.com/a", "https://example.com/a?b=1#c", "HTTPS://EXAMPLE.COM/", "HtTp://example.com")) {
+            val request = GeckoBrowserEngine.linkOpenRequest(openLink(url))
+            assertEquals(url, request?.url)
+            assertFalse(url, request!!.inForeground)
+        }
+    }
+
+    @Test
+    fun linkOpenRequest_readsTheForegroundFlag() {
+        assertTrue(GeckoBrowserEngine.linkOpenRequest(openLink("https://a.example/", foreground = true))!!.inForeground)
+        assertFalse(GeckoBrowserEngine.linkOpenRequest(openLink("https://a.example/", foreground = false))!!.inForeground)
+        assertFalse(GeckoBrowserEngine.linkOpenRequest(openLink("https://a.example/"))!!.inForeground)
+    }
+
+    @Test
+    fun linkOpenRequest_refusesAnythingButWebAddresses() {
+        for (url in listOf(
+            "javascript:alert(1)", "data:text/html,hi", "file:///etc/passwd", "about:config",
+            "blob:https://example.com/1234", "", "ftp://example.com/", "example.com", " https://example.com/"
+        )) {
+            assertNull(url, GeckoBrowserEngine.linkOpenRequest(openLink(url)))
+        }
+        assertNull("missing url", GeckoBrowserEngine.linkOpenRequest(openLink(null)))
+    }
+
+    @Test
+    fun linkOpenRequest_refusesTheWrongTypeAndNonObjectMessages() {
+        assertNull(GeckoBrowserEngine.linkOpenRequest(openLink("https://a.example/", type = "pageMenu")))
+        assertNull(GeckoBrowserEngine.linkOpenRequest(openLink("https://a.example/", type = null)))
+        assertNull(GeckoBrowserEngine.linkOpenRequest("https://a.example/"))
+        assertNull(GeckoBrowserEngine.linkOpenRequest(null))
+        assertNull(GeckoBrowserEngine.linkOpenRequest(JSONArray().put("openLink")))
     }
 }

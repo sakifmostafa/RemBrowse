@@ -42,13 +42,18 @@ private const val CRASH_LOOP_WINDOW_MS = 10_000L
 /**
  * RemBrowse's page menu helper, shipped in the APK's assets: a content script that reports a
  * right click a page left to the browser on its background or text, where GeckoView itself
- * reports nothing (see assets/extensions/page_menu/pageMenu.js).
+ * reports nothing, and a Ctrl+click or middle click on a link, which GeckoView ignores (see
+ * assets/extensions/page_menu/pageMenu.js). Its manifest version must go up whenever the script
+ * changes: `ensureBuiltIn` keeps an installed copy of the same version.
  */
 internal const val PAGE_MENU_EXTENSION_ID = "page-menu@rembrowse"
 internal const val PAGE_MENU_EXTENSION_URI = "resource://android/assets/extensions/page_menu/"
 
 /** The name the page menu helper sends its messages to. */
 internal const val PAGE_MENU_NATIVE_APP = "rembrowse_page_menu"
+
+/** A link the page menu helper asks to open in a new tab; see [GeckoBrowserEngine.linkOpenRequest]. */
+internal data class LinkOpenRequest(val url: String, val inForeground: Boolean)
 
 class GeckoSessionHandle(
     override val tabId: String,
@@ -66,6 +71,7 @@ class GeckoSessionHandle(
     internal var awaitingGeckoOpen = false
 
     internal var lastUrl: String? = null
+    internal var lastTitle: String? = null
     internal var lastState: GeckoSession.SessionState? = null
 
     private var needsRestore = false
@@ -105,6 +111,10 @@ class GeckoSessionHandle(
 
     override fun goForward() {
         runOnMain { if (session.isOpen) session.goForward() }
+    }
+
+    override fun print() {
+        runOnMain { if (session.isOpen) session.printPageContent() }
     }
 
     override fun setDesktopMode(enabled: Boolean) {
@@ -444,6 +454,7 @@ class GeckoBrowserEngine(
 
         geckoSession.contentDelegate = object : GeckoSession.ContentDelegate {
             override fun onTitleChange(session: GeckoSession, title: String?) {
+                handle.lastTitle = title
                 if (!title.isNullOrBlank()) {
                     listener.onSessionUpdated(tabId, SessionNavigationUpdate(title = title))
                 }
@@ -562,6 +573,18 @@ class GeckoBrowserEngine(
         }
 
         geckoSession.promptDelegate = GeckoPagePrompts(tabId, listener, appContext, uploads)
+
+        // Set before a view takes the session, so GeckoView keeps it instead of its own
+        geckoSession.printDelegate = GeckoPagePrinter(
+            appContext = appContext,
+            // Only a page on screen prints: a page in a background tab asking cannot open the dialog
+            hostActivity = {
+                sessionOwners[geckoSession]
+                    ?.takeIf { it.session === geckoSession && handle.isVisible }
+                    ?.let { GeckoPagePrinter.activityOf(it.context) }
+            },
+            pageTitle = { handle.lastTitle?.takeIf { it.isNotBlank() } ?: handle.lastUrl?.let { Uri.parse(it).host } }
+        )
     }
 
     /** A menu for [tabId], opening where the pointer last was on the view showing [session]. */
@@ -607,6 +630,9 @@ class GeckoBrowserEngine(
                         ): GeckoResult<Any>? {
                             if (isPageMenuMessage(message)) {
                                 handle.listener.onContextMenuRequested(contextMenuAtPointer(handle.session, handle.tabId))
+                            }
+                            linkOpenRequest(message)?.let {
+                                handle.listener.onOpenLinkRequested(handle.tabId, it.url, it.inForeground)
                             }
                             return null
                         }
@@ -718,6 +744,21 @@ class GeckoBrowserEngine(
         /** Whether [message] from the page menu helper asks for the page's own menu. */
         internal fun isPageMenuMessage(message: Any?): Boolean =
             (message as? org.json.JSONObject)?.optString("type") == "pageMenu"
+
+        /**
+         * The link that [message] from the page menu helper asks to open in a new tab (a
+         * Ctrl+click or middle click), or null. Only web addresses: a page must not get the
+         * browser to open script, `data:`, `file:` or the browser's own pages for it.
+         */
+        internal fun linkOpenRequest(message: Any?): LinkOpenRequest? {
+            val json = message as? org.json.JSONObject ?: return null
+            if (json.optString("type") != "openLink") return null
+            val url = json.optString("url")
+            val isWebAddress = url.startsWith("https://", ignoreCase = true) ||
+                url.startsWith("http://", ignoreCase = true)
+            if (!isWebAddress) return null
+            return LinkOpenRequest(url = url, inForeground = json.optBoolean("foreground", false))
+        }
 
         fun createRuntime(appContext: Context): GeckoRuntime {
             // Preferences GeckoView has no setter for (see EngineConfig). Null means "none":

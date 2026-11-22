@@ -673,6 +673,10 @@ class MainActivity : ComponentActivity() {
                 chrome.showTabSwitcher = false
                 browser.openFindInPage()
             }
+            BrowserShortcut.PRINT -> {
+                chrome.showTabSwitcher = false
+                browser.printPage()
+            }
             // With the bar closed, F3 opens it, as in a desktop browser
             BrowserShortcut.FIND_NEXT ->
                 if (browser.findInPage.value == null) browser.openFindInPage() else browser.findNext()

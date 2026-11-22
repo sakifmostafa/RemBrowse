@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.13.13`)
+# RemBrowse (`v0.13.14`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.13.13** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
+**Version 0.13.14** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
@@ -27,9 +27,10 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Split view, your way**: up to four pages in any arrangement. Drag a tab from the rail onto the edge of a page to split it (left, right, above or below), or onto its middle to show it there. Every split has its own draggable divider, and side by side, stacked, grid, one left and two right, swap, sizes and closing a pane are in the **Split** menu. Pages are laid out at their pane's own width, so text keeps its normal size in a narrow pane. The one address bar at the top always acts on the focused pane.
 * **Fullscreen video**: a page's fullscreen button fills the whole screen, even from a split, and Back or Esc returns to the same layout.
 * **Tab switcher**: a searchable grid of every open tab.
-* **Right-click menus**: right-click a link, picture or the page itself, with a mouse or the touchpad, to open a link in a new tab or beside the page, copy a picture or an address, go back, reload, bookmark or find. Sites with their own menus keep them.
+* **Right-click menus**: right-click a link, picture or the page itself, with a mouse or the touchpad, to open a link in a new tab or beside the page, copy a picture or an address, go back, reload, bookmark or find. Sites with their own menus keep them. Ctrl+click or middle-click a link to open it in a background tab (add Shift to open it in front).
 * **SSH terminal tabs**: open a terminal like a tab (`Ctrl+Shift+T` or **More → New terminal**), connect to a saved host or any `user@host`, and keep it beside your pages in a split. Hosts, keys (generate or import) and trusted servers live in Settings → Terminal, with passwords and private keys encrypted by the device's keystore. Seven themes (including a green-on-navy Midnight Green), two bundled coding fonts, cursor styles, and fish-style suggestions from your own commands and common ones, taken with Tab.
 * **Find in page** (`Ctrl+F`): a floating bar on the page you are searching, with every match highlighted, a running count, next and previous, and match case.
+* **Print** (`Ctrl+P`, or Print… in the menu): Android's print dialog, which can also save the page as a PDF. A page's own Print button works too.
 * **Go to address** (`Ctrl+G`): the address pops up over a blur of the page, ready to type over, with suggestions from your tabs and history.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.

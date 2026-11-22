@@ -2,6 +2,18 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.14 (2026-11-22) — Printing, Ctrl+click opens a new tab
+
+### Fixed
+* **Printing did nothing.** A page's own Print button (such as "Print Form" in a PDF form) was ignored: GeckoView's built-in printing only works once the app sets it up, and RemBrowse never had. Pages now print through Android's print dialog, which can also save the page as a PDF, named after the page's title. If a page can't be printed, a message says so.
+* **Ctrl+click on a link did nothing.** Gecko leaves Ctrl+click and middle click to the browser, and desktop Firefox opens the tab from its own front end, which RemBrowse did not have. Now Ctrl+click or a middle click opens the link in a new tab in the background, and Ctrl+Shift+click opens it in front, as on a desktop. A web app that handles Ctrl+click itself keeps doing so.
+
+### Added
+* **Print… (Ctrl+P)** in the **…** menu, the page's right-click menu and the command palette (Ctrl+K). It is greyed out on RemBrowse's own pages and in terminals.
+
+### Testing
+716 automated tests (50 of them screenshot renders that run only on request), including which Ctrl+click and middle-click messages may open a tab (web addresses only, never script, `data:`, `file:` or the browser's own pages), where the new tab opens, Ctrl+P and the Print rows, and the print dialog's document (its name, and the PDF handed over byte for byte, then deleted). Both changes were checked by an independent review. Neither could be tried on a device here.
+
 ## v0.13.13 (2026-11-22) — Ctrl+A typing in chat boxes, Back on X
 
 ### Fixed

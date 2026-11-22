@@ -32,6 +32,7 @@ class FakeSessionHandle(
     var goForwardCount: Int = 0
     var isClosed: Boolean = false
     var exitFullScreenCount: Int = 0
+    var printCount: Int = 0
 
     override fun loadUrl(url: String) {
         loadedUrls.add(url)
@@ -47,6 +48,7 @@ class FakeSessionHandle(
     override fun setFocusedForExtensions(focused: Boolean) { focusedForExtensionsState = focused }
     override fun close() { isClosed = true }
     override fun exitFullScreen() { exitFullScreenCount++ }
+    override fun print() { printCount++ }
 
     /** Every find in page asked of this page: (query, backwards, matchCase). */
     val finds = mutableListOf<Triple<String, Boolean, Boolean>>()
@@ -138,6 +140,11 @@ class FakeSessionHandle(
     /** The page called window.close(). */
     fun simulateCloseRequest() {
         listener.onCloseRequested(tabId)
+    }
+
+    /** A Ctrl+click or middle click on a link, reported for [fromTabId] (this tab unless told otherwise). */
+    fun simulateOpenLink(url: String, inForeground: Boolean = false, fromTabId: String = tabId) {
+        listener.onOpenLinkRequested(fromTabId, url, inForeground)
     }
 
     fun simulateNewTab(url: String) {

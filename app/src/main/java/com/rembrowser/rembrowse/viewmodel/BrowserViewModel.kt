@@ -177,6 +177,26 @@ class BrowserViewModel(
             _pageMenu.value = menu
         }
 
+        override fun onOpenLinkRequested(tabId: String, url: String, inForeground: Boolean) {
+            val state = _uiState.value
+            val tab = state.tabs.firstOrNull { it.id == tabId } ?: return
+            val pane = state.paneIndexOf(tab.id)
+            // Only a page on screen can have been clicked, and not one under a fullscreen page
+            if (!tab.isWebPage || pane < 0) return
+            if (state.fullscreenTabId != null && state.fullscreenTabId != tab.id) return
+            if (inForeground) {
+                openNewTab(
+                    url = url,
+                    assignToPane = pane,
+                    desktopMode = tab.desktopMode,
+                    openedByPage = true,
+                    openerTabId = tab.id
+                )
+            } else {
+                openTabInBackground(url, tab.id)
+            }
+        }
+
         override fun onRecordingChanged(tabId: String, recording: Boolean) {
             val changed = if (recording) recordingTabIds.add(tabId) else recordingTabIds.remove(tabId)
             if (changed) syncSessions()
@@ -691,6 +711,18 @@ class BrowserViewModel(
         }
     }
 
+    /**
+     * Opens the print dialog for the web page in [paneIndex] (it can also save the page as a
+     * PDF). The browser's own pages and terminals have nothing to print.
+     */
+    fun printPage(paneIndex: Int = _uiState.value.activePaneIndex) {
+        val tab = _uiState.value.tabForPane(paneIndex) ?: return
+        if (!tab.isWebPage) return
+        // Laying the page out for printing focuses it in Gecko, so the pane takes the focus too
+        focusPane(paneIndex)
+        engine.getSession(tab.id)?.print()
+    }
+
     fun dismissPageMenu() {
         _pageMenu.value = null
     }
@@ -718,6 +750,7 @@ class BrowserViewModel(
                 focusPane(pane)
                 openFindInPage()
             }
+            PageMenuAction.PRINT -> if (pane >= 0) printPage(pane)
             // Copying happens in the UI, which has the clipboard
             PageMenuAction.COPY_LINK,
             PageMenuAction.COPY_LINK_TEXT,

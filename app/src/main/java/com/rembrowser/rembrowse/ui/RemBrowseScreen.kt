@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FindInPage
+import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
@@ -291,6 +292,10 @@ fun RemBrowseScreen(
         chrome.showTabSwitcher = false
         browserViewModel.openFindInPage()
     }
+    val printPage = {
+        chrome.showTabSwitcher = false
+        browserViewModel.printPage()
+    }
     val updatesState = updatesViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     val updateActions = remember(updatesViewModel) {
         updatesViewModel?.let { updates ->
@@ -430,6 +435,7 @@ fun RemBrowseScreen(
                     onOpenDownloads = openDownloads,
                     onOpenHistory = openHistory,
                     onFindInPage = openFindInPage,
+                    onPrint = printPage,
                     onOpenExtensions = openExtensions,
                     onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
@@ -596,6 +602,7 @@ fun RemBrowseScreen(
                 chrome.showBookmarks = true
             },
             PaletteCommand("find_in_page", "Find in page", Icons.Outlined.FindInPage, "Ctrl+F", openFindInPage),
+            PaletteCommand("print", "Print…", Icons.Outlined.Print, "Ctrl+P", printPage),
             PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", openHistory),
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),

@@ -71,7 +71,12 @@ class PageContextMenuTest {
         assertEquals(
             listOf(
                 listOf(PageMenuAction.BACK, PageMenuAction.FORWARD, PageMenuAction.RELOAD),
-                listOf(PageMenuAction.BOOKMARK, PageMenuAction.COPY_PAGE_ADDRESS, PageMenuAction.FIND_IN_PAGE)
+                listOf(
+                    PageMenuAction.BOOKMARK,
+                    PageMenuAction.COPY_PAGE_ADDRESS,
+                    PageMenuAction.FIND_IN_PAGE,
+                    PageMenuAction.PRINT
+                )
             ),
             sections.map { section -> section.map { it.action } }
         )
@@ -79,6 +84,7 @@ class PageContextMenuTest {
         val forward = sections[0][1]
         assertEquals(true, back.enabled)
         assertEquals("Nowhere to go forward to", false, forward.enabled)
+        assertEquals("Print is always offered on the page's own menu", true, sections[1].single { it.action == PageMenuAction.PRINT }.enabled)
     }
 
     @Test

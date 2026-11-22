@@ -59,6 +59,13 @@ interface SessionEventListener {
     fun onContextMenuRequested(menu: PageContextMenu) {}
 
     /**
+     * A Ctrl+click or middle click on a link in [tabId]'s page, which the page left to the
+     * browser, asks for [url] in a new tab: in front when [inForeground] (Shift was held too),
+     * otherwise in the background. [url] is always a web address (http or https).
+     */
+    fun onOpenLinkRequested(tabId: String, url: String, inForeground: Boolean) {}
+
+    /**
      * The page in [tabId] called `window.close()`, and the engine allows it (it closes only
      * windows opened by script, such as a "Sign in with Google" popup once it is done).
      */
@@ -78,6 +85,9 @@ interface BrowserSessionHandle {
 
     /** Takes the page out of fullscreen, as its own exit button or Esc would. */
     fun exitFullScreen() {}
+
+    /** Opens the print dialog for the page (which can also save it as a PDF). */
+    fun print() {}
 
     /**
      * Finds [query] on the page and highlights every match, selecting the next one after the

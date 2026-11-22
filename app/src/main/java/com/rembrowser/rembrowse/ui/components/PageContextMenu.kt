@@ -92,6 +92,7 @@ private fun labelFor(action: PageMenuAction, mediaType: PageMediaType, isBookmar
         PageMenuAction.BOOKMARK -> if (isBookmarked) "Remove bookmark" else "Bookmark this page"
         PageMenuAction.COPY_PAGE_ADDRESS -> "Copy page address"
         PageMenuAction.FIND_IN_PAGE -> "Find in page"
+        PageMenuAction.PRINT -> "Print…"
     }
 }
 
@@ -101,5 +102,6 @@ private fun shortcutFor(action: PageMenuAction): String? = when (action) {
     PageMenuAction.RELOAD -> "Ctrl+R"
     PageMenuAction.BOOKMARK -> "Ctrl+D"
     PageMenuAction.FIND_IN_PAGE -> "Ctrl+F"
+    PageMenuAction.PRINT -> "Ctrl+P"
     else -> null
 }

@@ -111,7 +111,8 @@ class CompactWindowUiTest {
 
         composeRule.onNodeWithTag("rail_extensions").assertDoesNotExist()
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_extension_vpn@example").performClick()
+        // The menu is taller than a phone window: the extension's row is scrolled to first
+        composeRule.onNodeWithTag("menu_extension_vpn@example").performScrollTo().performClick()
 
         assertEquals(listOf("vpn@example"), extensionManager.triggeredActionIds)
         composeRule.onNodeWithTag("extension_popup_page").assertIsDisplayed()

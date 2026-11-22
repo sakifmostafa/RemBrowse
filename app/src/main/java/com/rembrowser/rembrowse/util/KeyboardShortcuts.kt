@@ -32,7 +32,10 @@ enum class BrowserShortcut {
     FIND_PREVIOUS,
 
     /** The Go to address popup (Ctrl+G). */
-    GO_TO_ADDRESS
+    GO_TO_ADDRESS,
+
+    /** The print dialog for the page (Ctrl+P), which can also save it as a PDF. */
+    PRINT
 }
 
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
@@ -103,6 +106,7 @@ object KeyboardShortcuts {
             KeyEvent.KEYCODE_J -> BrowserShortcut.OPEN_DOWNLOADS
             KeyEvent.KEYCODE_H -> BrowserShortcut.OPEN_HISTORY
             KeyEvent.KEYCODE_F -> BrowserShortcut.FIND_IN_PAGE
+            KeyEvent.KEYCODE_P -> BrowserShortcut.PRINT
             KeyEvent.KEYCODE_BACKSLASH -> BrowserShortcut.TOGGLE_SPLIT_VIEW
             KeyEvent.KEYCODE_1 -> BrowserShortcut.LAYOUT_SINGLE
             KeyEvent.KEYCODE_2 -> BrowserShortcut.LAYOUT_SIDE_BY_SIDE

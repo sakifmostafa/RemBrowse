@@ -64,7 +64,8 @@ enum class PageMenuAction {
     RELOAD,
     BOOKMARK,
     COPY_PAGE_ADDRESS,
-    FIND_IN_PAGE
+    FIND_IN_PAGE,
+    PRINT
 }
 
 /** One row of the menu; [enabled] false shows it greyed out (Back with nowhere to go back to). */
@@ -107,7 +108,8 @@ fun pageMenuSections(menu: PageContextMenu, tab: BrowserTab?, canSplit: Boolean)
             listOf(
                 PageMenuEntry(PageMenuAction.BOOKMARK),
                 PageMenuEntry(PageMenuAction.COPY_PAGE_ADDRESS),
-                PageMenuEntry(PageMenuAction.FIND_IN_PAGE)
+                PageMenuEntry(PageMenuAction.FIND_IN_PAGE),
+                PageMenuEntry(PageMenuAction.PRINT)
             )
         )
     }

@@ -92,6 +92,18 @@ class KeyboardShortcutsTest {
     }
 
     @Test
+    fun ctrlP_printsThePage_butOnlyOutsideTerminalsAndWithoutOtherModifiers() {
+        assertEquals(BrowserShortcut.PRINT, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_P, ctrl = true))
+        assertNull("Ctrl+Shift+P", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_P, ctrl = true, shift = true))
+        assertNull("Ctrl+Alt+P", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_P, ctrl = true, alt = true))
+        assertNull("Plain P is typing", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_P, ctrl = false))
+        assertNull(
+            "Ctrl+P is the shell's previous-command key",
+            KeyboardShortcuts.resolve(KeyEvent.KEYCODE_P, ctrl = true, inTerminal = true)
+        )
+    }
+
+    @Test
     fun ctrlG_isGoToAddress_andCtrlShiftG_isLeftToThePageOutsideTerminals() {
         assertEquals(BrowserShortcut.GO_TO_ADDRESS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true))
         assertNull(KeyboardShortcuts.resolve(KeyEvent.KEYCODE_G, ctrl = true, shift = true))

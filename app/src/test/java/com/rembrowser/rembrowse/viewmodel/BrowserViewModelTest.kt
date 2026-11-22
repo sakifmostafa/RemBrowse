@@ -1309,6 +1309,77 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun ctrlClickedLink_opensInTheBackgroundWithoutChangingTheActiveTab() {
+        val tabId = pageOnScreen()
+        val before = viewModel.uiState.value
+
+        engine.sessions.getValue(tabId).simulateOpenLink("https://example.com/next", inForeground = false)
+
+        val state = viewModel.uiState.value
+        assertEquals(before.tabs.size + 1, state.tabs.size)
+        assertEquals(tabId, state.activeTabId)
+        assertEquals(before.layout, state.layout)
+        val opened = state.tabs.single { it.id !in before.tabs.map { t -> t.id } }
+        assertEquals("https://example.com/next", opened.url)
+    }
+
+    @Test
+    fun shiftCtrlClickedLink_opensInTheForegroundAsAPageOpenedTab() {
+        val tabId = pageOnScreen()
+        val before = viewModel.uiState.value
+
+        engine.sessions.getValue(tabId).simulateOpenLink("https://example.com/next", inForeground = true)
+
+        val state = viewModel.uiState.value
+        assertEquals(before.tabs.size + 1, state.tabs.size)
+        val opened = state.activeTab!!
+        assertNotEquals(tabId, opened.id)
+        assertEquals("https://example.com/next", opened.url)
+        assertTrue(opened.openedByPage)
+        assertEquals(tabId, opened.openerTabId)
+    }
+
+    @Test
+    fun openLinkRequest_fromAnUnknownTab_isIgnored() {
+        val tabId = pageOnScreen()
+        val before = viewModel.uiState.value
+
+        engine.sessions.getValue(tabId).simulateOpenLink("https://example.com/x", fromTabId = "no-such-tab")
+        engine.sessions.getValue(tabId).simulateOpenLink("https://example.com/x", inForeground = true, fromTabId = "no-such-tab")
+
+        assertEquals(before.tabs.map { it.id }, viewModel.uiState.value.tabs.map { it.id })
+        assertEquals(before.activeTabId, viewModel.uiState.value.activeTabId)
+    }
+
+    @Test
+    fun openLinkRequest_fromATabNotShownInAnyPane_isIgnored() {
+        val shown = pageOnScreen()
+        val background = viewModel.openTabInBackground("https://other.example/", shown)
+        val before = viewModel.uiState.value
+
+        engine.sessions.getValue(background).simulateOpenLink("https://example.com/x")
+        engine.sessions.getValue(background).simulateOpenLink("https://example.com/x", inForeground = true)
+
+        assertEquals(before.tabs.map { it.id }, viewModel.uiState.value.tabs.map { it.id })
+        assertEquals(shown, viewModel.uiState.value.activeTabId)
+    }
+
+    @Test
+    fun openLinkRequest_fromAnInternalPage_isIgnored() {
+        val web = pageOnScreen()
+        viewModel.openSettings()
+        val settings = viewModel.uiState.value.activeTab!!
+        assertTrue(settings.isInternalPage)
+        val before = viewModel.uiState.value
+
+        engine.sessions.getValue(web).simulateOpenLink("https://example.com/x", fromTabId = settings.id)
+        engine.sessions.getValue(web).simulateOpenLink("https://example.com/x", inForeground = true, fromTabId = settings.id)
+
+        assertEquals(before.tabs.map { it.id }, viewModel.uiState.value.tabs.map { it.id })
+        assertEquals(settings.id, viewModel.uiState.value.activeTabId)
+    }
+
+    @Test
     fun pageMenu_closesWhenItsPageGoesAwayOrLeavesTheScreen() {
         val tabId = pageOnScreen()
         val session = engine.sessions.getValue(tabId)
@@ -1380,6 +1451,71 @@ class BrowserViewModelTest {
         session.simulateContextMenu(serial = 5)
         viewModel.onPageMenuAction(PageMenuAction.FIND_IN_PAGE)
         assertEquals(tabId, viewModel.findInPage.value?.tabId)
+    }
+
+    // --- Printing ---
+
+    @Test
+    fun printPage_printsTheActiveWebPage() {
+        val tabId = pageOnScreen()
+
+        viewModel.printPage()
+
+        assertEquals(1, engine.sessions.getValue(tabId).printCount)
+    }
+
+    @Test
+    fun printPage_doesNothingForTheStartPageOrSettings() {
+        val start = viewModel.uiState.value.activeTabId!!
+        assertTrue(viewModel.uiState.value.activeTab!!.isNewTabPage)
+        viewModel.printPage()
+        assertEquals(0, engine.sessions[start]?.printCount ?: 0)
+
+        val web = pageOnScreen()
+        viewModel.openSettings()
+        assertTrue(viewModel.uiState.value.activeTab!!.isInternalPage)
+        viewModel.printPage()
+
+        assertEquals("Nothing printed anywhere", 0, engine.sessions.values.sumOf { it.printCount })
+        assertEquals(0, engine.sessions.getValue(web).printCount)
+    }
+
+    @Test
+    fun printPage_doesNothingForATerminal() {
+        val page = pageOnScreen()
+        viewModel.openTerminal()
+        assertTrue(viewModel.uiState.value.activeTab!!.isTerminal)
+
+        viewModel.printPage()
+
+        assertEquals(0, engine.sessions.getValue(page).printCount)
+    }
+
+    @Test
+    fun printPage_withAPaneIndexPrintsThatPanesPage() {
+        val first = pageOnScreen()
+        viewModel.setLayoutMode(com.rembrowser.rembrowse.model.LayoutMode.SPLIT_1X2)
+        viewModel.navigatePane(1, "https://other.example/")
+        val second = viewModel.uiState.value.tabForPane(1)!!.id
+        assertNotEquals(first, second)
+        engine.sessions.getValue(second).simulatePageLoad("https://other.example/", "Other")
+
+        viewModel.printPage(1)
+
+        assertEquals(1, engine.sessions.getValue(second).printCount)
+        assertEquals(0, engine.sessions.getValue(first).printCount)
+    }
+
+    @Test
+    fun printPageMenuAction_printsThePageTheMenuWasOpenedOn() {
+        val tabId = pageOnScreen()
+        val session = engine.sessions.getValue(tabId)
+        session.simulateContextMenu()
+
+        viewModel.onPageMenuAction(PageMenuAction.PRINT)
+
+        assertEquals(1, session.printCount)
+        assertNull(viewModel.pageMenu.value)
     }
 
     // --- Terminal tabs ---
