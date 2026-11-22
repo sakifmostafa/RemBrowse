@@ -1,0 +1,91 @@
+/* RemBrowse key test page (keys.html). Uses the site's tokens from site.css. */
+.kt {
+  padding-top: var(--s-6);
+  padding-bottom: var(--s-8);
+}
+.kt h1 {
+  font-size: var(--fs-3xl);
+}
+.kt-lede,
+.kt-steps {
+  margin-top: var(--s-3);
+  color: var(--text-2);
+}
+.kt-steps li + li {
+  margin-top: var(--s-1);
+}
+.kt-boxes {
+  display: grid;
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+}
+@media (min-width: 768px) {
+  .kt-boxes {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.kt-label {
+  display: block;
+  margin-bottom: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.kt-box {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--text);
+  font: 400 var(--fs-base) / 1.5 var(--font);
+  resize: vertical;
+}
+.kt-box:focus {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+.kt-sent {
+  min-height: 1.5em;
+  margin-top: var(--s-2);
+  color: var(--accent);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.kt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+}
+.kt-clear {
+  min-height: 48px;
+  padding: 0 var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text);
+  font: 500 var(--fs-base) var(--font);
+  cursor: pointer;
+}
+.kt-h2 {
+  margin-top: var(--s-6);
+  font-size: var(--fs-xl);
+}
+.kt-pre {
+  margin: var(--s-3) 0 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kt-log {
+  max-height: 60vh;
+  overflow: auto;
+}

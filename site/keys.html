@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark light">
+<title>RemBrowse key test</title>
+<link rel="stylesheet" href="assets/site.css?v=3">
+<link rel="stylesheet" href="assets/keys.css?v=1">
+<script src="assets/keys.js?v=1" defer></script>
+</head>
+<body>
+<main class="kt wrap">
+  <h1>Key test</h1>
+  <p class="kt-lede">Shows what a web page receives from the keyboard in this browser. Do the steps, then press <strong>Copy log</strong> and paste it into the chat.</p>
+
+  <ol class="kt-steps">
+    <li>Click in box 1, type <kbd>hi</kbd>, press <kbd>Enter</kbd>.</li>
+    <li>Still in box 1: press <kbd>Ctrl</kbd> <kbd>A</kbd>, then type <kbd>xyz</kbd>.</li>
+    <li>Click in box 2 and repeat both steps.</li>
+  </ol>
+
+  <section class="kt-boxes" aria-label="Test boxes">
+    <div>
+      <p class="kt-label" id="ce-label">Box 1: a rich text box (like claude.ai and Telegram). Enter without Shift "sends" here.</p>
+      <div class="kt-box" id="ce" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="ce-label"></div>
+      <p class="kt-sent" id="sent" aria-live="polite"></p>
+    </div>
+    <div>
+      <label class="kt-label" for="ta">Box 2: a plain text area.</label>
+      <textarea class="kt-box" id="ta" rows="3"></textarea>
+    </div>
+  </section>
+
+  <div class="kt-actions">
+    <button class="pill" type="button" id="copy">Copy log</button>
+    <button class="kt-clear" type="button" id="clear">Clear</button>
+    <span id="copied" aria-live="polite"></span>
+  </div>
+
+  <h2 class="kt-h2">Device, as the page sees it</h2>
+  <pre class="kt-pre" id="env"></pre>
+
+  <h2 class="kt-h2">Events (newest first)</h2>
+  <pre class="kt-pre kt-log" id="log"></pre>
+</main>
+</body>
+</html>
