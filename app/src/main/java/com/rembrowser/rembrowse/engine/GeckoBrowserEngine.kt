@@ -724,7 +724,8 @@ class GeckoBrowserEngine(
             // the builder is then left alone, as before.
             val configFile = EngineConfig.prepare(
                 directory = appContext.filesDir,
-                smallestScreenWidthDp = appContext.resources.configuration.smallestScreenWidthDp
+                smallestScreenWidthDp = appContext.resources.configuration.smallestScreenWidthDp,
+                hasMouseOrTouchpad = PointerDevices.hasMouseOrTouchpad(appContext)
             )
             val settings = GeckoRuntimeSettings.Builder()
                 .apply { if (configFile != null) configFilePath(configFile) }

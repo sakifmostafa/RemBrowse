@@ -122,4 +122,71 @@ class EngineConfigTest {
 
         assertNull(EngineConfig.prepare(notADirectory, smallestScreenWidthDp = 800))
     }
+
+    @Test
+    fun aMouseOrTouchpad_addsTheFinePointerPref_onPhonesAndLargeScreensAlike() {
+        assertEquals(6, EngineConfig.FINE_POINTER_WITH_HOVER)
+        assertEquals("ui.primaryPointerCapabilities", EngineConfig.POINTER_PREF)
+        for (width in listOf(360, 411, 600, 800, 1250)) {
+            assertEquals(6, EngineConfig.prefsFor(width, hasMouseOrTouchpad = true)[EngineConfig.POINTER_PREF])
+            assertFalse(EngineConfig.POINTER_PREF in EngineConfig.prefsFor(width, hasMouseOrTouchpad = false))
+            assertFalse(EngineConfig.POINTER_PREF in EngineConfig.prefsFor(width))
+        }
+        assertEquals(
+            mapOf<String, Any>("browser.translations.enable" to false, "ui.primaryPointerCapabilities" to 6),
+            EngineConfig.prefsFor(411, hasMouseOrTouchpad = true)
+        )
+        assertEquals(
+            mapOf<String, Any>(
+                "browser.translations.enable" to false,
+                "browser.viewport.desktopWidth" to 320,
+                "ui.primaryPointerCapabilities" to 6
+            ),
+            EngineConfig.prefsFor(800, hasMouseOrTouchpad = true)
+        )
+    }
+
+    @Test
+    fun prepare_withAMouse_writesAFileTheEngineParserReadsBackWithThePointerPref() {
+        val path = EngineConfig.prepare(folder.root, smallestScreenWidthDp = 800, hasMouseOrTouchpad = true)
+
+        val file = File(folder.root, "geckoview-config.yaml")
+        assertEquals(file.absolutePath, path)
+        val prefs = EngineConfig.readWithEngineParser(file)!!
+        assertEquals(
+            mapOf<String, Any?>(
+                "browser.translations.enable" to false,
+                "browser.viewport.desktopWidth" to 320,
+                "ui.primaryPointerCapabilities" to 6
+            ),
+            prefs
+        )
+        assertTrue("A number preference", prefs["ui.primaryPointerCapabilities"] is Int)
+    }
+
+    @Test
+    fun prepare_withAMouseOnAPhone_hasThePointerPrefWithoutTheDesktopWidth() {
+        EngineConfig.prepare(folder.root, smallestScreenWidthDp = 411, hasMouseOrTouchpad = true)
+        assertEquals(
+            mapOf<String, Any?>("browser.translations.enable" to false, "ui.primaryPointerCapabilities" to 6),
+            EngineConfig.readWithEngineParser(File(folder.root, "geckoview-config.yaml"))
+        )
+    }
+
+    @Test
+    fun prepare_withoutAMouse_leavesThePointerPrefOut() {
+        EngineConfig.prepare(folder.root, smallestScreenWidthDp = 800, hasMouseOrTouchpad = false)
+        assertFalse(
+            "ui.primaryPointerCapabilities" in EngineConfig.readWithEngineParser(File(folder.root, "geckoview-config.yaml"))!!
+        )
+    }
+
+    @Test
+    fun prepare_refusesAFileMissingThePointerPref() {
+        assertNull(
+            EngineConfig.prepare(folder.root, 800, hasMouseOrTouchpad = true) {
+                mapOf("browser.translations.enable" to false, "browser.viewport.desktopWidth" to 320)
+            }
+        )
+    }
 }

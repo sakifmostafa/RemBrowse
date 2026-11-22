@@ -15,6 +15,7 @@ import android.os.Build
 import android.view.PointerIcon
 import android.view.ViewConfiguration
 import org.mozilla.geckoview.GeckoView
+import com.rembrowser.rembrowse.util.PageKeyTarget
 
 /**
  * The web view of a pane. It shows the page's mouse cursor, except while the browser's chrome
@@ -29,7 +30,7 @@ import org.mozilla.geckoview.GeckoView
 class PaneGeckoView(
     context: Context,
     private val chromeHasPointer: () -> Boolean = { false }
-) : GeckoView(context) {
+) : GeckoView(context), PageKeyTarget {
 
     private val touchpad = TouchpadInputFilter(
         TouchpadInputFilter.scrollSlopPx(
@@ -61,23 +62,29 @@ class PaneGeckoView(
     }
 
     /**
-     * Sends a physical keyboard's Enter (Shift, Ctrl and Alt included) to the page as the key it
-     * is, past the keyboard app. A keyboard app commits Enter as a typed line break, which Gecko
-     * hands the page as text with a "Process" (229) key, not an Enter key: a chat box that sends
-     * on Enter then started a new line instead.
-     *
-     * The key goes through the session's own key path (`SessionTextInput.onKeyDown/onKeyUp`), the
-     * one GeckoView uses itself for keys the keyboard app leaves alone. Gecko commits a word still
-     * being composed before it dispatches the key, so nothing typed is lost. False, leaving Enter
-     * to the keyboard app, without a page, or while a Chinese, Japanese or Korean keyboard is
-     * composing, where Enter picks the characters.
+     * Whether a physical key can go to the page past the keyboard app right now: there is a page,
+     * and the keyboard app doesn't build characters from the letters (Chinese, Japanese, Korean).
+     * Such a keyboard also keeps Enter while it is composing, since Enter confirms the characters.
+     */
+    override fun takesKeysPastKeyboardApp(enter: Boolean): Boolean {
+        if (session == null) return false
+        if (!keyboardComposesCharacters()) return true
+        return enter && pageInput?.composing != true
+    }
+
+    /**
+     * Sends a physical keyboard's key (Shift, Alt and the rest included) to the page past the
+     * keyboard app, through the session's own key path (`SessionTextInput.onKeyDown` and
+     * `onKeyUp`), the one GeckoView uses itself for keys the keyboard app leaves alone. Used for
+     * Enter: the page gets a real Enter keydown it can cancel, where the keyboard app typed a line
+     * break. Gecko commits a word still being composed before it dispatches Enter. False without a
+     * page.
      *
      * (0.13.8 checked `onCheckIsTextEditor()` first, which GeckoView never overrides, so it was
      * always false and Enter never came here.)
      */
-    fun sendEnterPastKeyboardApp(event: KeyEvent): Boolean {
+    override fun sendKeyPastKeyboardApp(event: KeyEvent): Boolean {
         val textInput = session?.textInput ?: return false
-        if (pageInput?.composing == true && keyboardComposesCharacters()) return false
         // Input events are recycled once handled; Gecko reads the key on its own thread
         val copy = KeyEvent(event)
         return when (copy.action) {

@@ -2,6 +2,14 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.10 (2026-11-21) — Pages see a laptop pointer, not a phone
+
+### Fixed
+* **Sites treated the Googlebook as a phone or tablet.** Measured with a key test page (browse.example.com/keys.html) against Chrome on the same Googlebook: RemBrowse told pages the main pointer was a finger that can't hover (`pointer: coarse`, `hover: none`), where Chrome says a fine pointer that hovers. Some sites then behave as on a phone: claude.ai's message box starts a new line on Enter instead of sending, for one, although the page receives a real Enter since 0.13.9. Now, with a touchpad or mouse connected when RemBrowse starts, pages are told the pointer is fine and hovers, as in Chrome; touch keeps working, and phones without a mouse are unchanged. Not yet confirmed on a device: after updating, keys.html's device lines should show `pointer: fine` and `hover: true`, and Enter should send in claude.ai. Typing after Ctrl+A in claude.ai and Telegram may follow, since it worked in the test page's own box.
+
+### Testing
+625 automated tests (50 of them screenshot renders that run only on request), including the engine setting written with and without a touchpad and read back by GeckoView's own parser, and the Enter routing with real key events (Ctrl+Enter and numpad Enter included, repeats and releases following the press). Whether a touchpad is detected can't be simulated in the tests; the device check is keys.html.
+
 ## v0.13.9 (2026-11-21) — uBlock Origin built in, Enter sends in chat boxes, Ctrl+Shift+T for a terminal
 
 ### Changed

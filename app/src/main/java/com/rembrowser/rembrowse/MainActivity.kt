@@ -12,7 +12,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import androidx.compose.ui.platform.ComposeView
 import android.widget.FrameLayout
@@ -72,6 +71,7 @@ import com.rembrowser.rembrowse.ui.components.LocalChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.util.BrowserShortcut
 import com.rembrowser.rembrowse.util.KeyboardShortcuts
+import com.rembrowser.rembrowse.util.PhysicalKeyRouter
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
@@ -541,7 +541,7 @@ class MainActivity : ComponentActivity() {
      * this layout.
      */
     private fun interceptShortcutBeforeIme(event: KeyEvent): Boolean {
-        if (interceptEnterBeforeIme(event)) return true
+        if (interceptTypingBeforeIme(event)) return true
         if (event.action == KeyEvent.ACTION_UP && event.keyCode == shortcutKeyTakenEarly) {
             shortcutKeyTakenEarly = KeyEvent.KEYCODE_UNKNOWN
             return true
@@ -553,38 +553,22 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
-    /** Whether the Enter being held went to a web page past the keyboard app; its release follows. */
-    /** The page an Enter being held went to, past the keyboard app; its release goes there too. */
-    private var enterTarget: PaneGeckoView? = null
+    /** A physical keyboard's Enter, sent to the focused web page before the keyboard app sees it. */
+    private val keyRouter = PhysicalKeyRouter()
 
     /**
-     * A physical Enter in a web page's text box goes to the page as a key press, before the
-     * keyboard app can turn it into a typed line break (see PaneGeckoView.sendEnterPastKeyboardApp).
-     * The release of an Enter that submitted the address bar or a popup is swallowed first, as in
+     * A physical keyboard's Enter goes to the focused web page as the key itself, before the keyboard
+     * app can turn it into a typed line break (see [PhysicalKeyRouter] and [PhysicalTyping]).
+     * The release of an Enter that submitted the address bar or a popup is swallowed, as in
      * dispatchKeyEvent: focus has moved to the page by then, and it must not see half a key press.
      */
-    private fun interceptEnterBeforeIme(event: KeyEvent): Boolean {
-        if (event.keyCode != KeyEvent.KEYCODE_ENTER && event.keyCode != KeyEvent.KEYCODE_NUMPAD_ENTER) return false
-        if (event.action == KeyEvent.ACTION_UP && (swallowEnterKeyUp || chrome.swallowNextEnterUp)) {
+    private fun interceptTypingBeforeIme(event: KeyEvent): Boolean =
+        keyRouter.route(event, currentFocus as? PaneGeckoView) {
+            val swallow = swallowEnterKeyUp || chrome.swallowNextEnterUp
             swallowEnterKeyUp = false
             chrome.swallowNextEnterUp = false
-            return true
+            swallow
         }
-        // The release goes where the press went, even if focus moved in between
-        if (event.action == KeyEvent.ACTION_UP) {
-            val target = enterTarget ?: return false
-            enterTarget = null
-            target.sendEnterPastKeyboardApp(event)
-            return true
-        }
-        if (event.action != KeyEvent.ACTION_DOWN) return false
-        if (event.repeatCount > 0) return enterTarget?.sendEnterPastKeyboardApp(event) ?: false
-        val page = currentFocus as? PaneGeckoView ?: return false
-        val physical = event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD &&
-            event.flags and KeyEvent.FLAG_SOFT_KEYBOARD == 0
-        enterTarget = page.takeIf { physical && it.sendEnterPastKeyboardApp(event) }
-        return enterTarget != null
-    }
 
     private fun resolveShortcut(event: KeyEvent): BrowserShortcut? = KeyboardShortcuts.resolve(
         keyCode = event.keyCode,

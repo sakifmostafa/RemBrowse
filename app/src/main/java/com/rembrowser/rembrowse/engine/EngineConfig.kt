@@ -9,7 +9,7 @@ import java.io.File
  * configuration file GeckoView reads (`GeckoRuntimeSettings.Builder.configFilePath`), whose
  * `prefs` become default preference values before the engine starts.
  *
- * Two preferences:
+ * Three preferences:
  *
  * **Translations off** ([TRANSLATIONS_PREF]), on every device. RemBrowse offers no page
  * translation, but GeckoView turns the machinery on, and it runs a language-detection worker
@@ -25,12 +25,29 @@ import java.io.File
  * what a desktop browser does when its window is narrow: the page reflows at normal size.
  * Panes wider than 980 px already used their own width and are unaffected.
  *
- * (Checked against `Document::GetViewportInfo` and `Preferences.cpp` in Firefox 138.)
+ * **A fine pointer that can hover** ([POINTER_PREF]), when a mouse or touchpad is connected
+ * (see [PointerDevices]: a device that is also a touchscreen or a stylus doesn't count).
+ * Gecko on Android reports the primary pointer as coarse whenever a touchscreen exists, even
+ * with a touchpad (`nsLookAndFeel.cpp`: any coarse device makes the primary pointer coarse), so a
+ * Googlebook's pages saw `(pointer: coarse)` and `(hover: none)` where Chrome on the same device
+ * reports fine and hover. Sites take that as a phone or tablet, and some change behaviour (a
+ * chat box whose Enter starts a new line instead of sending). Only these media queries change:
+ * touch events, `ontouchstart` and `maxTouchPoints` stay as they are, so the touchscreen works.
+ * Read at startup, so a mouse connected later counts from the next start.
+ *
+ * (Checked against `Document::GetViewportInfo`, `nsXPLookAndFeel.cpp`, `nsLookAndFeel.cpp` and
+ * `Preferences.cpp` in Firefox 138.)
  */
 internal object EngineConfig {
     private const val TAG = "EngineConfig"
 
     const val DESKTOP_WIDTH_PREF = "browser.viewport.desktopWidth"
+
+    /** Overrides the primary pointer's capabilities for the `pointer` and `hover` media queries. */
+    const val POINTER_PREF = "ui.primaryPointerCapabilities"
+
+    /** Gecko's pointer capability bits (LookAndFeel.h): fine, and able to hover. */
+    const val FINE_POINTER_WITH_HOVER = 2 or 4
 
     /** Gecko's page translation, which RemBrowse has no use for (see above). */
     const val TRANSLATIONS_PREF = "browser.translations.enable"
@@ -57,11 +74,15 @@ internal object EngineConfig {
     fun desktopViewportWidth(smallestScreenWidthDp: Int): Int =
         if (smallestScreenWidthDp >= LARGE_SCREEN_DP) MIN_PANE_LAYOUT_WIDTH else GECKO_DESKTOP_WIDTH
 
-    /** What RemBrowse sets on a device whose smallest screen side is [smallestScreenWidthDp]. */
-    fun prefsFor(smallestScreenWidthDp: Int): Map<String, Any> = buildMap {
+    /**
+     * What RemBrowse sets on a device whose smallest screen side is [smallestScreenWidthDp], with
+     * or without a mouse or touchpad connected ([hasMouseOrTouchpad]).
+     */
+    fun prefsFor(smallestScreenWidthDp: Int, hasMouseOrTouchpad: Boolean = false): Map<String, Any> = buildMap {
         put(TRANSLATIONS_PREF, false)
         val width = desktopViewportWidth(smallestScreenWidthDp)
         if (width != GECKO_DESKTOP_WIDTH) put(DESKTOP_WIDTH_PREF, width)
+        if (hasMouseOrTouchpad) put(POINTER_PREF, FINE_POINTER_WITH_HOVER)
     }
 
     /** The configuration file's text for [prefs], whose values are numbers or true/false. */
@@ -86,10 +107,11 @@ internal object EngineConfig {
     fun prepare(
         directory: File,
         smallestScreenWidthDp: Int,
+        hasMouseOrTouchpad: Boolean = false,
         readPrefs: (File) -> Map<String, Any?>? = ::readWithEngineParser
     ): String? {
         val file = File(directory, FILE_NAME)
-        val prefs = prefsFor(smallestScreenWidthDp)
+        val prefs = prefsFor(smallestScreenWidthDp, hasMouseOrTouchpad)
         return try {
             directory.mkdirs()
             file.writeText(yaml(prefs))
