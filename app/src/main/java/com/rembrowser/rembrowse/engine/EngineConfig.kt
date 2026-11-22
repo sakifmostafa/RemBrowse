@@ -9,12 +9,16 @@ import java.io.File
  * configuration file GeckoView reads (`GeckoRuntimeSettings.Builder.configFilePath`), whose
  * `prefs` become default preference values before the engine starts.
  *
- * Three preferences:
+ * Four preferences:
  *
  * **Translations off** ([TRANSLATIONS_PREF]), on every device. RemBrowse offers no page
  * translation, but GeckoView turns the machinery on, and it runs a language-detection worker
  * in every web content process: measured on a Googlebook with `about:memory`, about 17 MB per
  * process (`resource://gre/modules/translations/cld-worker.js`), for nothing.
+ *
+ * **Back goes to the previous page** ([REQUIRE_INTERACTION_PREF] off), on every device. Gecko's
+ * Back skips entries it didn't see the user interact with, and on single-page sites it misses
+ * some the user did use (Back from a post on X left the site instead of showing the feed).
  *
  * **Desktop viewport width** ([DESKTOP_WIDTH_PREF]), on large screens only. A tab that asks
  * for desktop sites gets Gecko's "desktop mode" viewport, whose width is
@@ -52,6 +56,15 @@ internal object EngineConfig {
     /** Gecko's page translation, which RemBrowse has no use for (see above). */
     const val TRANSLATIONS_PREF = "browser.translations.enable"
 
+    /**
+     * Gecko's Back skips history entries it hasn't seen the user interact with (on by default).
+     * It notes one interaction per entry from mouse, touch and key events, and on single-page
+     * sites that change address without reloading (X) it misses entries the user did use: Back
+     * from a post skipped X's home feed and left the site. Off, Back and the Back arrow go to
+     * the previous entry, whatever it is; a site that piles up entries can take an extra Back.
+     */
+    const val REQUIRE_INTERACTION_PREF = "browser.navigation.requireUserInteraction"
+
     /** Gecko's own default: a desktop layout, shrunk to fit whatever is narrower. */
     const val GECKO_DESKTOP_WIDTH = 980
 
@@ -80,6 +93,7 @@ internal object EngineConfig {
      */
     fun prefsFor(smallestScreenWidthDp: Int, hasMouseOrTouchpad: Boolean = false): Map<String, Any> = buildMap {
         put(TRANSLATIONS_PREF, false)
+        put(REQUIRE_INTERACTION_PREF, false)
         val width = desktopViewportWidth(smallestScreenWidthDp)
         if (width != GECKO_DESKTOP_WIDTH) put(DESKTOP_WIDTH_PREF, width)
         if (hasMouseOrTouchpad) put(POINTER_PREF, FINE_POINTER_WITH_HOVER)

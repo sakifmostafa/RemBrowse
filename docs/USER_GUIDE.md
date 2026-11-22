@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.13.12`)
+# RemBrowse User Guide (`v0.13.13`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 

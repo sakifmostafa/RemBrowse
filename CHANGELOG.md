@@ -2,6 +2,15 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.13 (2026-11-22) — Ctrl+A typing in chat boxes, Back on X
+
+### Fixed
+* **Back skipped pages on sites like X.** Back from a post on X went to the site you were on before X, skipping X's home feed. Gecko's Back skips pages it thinks you never interacted with, and on sites that change pages without reloading it gets that wrong. RemBrowse turns that skipping off, so Back (the arrow, Alt+Left, the swipe) always goes to the page you were on before. A site that adds extra history entries can now take an extra Back to leave.
+* **After Ctrl+A, typing put the cursor before the new letter in claude.ai and Telegram.** Found by reading GeckoView's and Gecko's source: Gecko counts a hidden line break at the start of every paragraph, and these editors keep their text in a paragraph. GeckoView typed the letter over the selection and then set the cursor by a position counted in the old text, which landed one place too early, in front of the letter, so the next letters went in front of it. RemBrowse now types over a selection without naming a cursor position, and the page puts the cursor after the letter itself. The key test page (browse.example.com/keys.html) has a new box 3 that works like these editors, to check it without signing in anywhere.
+
+### Testing
+688 automated tests (50 of them screenshot renders that run only on request), including typing over a selection with a stand-in for GeckoView's input connection (the selection replaced, the caret left after the new text, GeckoView's own commit not used, and every other case passed on unchanged) and the startup settings read back by GeckoView's own parser. Both causes were traced through GeckoView's and Gecko's source and checked by an independent review; neither could be run on a device here.
+
 ## v0.13.12 (2026-11-22) — Swipes follow your fingers
 
 ### Fixed

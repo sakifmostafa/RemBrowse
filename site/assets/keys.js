@@ -5,6 +5,7 @@
   const $ = (id) => document.getElementById(id);
   const ce = $("ce");
   const ta = $("ta");
+  const pm = $("pm");
   const logEl = $("log");
   const lines = [];
   const t0 = performance.now();
@@ -21,7 +22,7 @@
   ];
   $("env").textContent = env.join("\n");
 
-  const where = (el) => (el === ce ? "box1" : el === ta ? "box2" : el && el.tagName ? el.tagName.toLowerCase() : "?");
+  const where = (el) => (el === ce ? "box1" : el === ta ? "box2" : el === pm ? "box3" : el && el.tagName ? el.tagName.toLowerCase() : "?");
   const text = (el) => (el === ta ? ta.value : el.textContent);
   const caret = (el) => {
     if (el === ta) return ta.selectionStart + "-" + ta.selectionEnd;
@@ -43,7 +44,7 @@
     logEl.textContent = lines.join("\n");
   }
 
-  for (const el of [ce, ta]) {
+  for (const el of [ce, ta, pm]) {
     for (const type of ["keydown", "keyup", "keypress"]) {
       el.addEventListener(type, (e) => {
         const mods = (e.ctrlKey ? "Ctrl+" : "") + (e.altKey ? "Alt+" : "") + (e.shiftKey ? "Shift+" : "") + (e.metaKey ? "Meta+" : "");
@@ -66,7 +67,7 @@
   }
   document.addEventListener("selectionchange", () => {
     const active = document.activeElement;
-    if (active === ce || active === ta) add(where(active) + " selectionchange caret=" + caret(active));
+    if (active === ce || active === ta || active === pm) add(where(active) + " selectionchange caret=" + caret(active));
   });
 
   // Box 1 behaves like a chat box: Enter without Shift sends (and is cancelled), as claude.ai does on desktop
@@ -77,6 +78,43 @@
       add("box1 >>> SENT (the page got a real Enter keydown and cancelled it)");
       ce.textContent = "";
     }
+  });
+
+  // Box 3 keeps its text in one <p>, as ProseMirror editors do (claude.ai, Telegram). Ctrl+A selects
+  // the box's children, so the selection starts before the <p>; every edit is cancelled and the
+  // paragraph is drawn again from the new text, with the caret put after what was typed.
+  function render(value, at) {
+    const p = document.createElement("p");
+    if (value) p.textContent = value;
+    else p.appendChild(document.createElement("br"));
+    pm.replaceChildren(p);
+    if (value) getSelection().collapse(p.firstChild, at);
+    else getSelection().collapse(p, 0);
+  }
+  pm.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      getSelection().setBaseAndExtent(pm, 0, pm, pm.childNodes.length);
+      add("box3 >>> SELECTED ALL caret=" + caret(pm));
+    }
+  });
+  pm.addEventListener("beforeinput", (e) => {
+    // A word being composed is left to the browser
+    if (e.isComposing || e.inputType.startsWith("insertComposition")) return;
+    const sel = caret(pm).split("-").map(Number);
+    if (sel.length !== 2 || sel.some(Number.isNaN)) return;
+    const value = pm.textContent;
+    let from = Math.min(sel[0], sel[1]);
+    let to = Math.max(sel[0], sel[1]);
+    let insert = "";
+    if (e.inputType === "insertText") insert = e.data || "";
+    else if (e.inputType === "deleteContentBackward") from = from === to ? Math.max(0, from - 1) : from;
+    else if (e.inputType === "deleteContentForward") to = from === to ? Math.min(value.length, to + 1) : to;
+    else if (e.inputType !== "insertParagraph" && e.inputType !== "insertLineBreak") return;
+    else to = from; // one paragraph only: Enter does nothing
+    e.preventDefault();
+    render(value.slice(0, from) + insert + value.slice(to), from + insert.length);
+    add("box3 >>> REDRAWN text=" + JSON.stringify(pm.textContent) + " caret=" + caret(pm));
   });
 
   $("clear").addEventListener("click", () => {

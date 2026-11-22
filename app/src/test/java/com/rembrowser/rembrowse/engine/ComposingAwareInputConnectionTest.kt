@@ -200,4 +200,137 @@ class ComposingAwareInputConnectionTest {
         }
         assertEquals("endBatchEdit", target.calls.last())
     }
+
+    /** A BaseInputConnection over an editable the test controls, recording what reaches it. */
+    private class EditableTarget(view: android.view.View, text: String) : android.view.inputmethod.BaseInputConnection(view, true) {
+        val text = android.text.SpannableStringBuilder(text)
+        val calls = mutableListOf<String>()
+        override fun getEditable(): android.text.Editable = text
+        override fun beginBatchEdit(): Boolean {
+            calls += "begin"
+            return true
+        }
+        override fun endBatchEdit(): Boolean {
+            calls += "end"
+            return true
+        }
+        override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            calls += "commit($text,$newCursorPosition)"
+            return true
+        }
+        @android.annotation.TargetApi(android.os.Build.VERSION_CODES.TIRAMISU)
+        override fun commitText(text: CharSequence, newCursorPosition: Int, textAttribute: android.view.inputmethod.TextAttribute?): Boolean {
+            calls += "commit+attr($text,$newCursorPosition)"
+            return true
+        }
+    }
+
+    private val view = android.view.View(androidx.test.core.app.ApplicationProvider.getApplicationContext<Application>())
+
+    private fun editable(text: String, anchor: Int, focus: Int): EditableTarget =
+        EditableTarget(view, text).also { android.text.Selection.setSelection(it.text, anchor, focus) }
+
+    private fun ComposingAwareInputConnection.commitAs(overload: Boolean, text: CharSequence?, cursor: Int): Boolean =
+        if (overload && text != null) commitText(text, cursor, attribute) else commitText(text, cursor)
+
+    private fun assertReplaced(target: EditableTarget, expected: String, caret: Int) {
+        assertEquals(expected, target.text.toString())
+        assertEquals(caret, android.text.Selection.getSelectionStart(target.text))
+        assertEquals("Collapsed", caret, android.text.Selection.getSelectionEnd(target.text))
+        assertEquals("The target's own commitText is not used", listOf("begin", "end"), target.calls)
+    }
+
+    @Test
+    fun commitOverASelection_replacesItInOneBatch_withoutTheTargetsCommitText() {
+        for (overload in listOf(false, true)) {
+            val target = editable("aaa", 0, 3)
+            val connection = ComposingAwareInputConnection(target)
+            assertTrue(connection.commitAs(overload, "x", 1))
+            assertReplaced(target, "x", 1)
+            assertFalse(connection.composing)
+        }
+    }
+
+    @Test
+    fun aReversedSelection_isReplacedTheSame() {
+        for (overload in listOf(false, true)) {
+            val target = editable("aaa", 3, 0)
+            val connection = ComposingAwareInputConnection(target)
+            assertTrue(connection.commitAs(overload, "x", 1))
+            assertReplaced(target, "x", 1)
+        }
+    }
+
+    @Test
+    fun aSelectionInTheMiddle_isReplacedAndTheCaretLandsAfterTheText() {
+        for (overload in listOf(false, true)) {
+            val target = editable("abcde", 1, 3)
+            ComposingAwareInputConnection(target).commitAs(overload, "X", 1)
+            assertReplaced(target, "aXde", 2)
+        }
+    }
+
+    private fun assertFallsThrough(target: EditableTarget, text: CharSequence?, cursor: Int, original: String) {
+        for (overload in listOf(false, true)) {
+            target.calls.clear()
+            val connection = ComposingAwareInputConnection(target)
+            if (overload && text == null) continue
+            assertTrue(connection.commitAs(overload, text, cursor))
+            val expected = if (overload) "commit+attr($text,$cursor)" else "commit($text,$cursor)"
+            assertEquals(listOf(expected), target.calls)
+            assertEquals("The editable is untouched", original, target.text.toString())
+            assertFalse(connection.composing)
+        }
+    }
+
+    @Test
+    fun aCollapsedSelection_fallsThroughToTheTargetsCommit() {
+        assertFallsThrough(editable("abc", 2, 2), "x", 1, "abc")
+    }
+
+    @Test
+    fun emptyOrNullText_fallsThrough() {
+        assertFallsThrough(editable("abc", 0, 3), "", 1, "abc")
+        assertFallsThrough(editable("abc", 0, 3), null, 1, "abc")
+    }
+
+    @Test
+    fun aCursorPositionOtherThanOne_fallsThrough() {
+        assertFallsThrough(editable("abc", 0, 3), "x", 0, "abc")
+        assertFallsThrough(editable("abc", 0, 3), "x", 2, "abc")
+        assertFallsThrough(editable("abc", 0, 3), "x", -1, "abc")
+    }
+
+    @Test
+    fun aComposingSpan_fallsThrough() {
+        val target = editable("abc", 0, 3)
+        android.view.inputmethod.BaseInputConnection.setComposingSpans(target.text)
+        assertTrue(android.view.inputmethod.BaseInputConnection.getComposingSpanStart(target.text) >= 0)
+        assertFallsThrough(target, "x", 1, "abc")
+    }
+
+    @Test
+    fun aTargetThatIsNotABaseInputConnection_fallsThrough() {
+        val recorder = Recorder().also { it.selectedText = "abc" }
+        val connection = ComposingAwareInputConnection(recorder as InputConnection)
+        assertTrue(connection.commitText("x", 1))
+        assertEquals(listOf("commitText(x,1)"), recorder.calls)
+        assertFalse(connection.composing)
+    }
+
+    @Test
+    fun commitClearsComposing_whetherOrNotTheSelectionWasReplaced() {
+        val target = editable("abc", 0, 3)
+        val connection = ComposingAwareInputConnection(target)
+        connection.setComposingText("n", 1)
+        assertTrue(connection.composing)
+        connection.commitText("x", 1)
+        assertFalse(connection.composing)
+
+        val collapsed = editable("abc", 1, 1)
+        val other = ComposingAwareInputConnection(collapsed)
+        other.setComposingText("n", 1)
+        other.commitText("x", 1)
+        assertFalse(other.composing)
+    }
 }

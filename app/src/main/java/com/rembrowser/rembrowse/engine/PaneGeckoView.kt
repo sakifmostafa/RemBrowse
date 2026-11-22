@@ -5,6 +5,8 @@ import android.content.Context
 import android.graphics.PointF
 import android.view.MotionEvent
 import androidx.annotation.RequiresApi
+import android.text.Selection
+import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.TextAttribute
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputConnectionWrapper
@@ -195,8 +197,18 @@ class PaneGeckoView(
  * and the caret landed before it. Deleting the selection first, in the same batch, starts the
  * word at a plain caret, exactly like typing into an empty box. (GeckoView already reorders
  * commitText this way; setComposingText it leaves alone.)
+ *
+ * Text committed over a selection ([replaceSelection]) is put in without naming a caret position
+ * afterwards. GeckoView's own commitText replaces the selection and then sets the caret to
+ * "selection start + text length", counted in the text as it was before. Gecko counts a line
+ * break before every block element, so in an editor that keeps its text in a `<p>` (ProseMirror:
+ * claude.ai, Telegram) the box reads "\naaa", Ctrl+A selects 0-4, typing "a" leaves "\na", and
+ * caret position 0 + 1 is in front of the "a". Gboard commits every letter of a physical keyboard
+ * this way.
  */
-internal class ComposingAwareInputConnection(target: InputConnection) : InputConnectionWrapper(target, true) {
+internal class ComposingAwareInputConnection(
+    private val target: InputConnection
+) : InputConnectionWrapper(target, true) {
 
     @Volatile
     var composing = false
@@ -241,13 +253,46 @@ internal class ComposingAwareInputConnection(target: InputConnection) : InputCon
 
     override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
         composing = false
-        return super.commitText(text, newCursorPosition)
+        return replaceSelection(text, newCursorPosition) || super.commitText(text, newCursorPosition)
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun commitText(text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?): Boolean {
         composing = false
-        return super.commitText(text, newCursorPosition, textAttribute)
+        return replaceSelection(text, newCursorPosition) || super.commitText(text, newCursorPosition, textAttribute)
+    }
+
+    /**
+     * Replaces the selected text with committed [text] and leaves the caret to the page, which
+     * puts it after what it inserted. False, with nothing done, unless this is the plain case:
+     * text to insert, the caret wanted right after it, a selection, and no word being composed
+     * (a composing keyboard's commit replaces its word, not the selection).
+     *
+     * The selection is collapsed to its end first and the replaced range is then named outright,
+     * as Android's own key listener does for a typed key (QwertyKeyListener.onKeyDown), which is
+     * what GeckoView runs for a key no keyboard app took. Until the page answers, the caret
+     * Android sees is after the new text, the same as before this change.
+     */
+    private fun replaceSelection(text: CharSequence?, newCursorPosition: Int): Boolean {
+        if (text.isNullOrEmpty() || newCursorPosition != 1) return false
+        // GeckoView's connection; null on a stale connection or with the page gone
+        val editable = (target as? BaseInputConnection)?.editable ?: return false
+        if (BaseInputConnection.getComposingSpanStart(editable) >= 0) return false
+        val anchor = Selection.getSelectionStart(editable)
+        val focus = Selection.getSelectionEnd(editable)
+        if (anchor < 0 || focus < 0 || anchor == focus) return false
+        val start = minOf(anchor, focus)
+        val end = maxOf(anchor, focus)
+        if (end > editable.length) return false
+        beginBatchEdit()
+        // The batch is closed whatever happens: left open, the keyboard app would get no more updates
+        try {
+            Selection.setSelection(editable, end)
+            editable.replace(start, end, text)
+        } finally {
+            endBatchEdit()
+        }
+        return true
     }
 }
 

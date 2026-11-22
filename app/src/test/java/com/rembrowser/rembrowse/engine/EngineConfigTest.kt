@@ -66,7 +66,7 @@ class EngineConfigTest {
         // Read with the real parser, not a stand-in: this is what the engine will see
         val prefs = EngineConfig.readWithEngineParser(file)!!
         assertEquals(
-            mapOf<String, Any?>("browser.translations.enable" to false, "browser.viewport.desktopWidth" to 320),
+            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "browser.viewport.desktopWidth" to 320),
             prefs
         )
         assertTrue("An integer, so it is written as a number preference", prefs["browser.viewport.desktopWidth"] is Int)
@@ -83,7 +83,7 @@ class EngineConfigTest {
         assertEquals(file.absolutePath, path)
         assertEquals(
             "The old file is replaced, not added to",
-            mapOf<String, Any?>("browser.translations.enable" to false),
+            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false),
             EngineConfig.readWithEngineParser(file)
         )
     }
@@ -133,12 +133,12 @@ class EngineConfigTest {
             assertFalse(EngineConfig.POINTER_PREF in EngineConfig.prefsFor(width))
         }
         assertEquals(
-            mapOf<String, Any>("browser.translations.enable" to false, "ui.primaryPointerCapabilities" to 6),
+            mapOf<String, Any>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "ui.primaryPointerCapabilities" to 6),
             EngineConfig.prefsFor(411, hasMouseOrTouchpad = true)
         )
         assertEquals(
             mapOf<String, Any>(
-                "browser.translations.enable" to false,
+                "browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false,
                 "browser.viewport.desktopWidth" to 320,
                 "ui.primaryPointerCapabilities" to 6
             ),
@@ -155,7 +155,7 @@ class EngineConfigTest {
         val prefs = EngineConfig.readWithEngineParser(file)!!
         assertEquals(
             mapOf<String, Any?>(
-                "browser.translations.enable" to false,
+                "browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false,
                 "browser.viewport.desktopWidth" to 320,
                 "ui.primaryPointerCapabilities" to 6
             ),
@@ -168,7 +168,7 @@ class EngineConfigTest {
     fun prepare_withAMouseOnAPhone_hasThePointerPrefWithoutTheDesktopWidth() {
         EngineConfig.prepare(folder.root, smallestScreenWidthDp = 411, hasMouseOrTouchpad = true)
         assertEquals(
-            mapOf<String, Any?>("browser.translations.enable" to false, "ui.primaryPointerCapabilities" to 6),
+            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "ui.primaryPointerCapabilities" to 6),
             EngineConfig.readWithEngineParser(File(folder.root, "geckoview-config.yaml"))
         )
     }

@@ -8,7 +8,7 @@
 <title>RemBrowse key test</title>
 <link rel="stylesheet" href="assets/site.css?v=3">
 <link rel="stylesheet" href="assets/keys.css?v=1">
-<script src="assets/keys.js?v=1" defer></script>
+<script src="assets/keys.js?v=2" defer></script>
 </head>
 <body>
 <main class="kt wrap">
@@ -19,6 +19,7 @@
     <li>Click in box 1, type <kbd>hi</kbd>, press <kbd>Enter</kbd>.</li>
     <li>Still in box 1: press <kbd>Ctrl</kbd> <kbd>A</kbd>, then type <kbd>xyz</kbd>.</li>
     <li>Click in box 2 and repeat both steps.</li>
+    <li>Click in box 3, type <kbd>aaa</kbd>, press <kbd>Ctrl</kbd> <kbd>A</kbd>, then type <kbd>xyz</kbd>. It should read xyz.</li>
   </ol>
 
   <section class="kt-boxes" aria-label="Test boxes">
@@ -30,6 +31,10 @@
     <div>
       <label class="kt-label" for="ta">Box 2: a plain text area.</label>
       <textarea class="kt-box" id="ta" rows="3"></textarea>
+    </div>
+    <div>
+      <p class="kt-label" id="pm-label">Box 3: a paragraph editor (text kept in a &lt;p&gt; and redrawn on every edit, as claude.ai and Telegram do).</p>
+      <div class="kt-box" id="pm" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="pm-label"><p><br></p></div>
     </div>
   </section>
 
