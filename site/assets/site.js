@@ -171,6 +171,35 @@
     sync();
   }
 
+  // ---------- Scroll reveal ----------
+  // Content below the first screen rises into place as it comes into view, items in the same row
+  // one after another. Nothing is hidden without JavaScript, with reduced motion, or if it is
+  // already on screen when the page loads.
+  const reveals = Array.from(document.querySelectorAll(".reveal"));
+  if (reveals.length && "IntersectionObserver" in window && !reduceMotion.matches) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.remove("is-pending");
+          observer.unobserve(entry.target);
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px" }
+    );
+    const fold = window.innerHeight;
+    let order = 0;
+    let row = null;
+    for (const el of reveals) {
+      if (el.getBoundingClientRect().top < fold) continue;
+      order = el.parentElement === row ? order + 1 : 0;
+      row = el.parentElement;
+      el.style.transitionDelay = Math.min(order, 4) * 80 + "ms";
+      el.classList.add("is-pending");
+      observer.observe(el);
+    }
+  }
+
   // ---------- Start-page clock (like the app's own new tab) ----------
   const clock = document.querySelector("[data-clock]");
   const clockDate = document.querySelector("[data-clock-date]");
@@ -230,6 +259,7 @@
     const card = cards.find((c) => c.dataset.abi === guess.abi);
     if (!card) return;
     card.classList.add("is-recommended");
+    if (card.parentElement) card.parentElement.classList.add("has-pick");
     const badge = card.querySelector("[data-badge]");
     if (badge) badge.textContent = guess.sure ? "For this device" : "Most likely for this phone";
     if (heroLink && guess.sure) {
@@ -241,7 +271,7 @@
         const apk = release && release.apks[guess.abi];
         heroSub.textContent = apk
           ? "Version " + release.versionName + " · " + ABI_NAMES[guess.abi] + " · " + megabytes(apk.size)
-          : ABI_NAMES[guess.abi] + " · Android 8.0 or newer";
+          : ABI_NAMES[guess.abi] + " · Android 8.0 or later";
       }
     }
   }
@@ -261,11 +291,12 @@
 
   function fill(release, published) {
     for (const el of document.querySelectorAll("[data-version]")) el.textContent = "Version " + release.versionName;
+    for (const el of document.querySelectorAll("[data-version-short]")) el.textContent = release.versionName;
     const pub = document.querySelector("[data-published]");
     if (pub && published && !Number.isNaN(published.getTime())) {
       pub.textContent = "Published " + published.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
     }
-    if (heroSub) heroSub.textContent = "Version " + release.versionName + " · Android 8.0 or newer";
+    if (heroSub) heroSub.textContent = "Version " + release.versionName + " · Free · Android 8.0 or later";
     let missing = 0;
     for (const card of cards) {
       const abi = card.dataset.abi;

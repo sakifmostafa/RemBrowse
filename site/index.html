@@ -3,28 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RemBrowse · the tiled browser for Android</title>
-<meta name="description" content="RemBrowse puts up to four web pages side by side on Android laptops, tablets and phones. Firefox's engine, real Firefox add-ons and an SSH terminal that opens like a tab.">
-<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f4f2f3" media="(prefers-color-scheme: light)">
+<title>RemBrowse · the tiled browser for Googlebook and Android</title>
+<meta name="description" content="RemBrowse puts up to four web pages side by side. Firefox's engine, real Firefox add-ons and an SSH terminal in a tab. Made for Googlebook, at home on any Android device.">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="color-scheme" content="dark light">
 <link rel="canonical" href="https://browse.example.com/">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://browse.example.com/">
-<meta property="og:title" content="RemBrowse · the tiled browser for Android">
-<meta property="og:description" content="Up to four pages side by side, real Firefox add-ons, and an SSH terminal in a tab. For Android laptops, tablets and phones.">
+<meta property="og:title" content="RemBrowse · the web, tiled">
+<meta property="og:description" content="Up to four pages side by side, real Firefox add-ons and an SSH terminal in a tab. Made for Googlebook.">
 <meta property="og:image" content="https://browse.example.com/assets/img/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="preload" href="assets/fonts/source-serif-4-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/site.css?v=2">
-<script src="assets/site.js?v=2" defer></script>
+<link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/site.css?v=3">
+<script src="assets/site.js?v=3" defer></script>
 </head>
 <body>
 <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
-  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
   <symbol id="i-reload" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
@@ -37,59 +37,54 @@
   <symbol id="i-onetwo" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/><path d="M12 12h9"/></symbol>
   <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
-  <symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M19.44 7.85c-.05.32.06.65.29.88l1.57 1.57c.47.47.7 1.09.7 1.7s-.23 1.24-.7 1.71l-1.61 1.61a.98.98 0 0 1-.84.28c-.47-.07-.8-.48-.97-.93a2.5 2.5 0 1 0-3.21 3.21c.45.17.86.5.93.97a.98.98 0 0 1-.28.84l-1.61 1.61a2.4 2.4 0 0 1-1.7.7 2.4 2.4 0 0 1-1.71-.7l-1.57-1.57a1.03 1.03 0 0 0-.88-.29c-.49.07-.84.5-1.02.97a2.5 2.5 0 1 1-3.24-3.24c.46-.18.9-.53.97-1.02a1.03 1.03 0 0 0-.29-.88L2.7 13.7A2.4 2.4 0 0 1 2 12c0-.62.24-1.23.7-1.7l1.53-1.53c.24-.24.58-.35.92-.3.51.08.87.53 1.07 1.01a2.5 2.5 0 1 0 3.26-3.26c-.48-.2-.93-.56-1.01-1.07-.05-.34.06-.68.3-.92L10.3 2.7A2.4 2.4 0 0 1 12 2c.62 0 1.23.24 1.7.7l1.57 1.57c.23.23.56.34.88.29.49-.07.84-.5 1.02-.97a2.5 2.5 0 1 1 3.24 3.24c-.46.18-.9.53-.97 1.02Z"/></symbol>
-  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></symbol>
-  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></symbol>
-  <symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55A1 1 0 0 1 20.38 20H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
-  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-touchpad" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="3"/><path d="M2 15h20"/><path d="M12 15v4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></symbol>
+  <symbol id="i-no-server" viewBox="0 0 24 24"><rect width="18" height="7" x="3" y="3" rx="2"/><rect width="18" height="7" x="3" y="14" rx="2"/><path d="M7 6.5h.01M7 17.5h.01"/><path d="m2 2 20 20"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
-  <symbol id="i-phone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
 </svg>
 
 <a class="skip" href="#main">Skip to content</a>
 
-<header class="site-head">
-  <div class="wrap">
-    <a class="brand" href="#top" aria-label="RemBrowse, back to top">
-      <img src="assets/img/mark-64.webp" width="34" height="34" alt="">
-      <span>Rem<b>Browse</b></span>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#top" aria-label="RemBrowse, back to top">
+      <img src="assets/img/mark-64.webp" width="28" height="28" alt="">
+      <span>RemBrowse</span>
     </a>
-    <nav class="head-nav" aria-label="Page">
-      <a class="nav-features" href="#features">Features</a>
-      <a class="nav-dl" href="#download">Download</a>
+    <nav class="nav-links" aria-label="Page">
+      <a class="nav-link" href="#highlights">Highlights</a>
+      <a class="pill pill-sm" href="#download">Download</a>
     </nav>
   </div>
 </header>
 
 <main id="main">
   <section class="hero" id="top" aria-labelledby="hero-title">
-    <div class="wrap">
-      <span class="eyebrow"><span class="dot" aria-hidden="true"></span>For Android laptops, tablets and phones</span>
-      <h1 id="hero-title">The web, <em>tiled.</em></h1>
-      <p class="lede">RemBrowse puts <strong>up to four pages side by side</strong>, in any arrangement, with an SSH terminal right next to them if you want one. Underneath is Firefox's engine with real Firefox add-ons, and on a Googlebook it works like a desktop browser.</p>
-      <div class="hero-cta">
-        <a class="btn btn-gold" href="#download" data-hero-download>
-          <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>
-          <span class="btn-stack"><span data-hero-label>Download for Android</span><small data-hero-sub>Free · Android 8.0 or newer</small></span>
+    <div class="wrap center">
+      <p class="eyebrow reveal">RemBrowse <span data-version-short></span></p>
+      <h1 id="hero-title" class="reveal">The web, <span class="gradient">tiled.</span></h1>
+      <p class="subhead reveal">Up to four pages side by side. Firefox inside. Made&nbsp;for&nbsp;Googlebook.</p>
+      <div class="cta-row reveal">
+        <a class="pill" href="#download" data-hero-download>
+          <span data-hero-label>Download</span>
         </a>
-        <a class="btn btn-quiet" href="#features">See what it does</a>
+        <a class="link-more" href="#highlights">See the highlights<svg class="ic" aria-hidden="true"><use href="#i-chevron"/></svg></a>
       </div>
-      <ul class="hero-meta">
-        <li><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Updates itself</li>
-        <li><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg>Private by default</li>
-        <li><svg class="ic" aria-hidden="true"><use href="#i-puzzle"/></svg>Firefox add-ons</li>
-      </ul>
+      <p class="fineprint reveal" data-hero-sub>Free · Android 8.0 or later</p>
+    </div>
 
-      <div class="demo" data-demo>
+    <div class="wrap wrap-wide">
+      <div class="demo reveal" data-demo>
         <div class="win" data-layout="side" role="img" aria-label="A RemBrowse window with two pages side by side: an article and a terminal.">
           <div class="win-rail">
             <span class="rail-chip">M</span>
             <span class="rail-chip is-on">D</span>
             <span class="rail-chip">Y</span>
             <span class="rail-sep"></span>
-            <span class="rail-chip"><img src="assets/img/mark-64.webp" width="22" height="22" alt=""></span>
+            <span class="rail-chip"><img src="assets/img/mark-64.webp" width="20" height="20" alt=""></span>
             <span class="rail-chip"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></span>
           </div>
           <div class="win-bar">
@@ -142,136 +137,167 @@ home-assistant
         </div>
 
         <div class="demo-controls">
-          <div class="layouts" role="group" aria-label="Split layouts">
-            <button class="layout-btn" type="button" data-layout-btn="side" aria-pressed="true" title="Side by side (Ctrl+2)">
+          <div class="segmented" role="group" aria-label="Split layouts">
+            <button class="seg" type="button" data-layout-btn="side" aria-pressed="true" title="Side by side (Ctrl+2)">
               <svg class="ic" aria-hidden="true"><use href="#i-side"/></svg><span>Side by side</span>
             </button>
-            <button class="layout-btn" type="button" data-layout-btn="stacked" aria-pressed="false" title="Stacked (Ctrl+3)">
+            <button class="seg" type="button" data-layout-btn="stacked" aria-pressed="false" title="Stacked (Ctrl+3)">
               <svg class="ic" aria-hidden="true"><use href="#i-stacked"/></svg><span>Stacked</span>
             </button>
-            <button class="layout-btn" type="button" data-layout-btn="grid" aria-pressed="false" title="Grid (Ctrl+4)">
+            <button class="seg" type="button" data-layout-btn="grid" aria-pressed="false" title="Grid (Ctrl+4)">
               <svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>Grid</span>
             </button>
-            <button class="layout-btn" type="button" data-layout-btn="onetwo" aria-pressed="false" title="One and two (Ctrl+5)">
+            <button class="seg" type="button" data-layout-btn="onetwo" aria-pressed="false" title="One and two (Ctrl+5)">
               <svg class="ic" aria-hidden="true"><use href="#i-onetwo"/></svg><span>One + two</span>
             </button>
           </div>
-          <button class="icon-btn" type="button" data-demo-pause aria-label="Pause the layout demo" hidden>
+          <button class="round-btn" type="button" data-demo-pause aria-label="Pause the layout demo" hidden>
             <svg class="ic" aria-hidden="true"><use href="#i-pause"/></svg>
           </button>
         </div>
-        <p class="demo-note">Drag a tab onto the edge of a page to split it. Each split has its own divider, and <kbd>Ctrl</kbd> <kbd>2</kbd>–<kbd>5</kbd> switch layouts.</p>
+        <p class="demo-note">Drag a tab onto the edge of a page to split it. Each split gets its own divider.</p>
         <p class="visually-hidden" aria-live="polite" data-demo-status></p>
       </div>
     </div>
   </section>
 
-  <div class="split-rule" aria-hidden="true"><span class="grip h"><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
-
-  <section class="section" id="features" aria-labelledby="features-title">
+  <section class="numbers" aria-label="Split view in numbers">
     <div class="wrap">
-      <div class="section-head">
-        <p class="kicker">What it does</p>
-        <h2 id="features-title">A laptop browser, on Android</h2>
-        <p>Android laptops deserve more than a stretched phone browser. RemBrowse has one quiet toolbar, a tab rail on the left, and the things you reach for on a real computer.</p>
-      </div>
+      <ul class="stats">
+        <li class="stat reveal"><span class="stat-big">4</span><span class="stat-text">pages side by side, in any arrangement.</span></li>
+        <li class="stat reveal"><span class="stat-big">5</span><span class="stat-text">layouts, each one keystroke away: <kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>5</kbd>.</span></li>
+        <li class="stat reveal"><span class="stat-big">138</span><span class="stat-text">Firefox's own engine, GeckoView&nbsp;138, underneath.</span></li>
+      </ul>
+    </div>
+  </section>
 
-      <div class="tiles">
-        <article class="tile t-ext">
-          <span class="tile-icon"><svg class="ic" aria-hidden="true"><use href="#i-puzzle"/></svg></span>
-          <h3>Real Firefox add-ons</h3>
-          <p>Install uBlock Origin, Bitwarden, SponsorBlock and the rest straight from Firefox Add-ons, or a signed <code>.xpi</code> from a file. AdGuard blocks ads from the first launch, and you can switch it off at any time. Extension buttons sit in the tab rail, and their popups open at full size.</p>
-          <figure class="shot">
-            <img src="assets/img/extensions-1280.webp" srcset="assets/img/extensions-720.webp 720w, assets/img/extensions-1280.webp 1280w" sizes="(min-width: 1024px) 760px, 100vw" width="1280" height="800" loading="lazy" decoding="async" alt="RemBrowse settings, Extensions tab: Firefox Add-ons search with AdGuard AdBlocker added and uBlock Origin, Bitwarden and SponsorBlock ready to add.">
+  <section class="highlights" id="highlights" aria-labelledby="highlights-title">
+    <div class="wrap">
+      <h2 id="highlights-title" class="section-title reveal">Get the highlights.</h2>
+
+      <div class="bento">
+        <article class="tile t-ext reveal">
+          <div class="tile-copy">
+            <p class="tile-eyebrow">Extensions</p>
+            <h3>Real Firefox add&#8209;ons.</h3>
+            <p>uBlock Origin, Bitwarden, SponsorBlock and the rest, straight from Firefox Add-ons. AdGuard blocks ads from the first launch.</p>
+          </div>
+          <figure class="tile-shot">
+            <img src="assets/img/extensions-1280.webp" srcset="assets/img/extensions-720.webp 720w, assets/img/extensions-1280.webp 1280w" sizes="(min-width: 1024px) 720px, 100vw" width="1280" height="800" loading="lazy" decoding="async" alt="RemBrowse settings, Extensions tab: Firefox Add-ons search with AdGuard AdBlocker added and uBlock Origin, Bitwarden and SponsorBlock ready to add.">
           </figure>
         </article>
 
-        <article class="tile t-term">
-          <span class="tile-icon"><svg class="ic" aria-hidden="true"><use href="#i-terminal"/></svg></span>
-          <h3>An SSH terminal in a tab</h3>
-          <p>Open a terminal like any other tab and keep it beside your pages. Save hosts, generate or import keys, and sign in to Tailscale SSH. Passwords and keys are sealed by the device's keystore.</p>
+        <article class="tile t-term reveal">
+          <div class="tile-copy">
+            <p class="tile-eyebrow">Terminal</p>
+            <h3>SSH in a tab.</h3>
+            <p>Keep a server beside your pages. Saved hosts, generated keys, and Tailscale SSH sign-in.</p>
+          </div>
           <div class="term-card" role="img" aria-label="A terminal session in RemBrowse, connected to a home server.">
             <div class="term-head"><span class="dot"></span><span>Homelab</span><span>rem@homelab</span></div>
-<pre class="term-body"><b>rem@homelab</b>:<span class="path">~</span>$ systemctl is-active nginx
-active
-<b>rem@homelab</b>:<span class="path">~</span>$ df -h / | tail -1
-/dev/nvme0n1p2  457G  188G  246G  44% /
+<pre class="term-body"><b>rem@homelab</b>:<span class="path">~</span>$ uptime -p
+up 41 days, 6 hours
+<b>rem@homelab</b>:<span class="path">~</span>$ df -h /home
+Size  Used Avail Use%
+457G  188G  246G  44%
+<b>rem@homelab</b>:<span class="path">~</span>$ ls
+backup  nextcloud  site
+<b>rem@homelab</b>:<span class="path">~</span>$ git -C site pull
+Already up to date.
 <b>rem@homelab</b>:<span class="path">~</span>$ <span class="cursor"></span></pre>
           </div>
         </article>
 
-        <article class="tile t-keys">
-          <span class="tile-icon"><svg class="ic" aria-hidden="true"><use href="#i-keyboard"/></svg></span>
-          <h3>Keyboard first</h3>
-          <p>A command palette for tabs, addresses and commands, and the shortcuts you already know from desktop browsers.</p>
-          <ul class="keys">
-            <li><kbd>Ctrl</kbd><kbd>K</kbd><span>Command palette</span></li>
-            <li><kbd>Ctrl</kbd><kbd>G</kbd><span>Go to address</span></li>
-            <li><kbd>Ctrl</kbd><kbd>F</kbd><span>Find in page</span></li>
-            <li><kbd>Ctrl</kbd><kbd>T</kbd><span>New tab</span></li>
-            <li><kbd>Ctrl</kbd><kbd>\</kbd><span>Split view</span></li>
-            <li><kbd>Ctrl</kbd><kbd>H</kbd><span>History</span></li>
+        <article class="tile t-keys reveal">
+          <div class="tile-copy">
+            <p class="tile-eyebrow">Keyboard</p>
+            <h3>Ctrl&nbsp;K. Everything.</h3>
+            <p>One palette for tabs, addresses and commands, plus the shortcuts you already know.</p>
+          </div>
+          <div class="keycaps" aria-hidden="true">
+            <kbd class="cap cap-wide">Ctrl</kbd><kbd class="cap cap-hot">K</kbd>
+          </div>
+          <ul class="mini-keys">
+            <li><kbd>Ctrl</kbd> <kbd>G</kbd> Go to address</li>
+            <li><kbd>Ctrl</kbd> <kbd>F</kbd> Find in page</li>
+            <li><kbd>Ctrl</kbd> <kbd>T</kbd> New tab</li>
+            <li><kbd>Ctrl</kbd> <kbd>\</kbd> Split view</li>
           </ul>
-          <figure class="shot">
-            <img src="assets/img/palette-1280.webp" srcset="assets/img/palette-720.webp 720w, assets/img/palette-1280.webp 1280w" sizes="(min-width: 1024px) 560px, 100vw" width="1280" height="800" loading="lazy" decoding="async" alt="The RemBrowse command palette over the start page, offering to search the web or switch to an open GitHub tab.">
-          </figure>
         </article>
 
-        <article class="tile t-phone">
-          <div class="phone-tile">
-            <div>
-              <span class="tile-icon"><svg class="ic" aria-hidden="true"><use href="#i-phone"/></svg></span>
-              <h3>On a phone, too</h3>
-              <p>In a narrow window the tab rail folds away and two pages stack, each with its own divider. The same tabs, layouts and add-ons, sized for one hand.</p>
-            </div>
-            <div class="phone">
-              <img src="assets/img/phone-360.webp" srcset="assets/img/phone-360.webp 360w, assets/img/phone-720.webp 720w" sizes="220px" width="360" height="720" loading="lazy" decoding="async" alt="RemBrowse on a phone: two pages stacked with a divider between them.">
-            </div>
+        <article class="tile t-touch reveal">
+          <div class="tile-copy">
+            <p class="tile-eyebrow">Touchpad</p>
+            <h3>Feels like a desktop.</h3>
+            <p>Right-click links and pictures, scroll with two fingers, and resize the window freely.</p>
+          </div>
+          <svg class="glyph" aria-hidden="true"><use href="#i-touchpad"/></svg>
+        </article>
+
+        <article class="tile t-phone reveal">
+          <div class="tile-copy">
+            <p class="tile-eyebrow">Phone</p>
+            <h3>Fits in your pocket, too.</h3>
+            <p>Two pages stack, the tab rail folds away.</p>
+          </div>
+          <div class="phone">
+            <img src="assets/img/phone-360.webp" srcset="assets/img/phone-360.webp 360w, assets/img/phone-720.webp 720w" sizes="240px" width="360" height="720" loading="lazy" decoding="async" alt="RemBrowse on a phone: two pages stacked with a divider between them.">
           </div>
         </article>
 
-        <article class="tile t-small">
-          <span class="tile-icon"><svg class="ic" aria-hidden="true"><use href="#i-laptop"/></svg></span>
-          <h3>Feels like a desktop</h3>
-          <p>Right-click links and pictures with the touchpad, scroll with two fingers, see hover states and resize cursors, and resize the window freely.</p>
+        <article class="tile t-private reveal">
+          <div class="tile-copy">
+            <p class="tile-eyebrow">Privacy</p>
+            <h3>Private by default.</h3>
+            <p>Blocking is built in, and there's nothing to sign in to. Your history stays on the device.</p>
+          </div>
+          <ul class="points">
+            <li>
+              <svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg>
+              <h4>Trackers blocked</h4>
+              <p>Firefox's tracking protection is built in. A stricter level also stops fingerprinters, cryptominers and email trackers.</p>
+            </li>
+            <li>
+              <svg class="ic" aria-hidden="true"><use href="#i-ban"/></svg>
+              <h4>Ads blocked</h4>
+              <p>AdGuard AdBlocker is set up on first launch. Switch it off whenever you like.</p>
+            </li>
+            <li>
+              <svg class="ic" aria-hidden="true"><use href="#i-no-server"/></svg>
+              <h4>No servers</h4>
+              <p>There's no RemBrowse account, sync, analytics or crash reporting. Nothing you browse is sent to us.</p>
+            </li>
+          </ul>
         </article>
 
-        <article class="tile t-small">
-          <span class="tile-icon"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></span>
-          <h3>Private by default</h3>
-          <p>Tracking protection that doesn't break sites, no cloud backup of your browsing profile, and history that stays on the device.</p>
-        </article>
-
-        <article class="tile t-small">
-          <span class="tile-icon"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></span>
-          <h3>Updates itself</h3>
-          <p>Settings → About finds a new version, checks its size and SHA-256, and hands it to Android's installer. Your tabs and settings stay.</p>
+        <article class="tile t-update reveal">
+          <div class="tile-copy">
+            <p class="tile-eyebrow">Updates</p>
+            <h3>Updates itself.</h3>
+            <p>It finds a new version, checks its size and SHA&#8209;256, and hands it to Android's installer. Your tabs stay put.</p>
+          </div>
+          <svg class="glyph" aria-hidden="true"><use href="#i-refresh"/></svg>
         </article>
       </div>
     </div>
   </section>
 
-  <div class="split-rule" aria-hidden="true"><span class="grip h"><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
-
-  <section class="section" id="download" aria-labelledby="download-title">
+  <section class="download" id="download" aria-labelledby="download-title">
     <div class="wrap">
-      <div class="section-head">
-        <p class="kicker">Download</p>
-        <h2 id="download-title">Get RemBrowse</h2>
-        <p>Pick the file for your device's processor. These buttons always fetch the newest version.</p>
+      <div class="center">
+        <h2 id="download-title" class="section-title reveal">Get RemBrowse.</h2>
+        <p class="subhead reveal">Free. These buttons always fetch the newest version.</p>
+        <p class="release-line reveal"><span class="version-pill" data-version>Latest version</span> <span data-published></span></p>
+        <p class="release-status" data-release-status aria-live="polite"></p>
       </div>
-      <div class="release-line">
-        <span class="version-pill"><span data-version>Latest version</span></span>
-        <span data-published></span>
-      </div>
-      <p class="release-status" data-release-status aria-live="polite"></p>
 
       <div class="cards">
-        <article class="card" data-abi="x86_64">
+        <article class="card reveal" data-abi="x86_64">
           <span class="card-badge" data-badge>For this device</span>
-          <div class="card-title"><h3>Intel or AMD</h3><span class="abi">x86_64</span></div>
-          <p>Most Android laptops, Googlebooks included.</p>
-          <a class="btn btn-dl-card" href="RemBrowse-x86_64.apk" download data-dl>
+          <h3>Intel or AMD</h3>
+          <p class="card-abi">x86_64</p>
+          <p class="card-desc">Most Android laptops.</p>
+          <a class="pill pill-block" href="RemBrowse-x86_64.apk" download data-dl>
             <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>
             <span data-dl-label>Download for Intel or AMD</span>
           </a>
@@ -280,11 +306,12 @@ active
             <button class="copy-btn" type="button" data-copy aria-label="Copy the SHA-256 of the Intel or AMD download"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
           </div>
         </article>
-        <article class="card" data-abi="arm64-v8a">
+        <article class="card reveal" data-abi="arm64-v8a">
           <span class="card-badge" data-badge>For this device</span>
-          <div class="card-title"><h3>ARM</h3><span class="abi">arm64-v8a</span></div>
-          <p>Phones, tablets and ARM laptops.</p>
-          <a class="btn btn-dl-card" href="RemBrowse-arm64-v8a.apk" download data-dl>
+          <h3>ARM</h3>
+          <p class="card-abi">arm64-v8a</p>
+          <p class="card-desc">Phones, tablets and ARM laptops.</p>
+          <a class="pill pill-block" href="RemBrowse-arm64-v8a.apk" download data-dl>
             <svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>
             <span data-dl-label>Download for ARM</span>
           </a>
@@ -296,19 +323,15 @@ active
       </div>
       <p class="visually-hidden" aria-live="polite" data-copy-status></p>
 
-      <div class="install">
-        <div class="steps">
-          <h3>Install it</h3>
-          <ol>
-          <li><strong>Download</strong> the file for your processor, on the device itself.</li>
-          <li><strong>Open it.</strong> If Android asks, let your browser install apps (it asks once).</li>
-          <li><strong>Tap Install.</strong> From then on RemBrowse keeps itself up to date: Settings → About.</li>
-          </ol>
-        </div>
-        <div class="notes">
-          <p class="note"><strong>Using 0.13.7 or older?</strong> Its update check looks somewhere that is closed now, so install this version by hand once. It installs over the old one and keeps your tabs and settings.</p>
-          <p class="note"><strong>Coming from 0.08 or older?</strong> Those were signed with a different key. Uninstall them first; this removes their tabs, bookmarks and extensions.</p>
-        </div>
+      <ol class="steps">
+        <li class="step reveal"><span class="step-n" aria-hidden="true">1</span><h3>Download</h3><p>Get the file for your processor, on the device itself.</p></li>
+        <li class="step reveal"><span class="step-n" aria-hidden="true">2</span><h3>Open it</h3><p>If Android asks, let your browser install apps. It only asks once.</p></li>
+        <li class="step reveal"><span class="step-n" aria-hidden="true">3</span><h3>Install</h3><p>From then on RemBrowse keeps itself up to date.</p></li>
+      </ol>
+
+      <div class="notes">
+        <p><strong>Using 0.13.7 or older?</strong> Install this version by hand once; its update check looks somewhere that is closed now. It installs over the old one and keeps your tabs and settings.</p>
+        <p><strong>Coming from 0.08 or older?</strong> Those were signed with a different key. Uninstall them first, which removes their tabs, bookmarks and extensions.</p>
       </div>
 
       <details class="verify">
@@ -324,17 +347,20 @@ active
   </section>
 </main>
 
-<footer class="site-foot">
+<footer class="footer">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="RemBrowse, back to top">
-      <img src="assets/img/mark-64.webp" width="28" height="28" alt="">
-      <span>Rem<b>Browse</b></span>
-    </a>
-    <span>Built on Mozilla GeckoView. Made for Android laptops.</span>
-    <nav class="foot-links" aria-label="Footer">
-      <a href="#download">Download</a>
-      <a href="update.json">update.json</a>
-    </nav>
+    <p>RemBrowse is built on Mozilla GeckoView and runs Firefox add-ons from addons.mozilla.org. Requires Android 8.0 or later. Ad blocking by AdGuard AdBlocker, which can be switched off or removed in Settings.</p>
+    <div class="footer-row">
+      <a class="nav-brand" href="#top" aria-label="RemBrowse, back to top">
+        <img src="assets/img/mark-64.webp" width="24" height="24" alt="">
+        <span>RemBrowse</span>
+      </a>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="#highlights">Highlights</a>
+        <a href="#download">Download</a>
+        <a href="update.json">update.json</a>
+      </nav>
+    </div>
   </div>
 </footer>
 </body>
