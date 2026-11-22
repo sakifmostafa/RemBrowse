@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.13.8`)
+# RemBrowse (`v0.13.9`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.13.8** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
+**Version 0.13.9** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 

@@ -133,22 +133,43 @@ class PaneGeckoView(
     }
 }
 
-/** Passes everything on to the page's input connection, noting whether a word is being composed. */
+/**
+ * Passes everything on to the page's input connection, noting whether a word is being composed,
+ * with one change: a word that starts over selected text first deletes the selection.
+ *
+ * Keyboard apps (Gboard included, with a physical keyboard) type into a page as a word being
+ * composed. Started over a selection, as after Ctrl+A, Android's replaceText collapses the caret
+ * to the selection's end and Gecko then starts the composition over the selected text, which
+ * rich-text editors (claude.ai's, Telegram's) answer by rewriting the box: one character appeared
+ * and the caret landed before it. Deleting the selection first, in the same batch, starts the
+ * word at a plain caret, exactly like typing into an empty box. (GeckoView already reorders
+ * commitText this way; setComposingText it leaves alone.)
+ */
 internal class ComposingAwareInputConnection(target: InputConnection) : InputConnectionWrapper(target, true) {
 
     @Volatile
     var composing = false
         private set
 
-    override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        composing = !text.isNullOrEmpty()
-        return super.setComposingText(text, newCursorPosition)
-    }
+    override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean =
+        startingOverSelection(text) { super.setComposingText(text, newCursorPosition) }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    override fun setComposingText(text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?): Boolean {
-        composing = text.isNotEmpty()
-        return super.setComposingText(text, newCursorPosition, textAttribute)
+    override fun setComposingText(text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?): Boolean =
+        startingOverSelection(text) { super.setComposingText(text, newCursorPosition, textAttribute) }
+
+    /** Runs [compose]; a new word over selected text deletes the selection first, in one batch. */
+    private inline fun startingOverSelection(text: CharSequence?, compose: () -> Boolean): Boolean {
+        val replacing = !composing && !text.isNullOrEmpty() && !getSelectedText(0).isNullOrEmpty()
+        if (replacing) beginBatchEdit()
+        // The batch is closed whatever happens: left open, the keyboard app would get no more updates
+        return try {
+            if (replacing) super.commitText("", 1)
+            composing = !text.isNullOrEmpty()
+            compose()
+        } finally {
+            if (replacing) endBatchEdit()
+        }
     }
 
     override fun setComposingRegion(start: Int, end: Int): Boolean {

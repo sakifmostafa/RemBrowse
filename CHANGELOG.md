@@ -2,7 +2,7 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## Unreleased
+## v0.13.9 (2026-11-21) — uBlock Origin built in, Enter sends in chat boxes, Ctrl+Shift+T for a terminal
 
 ### Changed
 * **`Ctrl+Shift+T` opens a new terminal**, from a web page or from inside another terminal, as in terminal apps. It is shown next to **New terminal** in the More menu and the command palette. Inside a terminal, a new browser tab moves from `Ctrl+Shift+T` to `Ctrl+Shift+N`.
@@ -11,6 +11,10 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 ### Fixed
 * **The text cursor (I-beam) showed over the terminal's cards and banners**, such as "Couldn't connect" and its buttons, the password and server-key questions, and the Connecting and Disconnected bars. They now show the normal pointer; the I-beam is only over the terminal's text. A pane divider's resize cursor also wins over a terminal beside it now, as it already did over web pages.
 * **Enter in a web chat box added a new line instead of sending** (claude.ai's message box, for one), with a physical keyboard. 0.13.8 meant to send Enter to the page as a key, but checked first whether the page view was a text editor, which GeckoView never says, so it never did: the keyboard app turned Enter into a typed line break. Enter now goes to the page through the browser engine's own key path; a word still being typed is committed first. Chinese, Japanese and Korean keyboards keep Enter while composing. Not yet confirmed on a device.
+* **After Ctrl+A in a rich text box, typing put one character in and the cursor before it** (claude.ai's and Telegram's message boxes, with Gboard and a physical keyboard). Gboard starts each word as "being composed", and starting one over a selection made those editors rewrite the box. The selection is now deleted first, so the word starts at a plain cursor, as in an empty box; Gboard's autocorrect is kept. Not yet confirmed on a device.
+
+### Testing
+595 automated tests (50 of them screenshot renders that run only on request), including the move from AdGuard to uBlock Origin in every state the app can be in, the Ctrl+Shift+T keys in and out of a terminal, the cursor claim over terminal cards, and the order of calls when a word starts over selected text. Gecko itself can't run in the tests, so the Enter and typing fixes are covered up to the point they hand the key or text to GeckoView.
 
 ## v0.13.8 (2026-11-21) — Terminal: Tailscale SSH, and clearer connection errors
 
