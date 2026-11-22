@@ -601,9 +601,9 @@ private fun PrivacySection(
     SwitchRow(
         title = "Block ads and trackers",
         description = when {
-            adBlockerBusy -> "Installing AdGuard AdBlocker…"
+            adBlockerBusy -> "Installing uBlock Origin…"
             adBlockerError != null -> adBlockerError
-            else -> "Uses the AdGuard AdBlocker extension from addons.mozilla.org. To filter pages " +
+            else -> "Uses the uBlock Origin extension from addons.mozilla.org. To filter pages " +
                 "it can read and change the sites you visit. Manage or remove it under Extensions."
         },
         checked = adBlockerOn,

@@ -219,7 +219,8 @@ class FakeBrowserStateRepository(
 }
 
 class FakeDefaultExtensionStore(
-    override var defaultBlockerProvisioned: Boolean = false
+    override var defaultBlockerProvisioned: Boolean = false,
+    override var blockerMovedToUblock: Boolean = false
 ) : com.rembrowser.rembrowse.data.DefaultExtensionStore
 
 class FakeAmoApiClient : AmoApiClient {
@@ -254,8 +255,17 @@ class FakeExtensionManager : ExtensionManager {
     val triggeredActionIds = mutableListOf<String>()
     var lastPromptDecision: Boolean? = null
 
+    /**
+     * When set, what refreshInstalled returns, without touching [installedExtensions] first: on a
+     * device the state flow's copy arrives a moment after the result.
+     */
+    var refreshResult: Result<List<InstalledExtension>>? = null
+
+    /** When set, setEnabled fails with this for the extension id, leaving it as it was. */
+    var setEnabledFailureFor = mutableSetOf<String>()
+
     override suspend fun refreshInstalled(): Result<List<InstalledExtension>> {
-        return Result.success(installedExtensions.value)
+        return refreshResult ?: Result.success(installedExtensions.value)
     }
 
     override suspend fun installFromUri(uri: String): Result<InstalledExtension> {
@@ -286,8 +296,8 @@ class FakeExtensionManager : ExtensionManager {
         val result = nextTrustedInstallResult ?: Result.success(
             InstalledExtension(
                 id = expectedId,
-                name = "AdGuard AdBlocker",
-                version = "5.0.0",
+                name = "uBlock Origin",
+                version = "1.61.2",
                 description = "Blocks ads and trackers",
                 enabled = true,
                 hasBrowserAction = true
@@ -300,6 +310,7 @@ class FakeExtensionManager : ExtensionManager {
     }
 
     override suspend fun setEnabled(extensionId: String, enabled: Boolean): Result<Unit> {
+        if (extensionId in setEnabledFailureFor) return Result.failure(java.io.IOException("cannot switch $extensionId"))
         installedExtensions.value = installedExtensions.value.map {
             if (it.id == extensionId) it.copy(enabled = enabled) else it
         }

@@ -125,6 +125,14 @@ class TerminalUiTest {
     }
 
     @Test
+    fun theMoreMenu_showsTheNewTerminalShortcut() {
+        launch()
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNode(hasTestTag("menu_new_terminal")).assertIsDisplayed()
+        composeRule.onNode(hasText("Ctrl+Shift+T") and hasAnyAncestor(hasTestTag("menu_new_terminal")), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
     fun aNewTerminal_connectsToATypedAddress_askingForThePassword() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()

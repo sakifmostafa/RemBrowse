@@ -105,7 +105,7 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
     var showingKey by remember { mutableStateOf<SshKeyInfo?>(null) }
 
     Text(
-        text = "Open a terminal from More → New terminal, the command palette (Ctrl+K), or Connect below. " +
+        text = "Open a terminal with Ctrl+Shift+T, from More → New terminal, the command palette (Ctrl+K), or Connect below. " +
             "Passwords and keys are encrypted on this device and never leave it.",
         style = MaterialTheme.typography.bodyMedium,
         color = colors.onSurfaceVariant

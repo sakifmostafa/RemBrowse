@@ -2,6 +2,16 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Changed
+* **`Ctrl+Shift+T` opens a new terminal**, from a web page or from inside another terminal, as in terminal apps. It is shown next to **New terminal** in the More menu and the command palette. Inside a terminal, a new browser tab moves from `Ctrl+Shift+T` to `Ctrl+Shift+N`.
+* **uBlock Origin is the built-in ad blocker**, instead of AdGuard AdBlocker. It is a smaller package (6.4 MB against 22.6 MB), blocks search ads that AdGuard lets through by default, and unmasks trackers that hide behind a site's own address. Where AdGuard was on, the update installs uBlock Origin once and switches AdGuard off; AdGuard stays installed with its settings, so it can be switched back on or removed in Settings → Extensions. Where blocking was off or AdGuard removed, nothing is installed. Not yet tried on a device: the move from AdGuard on an existing copy.
+
+### Fixed
+* **The text cursor (I-beam) showed over the terminal's cards and banners**, such as "Couldn't connect" and its buttons, the password and server-key questions, and the Connecting and Disconnected bars. They now show the normal pointer; the I-beam is only over the terminal's text. A pane divider's resize cursor also wins over a terminal beside it now, as it already did over web pages.
+* **Enter in a web chat box added a new line instead of sending** (claude.ai's message box, for one), with a physical keyboard. 0.13.8 meant to send Enter to the page as a key, but checked first whether the page view was a text editor, which GeckoView never says, so it never did: the keyboard app turned Enter into a typed line break. Enter now goes to the page through the browser engine's own key path; a word still being typed is committed first. Chinese, Japanese and Korean keyboards keep Enter while composing. Not yet confirmed on a device.
+
 ## v0.13.8 (2026-11-21) — Terminal: Tailscale SSH, and clearer connection errors
 
 ### Changed

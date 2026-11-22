@@ -577,7 +577,7 @@ fun RemBrowseScreen(
                 action = toggleSplitView
             ),
             PaletteCommand("new_tab", "New tab", Icons.Outlined.Add, "Ctrl+T", openNewTab),
-            PaletteCommand("new_terminal", "New terminal", Icons.Outlined.Terminal) {
+            PaletteCommand("new_terminal", "New terminal", Icons.Outlined.Terminal, "Ctrl+Shift+T") {
                 openTerminal(TerminalTarget.Picker)
             },
             PaletteCommand("close_tab", "Close tab", Icons.Outlined.Close, "Ctrl+W", closeActiveTab),

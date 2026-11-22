@@ -43,7 +43,8 @@ class KeyboardShortcutsTest {
     @Test
     fun otherModifierCombinations_areLeftForThePageAndTheSystem() {
         assertNull("Plain typing", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = false))
-        assertNull("Ctrl+Shift+T", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true))
+        assertNull("Ctrl+Shift+N", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_N, ctrl = true, shift = true))
+        assertNull("Ctrl+N", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_N, ctrl = true))
         assertNull("Ctrl+Alt+R", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_R, ctrl = true, alt = true))
         assertNull("Meta+L", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_L, ctrl = true, meta = true))
         assertNull("Plain arrow keys scroll the page", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_DPAD_LEFT, ctrl = false))
@@ -74,7 +75,9 @@ class KeyboardShortcutsTest {
         assertNull(inTerminal(KeyEvent.KEYCODE_F3))
         assertNull("Copy is the terminal's", inTerminal(KeyEvent.KEYCODE_C, ctrl = true, shift = true))
 
-        assertEquals(BrowserShortcut.NEW_TAB, inTerminal(KeyEvent.KEYCODE_T, ctrl = true, shift = true))
+        assertEquals(BrowserShortcut.NEW_TERMINAL, inTerminal(KeyEvent.KEYCODE_T, ctrl = true, shift = true))
+        assertEquals(BrowserShortcut.NEW_TAB, inTerminal(KeyEvent.KEYCODE_N, ctrl = true, shift = true))
+        assertNull("Ctrl+N stays the shell's", inTerminal(KeyEvent.KEYCODE_N, ctrl = true))
         assertEquals(BrowserShortcut.CLOSE_TAB, inTerminal(KeyEvent.KEYCODE_W, ctrl = true, shift = true))
         assertEquals(BrowserShortcut.FOCUS_ADDRESS_BAR, inTerminal(KeyEvent.KEYCODE_L, ctrl = true, shift = true))
         assertEquals(BrowserShortcut.COMMAND_PALETTE, inTerminal(KeyEvent.KEYCODE_K, ctrl = true, shift = true))
@@ -106,5 +109,41 @@ class KeyboardShortcutsTest {
     fun f3_stillFindsNextAndPrevious() {
         assertEquals(BrowserShortcut.FIND_NEXT, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F3, ctrl = false))
         assertEquals(BrowserShortcut.FIND_PREVIOUS, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_F3, ctrl = false, shift = true))
+    }
+
+    @Test
+    fun ctrlShiftT_opensANewTerminal_inAndOutOfATerminal() {
+        assertEquals(BrowserShortcut.NEW_TERMINAL, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true))
+        assertEquals(
+            BrowserShortcut.NEW_TERMINAL,
+            KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true, inTerminal = true)
+        )
+    }
+
+    @Test
+    fun ctrlShiftN_opensATab_inATerminal() {
+        assertEquals(
+            BrowserShortcut.NEW_TAB,
+            KeyboardShortcuts.resolve(KeyEvent.KEYCODE_N, ctrl = true, shift = true, inTerminal = true)
+        )
+    }
+
+    @Test
+    fun ctrlN_isLeftToThePage_outsideATerminal() {
+        assertNull(KeyboardShortcuts.resolve(KeyEvent.KEYCODE_N, ctrl = true))
+    }
+
+    @Test
+    fun ctrlT_isStillANewTab_outsideATerminal() {
+        assertEquals(BrowserShortcut.NEW_TAB, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true))
+    }
+
+    @Test
+    fun ctrlShiftT_isIgnoredOnRepeatAndWithAltOrMeta() {
+        for (inTerminal in listOf(false, true)) {
+            assertNull("Held key, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true, repeatCount = 1, inTerminal = inTerminal))
+            assertNull("Alt, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true, alt = true, inTerminal = inTerminal))
+            assertNull("Meta, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true, meta = true, inTerminal = inTerminal))
+        }
     }
 }

@@ -362,7 +362,7 @@ class RemBrowseUiTest {
         assertTrue(section.top - newTab.bottom > 200.dp)
 
         // A badge is read out with the extension's name; a switched-off extension has no button
-        composeRule.onNodeWithContentDescription("AdGuard AdBlocker (12)").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("uBlock Origin (12)").assertIsDisplayed()
         composeRule.onNodeWithTag("rail_extension_off@example").assertDoesNotExist()
 
         composeRule.onNodeWithTag("rail_extension_vpn@example").performClick()
@@ -568,6 +568,21 @@ class RemBrowseUiTest {
     }
 
     @Test
+    fun commandPalette_showsTheNewTerminalShortcut() {
+        launch()
+        composeRule.runOnUiThread { chrome.showCommandPalette = true }
+        composeRule.onNodeWithTag("command_palette_input").performTextInput("new terminal")
+        composeRule.onNodeWithTag("palette_new_terminal").assertIsDisplayed()
+        // The palette draws each key of a shortcut in its own cap
+        listOf("Ctrl", "Shift", "T").forEach { key ->
+            composeRule.onNode(
+                hasText(key) and androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.hasTestTag("palette_new_terminal")),
+                useUnmergedTree = true
+            ).assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun settings_changeThemeAccentAndPrivacy() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()
@@ -720,8 +735,8 @@ class RemBrowseUiTest {
         extensionManager.installedExtensions.value = listOf(
             InstalledExtension(
                 id = DefaultAdBlocker.ID,
-                name = "AdGuard AdBlocker",
-                version = "5.0",
+                name = DefaultAdBlocker.NAME,
+                version = "1.61",
                 description = "",
                 enabled = true
             )

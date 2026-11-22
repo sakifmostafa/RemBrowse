@@ -287,7 +287,17 @@ class GeckoExtensionManager(
             trustedInstallIds.add(expectedId)
             quietUntil[expectedId] = SystemClock.uptimeMillis() + WELCOME_TAB_QUIET_MS
             try {
-                installFromUri(uri)
+                // The review is skipped only for [expectedId]. Anything else was reviewed by the
+                // user like any install, but isn't what was asked for: it is removed again, so a
+                // retry on the next launch doesn't pile up stray add-ons.
+                val result = installFromUri(uri)
+                val installed = result.getOrNull()
+                if (installed != null && installed.id != expectedId) {
+                    uninstall(installed.id)
+                    Result.failure(IllegalStateException("Installed ${installed.id} instead of $expectedId"))
+                } else {
+                    result
+                }
             } finally {
                 trustedInstallIds.remove(expectedId)
             }

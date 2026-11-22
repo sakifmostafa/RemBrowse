@@ -546,4 +546,18 @@ class TerminalScreenViewTest {
         assertEquals("x", TerminalScreenView.encodeKey(KeyEvent.KEYCODE_X, key(KeyEvent.KEYCODE_X), emulator, dead))
         assertEquals(0, dead.accent)
     }
+
+    private fun hover(): MotionEvent = mouse(MotionEvent.ACTION_HOVER_MOVE, origin + 5f, 5f, 0)
+
+    @Test
+    fun theCursor_isNotChosenWhileTheChromeHasThePointer() {
+        view.chromeHasPointer = { true }
+        assertNull(view.onResolvePointerIcon(hover(), 0))
+    }
+
+    @Test
+    fun theCursor_isTheTextCursorOtherwise() {
+        view.chromeHasPointer = { false }
+        assertTrue(view.onResolvePointerIcon(hover(), 0) != null)
+    }
 }

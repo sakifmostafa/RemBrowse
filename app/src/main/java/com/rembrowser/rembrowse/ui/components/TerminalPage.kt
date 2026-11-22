@@ -156,6 +156,7 @@ fun TerminalPage(
 
     val savedHostForHeader = (target as? TerminalTarget.SavedHost)?.let { terminal.hostById(it.hostId) }
     var screen by remember { mutableStateOf<TerminalScreenView?>(null) }
+    val cursorClaim = LocalChromePointerIconClaim.current
     Column(modifier = modifier.background(themeBackground).testTag("terminal_page")) {
         TerminalHeader(
             theme = theme,
@@ -184,6 +185,9 @@ fun TerminalPage(
                 view.onCommandRun = terminal::recordCommand
                 view.onContextMenu = { x, y -> menuAt = Offset(x, y) }
                 view.onReconnectRequested = { terminal.connect(tab.id, target) }
+                // Over the cards and banners drawn on top, and a divider's grab area, the
+                // cursor is theirs, not the text cursor
+                view.chromeHasPointer = cursorClaim::isClaimed
             },
             onRelease = { view -> view.connection = null },
             modifier = Modifier.fillMaxSize().testTag("terminal_screen")
@@ -610,6 +614,8 @@ private fun BoxScope.TerminalMenu(
 
 @Composable
 private fun BoxScope.CenterCard(testTag: String? = null, content: @Composable () -> Unit) {
+    val claim = LocalChromePointerIconClaim.current
+    val claimant = rememberPointerIconClaimant(claim)
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
@@ -619,6 +625,7 @@ private fun BoxScope.CenterCard(testTag: String? = null, content: @Composable ()
             .align(Alignment.Center)
             .padding(24.dp)
             .widthIn(max = 480.dp)
+            .claimsPointerIcon(claim, claimant)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
@@ -652,12 +659,15 @@ private fun CardText(text: String, monospace: Boolean = false) {
 
 @Composable
 private fun BoxScope.TopBanner(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    val claim = LocalChromePointerIconClaim.current
+    val claimant = rememberPointerIconClaimant(claim)
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 4.dp,
-        modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).widthIn(max = 560.dp).testTag("terminal_connecting")
+        modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).widthIn(max = 560.dp)
+            .claimsPointerIcon(claim, claimant).testTag("terminal_connecting")
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), content = content)
     }
@@ -665,13 +675,16 @@ private fun BoxScope.TopBanner(content: @Composable androidx.compose.foundation.
 
 @Composable
 private fun BoxScope.BottomBanner(testTag: String, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    val claim = LocalChromePointerIconClaim.current
+    val claimant = rememberPointerIconClaimant(claim)
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
         contentColor = TerminalForeground,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 4.dp,
-        modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp).widthIn(max = 640.dp).fillMaxWidth().testTag(testTag)
+        modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp).widthIn(max = 640.dp).fillMaxWidth()
+            .claimsPointerIcon(claim, claimant).testTag(testTag)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), content = content)
     }

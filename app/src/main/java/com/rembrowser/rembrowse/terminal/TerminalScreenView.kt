@@ -619,7 +619,15 @@ class TerminalScreenView(context: Context) : View(context) {
         return super.onGenericMotionEvent(event)
     }
 
+    /**
+     * The browser's own chrome has the pointer: a card or banner drawn over this view, or a pane
+     * divider's grab area reaching over it. The cursor is then the chrome's (an arrow over
+     * buttons), not the text cursor. Set by TerminalPage from the window's cursor claim.
+     */
+    var chromeHasPointer: () -> Boolean = { false }
+
     override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): PointerIcon? {
+        if (chromeHasPointer()) return null
         val program = connection?.emulator?.isMouseTrackingActive == true
         return if (program) super.onResolvePointerIcon(event, pointerIndex) else PointerIcon.getSystemIcon(context, PointerIcon.TYPE_TEXT)
     }

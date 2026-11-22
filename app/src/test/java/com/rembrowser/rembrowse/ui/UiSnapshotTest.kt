@@ -36,6 +36,7 @@ import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.ArchivedAdBlocker
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.DownloadStatus
@@ -170,8 +171,8 @@ class UiSnapshotTest {
             )
             amo.featuredResult = Result.success(
                 listOf(
-                    sampleAddon(DefaultAdBlocker.ID, "AdGuard AdBlocker", "Adguard Software Ltd", 4.7, "Blocks ads, trackers and annoyances on every site."),
-                    sampleAddon("uBlock0@raymondhill.net", "uBlock Origin", "Raymond Hill", 4.8, "An efficient wide-spectrum content blocker."),
+                    sampleAddon(DefaultAdBlocker.ID, DefaultAdBlocker.NAME, "Raymond Hill", 4.8, "An efficient wide-spectrum content blocker."),
+                    sampleAddon(ArchivedAdBlocker.ID, ArchivedAdBlocker.NAME, "Adguard Software Ltd", 4.7, "Blocks ads, trackers and annoyances on every site."),
                     sampleAddon("{446900e4-71c2-419f-a6a7-df9c091e268b}", "Bitwarden Password Manager", "Bitwarden Inc.", 4.6, "A secure password manager for all of your devices."),
                     sampleAddon("sponsorBlocker@ajay.app", "SponsorBlock", "Ajay Ramachandran", 4.7, "Skips sponsored segments in videos.")
                 )

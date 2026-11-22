@@ -52,15 +52,28 @@ data class ExtensionInstallPrompt(
 )
 
 /**
- * The content blocker RemBrowse sets up by default: AdGuard AdBlocker, installed from
- * addons.mozilla.org on first launch so it is always the current Mozilla-signed build.
+ * The content blocker RemBrowse sets up by default: uBlock Origin, installed from
+ * addons.mozilla.org on first launch so it is always the current Mozilla-signed build. Chosen
+ * over AdGuard AdBlocker (the default until 0.13.8): a smaller package, search ads blocked by
+ * default (AdGuard allows them unless changed), and trackers that hide behind a site's own
+ * subdomains unmasked through Firefox's DNS API.
  */
 object DefaultAdBlocker {
-    const val ID = "adguardadblocker@adguard.com"
-    const val NAME = "AdGuard AdBlocker"
+    const val ID = "uBlock0@raymondhill.net"
+    const val NAME = "uBlock Origin"
 
     /** Used when the catalog lookup is unavailable. */
-    const val FALLBACK_URL = "https://addons.mozilla.org/firefox/downloads/latest/adguard-adblocker/latest.xpi"
+    const val FALLBACK_URL = "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+}
+
+/**
+ * The default ad blocker until 0.13.8. Where it was switched on, [DefaultAdBlocker] is set up
+ * once in its place and this one is switched off: archived, still installed with its settings
+ * and filters, for anyone who wants it back.
+ */
+object ArchivedAdBlocker {
+    const val ID = "adguardadblocker@adguard.com"
+    const val NAME = "AdGuard AdBlocker"
 }
 
 data class ExtensionPopupState(

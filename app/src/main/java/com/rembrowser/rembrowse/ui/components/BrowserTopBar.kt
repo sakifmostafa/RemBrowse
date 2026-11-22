@@ -708,6 +708,7 @@ private fun MoreMenu(
         )
         DropdownMenuItem(
             text = { Text("New terminal") },
+            trailingIcon = { ShortcutHint("Ctrl+Shift+T") },
             onClick = run(onNewTerminal),
             modifier = Modifier.testTag("menu_new_terminal")
         )

@@ -5,7 +5,9 @@ import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeDefaultExtensionStore
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
+import com.rembrowser.rembrowse.model.ArchivedAdBlocker
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
+import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -243,10 +245,11 @@ class ExtensionsViewModelTest {
             assertEquals(1, extensionManager.trustedInstalls.size)
             val (url, id) = extensionManager.trustedInstalls.single()
             assertEquals(DefaultAdBlocker.ID, id)
-            assertEquals("Falls back to the stable link when the catalog has no match", DefaultAdBlocker.FALLBACK_URL, url)
+            assertEquals("The catalog lists uBlock Origin, so its package is used", ublockAddon.xpiUrl, url)
             assertTrue(viewModel.uiState.value.isAdBlockerOn)
             assertNull("No permission prompt for the browser's own default", viewModel.uiState.value.pendingPrompt)
             assertTrue(store.defaultBlockerProvisioned)
+            assertTrue("A fresh install has nothing to move", store.blockerMovedToUblock)
 
             // The next launch does not install it again
             ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
@@ -257,12 +260,28 @@ class ExtensionsViewModelTest {
     }
 
     @Test
+    fun defaultAdBlocker_fallsBackToTheStableLinkWhenTheCatalogHasNoMatch() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            amoApiClient.searchResult = Result.success(emptyList())
+            ExtensionsViewModel(extensionManager, amoApiClient, vmScope, FakeDefaultExtensionStore())
+
+            assertEquals(DefaultAdBlocker.FALLBACK_URL, extensionManager.trustedInstalls.single().first)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
     fun defaultAdBlocker_usesTheCatalogPackageWhenAvailable() = runTest {
         val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
-            val catalogUrl = "https://addons.mozilla.org/android/downloads/file/1/adguard.xpi"
+            val catalogUrl = "https://addons.mozilla.org/android/downloads/file/1/ublock-new.xpi"
             amoApiClient.searchResult = Result.success(
-                listOf(ublockAddon, ublockAddon.copy(id = DefaultAdBlocker.ID, name = "AdGuard AdBlocker", xpiUrl = catalogUrl))
+                listOf(
+                    ublockAddon.copy(id = ArchivedAdBlocker.ID, name = ArchivedAdBlocker.NAME),
+                    ublockAddon.copy(id = DefaultAdBlocker.ID, name = DefaultAdBlocker.NAME, xpiUrl = catalogUrl)
+                )
             )
             ExtensionsViewModel(extensionManager, amoApiClient, vmScope, FakeDefaultExtensionStore())
 
@@ -335,6 +354,283 @@ class ExtensionsViewModelTest {
             viewModel.setAdBlockerEnabled(true)
             assertFalse(viewModel.uiState.value.isAdBlockerOn)
             assertNotNull(viewModel.uiState.value.adBlockerError)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    private fun extension(id: String, enabled: Boolean = true) = InstalledExtension(
+        id = id, name = id, version = "1.0", description = "", enabled = enabled, hasBrowserAction = true
+    )
+
+    /** A copy set up when AdGuard was the default: provisioned, not yet moved. */
+    private fun oldCopyStore() = FakeDefaultExtensionStore(defaultBlockerProvisioned = true, blockerMovedToUblock = false)
+
+    private fun launchOldCopy(
+        vmScope: CoroutineScope,
+        store: FakeDefaultExtensionStore,
+        vararg installed: InstalledExtension
+    ): ExtensionsViewModel {
+        extensionManager.installedExtensions.value = installed.toList()
+        return ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+    }
+
+    private fun enabledOf(id: String) = extensionManager.installedExtensions.value.single { it.id == id }.enabled
+
+    @Test
+    fun moveToUblock_withAdGuardOn_installsUblockThenSwitchesAdGuardOffWithoutRemovingIt() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            amoApiClient.searchResult = Result.success(emptyList())
+            val viewModel = launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID))
+
+            val (url, id) = extensionManager.trustedInstalls.single()
+            assertEquals(DefaultAdBlocker.ID, id)
+            assertEquals(DefaultAdBlocker.FALLBACK_URL, url)
+            assertTrue(enabledOf(DefaultAdBlocker.ID))
+            assertFalse("Archived, not running", enabledOf(ArchivedAdBlocker.ID))
+            assertNotNull("Still installed", extensionManager.installedExtensions.value.firstOrNull { it.id == ArchivedAdBlocker.ID })
+            assertTrue(store.blockerMovedToUblock)
+            assertTrue(viewModel.uiState.value.isAdBlockerOn)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_withAdGuardSwitchedOff_installsNothingAndMarksItDone() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID, enabled = false))
+
+            assertTrue(extensionManager.trustedInstalls.isEmpty())
+            assertFalse(enabledOf(ArchivedAdBlocker.ID))
+            assertTrue(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_withAdGuardRemoved_installsNothingAndMarksItDone() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            val viewModel = launchOldCopy(vmScope, store)
+
+            assertTrue(extensionManager.trustedInstalls.isEmpty())
+            assertNull(viewModel.uiState.value.adBlocker)
+            assertTrue(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_withUblockAlreadyInstalled_switchesAdGuardOffAndInstallsNothing() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID), extension(DefaultAdBlocker.ID))
+
+            assertTrue(extensionManager.trustedInstalls.isEmpty())
+            assertFalse(enabledOf(ArchivedAdBlocker.ID))
+            assertTrue(enabledOf(DefaultAdBlocker.ID))
+            assertTrue(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_withUblockInstalledButOff_leavesBothAsTheyAre() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID), extension(DefaultAdBlocker.ID, enabled = false))
+
+            assertTrue(extensionManager.trustedInstalls.isEmpty())
+            assertTrue("The user chose no blocker; AdGuard is not touched", enabledOf(ArchivedAdBlocker.ID))
+            assertFalse(enabledOf(DefaultAdBlocker.ID))
+            assertTrue(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_failedDownloadKeepsAdGuardOnAndRetriesNextLaunch() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            extensionManager.nextTrustedInstallResult = Result.failure(java.io.IOException("offline"))
+            launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID))
+
+            assertEquals(1, extensionManager.trustedInstalls.size)
+            assertTrue("AdGuard stays on until uBlock Origin is in place", enabledOf(ArchivedAdBlocker.ID))
+            assertFalse(store.blockerMovedToUblock)
+
+            extensionManager.nextTrustedInstallResult = null
+            ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            assertEquals(2, extensionManager.trustedInstalls.size)
+            assertFalse(enabledOf(ArchivedAdBlocker.ID))
+            assertTrue(enabledOf(DefaultAdBlocker.ID))
+            assertTrue(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_runsOnlyOnce() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID))
+            assertEquals(1, extensionManager.trustedInstalls.size)
+
+            // The user switches AdGuard back on and removes uBlock Origin: the next launch leaves both alone
+            extensionManager.installedExtensions.value =
+                listOf(extension(ArchivedAdBlocker.ID, enabled = true))
+            val relaunched = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+
+            assertEquals(1, extensionManager.trustedInstalls.size)
+            assertTrue(enabledOf(ArchivedAdBlocker.ID))
+            assertNull(relaunched.uiState.value.adBlocker)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_usesTheRefreshedList_notTheStateFlowCopyThatArrivesLater() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            amoApiClient.searchResult = Result.success(emptyList())
+            // The flow still shows nothing when refreshInstalled returns, as on a device
+            extensionManager.refreshResult = Result.success(listOf(extension(ArchivedAdBlocker.ID)))
+            extensionManager.installedExtensions.value = emptyList()
+            ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+
+            assertEquals(DefaultAdBlocker.ID, extensionManager.trustedInstalls.single().second)
+            assertTrue(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_afterAFailedRefresh_installsNothingAndTriesAgainNextLaunch() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            extensionManager.refreshResult = Result.failure(java.io.IOException("cannot list"))
+            extensionManager.installedExtensions.value = listOf(extension(ArchivedAdBlocker.ID))
+            ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+
+            assertTrue(extensionManager.trustedInstalls.isEmpty())
+            assertFalse(store.blockerMovedToUblock)
+            assertTrue(enabledOf(ArchivedAdBlocker.ID))
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun settingsSwitch_withAdGuardOnAndTheMoveUndone_installsUblockAndSwitchesAdGuardOff() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = FakeDefaultExtensionStore(defaultBlockerProvisioned = true, blockerMovedToUblock = true)
+            val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            // The flag is cleared again after the launch, with AdGuard on and uBlock Origin absent
+            extensionManager.installedExtensions.value = listOf(extension(ArchivedAdBlocker.ID))
+            store.blockerMovedToUblock = false
+
+            viewModel.setAdBlockerEnabled(true)
+
+            assertEquals(DefaultAdBlocker.ID, extensionManager.trustedInstalls.single().second)
+            assertTrue(enabledOf(DefaultAdBlocker.ID))
+            assertFalse(enabledOf(ArchivedAdBlocker.ID))
+            assertTrue(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun installingUblock_whenSwitchingAdGuardOffFails_leavesTheMoveUnfinished() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            extensionManager.setEnabledFailureFor += ArchivedAdBlocker.ID
+            launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID))
+
+            assertEquals(1, extensionManager.trustedInstalls.size)
+            assertTrue(enabledOf(DefaultAdBlocker.ID))
+            assertTrue(enabledOf(ArchivedAdBlocker.ID))
+            assertFalse("Not done until AdGuard is off", store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun installingUblock_afterTheMoveIsDone_leavesAdGuardAloneEvenIfTheUserSwitchedItOn() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = FakeDefaultExtensionStore(defaultBlockerProvisioned = true, blockerMovedToUblock = true)
+            val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            extensionManager.installedExtensions.value = listOf(extension(ArchivedAdBlocker.ID))
+
+            viewModel.setAdBlockerEnabled(true)
+
+            assertEquals(1, extensionManager.trustedInstalls.size)
+            assertTrue(enabledOf(DefaultAdBlocker.ID))
+            assertTrue("The user's choice", enabledOf(ArchivedAdBlocker.ID))
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun moveToUblock_withBothInstalledAndOn_setsTheFlagOnlyOnceAdGuardIsOff() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = oldCopyStore()
+            extensionManager.setEnabledFailureFor += ArchivedAdBlocker.ID
+            launchOldCopy(vmScope, store, extension(ArchivedAdBlocker.ID), extension(DefaultAdBlocker.ID))
+            assertTrue(enabledOf(ArchivedAdBlocker.ID))
+            assertFalse(store.blockerMovedToUblock)
+
+            extensionManager.setEnabledFailureFor.clear()
+            ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            assertFalse(enabledOf(ArchivedAdBlocker.ID))
+            assertTrue(store.blockerMovedToUblock)
+            assertTrue(extensionManager.trustedInstalls.isEmpty())
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun installingUblock_whenTheRefreshAfterwardsFails_leavesTheFlagUnsetAndAdGuardAlone() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val store = FakeDefaultExtensionStore(defaultBlockerProvisioned = true, blockerMovedToUblock = true)
+            val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope, store)
+            extensionManager.installedExtensions.value = listOf(extension(ArchivedAdBlocker.ID))
+            store.blockerMovedToUblock = false
+            extensionManager.refreshResult = Result.failure(java.io.IOException("cannot list"))
+
+            viewModel.setAdBlockerEnabled(true)
+
+            assertEquals(1, extensionManager.trustedInstalls.size)
+            assertTrue(enabledOf(DefaultAdBlocker.ID))
+            assertTrue("A failed list does not pass for AdGuard being off", enabledOf(ArchivedAdBlocker.ID))
+            assertFalse(store.blockerMovedToUblock)
         } finally {
             vmScope.cancel()
         }

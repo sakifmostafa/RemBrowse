@@ -12,7 +12,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Pinned sites** — your first six bookmarks. Select one to open it.
 * **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#5-split-view)).
 * **+** — opens a new tab.
-* **Extensions (bottom)** — the buttons of your extensions, such as AdGuard AdBlocker or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
+* **Extensions (bottom)** — the buttons of your extensions, such as uBlock Origin or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
 
 **Toolbar (top)**, left to right:
 
@@ -160,7 +160,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
   * **Open new tabs** — **At the end of the tab list** (the default) or **Next to the current tab**. A tab that a page opens goes next to that page.
   * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**.
 * **Privacy**
-  * **Block ads and trackers** — turns the built-in ad blocker (AdGuard AdBlocker) on or off. See [Ad blocking](#8-ad-blocking).
+  * **Block ads and trackers** — turns the built-in ad blocker (uBlock Origin) on or off. See [Ad blocking](#8-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
 * **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
 * **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#10-downloads).
@@ -198,13 +198,15 @@ Updates come from the same place as the [download links in the README](../README
 
 ## 8. Ad blocking
 
-RemBrowse sets up **AdGuard AdBlocker** for you. The first time the browser starts with an internet connection it downloads the extension from addons.mozilla.org and turns it on; no prompt is shown. If you were offline, it tries again on the next start.
+RemBrowse sets up **uBlock Origin** for you. The first time the browser starts with an internet connection it downloads the extension from addons.mozilla.org and turns it on; no prompt is shown. If you were offline, it tries again on the next start. It blocks ads (search ads included), trackers and malware sites, and unmasks trackers that hide behind a site's own address.
 
 * **Turn it off or on**: **More → Settings → Privacy → Block ads and trackers**.
-* **Its own settings and per-site controls**: open **AdGuard AdBlocker** from the **More** menu.
+* **Its own settings and per-site controls**: select its button at the bottom of the tab rail. The big power button turns it off for the site you're on.
 * **Remove it**: **Settings → Extensions → Installed**. A removed blocker stays removed; flipping the switch in Settings installs it again.
 
-Like any content blocker, AdGuard can read and change the pages you visit in order to filter them. If a site misbehaves, switch it off for that site from AdGuard's own menu.
+**Coming from AdGuard AdBlocker** (the built-in blocker up to 0.13.8): if AdGuard was on, the update installs uBlock Origin and switches AdGuard off. AdGuard stays in **Settings → Extensions → Installed**, with its settings, if you want it back; remove it there if you don't. If you had switched blocking off or removed AdGuard, nothing is installed.
+
+Like any content blocker, uBlock Origin can read and change the pages you visit in order to filter them. If a site misbehaves, switch it off for that site from its popup.
 
 ---
 
@@ -255,7 +257,7 @@ A terminal tab connects to a server over SSH, like a page in its own tab. It sit
 
 ### Opening one
 
-**More → New terminal** (or **New terminal** in the command palette, or the address `rem://terminal`) opens a new terminal. It lists your saved hosts; select one to connect, or type an address in **Connect to**: `user@host`, `user@host:2222`, or a whole `ssh user@host -p 2222` command. Saved hosts are added and edited in **Settings → Terminal**.
+`Ctrl+Shift+T` (or **More → New terminal**, **New terminal** in the command palette, or the address `rem://terminal`) opens a new terminal, also from inside another one. It lists your saved hosts; select one to connect, or type an address in **Connect to**: `user@host`, `user@host:2222`, or a whole `ssh user@host -p 2222` command. Saved hosts are added and edited in **Settings → Terminal**.
 
 The first time you connect to a server, RemBrowse shows its **key fingerprint** (`SHA256:…`, as `ssh-keygen -lf` prints it) and asks whether to trust it. If a trusted server's key ever changes, you are warned before anything is sent and nothing connects until you choose. A server that asks for a password gets a password box, with **Remember on this device**.
 
@@ -302,6 +304,7 @@ Passwords and private keys are encrypted with a key held by Android's keystore, 
 | Shortcut | Action |
 | :--- | :--- |
 | `Ctrl + T` | New tab |
+| `Ctrl + Shift + T` | New terminal |
 | `Ctrl + W` | Close tab |
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
 | `Ctrl + L` or `Alt + D` | Focus the address bar |
@@ -324,7 +327,8 @@ These work anywhere in the window, also while you are typing in a web page's tex
 
 | Shortcut | Action |
 | :--- | :--- |
-| `Ctrl + Shift + T` / `Ctrl + Shift + W` | New tab / close tab |
+| `Ctrl + Shift + T` | New terminal (as everywhere else) |
+| `Ctrl + Shift + N` / `Ctrl + Shift + W` | New tab / close tab |
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
 | `Ctrl + Shift + L` / `Ctrl + Shift + G` / `Ctrl + Shift + K` | Address bar / Go to address / command palette |
 | `Ctrl + Shift + ,` / `Ctrl + Shift + \` | Settings / toggle split view |

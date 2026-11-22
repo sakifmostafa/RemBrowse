@@ -554,7 +554,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Whether the Enter being held went to a web page past the keyboard app; its release follows. */
-    private var enterSentToPage = false
+    /** The page an Enter being held went to, past the keyboard app; its release goes there too. */
+    private var enterTarget: PaneGeckoView? = null
 
     /**
      * A physical Enter in a web page's text box goes to the page as a key press, before the
@@ -569,23 +570,20 @@ class MainActivity : ComponentActivity() {
             chrome.swallowNextEnterUp = false
             return true
         }
-        val page = currentFocus as? PaneGeckoView ?: return false
-        return when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                if (event.repeatCount > 0) return enterSentToPage && page.sendEnterPastKeyboardApp(event)
-                val physical = event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD &&
-                    event.flags and KeyEvent.FLAG_SOFT_KEYBOARD == 0
-                enterSentToPage = physical && page.sendEnterPastKeyboardApp(event)
-                enterSentToPage
-            }
-            KeyEvent.ACTION_UP -> {
-                if (!enterSentToPage) return false
-                enterSentToPage = false
-                page.sendEnterPastKeyboardApp(event)
-                true
-            }
-            else -> false
+        // The release goes where the press went, even if focus moved in between
+        if (event.action == KeyEvent.ACTION_UP) {
+            val target = enterTarget ?: return false
+            enterTarget = null
+            target.sendEnterPastKeyboardApp(event)
+            return true
         }
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        if (event.repeatCount > 0) return enterTarget?.sendEnterPastKeyboardApp(event) ?: false
+        val page = currentFocus as? PaneGeckoView ?: return false
+        val physical = event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD &&
+            event.flags and KeyEvent.FLAG_SOFT_KEYBOARD == 0
+        enterTarget = page.takeIf { physical && it.sendEnterPastKeyboardApp(event) }
+        return enterTarget != null
     }
 
     private fun resolveShortcut(event: KeyEvent): BrowserShortcut? = KeyboardShortcuts.resolve(
@@ -604,6 +602,11 @@ class MainActivity : ComponentActivity() {
             BrowserShortcut.NEW_TAB -> {
                 browser.openNewTab()
                 chrome.focusAddressBar()
+            }
+            BrowserShortcut.NEW_TERMINAL -> {
+                // Opens on the host picker, as More -> New terminal does
+                chrome.showTabSwitcher = false
+                browser.openTerminal()
             }
             BrowserShortcut.CLOSE_TAB -> browser.uiState.value.activeTabId?.let { browser.closeTab(it) }
             BrowserShortcut.FOCUS_ADDRESS_BAR -> chrome.focusAddressBar()

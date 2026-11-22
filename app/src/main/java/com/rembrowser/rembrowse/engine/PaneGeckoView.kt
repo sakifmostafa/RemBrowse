@@ -62,26 +62,29 @@ class PaneGeckoView(
 
     /**
      * Sends a physical keyboard's Enter (Shift, Ctrl and Alt included) to the page as the key it
-     * is, past the keyboard app. Keyboard apps keep the word being typed as composing text and
-     * turn Enter into a typed line break, or an Enter marked as part of composing, which chat
-     * boxes rightly ignore: Enter then started a new line instead of sending. Here a word being
-     * composed is committed first, as it would be anyway. False, leaving the key to the keyboard
-     * app, when no text box on the page has the keyboard, or while a Chinese, Japanese or Korean
-     * keyboard composes, where Enter picks the characters.
+     * is, past the keyboard app. A keyboard app commits Enter as a typed line break, which Gecko
+     * hands the page as text with a "Process" (229) key, not an Enter key: a chat box that sends
+     * on Enter then started a new line instead.
+     *
+     * The key goes through the session's own key path (`SessionTextInput.onKeyDown/onKeyUp`), the
+     * one GeckoView uses itself for keys the keyboard app leaves alone. Gecko commits a word still
+     * being composed before it dispatches the key, so nothing typed is lost. False, leaving Enter
+     * to the keyboard app, without a page, or while a Chinese, Japanese or Korean keyboard is
+     * composing, where Enter picks the characters.
+     *
+     * (0.13.8 checked `onCheckIsTextEditor()` first, which GeckoView never overrides, so it was
+     * always false and Enter never came here.)
      */
     fun sendEnterPastKeyboardApp(event: KeyEvent): Boolean {
-        val input = pageInput ?: return false
-        if (!onCheckIsTextEditor()) return false
-        if (input.composing && keyboardComposesCharacters()) return false
-        // Input events are recycled once handled: keep a copy for the input connection's thread
+        val textInput = session?.textInput ?: return false
+        if (pageInput?.composing == true && keyboardComposesCharacters()) return false
+        // Input events are recycled once handled; Gecko reads the key on its own thread
         val copy = KeyEvent(event)
-        val send = Runnable {
-            if (input.composing) input.finishComposingText()
-            input.sendKeyEvent(copy)
+        return when (copy.action) {
+            KeyEvent.ACTION_DOWN -> textInput.onKeyDown(copy.keyCode, copy)
+            KeyEvent.ACTION_UP -> textInput.onKeyUp(copy.keyCode, copy)
+            else -> false
         }
-        val thread = input.handler
-        if (thread != null) thread.post(send) else send.run()
-        return true
     }
 
     private fun keyboardComposesCharacters(): Boolean {

@@ -4,6 +4,9 @@ import android.view.KeyEvent
 
 enum class BrowserShortcut {
     NEW_TAB,
+
+    /** A new terminal tab (Ctrl+Shift+T everywhere, as in terminal apps). */
+    NEW_TERMINAL,
     CLOSE_TAB,
     FOCUS_ADDRESS_BAR,
     RELOAD,
@@ -45,8 +48,9 @@ object KeyboardShortcuts {
         /**
          * A terminal has the keyboard. Its shell owns Ctrl+W, Ctrl+R, Ctrl+L and the rest, Alt
          * combinations and the function keys, so the browser keeps only Ctrl+Tab and moves its
-         * letter shortcuts to Ctrl+Shift (Ctrl+Shift+T opens a tab, Ctrl+Shift+W closes one), as
-         * terminal apps do. Ctrl+Shift+C and V copy and paste in the terminal itself.
+         * letter shortcuts to Ctrl+Shift (Ctrl+Shift+N opens a tab, Ctrl+Shift+W closes one), as
+         * terminal apps do. Ctrl+Shift+T opens another terminal, here as everywhere else.
+         * Ctrl+Shift+C and V copy and paste in the terminal itself.
          */
         inTerminal: Boolean = false
     ): BrowserShortcut? {
@@ -81,7 +85,9 @@ object KeyboardShortcuts {
         if (keyCode == KeyEvent.KEYCODE_G) {
             return if (shift) null else BrowserShortcut.GO_TO_ADDRESS
         }
-        // Ctrl+Shift+<key> combinations belong to the page or the system, not to us.
+        // A new terminal, as in terminal apps: the same keys inside a terminal and out
+        if (keyCode == KeyEvent.KEYCODE_T && shift) return BrowserShortcut.NEW_TERMINAL
+        // Other Ctrl+Shift+<key> combinations belong to the page or the system, not to us.
         if (shift) return null
 
         return when (keyCode) {
@@ -110,7 +116,8 @@ object KeyboardShortcuts {
         if (keyCode == KeyEvent.KEYCODE_TAB) return if (shift) BrowserShortcut.PREVIOUS_TAB else BrowserShortcut.NEXT_TAB
         if (!shift) return null
         return when (keyCode) {
-            KeyEvent.KEYCODE_T -> BrowserShortcut.NEW_TAB
+            KeyEvent.KEYCODE_T -> BrowserShortcut.NEW_TERMINAL
+            KeyEvent.KEYCODE_N -> BrowserShortcut.NEW_TAB
             KeyEvent.KEYCODE_W -> BrowserShortcut.CLOSE_TAB
             KeyEvent.KEYCODE_L -> BrowserShortcut.FOCUS_ADDRESS_BAR
             KeyEvent.KEYCODE_K -> BrowserShortcut.COMMAND_PALETTE

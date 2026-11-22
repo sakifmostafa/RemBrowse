@@ -64,8 +64,9 @@ class PaneGeckoViewTest {
     }
 
     @Test
-    fun enterPastTheKeyboardApp_isLeftAloneWhenNoTextBoxHasTheKeyboard() {
-        // No input connection was made for the page, so nothing on it takes typing
+    fun enterPastTheKeyboardApp_isLeftToTheKeyboardAppWithoutAPage() {
+        // No GeckoSession is attached, so there is no key path to send it through
         assertEquals(false, view.sendEnterPastKeyboardApp(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)))
+        assertEquals(false, view.sendEnterPastKeyboardApp(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)))
     }
 }

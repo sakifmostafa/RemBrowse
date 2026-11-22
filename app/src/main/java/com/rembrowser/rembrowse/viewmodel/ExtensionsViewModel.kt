@@ -6,9 +6,11 @@ import com.rembrowser.rembrowse.data.DefaultExtensionStore
 import com.rembrowser.rembrowse.engine.ExtensionInstallCancelledException
 import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
+import com.rembrowser.rembrowse.model.ArchivedAdBlocker
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import com.rembrowser.rembrowse.model.ExtensionsUiState
+import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.util.UrlResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -52,29 +54,62 @@ class ExtensionsViewModel(
             .launchIn(scope)
 
         scope.launch {
-            extensionManager.refreshInstalled()
+            val installed = extensionManager.refreshInstalled()
                 .onFailure { err ->
                     _uiState.update {
                         it.copy(errorMessage = err.message ?: "Unable to list installed extensions")
                     }
                 }
-            provisionDefaultAdBlocker()
+                .getOrNull()
+            // The refreshed list itself: its copy in uiState only arrives a moment later
+            provisionDefaultAdBlocker(installed)
         }
     }
 
     /**
      * First launch only: installs the default ad blocker. Once that has succeeded it is never
      * repeated, so removing the blocker sticks. A failure (offline, for instance) is silent and
-     * simply tried again on the next launch.
+     * simply tried again on the next launch. A copy set up before uBlock Origin became the
+     * default moves to it once (see [moveToUblock]).
      */
-    private fun provisionDefaultAdBlocker() {
-        if (defaults.defaultBlockerProvisioned) return
-        if (_uiState.value.adBlocker != null) {
+    private fun provisionDefaultAdBlocker(installed: List<InstalledExtension>?) {
+        if (defaults.defaultBlockerProvisioned) {
+            // Without the list, AdGuard's state is unknown: try again next launch
+            if (!defaults.blockerMovedToUblock && installed != null) moveToUblock(installed)
+            return
+        }
+        if (installed?.any { it.id == DefaultAdBlocker.ID } == true) {
             defaults.defaultBlockerProvisioned = true
+            defaults.blockerMovedToUblock = true
             return
         }
         installDefaultAdBlocker(userInitiated = false)
     }
+
+    /**
+     * Once, for a copy set up with AdGuard AdBlocker as its blocker. With AdGuard switched on,
+     * uBlock Origin is installed and AdGuard is then switched off, not removed: archived, with
+     * its settings, for anyone who wants it back. With AdGuard switched off or removed, the user
+     * had chosen no blocker and nothing is installed. A failed download is tried again on the
+     * next launch, and AdGuard stays on until uBlock Origin is in place.
+     */
+    private fun moveToUblock(installed: List<InstalledExtension>) {
+        val uBlock = installed.firstOrNull { it.id == DefaultAdBlocker.ID }
+        val adGuard = installed.firstOrNull { it.id == ArchivedAdBlocker.ID }
+        when {
+            uBlock != null -> scope.launch {
+                // Both on: AdGuard steps down. The move counts once it is actually off.
+                if (adGuard?.enabled == true && uBlock.enabled && !archiveAdGuard()) return@launch
+                defaults.blockerMovedToUblock = true
+            }
+            adGuard?.enabled != true -> defaults.blockerMovedToUblock = true
+            else -> installDefaultAdBlocker(userInitiated = false)
+        }
+    }
+
+    /** Switches AdGuard AdBlocker off, keeping it installed with its settings. True once it is off. */
+    private suspend fun archiveAdGuard(): Boolean =
+        extensionManager.setEnabled(ArchivedAdBlocker.ID, false).isSuccess
 
     private fun installDefaultAdBlocker(userInitiated: Boolean) {
         if (_uiState.value.isInstallingAdBlocker) return
@@ -88,6 +123,18 @@ class ExtensionsViewModel(
             val result = extensionManager.installTrusted(url, DefaultAdBlocker.ID)
             if (result.isSuccess) {
                 defaults.defaultBlockerProvisioned = true
+                // Until the move is done AdGuard may still be on, however uBlock Origin got here
+                // (first launch, the move, or the Settings switch): two blockers would filter every
+                // page twice. AdGuard steps down first; the move counts once it is off, and is
+                // otherwise finished on the next launch.
+                if (!defaults.blockerMovedToUblock) {
+                    // A list read now, so a failed refresh can't pass for "AdGuard is off"
+                    val current = extensionManager.refreshInstalled().getOrNull()
+                    if (current != null) {
+                        val adGuardOn = current.any { it.id == ArchivedAdBlocker.ID && it.enabled }
+                        if (!adGuardOn || archiveAdGuard()) defaults.blockerMovedToUblock = true
+                    }
+                }
             }
             _uiState.update {
                 it.copy(
