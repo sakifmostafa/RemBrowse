@@ -93,6 +93,7 @@ class SharedPrefsBrowserStateRepository(
                     put("askBeforeDownloading", state.settings.askBeforeDownloading)
                     put("keepHistory", state.settings.keepHistory)
                     put("pageRendering", state.settings.pageRendering.name)
+                    put("swipeNavigation", state.settings.swipeNavigation)
                 }
             )
 
@@ -170,7 +171,8 @@ class SharedPrefsBrowserStateRepository(
                     desktopSiteByDefault = settingsObj.optBoolean("desktopSiteByDefault", defaults.desktopSiteByDefault),
                     askBeforeDownloading = settingsObj.optBoolean("askBeforeDownloading", defaults.askBeforeDownloading),
                     keepHistory = settingsObj.optBoolean("keepHistory", defaults.keepHistory),
-                    pageRendering = PageRendering.fromNameOrDefault(settingsObj.optString("pageRendering", ""))
+                    pageRendering = PageRendering.fromNameOrDefault(settingsObj.optString("pageRendering", "")),
+                    swipeNavigation = settingsObj.optBoolean("swipeNavigation", defaults.swipeNavigation)
                 )
             }
 

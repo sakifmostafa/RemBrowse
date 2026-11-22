@@ -18,6 +18,8 @@ import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -82,11 +84,29 @@ class BrowserStorageRobolectricTest {
             openNewTabsNextToCurrent = true,
             desktopSiteByDefault = false,
             askBeforeDownloading = false,
-            pageRendering = PageRendering.DIRECT
+            pageRendering = PageRendering.DIRECT,
+            swipeNavigation = false
         )
         repository.saveState(PersistedBrowserState(settings = settings))
 
         assertEquals(settings, repository.loadState().settings)
+    }
+
+    @Test
+    fun swipeNavigation_isOnUntilTurnedOff_andForDataSavedByAnOlderVersion() {
+        assertTrue(BrowserSettings().swipeNavigation)
+        assertTrue(repository.loadState().settings.swipeNavigation)
+
+        context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+            .edit()
+            .putString("browser_state_json", """{"tabs":[],"settings":{"accent":"GREEN"}}""")
+            .commit()
+        assertTrue("No saved value means the default", repository.loadState().settings.swipeNavigation)
+
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(swipeNavigation = false)))
+        assertFalse(repository.loadState().settings.swipeNavigation)
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(swipeNavigation = true)))
+        assertTrue(repository.loadState().settings.swipeNavigation)
     }
 
     @Test

@@ -152,7 +152,8 @@ fun BrowserTopBar(
             icon = Icons.AutoMirrored.Outlined.ArrowBack,
             label = "Back",
             onClick = onBack,
-            enabled = activeTab?.canGoBack == true
+            // Also for a tab a link opened: Back closes it and shows the page it came from
+            enabled = uiState.canNavigateBack(activeTab)
         )
         // Forward only takes up room when there is somewhere to go forward to
         if (activeTab?.canGoForward == true) {

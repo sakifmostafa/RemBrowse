@@ -164,7 +164,7 @@ class PageSurfaceTest {
 
     @Test
     fun thePanesOwnWebView_takesTheSameSetUp() {
-        val view = PaneGeckoView(context) { false }.apply { usePageRendering(PageRendering.STANDARD) }
+        val view = PaneGeckoView(context, chromeHasPointer = { false }).apply { usePageRendering(PageRendering.STANDARD) }
 
         assertTrue(textureOf(view)!!.surfaceTextureListener is OncePerTextureListener)
     }

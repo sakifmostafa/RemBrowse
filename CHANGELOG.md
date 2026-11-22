@@ -2,6 +2,18 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.11 (2026-11-22) — Two-finger swipes, Back that works, terminal tabs
+
+### Added
+* **Two-finger swipes go back and forward.** On a touchpad, swipe two fingers right to go back and left to go forward, as in Chrome. A round arrow slides in from the side of the page and fills with the accent colour once letting go will navigate (or flick); lift early and nothing happens. It only takes a swipe the page has no use for: a wide table, a carousel or a map keeps it until it reaches its own edge, and up-and-down scrolling is never affected. In a tab a link opened, swiping back returns to the page it came from. On by default; **Settings → Tabs → Swipe with two fingers to go back** turns it off. (Three-finger swipes belong to Android and never reach apps.)
+
+### Fixed
+* **Ctrl+T and Ctrl+W did nothing in a terminal.** The terminal gave every plain Ctrl key to the shell, so opening and closing tabs took Ctrl+Shift+N and Ctrl+Shift+W there. Ctrl+T now opens a new tab and Ctrl+W closes the terminal's tab, as everywhere else. In the shell, delete the previous word with Alt+Backspace instead of Ctrl+W; Ctrl+R, Ctrl+L, Ctrl+D, Ctrl+C and the rest still belong to the shell.
+* **Back did nothing after a link that opened a new tab, and a three-finger swipe then minimized RemBrowse.** Links that open in a new tab (`target=_blank`, which many sites use) open in the same pane, so the new tab had no history and the Back arrow was greyed out; the system's Back (a touchpad's three-finger swipe) then had nothing to do and Android sent the app away. Now Back in such a tab closes it and shows the page it came from, where it was, as Chrome does. And on a laptop (a mouse or touchpad connected), Back with nothing left to go back to does nothing instead of minimizing RemBrowse; phones keep Android's usual Back.
+
+### Testing
+667 automated tests (50 of them screenshot renders that run only on request), including the swipe logic with real touch events (taking a swipe only when the page leaves it, the page getting one cancel and nothing more, arming, flicks, late and stale page answers), the arrow, the setting, Back in a tab a link opened, and Ctrl+T and Ctrl+W in a terminal. Not testable here: whether the Googlebook's touchpad reports two-finger swipes as expected, and the three-finger Back, which need the device.
+
 ## v0.13.10 (2026-11-21) — Pages see a laptop pointer, not a phone
 
 ### Fixed

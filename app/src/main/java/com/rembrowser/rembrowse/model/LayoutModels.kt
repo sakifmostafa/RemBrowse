@@ -144,7 +144,12 @@ data class BrowserSettings(
     /** Record the pages visited in the browsing history. Turning it off keeps what is there. */
     val keepHistory: Boolean = true,
     /** How pages reach the screen; see [PageRendering]. Pages that are open switch at once. */
-    val pageRendering: PageRendering = PageRendering.DEFAULT
+    val pageRendering: PageRendering = PageRendering.DEFAULT,
+    /**
+     * A touchpad's two-finger swipe right goes back and left goes forward, when the page has
+     * nothing to scroll that way.
+     */
+    val swipeNavigation: Boolean = true
 )
 
 data class SplitRatios(
@@ -186,7 +191,13 @@ data class BrowserTab(
      * Created by a page (`window.open`, `target=_blank`) or an extension. Such a tab may sit at
      * `about:blank` while its opener fills it in, so it must show web content, not the start page.
      */
-    val openedByPage: Boolean = false
+    val openedByPage: Boolean = false,
+    /**
+     * For a tab a page opened, the tab whose page opened it. Back at this tab's first page closes
+     * it and shows that tab again, as closing a popup window would (and as Chrome does). Not
+     * saved: after a restart the tab is an ordinary one.
+     */
+    val openerTabId: String? = null
 ) {
     /** A tab with nothing loaded yet; the UI shows the native start page instead of web content. */
     val isNewTabPage: Boolean
@@ -286,6 +297,17 @@ data class BrowserUiState(
 
     val activeTab: BrowserTab?
         get() = tabs.firstOrNull { it.id == activeTabId }
+
+    /**
+     * Whether Back can do something in [tab]: go back in its history, or, for a tab a page
+     * opened (a link with target=_blank, window.open), close it and show the tab that opened it.
+     */
+    fun canNavigateBack(tab: BrowserTab?): Boolean {
+        tab ?: return false
+        if (tab.canGoBack) return true
+        val opener = tab.openerTabId ?: return false
+        return tab.openedByPage && tabs.any { it.id == opener }
+    }
 
     val visibleTabIds: List<String>
         get() = paneTabIds

@@ -29,7 +29,7 @@ class PaneGeckoViewTest {
     private var chromeHasPointer = false
 
     // The screen, with a pane's web view filling it: the same nesting as in the app
-    private val view = PaneGeckoView(context) { chromeHasPointer }.apply { pointerIcon = pageCursor }
+    private val view = PaneGeckoView(context, chromeHasPointer = { chromeHasPointer }).apply { pointerIcon = pageCursor }
     private val screen = FrameLayout(context).apply {
         pointerIcon = chromeCursor
         addView(view, FrameLayout.LayoutParams(400, 300))

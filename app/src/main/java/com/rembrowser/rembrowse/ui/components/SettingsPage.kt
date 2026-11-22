@@ -114,7 +114,8 @@ class SettingsActions(
     val onSetAdBlocker: (Boolean) -> Unit,
     val onSetAskBeforeDownloading: (Boolean) -> Unit,
     val onSetKeepHistory: (Boolean) -> Unit = {},
-    val onSetPageRendering: (PageRendering) -> Unit = {}
+    val onSetPageRendering: (PageRendering) -> Unit = {},
+    val onSetSwipeNavigation: (Boolean) -> Unit = {}
 )
 
 /**
@@ -413,6 +414,16 @@ private fun TabsSection(settings: BrowserSettings, actions: SettingsActions) {
         checked = settings.desktopSiteByDefault,
         onCheckedChange = actions.onSetDesktopSiteByDefault,
         testTag = "setting_desktop_default"
+    )
+    HorizontalDivider(color = colors.outlineVariant)
+
+    SwitchRow(
+        title = "Swipe with two fingers to go back",
+        description = "On a touchpad, swipe right with two fingers to go back and left to go forward. " +
+            "Pages that scroll sideways keep the swipe until they reach their edge.",
+        checked = settings.swipeNavigation,
+        onCheckedChange = actions.onSetSwipeNavigation,
+        testTag = "setting_swipe_navigation"
     )
 }
 

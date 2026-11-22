@@ -87,6 +87,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import com.rembrowser.rembrowse.engine.SwipeDirection
+import com.rembrowser.rembrowse.engine.SwipeNavigation
+import com.rembrowser.rembrowse.ui.components.SwipeIndicatorState
+import com.rembrowser.rembrowse.ui.components.SwipeNavigationIndicator
+import androidx.compose.ui.Modifier
 
 private const val TAG = "MainActivity"
 
@@ -229,6 +236,35 @@ class MainActivity : ComponentActivity() {
     // Which tab each on-screen web view is showing, so keyboard focus can be given to a page.
     private val paneViewTabs = WeakHashMap<GeckoView, String>()
 
+    /**
+     * Two-finger swipes on [view] go back and forward in the tab it shows now (see
+     * [com.rembrowser.rembrowse.engine.TouchpadSwipeNavigator]). Back can also close a tab a link
+     * opened and return to its opener, as the toolbar's Back does.
+     */
+    private fun swipeNavigationFor(view: GeckoView, browser: BrowserViewModel): SwipeNavigation =
+        object : SwipeNavigation {
+            override val enabled: Boolean
+                get() = browser.uiState.value.settings.swipeNavigation
+
+            override fun canGo(direction: SwipeDirection): Boolean {
+                val state = browser.uiState.value
+                val tab = state.tabs.firstOrNull { it.id == paneViewTabs[view] } ?: return false
+                return when (direction) {
+                    SwipeDirection.BACK -> state.canNavigateBack(tab)
+                    SwipeDirection.FORWARD -> tab.canGoForward
+                }
+            }
+
+            override fun go(direction: SwipeDirection) {
+                val tabId = paneViewTabs[view] ?: return
+                val pane = browser.uiState.value.paneIndexOf(tabId).takeIf { it >= 0 } ?: return
+                when (direction) {
+                    SwipeDirection.BACK -> browser.goBack(pane)
+                    SwipeDirection.FORWARD -> browser.goForward(pane)
+                }
+            }
+        }
+
     // The window was made fullscreen for a page and should be given back when the page leaves it
     private var desktopFullscreenRequested = false
 
@@ -339,6 +375,7 @@ class MainActivity : ComponentActivity() {
                                 val rendering = settings.pageRendering
                                 key(rendering) {
                                     val geckoViewHolder = remember { arrayOfNulls<GeckoView>(1) }
+                                    val swipeArrow = remember { SwipeIndicatorState() }
                                     DisposableEffect(Unit) {
                                         onDispose {
                                             geckoViewHolder[0]?.let {
@@ -347,25 +384,30 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                    AndroidView(
-                                        modifier = modifier,
-                                        factory = { ctx ->
-                                            PaneGeckoView(ctx, chromePointerIcon::isClaimed).apply {
-                                                usePageRendering(rendering)
-                                                // Set once: covering again on every update would hide
-                                                // a page that has already painted.
-                                                coverUntilFirstPaint(pageBackground)
-                                                geckoViewHolder[0] = this
-                                                paneViewTabs[this] = tab.id
-                                                engine.attachSessionToView(tab.id, this)
+                                    // The swipe arrow is drawn over the page, inside its pane
+                                    Box(modifier = modifier) {
+                                        AndroidView(
+                                            modifier = Modifier.fillMaxSize(),
+                                            factory = { ctx ->
+                                                PaneGeckoView(ctx, chromePointerIcon::isClaimed, swipeArrow).apply {
+                                                    usePageRendering(rendering)
+                                                    // Set once: covering again on every update would hide
+                                                    // a page that has already painted.
+                                                    coverUntilFirstPaint(pageBackground)
+                                                    geckoViewHolder[0] = this
+                                                    paneViewTabs[this] = tab.id
+                                                    swipeNavigation = swipeNavigationFor(this, holder.browser)
+                                                    engine.attachSessionToView(tab.id, this)
+                                                }
+                                            },
+                                            update = { view ->
+                                                geckoViewHolder[0] = view
+                                                paneViewTabs[view] = tab.id
+                                                engine.attachSessionToView(tab.id, view)
                                             }
-                                        },
-                                        update = { view ->
-                                            geckoViewHolder[0] = view
-                                            paneViewTabs[view] = tab.id
-                                            engine.attachSessionToView(tab.id, view)
-                                        }
-                                    )
+                                        )
+                                        SwipeNavigationIndicator(swipeArrow, Modifier.matchParentSize())
+                                    }
                                 }
                             },
                             extensionPopupContent = { modifier ->

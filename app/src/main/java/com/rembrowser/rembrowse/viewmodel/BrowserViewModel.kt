@@ -138,23 +138,13 @@ class BrowserViewModel(
                 openedByPage = true,
                 openerTabId = opener?.id
             )
-            if (opener != null) openers[tabId] = opener.id
         }
 
         override fun onCloseRequested(tabId: String) {
-            val state = _uiState.value
-            val tab = state.tabs.firstOrNull { it.id == tabId } ?: return
+            val tab = _uiState.value.tabs.firstOrNull { it.id == tabId } ?: return
             // A page may close only a tab a page opened, never one the user opened
             if (!tab.openedByPage) return
-            // The page that opened it comes back where it was, as a popup window closing would
-            // show it again: a sign-in popup opens in its opener's pane
-            val opener = openers[tabId]?.takeIf { id -> state.tabs.any { it.id == id } }
-            val pane = state.paneIndexOf(tabId)
-            if (opener != null && pane >= 0) {
-                val openerPane = state.paneIndexOf(opener)
-                if (openerPane < 0) assignTabToPane(pane, opener) else if (pane == state.activePaneIndex) focusPane(openerPane)
-            }
-            closeTab(tabId)
+            closeReturningToOpener(tabId)
         }
 
         override fun onPromptRequested(prompt: PagePrompt) {
@@ -214,9 +204,6 @@ class BrowserViewModel(
 
     /** Tabs in which the engine has shown a document since this browser started. */
     private val tabsWithContent = mutableSetOf<String>()
-
-    /** The tab that opened each tab a page opened (window.open), for when the page closes it again. */
-    private val openers = HashMap<String, String>()
 
     init {
         restoreInitialState()
@@ -477,7 +464,8 @@ class BrowserViewModel(
         openerTabId: String? = null
     ): String {
         val resolved = url?.let { if (isInternalUrl(it)) it.trim() else resolve(it) } ?: BrowserTab.NEW_TAB_URL
-        val newTab = createTabModel(resolved, desktopMode).copy(openedByPage = openedByPage)
+        val newTab = createTabModel(resolved, desktopMode)
+            .copy(openedByPage = openedByPage, openerTabId = openerTabId.takeIf { openedByPage })
         // Created before anything else so the engine can hand this exact session back to a
         // page that asked for a new window. An internal page has no session at all.
         if (!newTab.isInternalPage) ensureSessionCreated(newTab)
@@ -502,7 +490,6 @@ class BrowserViewModel(
         val current = _uiState.value
         val closedIndex = current.tabs.indexOfFirst { it.id == tabId }
         if (closedIndex < 0) return
-        openers.remove(tabId)
 
         engine.closeSession(tabId)
         tabsWithContent -= tabId
@@ -795,9 +782,35 @@ class BrowserViewModel(
         syncSessions()
     }
 
+    /**
+     * Back in the pane's tab: its history, or, at the first page of a tab a page opened, closing
+     * it and showing the tab that opened it again (see [BrowserUiState.canNavigateBack]).
+     */
     fun goBack(paneIndex: Int = _uiState.value.activePaneIndex) {
-        val tab = _uiState.value.tabForPane(paneIndex) ?: return
+        val state = _uiState.value
+        val tab = state.tabForPane(paneIndex) ?: return
+        if (!tab.canGoBack && state.canNavigateBack(tab)) {
+            closeReturningToOpener(tab.id)
+            return
+        }
         engine.getSession(tab.id)?.goBack()
+    }
+
+    /**
+     * Closes a tab a page opened and shows the page that opened it where it was, as a popup
+     * window closing would: a sign-in popup, or a link that opened in a new tab, opens in its
+     * opener's pane.
+     */
+    private fun closeReturningToOpener(tabId: String) {
+        val state = _uiState.value
+        val tab = state.tabs.firstOrNull { it.id == tabId } ?: return
+        val opener = tab.openerTabId?.takeIf { id -> state.tabs.any { it.id == id } }
+        val pane = state.paneIndexOf(tabId)
+        if (opener != null && pane >= 0) {
+            val openerPane = state.paneIndexOf(opener)
+            if (openerPane < 0) assignTabToPane(pane, opener) else if (pane == state.activePaneIndex) focusPane(openerPane)
+        }
+        closeTab(tabId)
     }
 
     fun goForward(paneIndex: Int = _uiState.value.activePaneIndex) {
@@ -911,6 +924,12 @@ class BrowserViewModel(
 
     fun setAskBeforeDownloading(enabled: Boolean) {
         _uiState.update { it.copy(settings = it.settings.copy(askBeforeDownloading = enabled)) }
+        persistCurrentState()
+    }
+
+    /** Whether a touchpad's two-finger sideways swipe goes back and forward. */
+    fun setSwipeNavigation(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(swipeNavigation = enabled)) }
         persistCurrentState()
     }
 

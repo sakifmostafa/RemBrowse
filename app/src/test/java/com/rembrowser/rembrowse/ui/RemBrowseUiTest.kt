@@ -17,6 +17,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
@@ -602,6 +604,20 @@ class RemBrowseUiTest {
     }
 
     @Test
+    fun settingsTabsSection_swipeNavigationSwitchTurnsTwoFingerSwipeOffAndOn() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TABS) }
+
+        composeRule.onNodeWithTag("setting_swipe_navigation").performScrollTo().assertIsOn()
+        composeRule.onNodeWithTag("setting_swipe_navigation").performClick()
+        assertFalse(browserVm.uiState.value.settings.swipeNavigation)
+        composeRule.onNodeWithTag("setting_swipe_navigation").assertIsOff()
+
+        composeRule.onNodeWithTag("setting_swipe_navigation").performClick()
+        assertTrue(browserVm.uiState.value.settings.swipeNavigation)
+    }
+
+    @Test
     fun settingsTabsSection_changesStartupNewTabPositionAndDesktopSites() {
         launch()
         composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TABS) }
@@ -708,6 +724,27 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("downloads_clear").performClick()
         composeRule.onNodeWithText("No downloads yet").assertIsDisplayed()
         assertTrue(downloadsVm.uiState.value.items.isEmpty())
+    }
+
+    @Test
+    fun toolbarBack_isEnabledForAPageOpenedTab_andReturnsToTheOpener() {
+        val openerId = browserVm.uiState.value.activeTabId!!
+        loadPage(openerId, "https://example.org/", "Example")
+        launch()
+        composeRule.onNodeWithContentDescription("Back").assertIsNotEnabled()
+
+        composeRule.runOnUiThread { engine.sessions.getValue(openerId).simulateNewTab("https://example.org/popup") }
+        composeRule.waitForIdle()
+        val popupId = browserVm.uiState.value.activeTabId!!
+        assertTrue(popupId != openerId)
+        composeRule.onNodeWithContentDescription("Back").assertIsEnabled()
+
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(openerId, browserVm.uiState.value.activeTabId)
+        assertTrue(browserVm.uiState.value.tabs.none { it.id == popupId })
+        composeRule.onNodeWithContentDescription("Back").assertIsNotEnabled()
     }
 
     @Test

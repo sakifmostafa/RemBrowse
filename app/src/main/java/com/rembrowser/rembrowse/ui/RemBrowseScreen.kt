@@ -87,6 +87,8 @@ import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
 import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
+import androidx.compose.ui.platform.LocalContext
+import com.rembrowser.rembrowse.engine.PointerDevices
 
 /**
  * Which overlays of the browser chrome are open. Lives outside the composition so hardware
@@ -190,7 +192,14 @@ fun RemBrowseScreen(
         }
     }
 
-    BackHandler(enabled = !chrome.showTabSwitcher && browserState.activeTab?.canGoBack == true) {
+    // Nothing left to go back to, on a laptop (a mouse or touchpad): Back does nothing rather than
+    // send RemBrowse away. A touchpad's three-finger swipe is the system's Back there, and easy to
+    // make by accident. Phones keep Android's own Back. Composed first, so every handler below,
+    // which only acts when it has something to do, comes before it.
+    val context = LocalContext.current
+    val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
+    BackHandler(enabled = backAtRootStays) { }
+    BackHandler(enabled = !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)) {
         browserViewModel.goBack()
     }
     val closeTabSwitcher = {
@@ -313,6 +322,7 @@ fun RemBrowseScreen(
             onSetAdBlocker = extensionsViewModel::setAdBlockerEnabled,
             onSetAskBeforeDownloading = browserViewModel::setAskBeforeDownloading,
             onSetKeepHistory = browserViewModel::setKeepHistory,
+            onSetSwipeNavigation = browserViewModel::setSwipeNavigation,
             onSetPageRendering = browserViewModel::setPageRendering
         )
     }

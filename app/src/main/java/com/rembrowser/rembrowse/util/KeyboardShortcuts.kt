@@ -46,11 +46,13 @@ object KeyboardShortcuts {
         meta: Boolean = false,
         repeatCount: Int = 0,
         /**
-         * A terminal has the keyboard. Its shell owns Ctrl+W, Ctrl+R, Ctrl+L and the rest, Alt
-         * combinations and the function keys, so the browser keeps only Ctrl+Tab and moves its
-         * letter shortcuts to Ctrl+Shift (Ctrl+Shift+N opens a tab, Ctrl+Shift+W closes one), as
-         * terminal apps do. Ctrl+Shift+T opens another terminal, here as everywhere else.
-         * Ctrl+Shift+C and V copy and paste in the terminal itself.
+         * A terminal has the keyboard. Its shell owns Ctrl+R, Ctrl+L, Ctrl+D, Ctrl+C and the rest,
+         * Alt combinations and the function keys. The browser keeps Ctrl+Tab, and Ctrl+T and
+         * Ctrl+W (a new tab, close the tab) as everywhere else, the owner's choice: the shell
+         * loses swapping two letters and deleting a word with them (Alt+Backspace still deletes
+         * a word). The other letter shortcuts move to Ctrl+Shift (Ctrl+Shift+N and Ctrl+Shift+W
+         * too), as terminal apps do. Ctrl+Shift+T opens another terminal, here as everywhere
+         * else. Ctrl+Shift+C and V copy and paste in the terminal itself.
          */
         inTerminal: Boolean = false
     ): BrowserShortcut? {
@@ -114,7 +116,14 @@ object KeyboardShortcuts {
     private fun resolveInTerminal(keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean): BrowserShortcut? {
         if (!ctrl || alt) return null
         if (keyCode == KeyEvent.KEYCODE_TAB) return if (shift) BrowserShortcut.PREVIOUS_TAB else BrowserShortcut.NEXT_TAB
-        if (!shift) return null
+        // Opening and closing tabs take the same keys as everywhere else
+        if (!shift) {
+            return when (keyCode) {
+                KeyEvent.KEYCODE_T -> BrowserShortcut.NEW_TAB
+                KeyEvent.KEYCODE_W -> BrowserShortcut.CLOSE_TAB
+                else -> null
+            }
+        }
         return when (keyCode) {
             KeyEvent.KEYCODE_T -> BrowserShortcut.NEW_TERMINAL
             KeyEvent.KEYCODE_N -> BrowserShortcut.NEW_TAB

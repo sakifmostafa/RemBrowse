@@ -866,6 +866,21 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun setSwipeNavigation_changesTheSettingAndSavesIt() {
+        val repository = FakeBrowserStateRepository()
+        val viewModel = BrowserViewModel(FakeBrowserEngine(), repository)
+        assertTrue(viewModel.uiState.value.settings.swipeNavigation)
+
+        viewModel.setSwipeNavigation(false)
+        assertFalse(viewModel.uiState.value.settings.swipeNavigation)
+        assertFalse(repository.storedState.settings.swipeNavigation)
+
+        viewModel.setSwipeNavigation(true)
+        assertTrue(viewModel.uiState.value.settings.swipeNavigation)
+        assertTrue(repository.storedState.settings.swipeNavigation)
+    }
+
+    @Test
     fun setPageRendering_changesTheSettingAndSavesIt() {
         val repository = FakeBrowserStateRepository()
         val viewModel = BrowserViewModel(FakeBrowserEngine(), repository)
@@ -1458,5 +1473,122 @@ class BrowserViewModelTest {
         assertTrue(state.tabs.none { it.id == popupId })
         assertTrue(state.tabs.any { it.id == other })
         assertTrue("A tab is still shown", state.activeTab != null)
+    }
+
+    /** The active tab opens a page tab (a target=_blank link); returns (opener id, page tab id). */
+    private fun pageOpensATab(url: String = "https://popup.example/"): Pair<String, String> {
+        val openerId = viewModel.uiState.value.activeTabId!!
+        engine.sessions.getValue(openerId).simulateNewTab(url)
+        return openerId to viewModel.uiState.value.activeTabId!!
+    }
+
+    @Test
+    fun aTabAPageOpened_canNavigateBackToItsOpener_thoughItHasNoHistory() {
+        val (openerId, popupId) = pageOpensATab()
+        val state = viewModel.uiState.value
+        val popup = state.tabs.first { it.id == popupId }
+
+        assertEquals(openerId, popup.openerTabId)
+        assertTrue(popup.openedByPage)
+        assertFalse(popup.canGoBack)
+        assertTrue(state.canNavigateBack(popup))
+    }
+
+    @Test
+    fun goBack_inAPageOpenedTabWithNoHistory_closesItAndTheOpenerIsBackAndActive() {
+        val (openerId, popupId) = pageOpensATab()
+
+        viewModel.goBack()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.tabs.none { it.id == popupId })
+        assertFalse(engine.sessions.containsKey(popupId))
+        assertEquals(openerId, state.tabForPane(0)!!.id)
+        assertEquals(openerId, state.activeTabId)
+        assertEquals("The opener's own history was not touched", 0, engine.sessions.getValue(openerId).goBackCount)
+    }
+
+    @Test
+    fun goBack_inASplitPane_returnsTheOpenerToThatPane() {
+        viewModel.setLayoutMode(LayoutMode.SPLIT_1X2)
+        val openerId = viewModel.uiState.value.paneTabIds[1]
+        viewModel.focusPane(1)
+        engine.sessions.getValue(openerId).simulateNewTab("https://popup.example/")
+        val popupId = viewModel.uiState.value.tabForPane(1)!!.id
+
+        viewModel.goBack(1)
+
+        val state = viewModel.uiState.value
+        assertEquals(openerId, state.tabForPane(1)!!.id)
+        assertEquals(1, state.activePaneIndex)
+        assertTrue(state.tabs.none { it.id == popupId })
+    }
+
+    @Test
+    fun goBack_whenTheOpenerIsShownInAnotherPane_focusesThatPane() {
+        viewModel.setLayoutMode(LayoutMode.SPLIT_1X2)
+        val openerId = viewModel.uiState.value.paneTabIds[0]
+        val other = viewModel.uiState.value.paneTabIds[1]
+        viewModel.focusPane(0)
+        engine.sessions.getValue(openerId).simulateNewTab("https://popup.example/")
+        // The popup took the opener's pane; show the opener again in pane 1, then go back from pane 0
+        val popupId = viewModel.uiState.value.tabForPane(0)!!.id
+        viewModel.assignTabToPane(1, openerId)
+
+        viewModel.goBack(0)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.tabs.none { it.id == popupId })
+        assertEquals("Focus follows the opener", state.paneIndexOf(openerId), state.activePaneIndex)
+        assertTrue(state.tabs.any { it.id == other })
+    }
+
+    @Test
+    fun whenTheOpenerWasClosed_canNavigateBackIsFalse_andGoBackJustCallsTheSession() {
+        val other = viewModel.openNewTab("https://other.example/")
+        val firstId = viewModel.uiState.value.tabs.first { it.id != other }.id
+        viewModel.selectTab(firstId)
+        val (openerId, popupId) = pageOpensATab()
+        viewModel.closeTab(openerId)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.tabs.any { it.id == popupId })
+        assertFalse(state.canNavigateBack(state.tabs.first { it.id == popupId }))
+
+        viewModel.goBack()
+
+        assertTrue("Not closed", viewModel.uiState.value.tabs.any { it.id == popupId })
+        assertEquals(1, engine.sessions.getValue(popupId).goBackCount)
+    }
+
+    @Test
+    fun goBack_withHistory_callsTheSessionAndDoesNotCloseThePageOpenedTab() {
+        val (_, popupId) = pageOpensATab()
+        engine.sessions.getValue(popupId).simulatePageLoad("https://popup.example/next", "Next", canGoBack = true)
+
+        assertTrue(viewModel.uiState.value.canNavigateBack(viewModel.uiState.value.activeTab))
+        viewModel.goBack()
+
+        assertTrue(viewModel.uiState.value.tabs.any { it.id == popupId })
+        assertEquals(popupId, viewModel.uiState.value.activeTabId)
+        assertEquals(1, engine.sessions.getValue(popupId).goBackCount)
+    }
+
+    @Test
+    fun aTabTheUserOpened_neverClosesOnGoBack() {
+        val userTab = viewModel.openNewTab("https://user.example/")
+        val tab = viewModel.uiState.value.tabs.first { it.id == userTab }
+        assertNull(tab.openerTabId)
+        assertFalse(viewModel.uiState.value.canNavigateBack(tab))
+
+        viewModel.goBack()
+
+        assertTrue(viewModel.uiState.value.tabs.any { it.id == userTab })
+        assertEquals(1, engine.sessions.getValue(userTab).goBackCount)
+    }
+
+    @Test
+    fun canNavigateBack_isFalseWithoutATab() {
+        assertFalse(viewModel.uiState.value.canNavigateBack(null))
     }
 }

@@ -12,6 +12,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.KeyEvent
 import android.os.Build
+import android.view.HapticFeedbackConstants
 import android.view.PointerIcon
 import android.view.ViewConfiguration
 import org.mozilla.geckoview.GeckoView
@@ -24,12 +25,15 @@ import com.rembrowser.rembrowse.util.PageKeyTarget
  * the view, also under chrome drawn on top of its edge.
  *
  * Touchpad input goes through a [TouchpadInputFilter] first, so that a touchpad's right click
- * reaches the page as a right click and resting fingers mid-scroll are never a long press.
+ * reaches the page as a right click and resting fingers mid-scroll are never a long press, and
+ * then through a [TouchpadSwipeNavigator], so a two-finger sideways swipe the page has no use
+ * for goes back or forward ([swipeNavigation]), with an arrow drawn by [swipeFeedback].
  */
 @SuppressLint("ViewConstructor") // Only ever created in code
 class PaneGeckoView(
     context: Context,
-    private val chromeHasPointer: () -> Boolean = { false }
+    private val chromeHasPointer: () -> Boolean = { false },
+    swipeFeedback: SwipeFeedback? = null
 ) : GeckoView(context), PageKeyTarget {
 
     private val touchpad = TouchpadInputFilter(
@@ -38,6 +42,29 @@ class PaneGeckoView(
             touchSlopPx = ViewConfiguration.get(context).scaledTouchSlop
         )
     )
+
+    private val swipe = TouchpadSwipeNavigator(
+        density = resources.displayMetrics.density,
+        touchSlopPx = ViewConfiguration.get(context).scaledTouchSlop.toFloat(),
+        sendDown = ::sendDownForResult,
+        feedback = swipeFeedback,
+        haptic = {
+            performHapticFeedback(
+                if (Build.VERSION.SDK_INT >= 34) {
+                    HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
+                } else {
+                    HapticFeedbackConstants.CONTEXT_CLICK
+                }
+            )
+        }
+    )
+
+    /** Where a two-finger swipe on this page goes; null leaves every swipe to the page. */
+    var swipeNavigation: SwipeNavigation?
+        get() = swipe.navigation
+        set(value) {
+            swipe.navigation = value
+        }
 
     private var pointerX = Float.NaN
     private var pointerY = Float.NaN
@@ -109,11 +136,27 @@ class PaneGeckoView(
     @SuppressLint("ClickableViewAccessibility") // GeckoView handles the page's own clicks
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) notePointer(event)
-        // Without a page there is nothing to filter for; GeckoView declines the gesture
-        if (session == null) return super.onTouchEvent(event)
-        touchpad.filter(event) { super.onTouchEvent(it) }
-        // A held-back touchpad scroll is still this view's gesture
+        // Without a page there is nothing to filter for; GeckoView declines the gesture. A swipe
+        // whose page went away mid-way ends, so its arrow doesn't stay up.
+        if (session == null) {
+            swipe.cancel()
+            return super.onTouchEvent(event)
+        }
+        touchpad.filter(event) { filtered -> swipe.handle(filtered) { super.onTouchEvent(it) } }
+        // A held-back touchpad scroll, or a swipe taken from the page, is still this view's gesture
         return true
+    }
+
+    /**
+     * A possible swipe's press, handed to the page as `onTouchEvent` would, with word back of
+     * how the page handles it: what decides whether the swipe may navigate.
+     */
+    private fun sendDownForResult(down: MotionEvent, result: (PageScroll) -> Unit) {
+        onTouchEventForDetailResult(down).accept { detail ->
+            if (detail != null) {
+                result(PageScroll(detail.handledResult(), detail.scrollableDirections(), detail.overscrollDirections()))
+            }
+        }
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {

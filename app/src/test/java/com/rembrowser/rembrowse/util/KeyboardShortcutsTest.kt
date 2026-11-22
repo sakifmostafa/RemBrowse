@@ -67,9 +67,12 @@ class KeyboardShortcutsTest {
         fun inTerminal(keyCode: Int, ctrl: Boolean = false, shift: Boolean = false, alt: Boolean = false) =
             KeyboardShortcuts.resolve(keyCode, ctrl = ctrl, shift = shift, alt = alt, inTerminal = true)
 
-        // The shell's own: delete word, reverse search, clear, kill line, find, EOF, back and forward a word
-        listOf(KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_R, KeyEvent.KEYCODE_L, KeyEvent.KEYCODE_K, KeyEvent.KEYCODE_F, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_T)
+        // The shell's own: reverse search, clear, kill line, find, EOF, back and forward a word
+        listOf(KeyEvent.KEYCODE_R, KeyEvent.KEYCODE_L, KeyEvent.KEYCODE_K, KeyEvent.KEYCODE_F, KeyEvent.KEYCODE_D, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_C)
             .forEach { assertNull(inTerminal(it, ctrl = true)) }
+        // Opening and closing tabs keep the same keys as everywhere else (the owner's choice)
+        assertEquals(BrowserShortcut.NEW_TAB, inTerminal(KeyEvent.KEYCODE_T, ctrl = true))
+        assertEquals(BrowserShortcut.CLOSE_TAB, inTerminal(KeyEvent.KEYCODE_W, ctrl = true))
         assertNull(inTerminal(KeyEvent.KEYCODE_DPAD_LEFT, alt = true))
         assertNull(inTerminal(KeyEvent.KEYCODE_F5))
         assertNull(inTerminal(KeyEvent.KEYCODE_F3))

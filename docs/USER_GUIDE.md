@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.13.10`)
+# RemBrowse User Guide (`v0.13.11`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -16,7 +16,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 **Toolbar (top)**, left to right:
 
-* **Back**, and **Forward** when there is somewhere to go forward to.
+* **Back**, and **Forward** when there is somewhere to go forward to. In a tab a link opened (one that opens in a new tab), Back closes it and shows the page it came from. On a laptop, Back with nothing to go back to does nothing, so a three-finger swipe on the touchpad no longer minimizes RemBrowse.
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
@@ -59,6 +59,8 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 **The touchpad is a mouse everywhere.** Touchpad clicks work like mouse clicks in pages and in RemBrowse's own fields and buttons: double-click selects a word, click-and-drag selects text, triple-click selects a line, and the pointer shows hover highlights and resize cursors.
 
 **Touchpad scrolling.** Two fingers resting on the pad, or moving only a little, never count as a press on the page: scrolling then pausing no longer opens menus or selects words, and a small nudge no longer clicks whatever is under the pointer. A page starts to scroll once the fingers have moved about 2.5 mm.
+
+**Swipe to go back and forward.** On the touchpad, swipe two fingers to the right to go back, and to the left to go forward. A round arrow slides in from the side of the page; it fills with your accent colour when letting go will navigate (or flick quickly). Lift early, or move back, and nothing happens. It works only when the page has nothing to scroll that way: a wide table, a carousel or a map keeps the swipe until it reaches its own edge. In a tab a link opened, swiping back closes it and shows the page it came from, as the Back button does. Turn it off in **Settings → Tabs → Swipe with two fingers to go back**. Three-finger swipes belong to Android and can't be used by apps.
 
 ---
 
@@ -158,6 +160,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
 * **Tabs**
   * **When RemBrowse starts** — **Continue where you left off** (the default) reopens last time's tabs and layout. **Open a new tab** starts on a single empty tab instead: the previous tabs are closed, including when Android stopped the browser in the background. Bookmarks and settings are kept either way.
   * **Open new tabs** — **At the end of the tab list** (the default) or **Next to the current tab**. A tab that a page opens goes next to that page.
+  * **Swipe with two fingers to go back** — on by default. A touchpad's two-finger swipe right goes back and left goes forward, when the page has nothing to scroll that way.
   * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**.
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (uBlock Origin) on or off. See [Ad blocking](#8-ad-blocking).
@@ -263,7 +266,7 @@ The first time you connect to a server, RemBrowse shows its **key fingerprint** 
 
 ### Working in it
 
-* Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C`, `Ctrl+W`, `Ctrl+R`, `Ctrl+L`, Tab completion…), so the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard; see [Keyboard shortcuts](#12-keyboard-shortcuts).
+* Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C`, `Ctrl+R`, `Ctrl+L`, `Ctrl+D`, Tab completion…), so most of the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard. `Ctrl+T` (new tab) and `Ctrl+W` (close the tab) stay the browser's, so delete the previous word with `Alt+Backspace`; see [Keyboard shortcuts](#12-keyboard-shortcuts).
 * **Select** by dragging, double-click a word or path, and copy with `Ctrl+Shift+C`. Paste with `Ctrl+Shift+V` or `Shift+Insert`. Right-click for **Copy**, **Paste**, **Select all**, and **Disconnect** or **Reconnect**.
 * **Scroll back** through earlier output with the mouse wheel, two fingers on the touchpad, or `Shift+Page Up` / `Shift+Page Down`. Typing returns to the bottom. In full-screen programs (`less`, `man`, `htop`, `vim`), the wheel scrolls the program instead.
 * The **bar above the terminal** shows the host and whether it is connected (green), connecting (yellow) or disconnected (red), with buttons for the theme and text size (one menu), disconnecting or reconnecting, and the terminal's settings.
@@ -323,12 +326,12 @@ Passwords and private keys are encrypted with a key held by Android's keystore, 
 
 These work anywhere in the window, also while you are typing in a web page's text box.
 
-**In a terminal**, the shell keeps `Ctrl` and `Alt`, so the browser's shortcuts take `Ctrl+Shift` instead:
+**In a terminal**, the shell keeps `Ctrl` and `Alt`, so the browser's other shortcuts take `Ctrl+Shift` instead. `Ctrl + T` (new tab), `Ctrl + W` (close the tab) and `Ctrl + Tab` work as everywhere else, so to delete the previous word in the shell use `Alt + Backspace`:
 
 | Shortcut | Action |
 | :--- | :--- |
 | `Ctrl + Shift + T` | New terminal (as everywhere else) |
-| `Ctrl + Shift + N` / `Ctrl + Shift + W` | New tab / close tab |
+| `Ctrl + T` or `Ctrl + Shift + N` / `Ctrl + W` or `Ctrl + Shift + W` | New tab / close tab |
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
 | `Ctrl + Shift + L` / `Ctrl + Shift + G` / `Ctrl + Shift + K` | Address bar / Go to address / command palette |
 | `Ctrl + Shift + ,` / `Ctrl + Shift + \` | Settings / toggle split view |
