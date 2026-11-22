@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.13.11`)
+# RemBrowse User Guide (`v0.13.12`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -60,7 +60,7 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 
 **Touchpad scrolling.** Two fingers resting on the pad, or moving only a little, never count as a press on the page: scrolling then pausing no longer opens menus or selects words, and a small nudge no longer clicks whatever is under the pointer. A page starts to scroll once the fingers have moved about 2.5 mm.
 
-**Swipe to go back and forward.** On the touchpad, swipe two fingers to the right to go back, and to the left to go forward. A round arrow slides in from the side of the page; it fills with your accent colour when letting go will navigate (or flick quickly). Lift early, or move back, and nothing happens. It works only when the page has nothing to scroll that way: a wide table, a carousel or a map keeps the swipe until it reaches its own edge. In a tab a link opened, swiping back closes it and shows the page it came from, as the Back button does. Turn it off in **Settings → Tabs → Swipe with two fingers to go back**. Three-finger swipes belong to Android and can't be used by apps.
+**Swipe to go back and forward.** On the touchpad, swipe two fingers to the right to go back, and to the left to go forward. A round arrow slides in from the side of the page; it fills with your accent colour when letting go will navigate (or flick quickly). Lift early, or move back, and nothing happens. It works only when the page has nothing to scroll that way: a wide table, a carousel or a map keeps the swipe until it reaches its own edge. In a tab a link opened, swiping back closes it and shows the page it came from, as the Back button does. The direction follows your fingers whichever way the touchpad scrolls (Android's **Reverse scrolling** setting); if it still feels backwards, turn on **Settings → Tabs → Swipe the other way**. Turn swipes off in **Settings → Tabs → Swipe with two fingers to go back**. Three-finger swipes belong to Android and can't be used by apps.
 
 ---
 
@@ -161,6 +161,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
   * **When RemBrowse starts** — **Continue where you left off** (the default) reopens last time's tabs and layout. **Open a new tab** starts on a single empty tab instead: the previous tabs are closed, including when Android stopped the browser in the background. Bookmarks and settings are kept either way.
   * **Open new tabs** — **At the end of the tab list** (the default) or **Next to the current tab**. A tab that a page opens goes next to that page.
   * **Swipe with two fingers to go back** — on by default. A touchpad's two-finger swipe right goes back and left goes forward, when the page has nothing to scroll that way.
+  * **Swipe the other way** — off by default, shown while swipes are on. Left goes back and right goes forward instead.
   * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**.
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (uBlock Origin) on or off. See [Ad blocking](#8-ad-blocking).

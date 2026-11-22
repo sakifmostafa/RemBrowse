@@ -56,7 +56,8 @@ class PaneGeckoView(
                     HapticFeedbackConstants.CONTEXT_CLICK
                 }
             )
-        }
+        },
+        fingersMoveWithPage = { touchpadNaturalScrolling(context) }
     )
 
     /** Where a two-finger swipe on this page goes; null leaves every swipe to the page. */
@@ -249,3 +250,13 @@ internal class ComposingAwareInputConnection(target: InputConnection) : InputCon
         return super.commitText(text, newCursorPosition, textAttribute)
     }
 }
+
+/**
+ * The touchpad's scroll direction (Settings → System → Touchpad → Reverse scrolling, stored as
+ * `touchpad_natural_scrolling`, readable by apps): true, Android's default, when the page follows
+ * the fingers. Read at every swipe, so a change applies at once; true if it can't be read.
+ */
+private fun touchpadNaturalScrolling(context: Context): Boolean =
+    runCatching {
+        android.provider.Settings.System.getInt(context.contentResolver, "touchpad_natural_scrolling", 1) != 0
+    }.getOrDefault(true)

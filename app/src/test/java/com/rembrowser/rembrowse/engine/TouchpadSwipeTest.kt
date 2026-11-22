@@ -128,6 +128,7 @@ class TouchpadSwipeNavigatorTest {
 
     private class FakeNavigation : SwipeNavigation {
         override var enabled = true
+        override var reverseDirection = false
         val can = mutableMapOf(SwipeDirection.BACK to true, SwipeDirection.FORWARD to true)
         val went = mutableListOf<SwipeDirection>()
         override fun canGo(direction: SwipeDirection) = can.getValue(direction)
@@ -152,6 +153,7 @@ class TouchpadSwipeNavigatorTest {
     private val feedback = RecordingFeedback()
     private var haptics = 0
     private var swipeStart = true
+    private var fingersMove = true
     private val downs = mutableListOf<(PageScroll) -> Unit>()
 
     /** The actions that reached the page, in order. */
@@ -164,7 +166,8 @@ class TouchpadSwipeNavigatorTest {
         sendDown = { _, result -> downs += result },
         feedback = feedback,
         haptic = { haptics++ },
-        isSwipeStart = { swipeStart }
+        isSwipeStart = { swipeStart },
+        fingersMoveWithPage = { fingersMove }
     ).also { it.navigation = navigation }
 
     @After
@@ -408,5 +411,122 @@ class TouchpadSwipeNavigatorTest {
         navigator.cancel()
         assertEquals(before + 1, feedback.calls.size)
         assertTrue(navigation.went.isEmpty())
+    }
+
+    @Test
+    fun withReverseScrolling_aLeftMovingPretendFinger_goesBack_armsAndNavigates() {
+        fingersMove = false
+        navigation.can[SwipeDirection.FORWARD] = false // only Back is possible, and it is the one asked for
+        down(x = 200); answer()
+        move(170, time = 100)
+        assertEquals(listOf(cancel), forwarded)
+        assertEquals("update(BACK,0.0,false)", feedback.calls.last())
+        move(98, time = 200) // 72 px after being taken
+        assertEquals(1, haptics)
+        assertEquals(1f, feedback.lastProgress, 0.001f)
+        up(98, time = 300)
+        assertEquals("end(true)", feedback.calls.last())
+        assertEquals(listOf(SwipeDirection.BACK), navigation.went)
+    }
+
+    @Test
+    fun withReverseScrolling_aRightMovingPretendFinger_goesForward() {
+        fingersMove = false
+        down(); answer()
+        move(130, time = 100)
+        assertEquals("update(FORWARD,0.0,false)", feedback.calls.last())
+        move(202, time = 200)
+        up(202, time = 300)
+        assertEquals(listOf(SwipeDirection.FORWARD), navigation.went)
+    }
+
+    @Test
+    fun withReverseScrolling_thePageIsAskedInThePretendFingersTerms() {
+        fingersMove = false
+        // Pretend finger moves left: the page would scroll right, so a page that can scroll RIGHT keeps it
+        down(x = 200); answer(PageScroll(HANDLED, RIGHT, OVERSCROLL))
+        move(170, time = 10)
+        assertEquals(listOf(moveAction), forwarded)
+        assertTrue(feedback.calls.isEmpty())
+    }
+
+    @Test
+    fun withReverseScrolling_aPageThatCanScrollTheOtherSide_stillLeavesTheSwipe() {
+        fingersMove = false
+        down(x = 200); answer(PageScroll(HANDLED, LEFT, OVERSCROLL))
+        move(170, time = 10)
+        assertEquals(listOf(cancel), forwarded)
+        assertEquals("update(BACK,0.0,false)", feedback.calls.last())
+    }
+
+    @Test
+    fun withReverseScrolling_aFastFlickLeft_navigatesBack() {
+        fingersMove = false
+        down(x = 200, time = 0); answer()
+        move(170, time = 10)
+        move(140, time = 20) // 30 of 72 px, fast
+        up(140, time = 25)
+        assertEquals(listOf(SwipeDirection.BACK), navigation.went)
+        assertEquals(0, haptics)
+    }
+
+    @Test
+    fun reverseDirection_flipsRightToForward_andLeftToBack() {
+        navigation.reverseDirection = true
+        down(); answer()
+        move(130, time = 100)
+        assertEquals("update(FORWARD,0.0,false)", feedback.calls.last())
+        move(202, time = 200)
+        assertEquals(1, haptics)
+        up(202, time = 300)
+        assertEquals(listOf(SwipeDirection.FORWARD), navigation.went)
+
+        navigation.went.clear()
+        feedback.calls.clear()
+        down(x = 200, time = 1000); answer()
+        move(170, time = 1100)
+        assertEquals("update(BACK,0.0,false)", feedback.calls.last())
+        move(98, time = 1200)
+        up(98, time = 1300)
+        assertEquals(listOf(SwipeDirection.BACK), navigation.went)
+    }
+
+    @Test
+    fun reverseDirection_asksThePageInThePretendFingersTerms_andCanGoInTheFlippedDirection() {
+        navigation.reverseDirection = true
+        // Moving right: the page check is for BACK (blocked by a left-scrollable page)...
+        down(); answer(PageScroll(HANDLED, LEFT, OVERSCROLL))
+        move(130, time = 10)
+        assertEquals(listOf(moveAction), forwarded)
+
+        // ...and where it goes is FORWARD, which must be possible
+        forwarded.clear()
+        navigation.can[SwipeDirection.FORWARD] = false
+        down(time = 100); answer()
+        move(130, time = 110)
+        assertEquals(listOf(moveAction), forwarded)
+        assertTrue(navigation.went.isEmpty())
+    }
+
+    @Test
+    fun reverseScrollingAndReverseDirectionTogether_cancelOut() {
+        fingersMove = false
+        navigation.reverseDirection = true
+        down(); answer()
+        move(130, time = 100)
+        assertEquals("update(BACK,0.0,false)", feedback.calls.last())
+        move(202, time = 200)
+        up(202, time = 300)
+        assertEquals(listOf(SwipeDirection.BACK), navigation.went)
+    }
+
+    @Test
+    fun theDirectionIsFixedAtThePress_notWhenTheFingersMove() {
+        fingersMove = false
+        down(x = 200); answer()
+        fingersMove = true
+        navigation.reverseDirection = true
+        move(170, time = 10)
+        assertEquals("update(BACK,0.0,false)", feedback.calls.last())
     }
 }

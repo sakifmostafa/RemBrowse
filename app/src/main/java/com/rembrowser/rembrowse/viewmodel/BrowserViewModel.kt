@@ -933,6 +933,12 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
+    /** Whether two-finger swipes go the other way round (left is Back). */
+    fun setReverseSwipeDirection(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(reverseSwipeDirection = enabled)) }
+        persistCurrentState()
+    }
+
     /** Whether visited pages are recorded. Turning it off keeps the history already there. */
     fun setKeepHistory(enabled: Boolean) {
         _uiState.update { it.copy(settings = it.settings.copy(keepHistory = enabled)) }

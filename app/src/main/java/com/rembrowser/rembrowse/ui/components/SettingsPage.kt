@@ -115,7 +115,8 @@ class SettingsActions(
     val onSetAskBeforeDownloading: (Boolean) -> Unit,
     val onSetKeepHistory: (Boolean) -> Unit = {},
     val onSetPageRendering: (PageRendering) -> Unit = {},
-    val onSetSwipeNavigation: (Boolean) -> Unit = {}
+    val onSetSwipeNavigation: (Boolean) -> Unit = {},
+    val onSetReverseSwipeDirection: (Boolean) -> Unit = {}
 )
 
 /**
@@ -425,6 +426,16 @@ private fun TabsSection(settings: BrowserSettings, actions: SettingsActions) {
         onCheckedChange = actions.onSetSwipeNavigation,
         testTag = "setting_swipe_navigation"
     )
+    if (settings.swipeNavigation) {
+        SwitchRow(
+            title = "Swipe the other way",
+            description = "Swipe left to go back and right to go forward. RemBrowse already follows the " +
+                "touchpad's Reverse scrolling setting; use this if swipes still go the wrong way.",
+            checked = settings.reverseSwipeDirection,
+            onCheckedChange = actions.onSetReverseSwipeDirection,
+            testTag = "setting_reverse_swipe"
+        )
+    }
 }
 
 @Composable

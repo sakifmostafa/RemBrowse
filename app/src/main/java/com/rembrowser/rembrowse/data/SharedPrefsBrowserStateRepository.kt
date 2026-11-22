@@ -94,6 +94,7 @@ class SharedPrefsBrowserStateRepository(
                     put("keepHistory", state.settings.keepHistory)
                     put("pageRendering", state.settings.pageRendering.name)
                     put("swipeNavigation", state.settings.swipeNavigation)
+                    put("reverseSwipeDirection", state.settings.reverseSwipeDirection)
                 }
             )
 
@@ -172,7 +173,8 @@ class SharedPrefsBrowserStateRepository(
                     askBeforeDownloading = settingsObj.optBoolean("askBeforeDownloading", defaults.askBeforeDownloading),
                     keepHistory = settingsObj.optBoolean("keepHistory", defaults.keepHistory),
                     pageRendering = PageRendering.fromNameOrDefault(settingsObj.optString("pageRendering", "")),
-                    swipeNavigation = settingsObj.optBoolean("swipeNavigation", defaults.swipeNavigation)
+                    swipeNavigation = settingsObj.optBoolean("swipeNavigation", defaults.swipeNavigation),
+                    reverseSwipeDirection = settingsObj.optBoolean("reverseSwipeDirection", defaults.reverseSwipeDirection)
                 )
             }
 

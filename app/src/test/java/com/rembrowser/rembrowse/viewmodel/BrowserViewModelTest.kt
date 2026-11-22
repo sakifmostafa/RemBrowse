@@ -881,6 +881,21 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun setReverseSwipeDirection_changesTheSettingAndSavesIt() {
+        val repository = FakeBrowserStateRepository()
+        val viewModel = BrowserViewModel(FakeBrowserEngine(), repository)
+        assertFalse(viewModel.uiState.value.settings.reverseSwipeDirection)
+
+        viewModel.setReverseSwipeDirection(true)
+        assertTrue(viewModel.uiState.value.settings.reverseSwipeDirection)
+        assertTrue(repository.storedState.settings.reverseSwipeDirection)
+
+        viewModel.setReverseSwipeDirection(false)
+        assertFalse(viewModel.uiState.value.settings.reverseSwipeDirection)
+        assertFalse(repository.storedState.settings.reverseSwipeDirection)
+    }
+
+    @Test
     fun setPageRendering_changesTheSettingAndSavesIt() {
         val repository = FakeBrowserStateRepository()
         val viewModel = BrowserViewModel(FakeBrowserEngine(), repository)

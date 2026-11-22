@@ -246,6 +246,9 @@ class MainActivity : ComponentActivity() {
             override val enabled: Boolean
                 get() = browser.uiState.value.settings.swipeNavigation
 
+            override val reverseDirection: Boolean
+                get() = browser.uiState.value.settings.reverseSwipeDirection
+
             override fun canGo(direction: SwipeDirection): Boolean {
                 val state = browser.uiState.value
                 val tab = state.tabs.firstOrNull { it.id == paneViewTabs[view] } ?: return false

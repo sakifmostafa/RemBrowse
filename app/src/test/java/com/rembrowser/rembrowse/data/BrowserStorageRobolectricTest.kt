@@ -85,7 +85,8 @@ class BrowserStorageRobolectricTest {
             desktopSiteByDefault = false,
             askBeforeDownloading = false,
             pageRendering = PageRendering.DIRECT,
-            swipeNavigation = false
+            swipeNavigation = false,
+            reverseSwipeDirection = true
         )
         repository.saveState(PersistedBrowserState(settings = settings))
 
@@ -107,6 +108,23 @@ class BrowserStorageRobolectricTest {
         assertFalse(repository.loadState().settings.swipeNavigation)
         repository.saveState(PersistedBrowserState(settings = BrowserSettings(swipeNavigation = true)))
         assertTrue(repository.loadState().settings.swipeNavigation)
+    }
+
+    @Test
+    fun reverseSwipeDirection_isOffUntilTurnedOn_andForDataSavedByAnOlderVersion() {
+        assertFalse(BrowserSettings().reverseSwipeDirection)
+        assertFalse(repository.loadState().settings.reverseSwipeDirection)
+
+        context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+            .edit()
+            .putString("browser_state_json", """{"tabs":[],"settings":{"swipeNavigation":true}}""")
+            .commit()
+        assertFalse(repository.loadState().settings.reverseSwipeDirection)
+
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(reverseSwipeDirection = true)))
+        assertTrue(repository.loadState().settings.reverseSwipeDirection)
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(reverseSwipeDirection = false)))
+        assertFalse(repository.loadState().settings.reverseSwipeDirection)
     }
 
     @Test

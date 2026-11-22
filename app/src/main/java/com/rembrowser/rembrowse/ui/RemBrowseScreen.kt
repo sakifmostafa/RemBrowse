@@ -323,6 +323,7 @@ fun RemBrowseScreen(
             onSetAskBeforeDownloading = browserViewModel::setAskBeforeDownloading,
             onSetKeepHistory = browserViewModel::setKeepHistory,
             onSetSwipeNavigation = browserViewModel::setSwipeNavigation,
+            onSetReverseSwipeDirection = browserViewModel::setReverseSwipeDirection,
             onSetPageRendering = browserViewModel::setPageRendering
         )
     }

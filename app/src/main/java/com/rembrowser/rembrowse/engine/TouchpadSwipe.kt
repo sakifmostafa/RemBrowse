@@ -23,6 +23,10 @@ interface SwipeNavigation {
     /** Swipes are turned on in Settings. */
     val enabled: Boolean
 
+    /** Settings asks for the other way round: fingers moving left go back. */
+    val reverseDirection: Boolean
+        get() = false
+
     /** There is somewhere to go that way. */
     fun canGo(direction: SwipeDirection): Boolean
 
@@ -59,14 +63,19 @@ object SwipeRules {
     const val HORIZONTAL_RATIO = 2.5f
 
     /**
-     * Fingers moving right go back, left go forward. The pretend finger Android reports for a
-     * touchpad scroll moves with the page (natural scrolling, Android's default), so right is
-     * the way the page would slide to show what is to its left.
+     * Moving right is Back, left is Forward. Android's pretend finger for a touchpad scroll moves
+     * the way the page scrolls, not always the way the fingers do: with the touchpad's reverse
+     * scrolling (`Settings.System` `touchpad_natural_scrolling` = 0) it moves against them. The
+     * navigator turns its movement into the fingers' before choosing where to go, and uses it as
+     * it comes to ask the page (BACK there meaning the page would slide right, to show what is
+     * to its left).
      */
     fun directionOf(dx: Float): SwipeDirection = if (dx > 0f) SwipeDirection.BACK else SwipeDirection.FORWARD
 
     /**
-     * Whether the page leaves a sideways swipe towards [direction] alone, so it can navigate. As
+     * Whether the page leaves a sideways swipe alone, so it can navigate. [direction] is in the
+     * page's terms ([directionOf] of the pretend finger): BACK when the page would slide right to
+     * show what is to its left. As
      * in Chrome: only a scroll the page can't use. The scroll container under the fingers (the
      * page itself, or an inner one such as a chat's message list) must be at its edge that way,
      * and must let a scroll go on past it (`overscroll-behavior-x` not `contain` or `none`).
@@ -132,7 +141,12 @@ class TouchpadSwipeNavigator(
     private val feedback: SwipeFeedback? = null,
     /** A tick when letting go would navigate. */
     private val haptic: () -> Unit = {},
-    private val isSwipeStart: (MotionEvent) -> Boolean = SwipeRules::isTwoFingerScrollStart
+    private val isSwipeStart: (MotionEvent) -> Boolean = SwipeRules::isTwoFingerScrollStart,
+    /**
+     * Android's pretend finger moves with the fingers on the pad (natural scrolling, the
+     * default); false when the touchpad's reverse scrolling is on, and it moves against them.
+     */
+    private val fingersMoveWithPage: () -> Boolean = { true }
 ) {
     /** Where swipes go; null leaves every gesture to the page. */
     var navigation: SwipeNavigation? = null
@@ -154,6 +168,9 @@ class TouchpadSwipeNavigator(
     private var mode = Mode.OFF
     private var gesture = 0
     private var downX = 0f
+
+    /** 1 when the pretend finger moves the way the fingers do, -1 when against them. */
+    private var fingerSign = 1f
     private var downY = 0f
     private var pageScroll: PageScroll? = null
     private var direction = SwipeDirection.BACK
@@ -170,6 +187,7 @@ class TouchpadSwipeNavigator(
             val nav = navigation
             if (nav != null && nav.enabled && isSwipeStart(event)) {
                 mode = Mode.UNDECIDED
+                fingerSign = (if (fingersMoveWithPage()) 1f else -1f) * (if (nav.reverseDirection) -1f else 1f)
                 downX = event.x
                 downY = event.y
                 val id = ++gesture
@@ -211,13 +229,15 @@ class TouchpadSwipeNavigator(
                 forward(event)
             }
             across >= SwipeRules.START_DP * density && across >= SwipeRules.HORIZONTAL_RATIO * upDown -> {
-                val towards = SwipeRules.directionOf(dx)
+                // Where the page would scroll, and where the fingers say to go
+                val pageWay = SwipeRules.directionOf(dx)
+                val towards = SwipeRules.directionOf(dx * fingerSign)
                 val scroll = pageScroll
                 val nav = navigation
                 when {
                     // Not known yet: the page has the moves until it is
                     scroll == null -> forward(event)
-                    nav == null || !SwipeRules.pageLeavesSwipe(scroll, towards) || !nav.canGo(towards) -> {
+                    nav == null || !SwipeRules.pageLeavesSwipe(scroll, pageWay) || !nav.canGo(towards) -> {
                         mode = Mode.PAGE
                         forward(event)
                     }
@@ -246,7 +266,8 @@ class TouchpadSwipeNavigator(
 
     private fun swiping(event: MotionEvent) {
         velocity?.addMovement(event)
-        val sign = if (direction == SwipeDirection.BACK) 1f else -1f
+        // Along the swipe, in the pretend finger's movement
+        val sign = (if (direction == SwipeDirection.BACK) 1f else -1f) * fingerSign
         val travel = (event.x - downX) * sign
         val progress = ((travel - takenAtPx) / ((SwipeRules.ARM_DP - SwipeRules.START_DP) * density))
             .coerceAtLeast(0f)

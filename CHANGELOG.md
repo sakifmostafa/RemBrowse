@@ -2,6 +2,14 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.12 (2026-11-22) — Swipes follow your fingers
+
+### Fixed
+* **Two-finger swipes went the wrong way with the touchpad's reverse scrolling.** Android reports a touchpad scroll as a finger moving the way the page scrolls, which is against the fingers when Settings → Touchpad → Reverse scrolling is on, so swiping left went back. RemBrowse now reads that setting and goes by your fingers: right is Back, left is Forward. **Settings → Tabs → Swipe the other way** flips it, in case it still feels backwards.
+
+### Testing
+679 automated tests (50 of them screenshot renders that run only on request), including swipes with the touchpad's reverse scrolling on and off and with the new switch, in every combination: Back and Forward follow the fingers while the page is still asked about the way it would actually scroll.
+
 ## v0.13.11 (2026-11-22) — Two-finger swipes, Back that works, terminal tabs
 
 ### Added

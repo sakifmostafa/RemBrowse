@@ -618,6 +618,24 @@ class RemBrowseUiTest {
     }
 
     @Test
+    fun settingsTabsSection_reverseSwipeRow_showsOnlyWhileSwipingIsOn_andTogglesTheSetting() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TABS) }
+
+        composeRule.onNodeWithTag("setting_reverse_swipe").performScrollTo().assertIsOff()
+        composeRule.onNodeWithTag("setting_reverse_swipe").performClick()
+        assertTrue(browserVm.uiState.value.settings.reverseSwipeDirection)
+        composeRule.onNodeWithTag("setting_reverse_swipe").assertIsOn()
+
+        composeRule.onNodeWithTag("setting_swipe_navigation").performScrollTo().performClick()
+        assertFalse(browserVm.uiState.value.settings.swipeNavigation)
+        composeRule.onNodeWithTag("setting_reverse_swipe").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("setting_swipe_navigation").performClick()
+        composeRule.onNodeWithTag("setting_reverse_swipe").performScrollTo().assertIsOn()
+    }
+
+    @Test
     fun settingsTabsSection_changesStartupNewTabPositionAndDesktopSites() {
         launch()
         composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TABS) }

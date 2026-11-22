@@ -149,7 +149,9 @@ data class BrowserSettings(
      * A touchpad's two-finger swipe right goes back and left goes forward, when the page has
      * nothing to scroll that way.
      */
-    val swipeNavigation: Boolean = true
+    val swipeNavigation: Boolean = true,
+    /** Swipes the other way round: fingers moving left go back, right go forward. */
+    val reverseSwipeDirection: Boolean = false
 )
 
 data class SplitRatios(
