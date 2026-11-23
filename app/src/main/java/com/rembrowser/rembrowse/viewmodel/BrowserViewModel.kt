@@ -911,9 +911,9 @@ class BrowserViewModel(
 
     /**
      * The window was minimised or covered ([shown] false), or came back. While it is away no
-     * page is active, as for a background tab: it stops painting, and Gecko on Android suspends
-     * it (timers, workers). Pages playing sound stay awake, and so do pages using the camera or
-     * microphone.
+     * page is active, as for a background tab: it stops painting and its timers fire at most
+     * once a second (RemBrowse keeps background pages running: see EngineConfig). Pages using
+     * the camera or microphone stay active.
      */
     fun setWindowShown(shown: Boolean) {
         if (windowShown == shown) return

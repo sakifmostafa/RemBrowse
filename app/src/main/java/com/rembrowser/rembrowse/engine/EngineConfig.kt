@@ -9,7 +9,7 @@ import java.io.File
  * configuration file GeckoView reads (`GeckoRuntimeSettings.Builder.configFilePath`), whose
  * `prefs` become default preference values before the engine starts.
  *
- * Four preferences:
+ * Five preferences:
  *
  * **Translations off** ([TRANSLATIONS_PREF]), on every device. RemBrowse offers no page
  * translation, but GeckoView turns the machinery on, and it runs a language-detection worker
@@ -19,6 +19,22 @@ import java.io.File
  * **Back goes to the previous page** ([REQUIRE_INTERACTION_PREF] off), on every device. Gecko's
  * Back skips entries it didn't see the user interact with, and on single-page sites it misses
  * some the user did use (Back from a post on X left the site instead of showing the feed).
+ *
+ * **Background tabs keep running** ([SUSPEND_INACTIVE_PREF] off), on every device. Gecko on
+ * Android (only there; desktop Firefox has it off) suspends a background tab's page outright:
+ * its timers stop, and its own workers' replies are held until it is shown again
+ * (`nsGlobalWindowInner::Suspend`). Sites that share one connection between their tabs depend
+ * on the background tab answering: Telegram Web A keeps its connection, in a worker, in the
+ * first tab opened, and the other tabs ask that tab for everything over a `BroadcastChannel`.
+ * With that tab in the background, the tab on screen waited forever (a chat that never
+ * loaded). Measured on an emulator with a page that does the same: suspended, none of 54
+ * requests from the tab on screen were answered; off, all 75 were, within 3 ms. Off, a
+ * background page's own timers still fire at most once a second (`TimeoutManager`), but its
+ * workers and network are not slowed. Playing media was never suspended. The process
+ * priority of a background tab, and so when Android may kill it, is unchanged. With RemBrowse
+ * minimised, its pages keep running the same way while it is the last app used; once other apps
+ * are used Android caches it and freezes all its processes (seen on the emulator: Android 16,
+ * `use_freezer=true`).
  *
  * **Desktop viewport width** ([DESKTOP_WIDTH_PREF]), on large screens only. A tab that asks
  * for desktop sites gets Gecko's "desktop mode" viewport, whose width is
@@ -65,6 +81,9 @@ internal object EngineConfig {
      */
     const val REQUIRE_INTERACTION_PREF = "browser.navigation.requireUserInteraction"
 
+    /** Gecko on Android suspends every background tab outright (on by default; see above). */
+    const val SUSPEND_INACTIVE_PREF = "dom.suspend_inactive.enabled"
+
     /** Gecko's own default: a desktop layout, shrunk to fit whatever is narrower. */
     const val GECKO_DESKTOP_WIDTH = 980
 
@@ -94,6 +113,7 @@ internal object EngineConfig {
     fun prefsFor(smallestScreenWidthDp: Int, hasMouseOrTouchpad: Boolean = false): Map<String, Any> = buildMap {
         put(TRANSLATIONS_PREF, false)
         put(REQUIRE_INTERACTION_PREF, false)
+        put(SUSPEND_INACTIVE_PREF, false)
         val width = desktopViewportWidth(smallestScreenWidthDp)
         if (width != GECKO_DESKTOP_WIDTH) put(DESKTOP_WIDTH_PREF, width)
         if (hasMouseOrTouchpad) put(POINTER_PREF, FINE_POINTER_WITH_HOVER)

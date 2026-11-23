@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.13.13`)
+# RemBrowse User Guide (`v0.13.16`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -20,7 +20,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, bookmarks, history, downloads, extensions, desktop site, settings.
+* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, bookmarks, history, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
@@ -31,6 +31,16 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 `Ctrl+G` opens the address in the middle of the window, over a blur of everything behind it (a darkened window where the device has blur turned off, as in battery saver). It starts with the current page's address selected, so you can type over it. As you type, it offers the address or search, open tabs and pages from your history; Up and Down choose, **Enter** goes there in the focused pane, **Alt+Enter** opens it in a new tab, and Esc, a click outside or `Ctrl+G` again closes it. It is also in the command palette as **Go to address…**. In a terminal, use `Ctrl+Shift+G`.
 
+### Printing (`Ctrl+P`)
+
+`Ctrl+P`, **More → Print…**, **Print…** in the page's right-click menu or the command palette, or a page's own Print button opens RemBrowse's print screen. It shows the pages as they will print, the document's name, page count and paper size, and a file name you can change.
+
+* **Save as PDF** puts the file in Downloads straight away, listed with your other downloads.
+* **Print…** opens Android's print dialog to choose a printer.
+* **Cancel**, Esc, Back or a click outside closes the screen.
+
+A PDF form prints with what you typed into it. The buttons inside a PDF form (such as "Print Form" or "Clear Form") do nothing, because the built-in PDF viewer doesn't run the form's own scripts; use `Ctrl+P` instead. A page can't keep reopening the print screen: while it is open, and for a few seconds after it closes, a page's own print requests are ignored. Only web pages can be printed, not the start page, Settings or a terminal.
+
 ---
 
 ## 2. Find in page
@@ -40,7 +50,7 @@ Press `Ctrl+F` (or **More → Find in page**) to search the page you are on. A b
 * **The count** — "3/12" is the third of twelve matches. It turns red with **No results** when nothing matches.
 * **Next and previous** — Enter or `F3` for the next match, Shift+Enter or `Shift+F3` for the one before, or the arrows in the bar. (`Ctrl+G` is now [Go to address](#go-to-address-ctrlg).) Past the last match it starts again from the top.
 * **Aa** — match upper and lower case exactly.
-* **Close** — Esc or the **×**; the highlighting goes with it. Moving to another tab closes it too. `Ctrl+F` while the bar is open selects its text, ready for a new search.
+* **Close** — Esc or the **×**; the highlighting goes with it. Esc works whether the focus is in the bar or on the page, and puts you back on the page; Back closes the bar too, before going back in the page. Moving to another tab closes it too. `Ctrl+F` while the bar is open selects its text, ready for a new search.
 
 Only web pages can be searched, not the start page or Settings.
 
@@ -52,9 +62,11 @@ Right-click on a page, with a mouse or the touchpad (a two-finger tap, or a clic
 
 * **A link** — **Open link in new tab** (it opens in the background, next to the page it came from, and starts loading), **Open link in split view** (beside this page, which keeps focus; offered while there is room for another pane), **Copy link** and **Copy link text**.
 * **A picture, video or sound** — **Open image in new tab**, **Copy image** and **Copy image address** (or video, or audio, which have no Copy). **Copy image** puts the picture itself on the clipboard, ready to paste into a document, a chat or an image editor; it is fetched again as the page loaded it, with the site's sign-in, and WebP and AVIF pictures are turned into PNG so other apps can paste them. A linked picture gets both the link's and the picture's rows.
-* **Anywhere else on the page** — **Back**, **Forward**, **Reload**, **Bookmark this page**, **Copy page address** and **Find in page**.
+* **Anywhere else on the page** — **Back**, **Forward**, **Reload**, **Bookmark this page**, **Copy page address**, **Find in page** and **Print…**.
 
 The menu opens where you clicked; select a row, or click anywhere else (or press Esc) to close it. Sites with their own right-click menus, such as Google Docs, keep showing theirs. With text selected, a right-click shows the toolbar for the selection (Copy, Select all and so on) instead. In a page's text fields, right-click does nothing; use `Ctrl+C`, `Ctrl+X` and `Ctrl+V` (the address bar has its own right-click menu). On a touchscreen, long-press a link or picture for the same menu; long-pressing text selects it, as in any Android browser.
+
+**Ctrl+click** or **middle-click** a link to open it in a new tab in the background; **Ctrl+Shift+click** opens it in front. A web app that handles Ctrl+click itself keeps doing so.
 
 **The touchpad is a mouse everywhere.** Touchpad clicks work like mouse clicks in pages and in RemBrowse's own fields and buttons: double-click selects a word, click-and-drag selects text, triple-click selects a line, and the pointer shows hover highlights and resize cursors.
 
@@ -68,7 +80,8 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 
 * **Tab switcher**: select the top icon of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it.
 * `Ctrl+Tab` / `Ctrl+Shift+Tab` move to the next or previous tab.
-* Only the tabs you can see are kept running. Tabs in the background are paused and restored when you return to them, including after a restart.
+* Tabs in the background keep running at a slower pace, as in a desktop browser, so a chat or mail app open in another tab keeps working (and Telegram open in several tabs no longer hangs). They stop drawing until you show them again. When Android closes a background tab to free memory, it is reloaded when you return to it, and tabs are restored after a restart.
+* While RemBrowse is minimised its pages keep running as long as it is the last app you used; once you use other apps, Android pauses RemBrowse until you come back.
 * If a tab's page crashes, it is reloaded for you. After repeated crashes it shows a **Reload** button instead.
 
 ---
@@ -138,7 +151,7 @@ Press `Ctrl+K` (or **More → Command palette**), then type:
 * words to **search the web**, or an address to **open it**;
 * part of a tab's title to **switch to that tab**;
 * part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
-* a command name: new tab, close tab, find in page, split view, bookmarks, history, downloads, extensions, settings.
+* a command name: new tab, close tab, find in page, print, split view, bookmarks, history, downloads, extensions, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
@@ -314,7 +327,9 @@ Passwords and private keys are encrypted with a key held by Android's keystore, 
 | `Ctrl + L` or `Alt + D` | Focus the address bar |
 | `Ctrl + G` | Go to address (a popup over the page) |
 | `Ctrl + K` | Command palette |
-| `Ctrl + F` | Find in page |
+| `Ctrl + F` | Find in page (Esc closes it) |
+| `Ctrl + P` | Print or save as PDF |
+| `Ctrl + click` / middle click | Open a link in a background tab (`Ctrl + Shift + click`: in front) |
 | `F3` / `Shift + F3` | Next / previous match |
 | `Ctrl + R` or `F5` | Reload / stop |
 | `Alt + ←` / `Alt + →` | Back / forward |

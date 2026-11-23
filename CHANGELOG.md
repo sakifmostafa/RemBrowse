@@ -2,6 +2,20 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.16 (2026-11-22) — Telegram chats that never loaded
+
+### Fixed
+* **A Telegram chat could load forever** (a spinner where the messages should be) with Telegram open in more than one tab. Telegram Web A keeps its connection in one tab, in a background worker, and the other tabs ask that tab for everything. Gecko on Android (unlike desktop Firefox) puts a background tab's page to sleep: its timers stop and its workers' replies are held until the tab is shown again. So the tab on screen waited for an answer that never came. Background tabs now keep running, as in desktop Firefox: their timers fire at most once a second, while workers and network carry on normally. Other sites that share work between their tabs (chat and mail apps, editors) benefit too.
+
+### Changed
+* **Pages keep running while RemBrowse is minimised**, as long as it is the last app you used, so a chat keeps receiving messages. Once you use other apps, Android freezes RemBrowse until you come back. This can use a little more battery with many busy tabs open.
+
+### Known issue
+* **If Android closes the Telegram tab that holds the connection** (to free memory), the other Telegram tabs wait for it again. Show that tab, or reload Telegram, to bring it back. Telegram only hands the connection over when a tab is closed normally.
+
+### Testing
+736 automated tests (50 of them screenshot renders that run only on request), including that background tabs are kept running on phones and large screens alike. On an Android tablet emulator, a test page that works like Telegram (a background tab answering through its worker, the tab on screen sending it a request every second) got no answer to any of 54 requests before the change, and an answer to all 75 within 3 ms after it. Also on the emulator: with RemBrowse minimised the page kept running while it was the last app used, and all of RemBrowse's processes were frozen once other apps were opened. Telegram itself was not signed in on the emulator. Checked by an independent review.
+
 ## v0.13.15 (2026-11-22) — A print screen of its own, filled-in PDF forms print, Esc closes Find
 
 ### Added
