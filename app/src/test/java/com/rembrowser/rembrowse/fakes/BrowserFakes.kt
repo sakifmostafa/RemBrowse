@@ -172,6 +172,16 @@ class FakeSessionHandle(
         return request
     }
 
+    /** The engine finished laying this tab's page out as a PDF for printing. */
+    fun simulatePrintReady(
+        pdfPath: String,
+        documentName: String = "Example",
+        forTabId: String = tabId,
+        requestedByPage: Boolean = false
+    ) {
+        listener.onPrintReady(forTabId, pdfPath, documentName, requestedByPage)
+    }
+
     fun simulatePrompt(prompt: com.rembrowser.rembrowse.model.PagePrompt) {
         listener.onPromptRequested(prompt)
     }

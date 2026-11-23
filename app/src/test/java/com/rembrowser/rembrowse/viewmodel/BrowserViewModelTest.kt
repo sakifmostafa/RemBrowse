@@ -28,9 +28,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class BrowserViewModelTest {
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
 
     private lateinit var engine: FakeBrowserEngine
     private lateinit var repository: FakeBrowserStateRepository
@@ -1741,5 +1746,251 @@ class BrowserViewModelTest {
     @Test
     fun canNavigateBack_isFalseWithoutATab() {
         assertFalse(viewModel.uiState.value.canNavigateBack(null))
+    }
+
+    // --- Print preview ---
+
+    private fun pdfFile(name: String = "page.pdf", content: String = "%PDF-1.7 laid out"): java.io.File =
+        tempFolder.newFile(name).also { it.writeText(content) }
+
+    @Test
+    fun printReady_showsAPreviewForAPageOnScreen_andClosesTheFindBarAndPageMenu() {
+        val tabId = pageOnScreen()
+        val session = engine.sessions.getValue(tabId)
+        session.simulateContextMenu(linkUrl = "https://example.com/a")
+        viewModel.openFindInPage()
+        session.simulateContextMenu()
+        assertTrue(viewModel.pageMenu.value != null)
+        assertTrue(viewModel.findInPage.value != null)
+        val pdf = pdfFile()
+
+        session.simulatePrintReady(pdf.path, "Example")
+
+        val preview = viewModel.printPreview.value!!
+        assertEquals(tabId, preview.tabId)
+        assertEquals(pdf.path, preview.pdfPath)
+        assertEquals("Example", preview.documentName)
+        assertEquals("https://example.com/", preview.pageUrl)
+        assertNull(viewModel.pageMenu.value)
+        assertNull(viewModel.findInPage.value)
+        assertTrue(pdf.exists())
+    }
+
+    @Test
+    fun printReady_deletesTheFileForATabInTheBackgroundOrUnknown() {
+        val shown = pageOnScreen()
+        val background = viewModel.openTabInBackground("https://other.example/", shown)
+        val bgPdf = pdfFile("bg.pdf")
+        val missingPdf = pdfFile("unknown.pdf")
+
+        engine.sessions.getValue(background).simulatePrintReady(bgPdf.path)
+        assertNull(viewModel.printPreview.value)
+        assertFalse(bgPdf.exists())
+
+        // A tab the view model does not know
+        engine.sessions.getValue(shown).simulatePrintReady(missingPdf.path, forTabId = "no-such-tab")
+        assertNull(viewModel.printPreview.value)
+        assertFalse(missingPdf.exists())
+    }
+
+    @Test
+    fun printReady_deletesTheFileForATabUnderAnotherTabsFullscreen() {
+        val (reddit, youtube, _) = redditBesideYouTube()
+        engine.sessions.getValue(reddit).simulatePageLoad("https://reddit.com/", "Reddit")
+        engine.sessions.getValue(youtube).simulatePageLoad("https://youtube.com/", "YouTube")
+        engine.sessions.getValue(reddit).simulateFullScreen(true)
+        val underFullscreen = pdfFile("under.pdf")
+
+        engine.sessions.getValue(youtube).simulatePrintReady(underFullscreen.path)
+
+        assertNull(viewModel.printPreview.value)
+        assertFalse(underFullscreen.exists())
+
+        val own = pdfFile("own.pdf")
+        engine.sessions.getValue(reddit).simulatePrintReady(own.path)
+        assertEquals(reddit, viewModel.printPreview.value?.tabId)
+        assertTrue(own.exists())
+    }
+
+    @Test
+    fun printReady_aNewPreviewReplacesTheOldOneAndDeletesItsFile() {
+        val tabId = pageOnScreen()
+        val session = engine.sessions.getValue(tabId)
+        val first = pdfFile("first.pdf")
+        val second = pdfFile("second.pdf")
+
+        session.simulatePrintReady(first.path)
+        val firstSerial = viewModel.printPreview.value!!.serial
+        session.simulatePrintReady(second.path)
+
+        val preview = viewModel.printPreview.value!!
+        assertEquals(second.path, preview.pdfPath)
+        assertTrue(preview.serial > firstSerial)
+        assertFalse(first.exists())
+        assertTrue(second.exists())
+    }
+
+    @Test
+    fun dismissPrintPreview_clearsItAndDeletesTheFile() {
+        val tabId = pageOnScreen()
+        val pdf = pdfFile()
+        engine.sessions.getValue(tabId).simulatePrintReady(pdf.path)
+
+        viewModel.dismissPrintPreview()
+
+        assertNull(viewModel.printPreview.value)
+        assertFalse(pdf.exists())
+    }
+
+    @Test
+    fun savePrintPreviewAsPdf_handsTheFileOverAsADownloadAndCleansUp() {
+        val tabId = pageOnScreen()
+        val content = "%PDF-1.7 laid out \u00e9 bytes"
+        val pdf = pdfFile(content = content)
+        val expected = pdf.readBytes()
+        engine.sessions.getValue(tabId).simulatePrintReady(pdf.path)
+        var request: DownloadRequest? = null
+        var bytes: ByteArray? = null
+        viewModel.downloadHandler = {
+            request = it
+            bytes = it.body.readBytes()
+        }
+
+        assertTrue(viewModel.savePrintPreviewAsPdf("My page"))
+
+        val sent = request!!
+        assertNull(sent.tabId)
+        assertEquals("application/pdf", sent.mimeType)
+        assertTrue(sent.skipConfirmation)
+        assertEquals("My page.pdf", sent.fileName)
+        assertEquals("https://example.com/", sent.url)
+        assertEquals(expected.size.toLong(), sent.contentLength)
+        assertTrue(expected.contentEquals(bytes!!))
+        assertNull(viewModel.printPreview.value)
+        assertFalse(pdf.exists())
+    }
+
+    @Test
+    fun savePrintPreviewAsPdf_failsAndKeepsThePreviewWithoutAHandlerOrWithoutTheFile() {
+        val tabId = pageOnScreen()
+        val pdf = pdfFile()
+        engine.sessions.getValue(tabId).simulatePrintReady(pdf.path)
+
+        viewModel.downloadHandler = null
+        assertFalse(viewModel.savePrintPreviewAsPdf("x"))
+        assertTrue(viewModel.printPreview.value != null)
+        assertTrue(pdf.exists())
+
+        var calls = 0
+        viewModel.downloadHandler = { calls++ }
+        pdf.delete()
+        assertFalse(viewModel.savePrintPreviewAsPdf("x"))
+        assertTrue(viewModel.printPreview.value != null)
+        assertEquals(0, calls)
+    }
+
+    @Test
+    fun takePrintPreviewForPrinter_clearsItButLeavesTheFile() {
+        val tabId = pageOnScreen()
+        val pdf = pdfFile()
+        engine.sessions.getValue(tabId).simulatePrintReady(pdf.path)
+
+        val taken = viewModel.takePrintPreviewForPrinter()
+
+        assertEquals(pdf.path, taken?.pdfPath)
+        assertNull(viewModel.printPreview.value)
+        assertTrue(pdf.exists())
+        assertNull(viewModel.takePrintPreviewForPrinter())
+    }
+
+    @Test
+    fun closeTab_keepsThePrintPreview_aReceiptPopupClosesItselfOnceItHasPrinted() {
+        pageOnScreen()
+        val popup = viewModel.openNewTab("https://shop.example/receipt")
+        engine.sessions.getValue(popup).simulatePageLoad("https://shop.example/receipt", "Receipt")
+        val pdf = pdfFile()
+        // window.print(); window.close(): the page is let go once the PDF is made, and closes
+        engine.sessions.getValue(popup).simulatePrintReady(pdf.path, requestedByPage = true)
+        viewModel.closeTab(popup)
+
+        assertEquals(popup, viewModel.printPreview.value?.tabId)
+        assertTrue(pdf.exists())
+    }
+
+    @Test
+    fun pagePrint_whileThePrintScreenIsOpen_isIgnoredAndItsFileDeleted() {
+        val tabId = pageOnScreen()
+        val session = engine.sessions.getValue(tabId)
+        val shown = pdfFile("shown.pdf")
+        val fromPage = pdfFile("page.pdf")
+        session.simulatePrintReady(shown.path)
+
+        session.simulatePrintReady(fromPage.path, requestedByPage = true)
+
+        assertEquals(shown.path, viewModel.printPreview.value?.pdfPath)
+        assertTrue(shown.exists())
+        assertFalse(fromPage.exists())
+    }
+
+    @Test
+    fun pagePrint_rightAfterThePrintScreenCloses_isIgnored_butTheUsersOwnPrintIsNot() {
+        var now = 1_000_000L
+        engine = FakeBrowserEngine()
+        repository = FakeBrowserStateRepository()
+        viewModel = BrowserViewModel(
+            engine = engine,
+            repository = repository,
+            idGenerator = { "tab-${++idCounter}" },
+            clock = { now }
+        )
+        val tabId = pageOnScreen()
+        val session = engine.sessions.getValue(tabId)
+        session.simulatePrintReady(pdfFile("first.pdf").path)
+        viewModel.dismissPrintPreview()
+
+        // A page printing in a loop cannot reopen the screen at once
+        now += 1_000
+        val looped = pdfFile("looped.pdf")
+        session.simulatePrintReady(looped.path, requestedByPage = true)
+        assertNull(viewModel.printPreview.value)
+        assertFalse(looped.exists())
+
+        // The user's own Print command is never held back
+        val own = pdfFile("own.pdf")
+        session.simulatePrintReady(own.path)
+        assertEquals(own.path, viewModel.printPreview.value?.pdfPath)
+        viewModel.dismissPrintPreview()
+
+        // A little later the page may print again
+        now += 5_000
+        val later = pdfFile("later.pdf")
+        session.simulatePrintReady(later.path, requestedByPage = true)
+        assertEquals(later.path, viewModel.printPreview.value?.pdfPath)
+    }
+
+    @Test
+    fun savePrintPreviewAsPdf_keepsTheTypedNameInsideDownloads() {
+        val tabId = pageOnScreen()
+        engine.sessions.getValue(tabId).simulatePrintReady(pdfFile().path)
+        var request: DownloadRequest? = null
+        viewModel.downloadHandler = { request = it }
+
+        assertTrue(viewModel.savePrintPreviewAsPdf("../../etc/My: page"))
+
+        val name = request!!.fileName
+        assertFalse(name, name.contains('/') || name.contains(':'))
+        assertTrue(name, name.endsWith(".pdf"))
+    }
+
+    @Test
+    fun shutdown_dismissesThePrintPreviewAndDeletesItsFile() {
+        val tabId = pageOnScreen()
+        val pdf = pdfFile()
+        engine.sessions.getValue(tabId).simulatePrintReady(pdf.path)
+
+        viewModel.shutdown()
+
+        assertNull(viewModel.printPreview.value)
+        assertFalse(pdf.exists())
     }
 }

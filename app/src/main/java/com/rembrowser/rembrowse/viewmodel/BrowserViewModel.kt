@@ -22,13 +22,18 @@ import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PaneNode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.PrintPreview
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.model.TerminalTarget
 import com.rembrowser.rembrowse.model.TerminalUrls
+import com.rembrowser.rembrowse.util.DownloadFileNames
 import com.rembrowser.rembrowse.util.UrlResolver
+import java.io.File
+import java.io.FileInputStream
+import java.io.IOException
 import java.util.UUID
 import kotlin.math.abs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +43,12 @@ import kotlinx.coroutines.flow.update
 
 /** The most pages the history keeps; the oldest drop off. */
 const val MAX_HISTORY_ENTRIES = 1_000
+
+/**
+ * How long after the print screen closes a page's own `window.print()` is ignored, so a page
+ * that prints in a loop gives the user time to leave it.
+ */
+private const val PAGE_PRINT_COOLDOWN_MS = 3_000L
 
 class BrowserViewModel(
     private val engine: BrowserEngine,
@@ -60,6 +71,14 @@ class BrowserViewModel(
     /** The context menu open on a page, if any. Also kept apart from uiState. */
     private val _pageMenu = MutableStateFlow<PageContextMenu?>(null)
     val pageMenu: StateFlow<PageContextMenu?> = _pageMenu.asStateFlow()
+
+    /** The page on RemBrowse's print screen, or null when the screen is closed. */
+    private val _printPreview = MutableStateFlow<PrintPreview?>(null)
+    val printPreview: StateFlow<PrintPreview?> = _printPreview.asStateFlow()
+    private var printPreviewSerial = 0L
+
+    /** When the print screen last closed (null: never), so a page cannot reopen it at once. */
+    private var printPreviewClosedAt: Long? = null
 
     private val sessionListener = object : SessionEventListener {
         override fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate) {
@@ -175,6 +194,38 @@ class BrowserViewModel(
             if (!tab.isWebPage || state.paneIndexOf(tab.id) < 0) return
             if (state.fullscreenTabId != null && state.fullscreenTabId != tab.id) return
             _pageMenu.value = menu
+        }
+
+        override fun onPrintReady(tabId: String, pdfPath: String, documentName: String, requestedByPage: Boolean) {
+            // A page's print() never replaces what is on the print screen, and cannot reopen it
+            // the moment it closes: a page printing in a loop must not lock the user out
+            val closedAt = printPreviewClosedAt
+            // A clock set back makes the time since negative: no reason to hold the page back
+            val justClosed = closedAt != null && clock() - closedAt in 0 until PAGE_PRINT_COOLDOWN_MS
+            if (requestedByPage && (_printPreview.value != null || justClosed)) {
+                File(pdfPath).delete()
+                return
+            }
+            val state = _uiState.value
+            val tab = state.tabs.firstOrNull { it.id == tabId }
+            // Only a page on screen prints, and not one under another page in fullscreen
+            val onScreen = tab != null && tab.isWebPage && state.paneIndexOf(tab.id) >= 0 &&
+                (state.fullscreenTabId == null || state.fullscreenTabId == tab.id)
+            if (!onScreen) {
+                File(pdfPath).delete()
+                return
+            }
+            // A new print replaces one still on screen
+            _printPreview.value?.let { File(it.pdfPath).delete() }
+            closeFindInPage()
+            _pageMenu.value = null
+            _printPreview.value = PrintPreview(
+                tabId = tabId,
+                pdfPath = pdfPath,
+                documentName = documentName,
+                pageUrl = tab?.url,
+                serial = ++printPreviewSerial
+            )
         }
 
         override fun onOpenLinkRequested(tabId: String, url: String, inForeground: Boolean) {
@@ -723,6 +774,61 @@ class BrowserViewModel(
         engine.getSession(tab.id)?.print()
     }
 
+    /** Closes the print screen without printing, and deletes the laid-out PDF. */
+    fun dismissPrintPreview() {
+        val preview = _printPreview.value ?: return
+        closePrintPreview()
+        File(preview.pdfPath).delete()
+    }
+
+    private fun closePrintPreview() {
+        _printPreview.value = null
+        printPreviewClosedAt = clock()
+    }
+
+    /**
+     * Saves the page on the print screen to Downloads as [fileName] (".pdf" is added when it is
+     * missing), as any other download, and closes the screen. False when the PDF is gone or
+     * nobody takes downloads; the screen then stays open.
+     */
+    fun savePrintPreviewAsPdf(fileName: String): Boolean {
+        val preview = _printPreview.value ?: return false
+        val handler = downloadHandler ?: return false
+        val file = File(preview.pdfPath)
+        val body = try {
+            FileInputStream(file)
+        } catch (_: IOException) {
+            return false
+        }
+        closePrintPreview()
+        handler(
+            DownloadRequest(
+                // Not tied to the tab: saving it must never close the tab as a download can
+                tabId = null,
+                url = preview.pageUrl.orEmpty(),
+                // Typed by the user: no folders, and only characters a file name can have
+                fileName = DownloadFileNames.sanitize(PrintPreview.pdfFileName(fileName)),
+                mimeType = "application/pdf",
+                contentLength = file.length(),
+                skipConfirmation = true,
+                body = body
+            )
+        )
+        // The open stream keeps the file's contents readable until the download has copied them
+        file.delete()
+        return true
+    }
+
+    /**
+     * Closes the print screen and hands its PDF to the caller, who now owns the file (it goes to
+     * Android's print dialog, for a printer, which deletes it when done).
+     */
+    fun takePrintPreviewForPrinter(): PrintPreview? {
+        val preview = _printPreview.value ?: return null
+        closePrintPreview()
+        return preview
+    }
+
     fun dismissPageMenu() {
         _pageMenu.value = null
     }
@@ -1142,6 +1248,7 @@ class BrowserViewModel(
     }
 
     fun shutdown() {
+        dismissPrintPreview()
         persistCurrentState()
         engine.closeAll()
     }

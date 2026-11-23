@@ -305,6 +305,7 @@ class GeckoBrowserEngine(
     private var contextMenuSerial = 0L
 
     init {
+        GeckoPagePrinter.clearLeftoverPrintFiles(appContext)
         installPageMenuHelper()
     }
 
@@ -577,13 +578,11 @@ class GeckoBrowserEngine(
         // Set before a view takes the session, so GeckoView keeps it instead of its own
         geckoSession.printDelegate = GeckoPagePrinter(
             appContext = appContext,
-            // Only a page on screen prints: a page in a background tab asking cannot open the dialog
-            hostActivity = {
-                sessionOwners[geckoSession]
-                    ?.takeIf { it.session === geckoSession && handle.isVisible }
-                    ?.let { GeckoPagePrinter.activityOf(it.context) }
-            },
-            pageTitle = { handle.lastTitle?.takeIf { it.isNotBlank() } ?: handle.lastUrl?.let { Uri.parse(it).host } }
+            session = geckoSession,
+            // Only a page on screen prints: a page in a background tab cannot open the print screen
+            isOnScreen = { sessionOwners[geckoSession]?.session === geckoSession && handle.isVisible },
+            pageTitle = { handle.lastTitle?.takeIf { it.isNotBlank() } ?: handle.lastUrl?.let { Uri.parse(it).host } },
+            onReady = { file, name, byPage -> listener.onPrintReady(tabId, file.path, name, byPage) }
         )
     }
 

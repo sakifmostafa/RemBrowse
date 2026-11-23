@@ -2,7 +2,9 @@ package com.rembrowser.rembrowse.util
 
 import android.view.KeyEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KeyboardShortcutsTest {
@@ -160,5 +162,44 @@ class KeyboardShortcutsTest {
             assertNull("Alt, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true, alt = true, inTerminal = inTerminal))
             assertNull("Meta, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_T, ctrl = true, shift = true, meta = true, inTerminal = inTerminal))
         }
+    }
+
+    @Test
+    fun escape_closesTheOpenFindBar_wheneverTheFocusIs_butNotInATerminal() {
+        val esc = KeyEvent.KEYCODE_ESCAPE
+        assertTrue(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true))
+        // Nothing to close: Esc stays the page's (or the system's)
+        assertFalse(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = false, noModifiers = true))
+        // Shift+Esc, Ctrl+Esc and the rest are left alone
+        assertFalse(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = false))
+        // A held Esc closes it once
+        assertFalse(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true, repeatCount = 1))
+        // vim and the shell keep their Esc
+        assertFalse(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true, inTerminal = true))
+        // The system's Back gesture or button is not Esc (the bar has its own Back handling)
+        assertFalse(KeyboardShortcuts.escapeClosesFindBar(KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true))
+        // A laptop keyboard that sends its Esc key as Back
+        assertTrue(
+            KeyboardShortcuts.escapeClosesFindBar(
+                KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true
+            )
+        )
+        assertFalse(
+            KeyboardShortcuts.escapeClosesFindBar(
+                KeyEvent.KEYCODE_BACK, findBarOpen = false, noModifiers = true, fromPhysicalKeyboard = true
+            )
+        )
+        // The address bar, the tab search, the tab switcher or a fullscreen page keep their Esc
+        assertFalse(
+            KeyboardShortcuts.escapeClosesFindBar(
+                KeyEvent.KEYCODE_ESCAPE, findBarOpen = true, noModifiers = true, escapeTakenInFront = true
+            )
+        )
+        // Other keys never close it
+        assertFalse(
+            KeyboardShortcuts.escapeClosesFindBar(
+                KeyEvent.KEYCODE_A, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true
+            )
+        )
     }
 }

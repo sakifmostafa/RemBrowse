@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +72,8 @@ import com.rembrowser.rembrowse.ui.components.HistoryActions
 import com.rembrowser.rembrowse.ui.components.PageContextMenuOverlay
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
+import com.rembrowser.rembrowse.ui.components.PrintScreen
+import com.rembrowser.rembrowse.ui.components.sendPdfToPrinter
 import com.rembrowser.rembrowse.ui.components.SettingsActions
 import com.rembrowser.rembrowse.ui.components.SettingsPage
 import com.rembrowser.rembrowse.ui.components.TabDragGhost
@@ -274,6 +277,7 @@ fun RemBrowseScreen(
     val history by browserViewModel.history.collectAsStateWithLifecycle()
     val findInPage by browserViewModel.findInPage.collectAsStateWithLifecycle()
     val pageMenu by browserViewModel.pageMenu.collectAsStateWithLifecycle()
+    val printPreview by browserViewModel.printPreview.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
     val findActions = remember(browserViewModel) {
         FindInPageActions(
@@ -288,6 +292,14 @@ fun RemBrowseScreen(
             }
         )
     }
+    // Back closes the find bar before it goes back in the page, as in Chrome. Composed after the
+    // handlers above, so it comes first; it stands aside while the tab switcher or a fullscreen
+    // page is in front, whose own Back comes first. (Esc is read before the keyboard app, in
+    // MainActivity.)
+    BackHandler(
+        enabled = findInPage != null && !fullscreen && !chrome.showTabSwitcher,
+        onBack = findActions.onClose
+    )
     val openFindInPage = {
         chrome.showTabSwitcher = false
         browserViewModel.openFindInPage()
@@ -667,6 +679,22 @@ fun RemBrowseScreen(
             onRemoveBookmark = browserViewModel::removeBookmark,
             onDismiss = { chrome.showBookmarks = false }
         )
+    }
+
+    // A page laid out for printing: saved as a PDF or sent to a printer from RemBrowse's own screen.
+    // Under a page's own dialogs, which a page may open once its print is under way.
+    printPreview?.let { preview ->
+        key(preview.serial) {
+            PrintScreen(
+                preview = preview,
+                onSaveAsPdf = browserViewModel::savePrintPreviewAsPdf,
+                onPrint = { jobName ->
+                    sendPdfToPrinter(context, browserViewModel.takePrintPreviewForPrinter(), jobName)
+                },
+                onCancel = browserViewModel::dismissPrintPreview,
+                onEnterTaken = { chrome.swallowNextEnterUp = true }
+            )
+        }
     }
 
     browserState.visiblePrompt?.let { prompt ->

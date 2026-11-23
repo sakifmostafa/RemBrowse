@@ -41,6 +41,32 @@ enum class BrowserShortcut {
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
 object KeyboardShortcuts {
 
+    /**
+     * Whether a press of [keyCode] closes the find bar: a plain Esc while the bar is open
+     * ([findBarOpen]), wherever the focus is (the bar itself, or the page after a search),
+     * except in a terminal, whose programs use Esc. Read before the keyboard app, which may keep
+     * a hardware Esc for itself or turn it into Back. Some laptop keyboards send their Esc key
+     * as Back, so a Back from a physical keyboard ([fromPhysicalKeyboard]) counts as Esc too;
+     * the system's Back gesture or button does not.
+     */
+    fun escapeClosesFindBar(
+        keyCode: Int,
+        findBarOpen: Boolean,
+        noModifiers: Boolean,
+        repeatCount: Int = 0,
+        inTerminal: Boolean = false,
+        fromPhysicalKeyboard: Boolean = false,
+        /**
+         * Something in front uses Esc itself: the address bar or the tab search being typed in
+         * (Esc abandons the edit), the tab switcher, or a page in fullscreen (Esc leaves it).
+         */
+        escapeTakenInFront: Boolean = false
+    ): Boolean {
+        val isEscape = keyCode == KeyEvent.KEYCODE_ESCAPE ||
+            keyCode == KeyEvent.KEYCODE_BACK && fromPhysicalKeyboard
+        return isEscape && findBarOpen && noModifiers && repeatCount == 0 && !inTerminal && !escapeTakenInFront
+    }
+
     fun resolve(
         keyCode: Int,
         ctrl: Boolean,

@@ -206,6 +206,13 @@ fun FindInPageBar(
                                 if (event.type == KeyEventType.KeyDown) actions.onClose()
                                 true
                             }
+                            // Back (once the on-screen keyboard is down) closes the bar, as in
+                            // Chrome, instead of only taking the focus out of the box. On the
+                            // release, as Android's own Back, so the press is not seen twice.
+                            Key.Back -> {
+                                if (event.type == KeyEventType.KeyUp) actions.onClose()
+                                true
+                            }
                             else -> false
                         }
                     }

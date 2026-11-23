@@ -2,6 +2,23 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.15 (2026-11-22) — A print screen of its own, filled-in PDF forms print, Esc closes Find
+
+### Added
+* **RemBrowse's own print screen.** Print (Ctrl+P, the **…** menu, the page's right-click menu, or a page's own Print button) now opens a RemBrowse screen instead of Android's print dialog straight away: the pages as they will print, the document's name, page count and paper size, and a file name you can change. **Save as PDF** puts the file in Downloads with no further dialog, listed in RemBrowse's downloads like any other. **Print…** sends it to a printer through Android's dialog. On a wide window the pages sit beside the options; on a narrow one above them.
+
+### Fixed
+* **A filled-in PDF form printed blank.** Printing a PDF laid out RemBrowse's PDF viewer again, which lost what was typed into the form. A PDF now prints from the viewer's own copy of the document, with the form as you filled it in (the same copy its Download button saves), at full quality.
+* **A page that prints and then closes itself** (a receipt or a boarding pass that calls print and closes) keeps its print screen open until you are done with it.
+* **Esc did not close the find bar (Ctrl+F) on a laptop keyboard.** The keyboard app or Android could keep Esc (or turn it into Back) before the find bar saw it, and after a search the focus could be on the page instead. Esc is now read before the keyboard app: with the find bar open it closes it, wherever the focus is, and puts you back on the page (a terminal keeps its own Esc). Back closes the find bar too, before it goes back in the page, as in Chrome.
+* **A page cannot keep opening the print screen.** While the screen is open, and for a few seconds after it closes, a page's own print requests are ignored; Print from the menu or Ctrl+P always works.
+
+### Known issue
+* **The buttons inside a PDF form (such as "Print Form" or "Clear Form") do nothing.** The PDF viewer built into GeckoView does not run the form's own scripts. Use Ctrl+P or **… → Print…** instead, which prints the form as filled in.
+
+### Testing
+735 automated tests (50 of them screenshot renders that run only on request), including who owns the laid-out PDF in every case (saved, sent to a printer, cancelled, replaced, the app closing), what a page may and may not do with the print screen, the saved file's name and bytes, and the screen itself (its actions, its first focus, and that a 200-page document renders only the pages in view). Tried on an Android tablet emulator with the Ontario parking permit form filled in: the preview showed the typed values, Save as PDF wrote the file to Downloads, a page's Print button opened the screen, and Print… opened Android's printer dialog. Checked by an independent review.
+
 ## v0.13.14 (2026-11-22) — Printing, Ctrl+click opens a new tab
 
 ### Fixed

@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.compose.ui.platform.ComposeView
 import android.widget.FrameLayout
@@ -564,6 +565,7 @@ class MainActivity : ComponentActivity() {
                 return true
             }
         }
+        if (interceptEscapeForFindBar(event)) return true
         if (event.action == KeyEvent.ACTION_DOWN) {
             val shortcut = resolveShortcut(event)
             if (shortcut != null) {
@@ -572,6 +574,47 @@ class MainActivity : ComponentActivity() {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /** The key (Esc, or a keyboard's Back) that closed the find bar; its release is ours too. */
+    private var escapeTakenForFindBar = KeyEvent.KEYCODE_UNKNOWN
+
+    /**
+     * Esc closes the find bar (see [KeyboardShortcuts.escapeClosesFindBar]) and puts the focus
+     * back on the page. Taken before the keyboard app: with a physical keyboard, Gboard and
+     * Android may keep Esc or turn it into Back, and the bar's own text box never saw it.
+     */
+    private fun interceptEscapeForFindBar(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_ESCAPE && event.keyCode != KeyEvent.KEYCODE_BACK) return false
+        if (event.keyCode == escapeTakenForFindBar) {
+            // Its release, or auto-repeat while it is held. A fresh press (the release was
+            // missed) is looked at anew below.
+            if (event.action == KeyEvent.ACTION_UP) {
+                escapeTakenForFindBar = KeyEvent.KEYCODE_UNKNOWN
+                return true
+            }
+            if (event.repeatCount > 0) return true
+            escapeTakenForFindBar = KeyEvent.KEYCODE_UNKNOWN
+        }
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        val browserState = holder.browser.uiState.value
+        val device = event.device
+        val closes = KeyboardShortcuts.escapeClosesFindBar(
+            keyCode = event.keyCode,
+            findBarOpen = holder.browser.findInPage.value != null,
+            noModifiers = event.hasNoModifiers(),
+            repeatCount = event.repeatCount,
+            inTerminal = currentFocus is TerminalScreenView,
+            fromPhysicalKeyboard = device != null && !device.isVirtual &&
+                event.isFromSource(InputDevice.SOURCE_KEYBOARD),
+            escapeTakenInFront = browserState.isAddressBarFocused || chrome.isTabSearchFocused ||
+                chrome.showTabSwitcher || browserState.fullscreenTabId != null
+        )
+        if (!closes) return false
+        escapeTakenForFindBar = event.keyCode
+        holder.browser.closeFindInPage()
+        chrome.focusContent()
+        return true
     }
 
     /** The key of a shortcut taken before the keyboard app saw it, whose release is ours too. */
@@ -586,6 +629,7 @@ class MainActivity : ComponentActivity() {
      * this layout.
      */
     private fun interceptShortcutBeforeIme(event: KeyEvent): Boolean {
+        if (interceptEscapeForFindBar(event)) return true
         if (interceptTypingBeforeIme(event)) return true
         if (event.action == KeyEvent.ACTION_UP && event.keyCode == shortcutKeyTakenEarly) {
             shortcutKeyTakenEarly = KeyEvent.KEYCODE_UNKNOWN

@@ -66,6 +66,15 @@ interface SessionEventListener {
     fun onOpenLinkRequested(tabId: String, url: String, inForeground: Boolean) {}
 
     /**
+     * The page in [tabId] was laid out for printing as the PDF at [pdfPath]: the Print command,
+     * or, when [requestedByPage], the page's own `window.print()`. The receiver owns the file
+     * from here on and must delete it when done.
+     */
+    fun onPrintReady(tabId: String, pdfPath: String, documentName: String, requestedByPage: Boolean = false) {
+        java.io.File(pdfPath).delete()
+    }
+
+    /**
      * The page in [tabId] called `window.close()`, and the engine allows it (it closes only
      * windows opened by script, such as a "Sign in with Google" popup once it is done).
      */
