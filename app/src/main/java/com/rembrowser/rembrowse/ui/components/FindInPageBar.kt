@@ -70,6 +70,11 @@ import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.engine.FindResult
 import com.rembrowser.rembrowse.model.FindInPageState
 
+/** Where the find bar sits in its pane, which other overlays there (the permission card) keep clear of. */
+internal val FindBarInset = 10.dp
+internal val FindBarMaxWidth = 420.dp
+internal val FindBarHeight = 44.dp
+
 /** Everything the find bar can ask for. */
 data class FindInPageActions(
     val onQueryChange: (String) -> Unit,
@@ -103,7 +108,7 @@ fun BoxScope.FindInPageOverlay(
             fadeOut(tween(120)),
         modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(10.dp)
+            .padding(FindBarInset)
     ) {
         shown?.let { FindInPageBar(state = it, actions = actions) }
     }
@@ -156,7 +161,7 @@ fun FindInPageBar(
 
     Surface(
         modifier = modifier
-            .widthIn(max = 420.dp)
+            .widthIn(max = FindBarMaxWidth)
             .fillMaxWidth()
             .testTag("find_bar"),
         shape = CircleShape,
@@ -167,7 +172,7 @@ fun FindInPageBar(
     ) {
         Row(
             modifier = Modifier
-                .height(44.dp)
+                .height(FindBarHeight)
                 .padding(start = 14.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

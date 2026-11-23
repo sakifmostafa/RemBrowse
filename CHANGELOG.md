@@ -2,6 +2,33 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.17 (2026-11-23) — Site permissions, notifications and a clearer tab rail
+
+### Added
+* **Sites can ask for your camera, microphone, location and notifications.** Until now RemBrowse turned every such request down without asking, so Telegram couldn't record a voice message or notify you, and video calls and maps couldn't work. A card now drops in at the top of the site's tab, in RemBrowse's style: "**web.telegram.org** wants to Show notifications", with **Block**, **Allow** and, for the camera, microphone and location, **Allow this time** (until the tab leaves the site). Allow and Block are remembered. Protected (DRM) video and cookies for embedded sites ask the same way. The first time, Android also asks whether RemBrowse may use the device.
+* **Notifications from sites** appear as Android notifications with the site's name. Tapping one opens that site's tab and lets the page react (Telegram opens the chat); swiping it away tells the page.
+* **Settings → Site permissions** lists every site you answered, with a switch per decision, **×** to forget one and **Reset** per site. Blocking a camera or microphone there stops a page that is using it. A notice says when Android's notifications are off for RemBrowse.
+
+### Changed
+* **Pinned sites and open tabs no longer look alike.** Your pinned sites (the first six bookmarks) now sit together on a soft shelf at the top of the tab rail, with slightly smaller icons, and a small dot marks the ones open in a tab. Open tabs below each have their own tile; a tab shown in a split pane is a step brighter and the focused tab is brightest, with its marker. A pinned Telegram bookmark could pass for a second Telegram tab before.
+* **A pinned site takes you to its open tab** instead of opening another copy each time: to a tab on the bookmarked page or a page under it (preferring one already on screen in split view), or back to the bookmarked page when you are already in that tab elsewhere on it. Only when none is open does it open the site. **Open in new tab** in its menu still gives you another. The bookmarks list works the same way.
+
+### Fixed
+* **Sites stayed blocked from before.** Earlier versions' refusals were stored by the engine as permanent "no"s; they are cleared once, so sites ask properly.
+
+### Security
+* The card names the site in the address bar, even when the request comes from something embedded in the page, and a decision belongs to that site: a site you allowed can't be embedded in another site's page to use your camera unasked.
+* Site names are shown no more readably than the address bar shows them, so a name made of look-alike characters can't pose as another site in the card.
+* The card's buttons ignore taps for half a second after it appears or moves, so a click meant for the page can't answer it.
+* Notification icons are not fetched from your own device or home network, and oversized pictures are refused before they are decoded.
+
+### Known limits
+* Blocking location doesn't stop a page that is already following it until it reloads.
+* A blocked site can still bring up Android's own camera or microphone question once, because GeckoView asks Android first.
+
+### Testing
+969 automated tests (63 of them screenshot renders that run only on request), including every answer and when it ends, whose decision a request is, the card's text and its half-second guard, Settings, the notification text, icon limits and the tap and swipe routing. On an Android tablet emulator: notifications (the card, Android's question, a real notification, tapping it reaches the page), the microphone (allowed, then granted without asking), location (blocked and remembered, forgotten in Settings and asked again, allowed this time), DRM (Widevine granted), and a page embedding an allowed site: the card asked for the page's own site, and Block refused the frame. The new rail: which tab a pinned site or bookmark matches (a page under it on a "/" boundary; a bookmark with a query, such as one YouTube video, only that page), what a click does in each case, the open dot, and its colours and labels in every theme; on the emulator, pins jumped to their open tabs, took a tab back to the pinned page and opened no extra tabs. Checked by independent reviews; their findings were fixed.
+
 ## v0.13.16 (2026-11-22) — Telegram chats that never loaded
 
 ### Fixed

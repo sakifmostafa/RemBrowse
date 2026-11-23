@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Tab
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -74,6 +75,7 @@ import com.rembrowser.rembrowse.model.HistoryEntry
 import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.SitePermissionEntry
 import com.rembrowser.rembrowse.viewmodel.TerminalUiState
 import com.rembrowser.rembrowse.model.UpdateStatus
 import com.rembrowser.rembrowse.model.UpdatesUiState
@@ -95,6 +97,7 @@ private val SettingsSection.icon: ImageVector
         SettingsSection.SEARCH -> Icons.Outlined.Search
         SettingsSection.TABS -> Icons.Outlined.Tab
         SettingsSection.PRIVACY -> Icons.Outlined.Shield
+        SettingsSection.SITE_PERMISSIONS -> Icons.Outlined.Tune
         SettingsSection.HISTORY -> Icons.Outlined.History
         SettingsSection.DOWNLOADS -> Icons.Outlined.FileDownload
         SettingsSection.EXTENSIONS -> Icons.Outlined.Extension
@@ -152,7 +155,10 @@ fun SettingsPage(
     updateActions: UpdateActions? = null,
     /** Saved hosts and keys, for Terminal; null leaves the section empty. */
     terminal: TerminalUiState? = null,
-    terminalActions: TerminalSettingsActions? = null
+    terminalActions: TerminalSettingsActions? = null,
+    /** The remembered site permission decisions, for Site permissions. */
+    sitePermissions: List<SitePermissionEntry> = emptyList(),
+    sitePermissionActions: SitePermissionActions = SitePermissionActions()
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -223,7 +229,10 @@ fun SettingsPage(
                         .widthIn(max = ContentMaxWidth)
                         .padding(horizontal = 24.dp, vertical = 20.dp)
                 ) {
-                    SectionHeader(title = section.label, subtitle = null)
+                    SectionHeader(
+                        title = section.label,
+                        subtitle = if (section == SettingsSection.SITE_PERMISSIONS) SitePermissionsSubtitle else null
+                    )
                     when (section) {
                         SettingsSection.APPEARANCE -> AppearanceSection(
                             settings = settings,
@@ -251,6 +260,10 @@ fun SettingsPage(
                             adBlockerError = extensionsState.adBlockerError,
                             onSetAdBlocker = actions.onSetAdBlocker,
                             onSetEnhancedPrivacy = actions.onSetEnhancedPrivacy
+                        )
+                        SettingsSection.SITE_PERMISSIONS -> SitePermissionsSection(
+                            entries = sitePermissions,
+                            actions = sitePermissionActions
                         )
                         SettingsSection.ABOUT -> AboutSection(versionName, updates, updateActions)
                         SettingsSection.TERMINAL -> if (terminal != null && terminalActions != null) {

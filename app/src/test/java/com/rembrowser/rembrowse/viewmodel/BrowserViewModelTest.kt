@@ -493,6 +493,131 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun openBookmark_showsTheTabUsedLastOnItsSiteInsteadOfOpeningAnother() {
+        viewModel.openNewTab("https://web.telegram.org/a/#-1001234567") // tab-2
+        viewModel.openNewTab("https://web.telegram.org/a/#-1007654321") // tab-3
+        viewModel.openNewTab("https://news.example/") // tab-4
+        viewModel.selectTab("tab-2")
+        viewModel.selectTab("tab-4")
+
+        // A pinned Telegram at /a/ is the same site (origin) as either chat
+        viewModel.openBookmark("https://web.telegram.org/a/")
+
+        val state = viewModel.uiState.value
+        assertEquals(4, state.tabs.size)
+        assertEquals("tab-2", state.activeTabId)
+        assertEquals("https://web.telegram.org/a/#-1001234567", state.activeTab!!.url)
+    }
+
+    @Test
+    fun openBookmark_anotherSchemeOrPortIsAnotherSite() {
+        viewModel.openNewTab("http://web.telegram.org/a/")
+        viewModel.openNewTab("https://web.telegram.org:8443/a/")
+
+        viewModel.openBookmark("https://web.telegram.org/a/")
+
+        val state = viewModel.uiState.value
+        assertEquals(4, state.tabs.size)
+        assertEquals("https://web.telegram.org/a/", state.activeTab!!.url)
+    }
+
+    @Test
+    fun openBookmark_aPageBookmarkShowsOnlyATabAtThatPageOrBelowIt() {
+        viewModel.openNewTab("https://github.com/other") // tab-2
+        viewModel.openNewTab("https://news.example/") // tab-3
+
+        // Another page of GitHub is not the bookmarked repository: it opens
+        viewModel.openBookmark("https://github.com/org/repo")
+        var state = viewModel.uiState.value
+        assertEquals(4, state.tabs.size)
+        assertEquals("https://github.com/org/repo", state.activeTab!!.url)
+
+        // A page below it is: shown, not opened again
+        viewModel.closeTab("tab-4")
+        viewModel.openNewTab("https://github.com/org/repo/issues/12") // tab-5
+        viewModel.selectTab("tab-3")
+        viewModel.openBookmark("https://github.com/org/repo")
+        state = viewModel.uiState.value
+        assertEquals(4, state.tabs.size)
+        assertEquals("tab-5", state.activeTabId)
+        assertEquals("https://github.com/org/repo/issues/12", state.activeTab!!.url)
+    }
+
+    @Test
+    fun openBookmark_onTheActiveTabAtTheBookmarkedPage_changesNothing() {
+        viewModel.openNewTab("https://web.telegram.org/a/#-1001234567")
+        val chat = viewModel.uiState.value.activeTabId!!
+        val loads = engine.sessions.getValue(chat).loadedUrls.toList()
+
+        viewModel.openBookmark("https://web.telegram.org/a/")
+
+        val state = viewModel.uiState.value
+        assertEquals(2, state.tabs.size)
+        assertEquals(chat, state.activeTabId)
+        assertEquals("https://web.telegram.org/a/#-1001234567", state.activeTab!!.url)
+        assertEquals("The chat is not reloaded", loads, engine.sessions.getValue(chat).loadedUrls)
+    }
+
+    @Test
+    fun openBookmark_onTheActiveTabElsewhereBelowTheBookmark_goesBackToTheBookmarkedPage() {
+        viewModel.openNewTab("https://github.com/org/repo/pulls")
+        val repo = viewModel.uiState.value.activeTabId!!
+
+        viewModel.openBookmark("https://github.com/org/repo")
+
+        val state = viewModel.uiState.value
+        assertEquals(2, state.tabs.size)
+        assertEquals(repo, state.activeTabId)
+        assertEquals("https://github.com/org/repo", state.activeTab!!.url)
+        assertEquals("https://github.com/org/repo", engine.sessions.getValue(repo).loadedUrls.last())
+    }
+
+    @Test
+    fun openBookmark_prefersATabAlreadyInAPaneOverOneUsedMoreRecentlyInTheBackground() {
+        viewModel.setLayoutMode(LayoutMode.SPLIT_1X2)
+        viewModel.focusPane(1)
+        viewModel.navigatePane(1, "https://github.com/org/repo/issues")
+        val inPane = viewModel.uiState.value.paneTabIds[1]
+        viewModel.focusPane(0)
+        val background = viewModel.openNewTab("https://github.com/org/repo/pulls")
+        viewModel.openNewTab("https://news.example/")
+        assertTrue(background !in viewModel.uiState.value.paneTabIds)
+
+        viewModel.openBookmark("https://github.com/org/repo")
+
+        val state = viewModel.uiState.value
+        assertEquals("The pane showing it is focused", 1, state.activePaneIndex)
+        assertEquals(inPane, state.activeTabId)
+        assertEquals("https://github.com/org/repo/issues", state.activeTab!!.url)
+    }
+
+    @Test
+    fun openBookmarkInNewTab_opensANewTabEvenWhenTheSiteIsOpen() {
+        viewModel.openNewTab("https://web.telegram.org/a/#-1001234567")
+        val chat = viewModel.uiState.value.activeTabId
+
+        viewModel.openBookmarkInNewTab("https://web.telegram.org/a/")
+
+        val state = viewModel.uiState.value
+        assertEquals(3, state.tabs.size)
+        assertNotEquals(chat, state.activeTabId)
+        assertEquals("https://web.telegram.org/a/", state.activeTab!!.url)
+    }
+
+    @Test
+    fun openHistoryEntry_opensThatPageEvenWithAnotherPageOfTheSiteOpen() {
+        viewModel.openNewTab("https://news.example/today")
+        val today = viewModel.uiState.value.activeTabId
+
+        viewModel.openHistoryEntry("https://news.example/yesterday")
+
+        val state = viewModel.uiState.value
+        assertEquals(3, state.tabs.size)
+        assertNotEquals(today, state.activeTabId)
+        assertEquals("https://news.example/yesterday", state.activeTab!!.url)
+    }
+
+    @Test
     fun pagePrompts_areQueuedAndOnlyShownForTabsOnScreen() {
         viewModel.openNewTab("https://front.example")
         val backgroundId = "tab-1"

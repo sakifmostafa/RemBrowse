@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.13.16`)
+# RemBrowse User Guide (`v0.13.17`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -9,8 +9,8 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 **Tab rail (left edge)**, top to bottom:
 
 * **Tab switcher** — opens a grid of every open tab.
-* **Pinned sites** — your first six bookmarks. Select one to open it.
-* **Open tabs** — one tile per tab. The focused tab has a filled tile and a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#5-split-view)).
+* **Pinned sites** — your first six bookmarks, together on a soft shelf at the top so they never look like open tabs. A small dot marks a pinned site that is open in a tab. Selecting one takes you to its open tab (one on the bookmarked page or a page under it, preferring a tab already on screen in split view) instead of opening another; if you are already in that tab on another page under it, it takes you back to the bookmarked page. Only when none is open does it open the site. Right-click or long-press it for **Open**, **Open in new tab** and **Remove bookmark**. The bookmarks list (**More → Bookmarks**) opens bookmarks the same way.
+* **Open tabs** — each on its own tile below the shelf. A tab shown in a split pane is a step brighter; the focused tab is brightest and has a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#5-split-view)).
 * **+** — opens a new tab.
 * **Extensions (bottom)** — the buttons of your extensions, such as uBlock Origin or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
 
@@ -179,6 +179,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (uBlock Origin) on or off. See [Ad blocking](#8-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
+* **Site permissions** — what you allowed or blocked for each site. See [Site permissions](#12-site-permissions-and-notifications).
 * **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
 * **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#10-downloads).
 * **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#9-extensions-xpi).
@@ -280,7 +281,7 @@ The first time you connect to a server, RemBrowse shows its **key fingerprint** 
 
 ### Working in it
 
-* Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C`, `Ctrl+R`, `Ctrl+L`, `Ctrl+D`, Tab completion…), so most of the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard. `Ctrl+T` (new tab) and `Ctrl+W` (close the tab) stay the browser's, so delete the previous word with `Alt+Backspace`; see [Keyboard shortcuts](#12-keyboard-shortcuts).
+* Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C`, `Ctrl+R`, `Ctrl+L`, `Ctrl+D`, Tab completion…), so most of the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard. `Ctrl+T` (new tab) and `Ctrl+W` (close the tab) stay the browser's, so delete the previous word with `Alt+Backspace`; see [Keyboard shortcuts](#13-keyboard-shortcuts).
 * **Select** by dragging, double-click a word or path, and copy with `Ctrl+Shift+C`. Paste with `Ctrl+Shift+V` or `Shift+Insert`. Right-click for **Copy**, **Paste**, **Select all**, and **Disconnect** or **Reconnect**.
 * **Scroll back** through earlier output with the mouse wheel, two fingers on the touchpad, or `Shift+Page Up` / `Shift+Page Down`. Typing returns to the bottom. In full-screen programs (`less`, `man`, `htop`, `vim`), the wheel scrolls the program instead.
 * The **bar above the terminal** shows the host and whether it is connected (green), connecting (yellow) or disconnected (red), with buttons for the theme and text size (one menu), disconnecting or reconnecting, and the terminal's settings.
@@ -316,7 +317,26 @@ Passwords and private keys are encrypted with a key held by Android's keystore, 
 
 ---
 
-## 12. Keyboard shortcuts
+## 12. Site permissions and notifications
+
+When a site asks to use your camera, microphone or location, to show notifications, to play protected (DRM) video, or (for a site embedded in another) to use its cookies, a card drops in at the top of that site's tab: "**web.telegram.org** wants to Show notifications", with **Block**, **Allow** and, for the camera, microphone and location, **Allow this time**.
+
+* **Allow** and **Block** are remembered for that site; it is not asked again.
+* **Allow this time** lasts while the tab stays on that site, and ends when it moves to another site, closes, or RemBrowse restarts.
+* **×** or Esc (with the card focused) answers no for now, without remembering anything.
+* The buttons ignore taps for half a second after the card appears or moves, so a click meant for the page can't answer it by accident.
+* The card names the site in the address bar, even when the request comes from something embedded in that page. A site you allowed is not let in through another site's page.
+* The first time, Android also asks whether RemBrowse itself may use the camera, microphone, location or notifications.
+
+Some requests are answered without asking: sites may keep their data on the device (persistent storage) and play silent video; video with sound waits until you press play.
+
+**Settings → Site permissions** lists every site you have answered, with a switch for each decision (Allowed or Blocked), **×** to forget one (the site asks again next time) and **Reset** to forget all of a site's. Blocking the camera or microphone there stops a page that is using it. If Android's notifications are off for RemBrowse, a notice there says so and opens Android's settings.
+
+**Notifications** from sites you allowed appear as Android notifications, with the site's name. Tapping one opens that site's tab (or the page, if it isn't open) and lets the page react, for example Telegram opening the chat. Sites can notify while their tab is open, also in the background, and while RemBrowse is the last app you used; once Android pauses RemBrowse they wait until you come back. Icons from addresses on your own device or home network are not fetched.
+
+---
+
+## 13. Keyboard shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |

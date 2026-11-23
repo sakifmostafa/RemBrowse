@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Tab
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +71,8 @@ import com.rembrowser.rembrowse.ui.components.ExtensionPopupDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionsPanelActions
 import com.rembrowser.rembrowse.ui.components.HistoryActions
 import com.rembrowser.rembrowse.ui.components.PageContextMenuOverlay
+import com.rembrowser.rembrowse.ui.components.PermissionPromptOverlay
+import com.rembrowser.rembrowse.ui.components.SitePermissionActions
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.PrintScreen
@@ -274,10 +277,22 @@ fun RemBrowseScreen(
     }
     val openDownloads = { openSettings(SettingsSection.DOWNLOADS) }
     val openHistory = { openSettings(SettingsSection.HISTORY) }
+    val openSitePermissions = { openSettings(SettingsSection.SITE_PERMISSIONS) }
     val history by browserViewModel.history.collectAsStateWithLifecycle()
     val findInPage by browserViewModel.findInPage.collectAsStateWithLifecycle()
     val pageMenu by browserViewModel.pageMenu.collectAsStateWithLifecycle()
     val printPreview by browserViewModel.printPreview.collectAsStateWithLifecycle()
+    val permissionRequests by browserViewModel.permissionRequests.collectAsStateWithLifecycle()
+    val sitePermissions by browserViewModel.sitePermissions.collectAsStateWithLifecycle()
+    val sitePermissionActions = remember(browserViewModel) {
+        SitePermissionActions(
+            onRefresh = browserViewModel::refreshSitePermissions,
+            onSet = { entry, state ->
+                browserViewModel.setSitePermission(entry.origin, entry.kind, state, entry.embeddedOrigin)
+            },
+            onReset = browserViewModel::clearSitePermissions
+        )
+    }
     val clipboard = LocalClipboardManager.current
     val findActions = remember(browserViewModel) {
         FindInPageActions(
@@ -408,6 +423,10 @@ fun RemBrowseScreen(
                         browserViewModel.openBookmark(url)
                         closeTabSwitcher()
                     },
+                    onOpenBookmarkInNewTab = { url ->
+                        browserViewModel.openBookmarkInNewTab(url)
+                        closeTabSwitcher()
+                    },
                     onRemoveBookmark = browserViewModel::removeBookmark,
                     extensions = toolbarExtensions,
                     openPopupExtensionId = extensionsState.activePopup?.extensionId,
@@ -501,12 +520,21 @@ fun RemBrowseScreen(
                                 updates = updatesState,
                                 updateActions = updateActions,
                                 terminal = terminalState,
-                                terminalActions = terminalActions
+                                terminalActions = terminalActions,
+                                sitePermissions = sitePermissions,
+                                sitePermissionActions = sitePermissionActions
                             )
                             }
                         },
                         paneViewport = paneViewport,
                         paneOverlay = { tab ->
+                            // The oldest question of this pane's tab, under the find bar if both are open
+                            PermissionPromptOverlay(
+                                request = permissionRequests.firstOrNull { it.tabId == tab.id },
+                                findBarOpen = findInPage?.tabId == tab.id,
+                                onAnswer = browserViewModel::answerPermission,
+                                onReturnFocus = chrome::focusContent
+                            )
                             FindInPageOverlay(tabId = tab.id, find = findInPage, actions = findActions)
                             PageContextMenuOverlay(
                                 menu = pageMenu,
@@ -618,6 +646,7 @@ fun RemBrowseScreen(
             PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", openHistory),
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),
+            PaletteCommand("site_permissions", "Site permissions", Icons.Outlined.Tune, action = openSitePermissions),
             PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,") {
                 openSettings(null)
             }

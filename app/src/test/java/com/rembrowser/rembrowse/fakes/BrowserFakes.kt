@@ -8,11 +8,17 @@ import com.rembrowser.rembrowse.engine.FindResult
 import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.engine.SessionEventListener
 import com.rembrowser.rembrowse.engine.SessionNavigationUpdate
+import com.rembrowser.rembrowse.engine.SitePermissionAsk
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
+import com.rembrowser.rembrowse.model.PermissionAnswer
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.SitePermissionEntry
+import com.rembrowser.rembrowse.model.SitePermissionKind
+import com.rembrowser.rembrowse.model.SitePermissionState
+import com.rembrowser.rembrowse.model.SiteOrigins
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -20,9 +26,13 @@ class FakeSessionHandle(
     override val tabId: String,
     initialUrl: String,
     initialDesktopMode: Boolean,
-    private val listener: SessionEventListener
+    val listener: SessionEventListener
 ) : BrowserSessionHandle {
     val loadedUrls = mutableListOf(initialUrl)
+
+    /** The address the page last committed to (a load or a move within it), not a page start. */
+    var committedUrl: String = initialUrl
+        private set
     var desktopModeEnabled: Boolean = initialDesktopMode
     var visibleState: Boolean = false
     var focusedForExtensionsState: Boolean = false
@@ -36,6 +46,7 @@ class FakeSessionHandle(
 
     override fun loadUrl(url: String) {
         loadedUrls.add(url)
+        committedUrl = url
         listener.onSessionUpdated(tabId, SessionNavigationUpdate(url = url))
     }
 
@@ -77,6 +88,19 @@ class FakeSessionHandle(
         listener.onRecordingChanged(tabId, recording)
     }
 
+    /**
+     * The page now captures [devices] (CAMERA and/or MICROPHONE; none when it stopped), reported
+     * as the real engine does: whether it records at all, then which devices, with the origin of
+     * the page committed in this tab (by default the last load, not a page start).
+     */
+    fun simulateCaptureDevices(
+        devices: Set<SitePermissionKind>,
+        pageOrigin: String? = SiteOrigins.originOf(committedUrl)
+    ) {
+        listener.onRecordingChanged(tabId, devices.isNotEmpty())
+        listener.onCaptureDevicesChanged(tabId, devices, pageOrigin)
+    }
+
     /** A right click on this page that the page left to the browser: on a link, a picture, or neither. */
     fun simulateContextMenu(
         linkUrl: String? = null,
@@ -100,6 +124,7 @@ class FakeSessionHandle(
     }
 
     fun simulatePageLoad(url: String, title: String, canGoBack: Boolean = true) {
+        committedUrl = url
         listener.onSessionUpdated(
             tabId,
             SessionNavigationUpdate(
@@ -115,6 +140,7 @@ class FakeSessionHandle(
 
     /** The user moved through this tab's history (back or forward) and landed on [url]. */
     fun simulateHistoryMove(url: String, canGoBack: Boolean, canGoForward: Boolean) {
+        committedUrl = url
         listener.onSessionUpdated(
             tabId,
             SessionNavigationUpdate(url = url, isLoading = false, canGoBack = canGoBack, canGoForward = canGoForward)
@@ -191,12 +217,154 @@ class FakeSessionHandle(
     }
 }
 
+/** A site permission request made with [FakeBrowserEngine.simulatePermissionRequest], and how it was answered. */
+class FakePermissionAsk internal constructor() {
+    lateinit var ask: SitePermissionAsk
+        internal set
+
+    val id: String
+        get() = ask.id
+
+    /** The answer the engine received, or null while the request waits. */
+    var answer: PermissionAnswer? = null
+        internal set
+
+    val isAnswered: Boolean
+        get() = answer != null
+
+    /** Whether the engine itself withdrew the request (its page or tab went away). */
+    var withdrawn: Boolean = false
+        internal set
+}
+
+/** One call to [FakeBrowserEngine.setSitePermission]. */
+data class SitePermissionChange(
+    val origin: String,
+    val kind: SitePermissionKind,
+    val state: SitePermissionState?,
+    val embeddedOrigin: String?
+)
+
 class FakeBrowserEngine : BrowserEngine {
     val sessions = linkedMapOf<String, FakeSessionHandle>()
     var enhancedPrivacy: Boolean? = null
 
     override fun setEnhancedPrivacy(enabled: Boolean) {
         enhancedPrivacy = enabled
+    }
+
+    /**
+     * The site permission decisions this engine remembers, as the real one keeps them in its
+     * stores. Tests may seed it; answers and setSitePermission calls change it as they would there.
+     */
+    val storedPermissions = mutableListOf<SitePermissionEntry>()
+
+    /** Every setSitePermission call, in order. */
+    val sitePermissionChanges = mutableListOf<SitePermissionChange>()
+
+    /** Every origin clearSitePermissions was called for, in order. */
+    val clearedPermissionOrigins = mutableListOf<String>()
+
+    /** Every request simulated so far, oldest first. */
+    val permissionAsks = mutableListOf<FakePermissionAsk>()
+
+    /** The requests still waiting for an answer. */
+    val pendingPermissionAsks: List<FakePermissionAsk>
+        get() = permissionAsks.filterNot { it.isAnswered }
+
+    private var permissionAskSerial = 0
+
+    /**
+     * The page in [tabId] asks for [kinds] on [origin]. [stored] is what the engine reports as
+     * already decided; by default it is read from [storedPermissions], as the real engine reads
+     * its stores. Answers are recorded on the returned handle, and ALLOW and BLOCK are remembered
+     * in [storedPermissions] for the kinds not already decided, as the real engine does.
+     */
+    fun simulatePermissionRequest(
+        tabId: String,
+        origin: String,
+        kinds: Set<SitePermissionKind>,
+        embeddedOrigin: String? = null,
+        stored: Map<SitePermissionKind, SitePermissionState>? = null
+    ): FakePermissionAsk {
+        val session = sessions[tabId] ?: error("No session for tab $tabId")
+        val remembered = stored ?: storedPermissions
+            .filter { it.origin == origin && it.kind in kinds && it.embeddedOrigin == embeddedOrigin }
+            .associate { it.kind to it.state }
+        val fake = FakePermissionAsk()
+        fake.ask = SitePermissionAsk(
+            id = "perm-${++permissionAskSerial}",
+            tabId = tabId,
+            origin = origin,
+            kinds = kinds,
+            embeddedOrigin = embeddedOrigin,
+            stored = remembered
+        ) { answer ->
+            fake.answer = answer
+            val state = when (answer) {
+                PermissionAnswer.ALLOW -> SitePermissionState.ALLOW
+                PermissionAnswer.BLOCK -> SitePermissionState.BLOCK
+                else -> null
+            }
+            if (state != null) (kinds - remembered.keys).forEach { remember(origin, it, state, embeddedOrigin) }
+        }
+        permissionAsks += fake
+        session.listener.onPermissionRequested(fake.ask)
+        return fake
+    }
+
+    /**
+     * The engine's remembered decisions changed other than as answered (an Allow Android refused
+     * the app the device for). The fake changes [storedPermissions] as [change] says first.
+     */
+    fun simulateSitePermissionsChanged(change: MutableList<SitePermissionEntry>.() -> Unit = {}) {
+        storedPermissions.change()
+        sessions.values.firstOrNull()?.listener?.onSitePermissionsChanged()
+    }
+
+    /** The engine withdraws [fake] itself, as the real one does when its page goes: DISMISS, then a notice. */
+    fun simulatePermissionWithdrawn(fake: FakePermissionAsk) {
+        if (fake.isAnswered) return
+        fake.withdrawn = true
+        fake.ask.answer(PermissionAnswer.DISMISS)
+        sessions[fake.ask.tabId]?.listener?.onPermissionRequestWithdrawn(fake.id)
+    }
+
+    override fun loadSitePermissions(onResult: (List<SitePermissionEntry>) -> Unit) {
+        onResult(storedPermissions.toList())
+    }
+
+    override fun setSitePermission(
+        origin: String,
+        kind: SitePermissionKind,
+        state: SitePermissionState?,
+        embeddedOrigin: String?
+    ) {
+        sitePermissionChanges += SitePermissionChange(origin, kind, state, embeddedOrigin)
+        if (state == null || (kind == SitePermissionKind.STORAGE_ACCESS && embeddedOrigin == null)) {
+            val matching = storedPermissions.filter {
+                it.origin == origin && it.kind == kind && (embeddedOrigin == null || it.embeddedOrigin == embeddedOrigin)
+            }
+            storedPermissions.removeAll(matching)
+            if (state != null) storedPermissions += matching.map { it.copy(state = state) }
+        } else {
+            remember(origin, kind, state, embeddedOrigin)
+        }
+    }
+
+    override fun clearSitePermissions(origin: String) {
+        clearedPermissionOrigins += origin
+        storedPermissions.removeAll { it.origin == origin }
+    }
+
+    private fun remember(origin: String, kind: SitePermissionKind, state: SitePermissionState, embeddedOrigin: String?) {
+        storedPermissions.removeAll { it.origin == origin && it.kind == kind && it.embeddedOrigin == embeddedOrigin }
+        storedPermissions += SitePermissionEntry(origin, SiteOrigins.displayHost(origin), kind, state, embeddedOrigin)
+    }
+
+    /** As the real engine does, a session that goes withdraws the requests its page made. */
+    private fun withdrawPermissionAsks(tabId: String) {
+        pendingPermissionAsks.filter { it.ask.tabId == tabId }.forEach(::simulatePermissionWithdrawn)
     }
 
     override fun createSession(
@@ -213,10 +381,12 @@ class FakeBrowserEngine : BrowserEngine {
     override fun getSession(tabId: String): BrowserSessionHandle? = sessions[tabId]
 
     override fun closeSession(tabId: String) {
+        withdrawPermissionAsks(tabId)
         sessions.remove(tabId)?.close()
     }
 
     override fun closeAll() {
+        sessions.keys.toList().forEach(::withdrawPermissionAsks)
         sessions.values.forEach { it.close() }
         sessions.clear()
     }

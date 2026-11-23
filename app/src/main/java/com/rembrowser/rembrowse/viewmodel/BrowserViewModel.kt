@@ -7,6 +7,7 @@ import com.rembrowser.rembrowse.engine.BrowserEngine
 import com.rembrowser.rembrowse.engine.BrowserSessionHandle
 import com.rembrowser.rembrowse.engine.SessionEventListener
 import com.rembrowser.rembrowse.engine.SessionNavigationUpdate
+import com.rembrowser.rembrowse.engine.SitePermissionAsk
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
@@ -20,11 +21,18 @@ import com.rembrowser.rembrowse.model.PageContextMenu
 import com.rembrowser.rembrowse.model.PageMenuAction
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
+import com.rembrowser.rembrowse.model.PageAddress
 import com.rembrowser.rembrowse.model.PaneNode
+import com.rembrowser.rembrowse.model.PermissionAnswer
+import com.rembrowser.rembrowse.model.PermissionRequest
 import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.PrintPreview
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.SiteOrigins
+import com.rembrowser.rembrowse.model.SitePermissionEntry
+import com.rembrowser.rembrowse.model.SitePermissionKind
+import com.rembrowser.rembrowse.model.SitePermissionState
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.model.TerminalTarget
@@ -43,6 +51,14 @@ import kotlinx.coroutines.flow.update
 
 /** The most pages the history keeps; the oldest drop off. */
 const val MAX_HISTORY_ENTRIES = 1_000
+
+/** Settings lists site permissions by site, then by kind. */
+private val sitePermissionOrder = compareBy<SitePermissionEntry>(
+    { it.displayHost },
+    { it.origin },
+    { it.embeddedOrigin.orEmpty() },
+    { it.kind }
+)
 
 /**
  * How long after the print screen closes a page's own `window.print()` is ignored, so a page
@@ -80,6 +96,36 @@ class BrowserViewModel(
     /** When the print screen last closed (null: never), so a page cannot reopen it at once. */
     private var printPreviewClosedAt: Long? = null
 
+    /**
+     * Sites waiting for the user's answer about a permission, oldest first. Each pane shows the
+     * oldest one for its own tab; requests from tabs not on screen wait until they are.
+     */
+    private val _permissionRequests = MutableStateFlow<List<PermissionRequest>>(emptyList())
+    val permissionRequests: StateFlow<List<PermissionRequest>> = _permissionRequests.asStateFlow()
+
+    /** Every remembered site permission decision, for Settings (see [refreshSitePermissions]). */
+    private val _sitePermissions = MutableStateFlow<List<SitePermissionEntry>>(emptyList())
+    val sitePermissions: StateFlow<List<SitePermissionEntry>> = _sitePermissions.asStateFlow()
+
+    /** The engine's side of each request in [permissionRequests], by request id. */
+    private val pendingPermissions = mutableMapOf<String, SitePermissionAsk>()
+
+    /**
+     * "Allow this time" grants per tab: [kinds] for the page's site [origin], kept while the tab
+     * stays on that site. In memory only, so they also end when the app does.
+     */
+    private data class AllowedOnce(val origin: String, val kinds: Set<SitePermissionKind>)
+
+    private val allowedOnce = mutableMapOf<String, AllowedOnce>()
+
+    /**
+     * What each tab's page is capturing now ([devices]: camera, microphone), and the origin of
+     * that page as the engine committed to it: the site whose decision the capture runs on.
+     */
+    private data class Capture(val pageOrigin: String?, val devices: Set<SitePermissionKind>)
+
+    private val captures = mutableMapOf<String, Capture>()
+
     private val sessionListener = object : SessionEventListener {
         override fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate) {
             // The engine also reports addresses it failed to load, such as a rem:// link a page
@@ -96,6 +142,7 @@ class BrowserViewModel(
             }
             // A menu about the page that was there goes with it
             if (update.isPageStart && _pageMenu.value?.tabId == tabId) _pageMenu.value = null
+            if (update.isPageStart && update.url != null) onNewDocument(tabId, update.url)
             // A location reported outside a page start means a document is now showing. A new
             // session's own about:blank does not count.
             val shownUrl = update.url?.takeUnless { update.isPageStart }
@@ -248,6 +295,14 @@ class BrowserViewModel(
             }
         }
 
+        override fun onCaptureDevicesChanged(tabId: String, devices: Set<SitePermissionKind>, pageOrigin: String?) {
+            if (devices.isEmpty()) captures.remove(tabId) else captures[tabId] = Capture(pageOrigin, devices)
+        }
+
+        override fun onSitePermissionsChanged() {
+            refreshSitePermissions()
+        }
+
         override fun onRecordingChanged(tabId: String, recording: Boolean) {
             val changed = if (recording) recordingTabIds.add(tabId) else recordingTabIds.remove(tabId)
             if (changed) syncSessions()
@@ -260,6 +315,16 @@ class BrowserViewModel(
             } else {
                 // Nobody to save it: let go of the connection rather than leave it hanging
                 runCatching { request.body.close() }
+            }
+        }
+
+        override fun onPermissionRequested(ask: SitePermissionAsk) {
+            handlePermissionAsk(ask)
+        }
+
+        override fun onPermissionRequestWithdrawn(askId: String) {
+            if (pendingPermissions.remove(askId) != null) {
+                _permissionRequests.update { list -> list.filterNot { it.id == askId } }
             }
         }
     }
@@ -275,6 +340,13 @@ class BrowserViewModel(
 
     /** Tabs in which the engine has shown a document since this browser started. */
     private val tabsWithContent = mutableSetOf<String>()
+
+    /**
+     * When each tab was last the focused one, as a count that only rises, so that of several tabs
+     * on the same site the one used last can be shown (see [showTabForSite]). In memory only.
+     */
+    private val tabFocusedAt = mutableMapOf<String, Long>()
+    private var focusCount = 0L
 
     init {
         restoreInitialState()
@@ -321,6 +393,7 @@ class BrowserViewModel(
         // restored the first time they are shown, so launching with many tabs stays cheap.
         syncSessions()
         persistCurrentState()
+        refreshSitePermissions()
     }
 
     /**
@@ -564,6 +637,7 @@ class BrowserViewModel(
 
         engine.closeSession(tabId)
         tabsWithContent -= tabId
+        endPermissionsOf(tabId)
         val remainingTabs = current.tabs.filterNot { it.id == tabId }.toMutableList()
         var layout = current.layout
 
@@ -901,6 +975,26 @@ class BrowserViewModel(
         applyLayout(withNewTab, withNewTab.layout.split(besideTabId, newTabId, DropZone.RIGHT), besideTabId)
     }
 
+    /**
+     * Shows a tab on [url]'s site, as for a tapped site notification: of several, the one focused
+     * last (then one already on screen); with none, [url] opens in a new tab. A page fullscreen in
+     * another tab leaves fullscreen, so the tab shown is not hidden behind it. Returns the tab
+     * shown, or null when [url] is not a web address.
+     */
+    fun showTabForSite(url: String): String? {
+        val origin = SiteOrigins.originOf(url) ?: return null
+        val state = _uiState.value
+        val onScreen = state.visibleTabIds.toSet()
+        val match = state.tabs
+            .filter { it.isWebPage && SiteOrigins.originOf(it.url) == origin }
+            .maxWithOrNull(compareBy<BrowserTab>({ tabFocusedAt[it.id] ?: 0L }, { it.id in onScreen }))
+        val fullscreenId = state.fullscreenTabId
+        if (fullscreenId != null && fullscreenId != match?.id) exitFullscreen()
+        if (match == null) return openNewTab(url)
+        selectTab(match.id)
+        return match.id
+    }
+
     /** Takes the fullscreen page back into its pane. The layout was never changed, so it is as it was. */
     fun exitFullscreen() {
         val tabId = _uiState.value.fullscreenTabId ?: return
@@ -1013,8 +1107,50 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
-    /** Opens a saved page: in place when the active tab is still empty, otherwise in a new tab. */
+    /**
+     * Opens a saved page, a pinned site among them, without piling up tabs on it. A tab showing
+     * the page or one below it ([PageAddress.isUnder]) is shown instead: one already in a pane
+     * first, else the one used last. When that is the active tab and it has moved on to another
+     * page below the bookmark, it goes back to the bookmarked page; on the page itself nothing
+     * changes. With no such tab the page opens in place when the active tab is still empty, else
+     * in a new tab.
+     */
     fun openBookmark(url: String) {
+        val bookmark = PageAddress.of(url)
+        val match = bookmark?.let(::tabForBookmark)
+        if (match == null) {
+            openInEmptyOrNewTab(url)
+            return
+        }
+        val state = _uiState.value
+        val fullscreenId = state.fullscreenTabId
+        if (fullscreenId != null && fullscreenId != match.id) exitFullscreen()
+        if (match.id != state.activeTabId) {
+            selectTab(match.id)
+        } else if (PageAddress.of(match.url)?.isSamePageAs(bookmark) != true) {
+            navigatePane(state.activePaneIndex, url)
+        }
+    }
+
+    /**
+     * The tab to show for a bookmark: of the web pages at or below it, one in a pane (the
+     * focused one first), else the one focused last; null when there is none.
+     */
+    private fun tabForBookmark(bookmark: PageAddress): BrowserTab? {
+        val state = _uiState.value
+        val onScreen = state.visibleTabIds.toSet()
+        return state.tabs
+            .filter { it.isWebPage && PageAddress.of(it.url)?.isUnder(bookmark) == true }
+            .maxWithOrNull(compareBy<BrowserTab>({ it.id in onScreen }, { tabFocusedAt[it.id] ?: 0L }))
+    }
+
+    /** Opens a saved page in a new tab, even when a tab on its site is open already. */
+    fun openBookmarkInNewTab(url: String) {
+        openNewTab(url)
+    }
+
+    /** Opens [url] in place when the active tab is still empty, otherwise in a new tab. */
+    private fun openInEmptyOrNewTab(url: String) {
         val current = _uiState.value
         if (current.activeTab?.isNewTabPage == true) {
             navigatePane(current.activePaneIndex, url)
@@ -1090,8 +1226,12 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
-    /** Opens a page from the history, the way a bookmark opens. */
-    fun openHistoryEntry(url: String) = openBookmark(url)
+    /**
+     * Opens a page from the history: in place when the active tab is still empty, otherwise in a
+     * new tab. Unlike a bookmark it never switches to another tab on the site, which may be
+     * showing a different page of it.
+     */
+    fun openHistoryEntry(url: String) = openInEmptyOrNewTab(url)
 
     fun removeHistoryEntry(url: String) {
         updateHistory { entries -> entries.filterNot { it.url == url } }
@@ -1209,6 +1349,7 @@ class BrowserViewModel(
         // The app draws this page, so the tab needs no engine session. A start page has one;
         // left open it would cost a content process and keep reporting about:blank for this tab.
         engine.closeSession(tabId)
+        endPermissionsOf(tabId)
         _uiState.update { state ->
             val updated = state.copy(
                 tabs = state.tabs.map {
@@ -1250,7 +1391,209 @@ class BrowserViewModel(
     fun shutdown() {
         dismissPrintPreview()
         persistCurrentState()
+        pendingPermissions.keys.toList().forEach { resolvePermission(it, PermissionAnswer.DISMISS) }
+        allowedOnce.clear()
+        captures.clear()
         engine.closeAll()
+    }
+
+    /**
+     * Answers the site permission request [requestId]. ALLOW and BLOCK are remembered for the
+     * site, and also answer the same question waiting from that site in any tab. ALLOW_ONCE lasts
+     * while the tab stays on the site, and answers that tab's other requests it covers; it counts
+     * as DISMISS for a request that does not offer it. DISMISS refuses this request only.
+     */
+    fun answerPermission(requestId: String, answer: PermissionAnswer) {
+        val request = _permissionRequests.value.firstOrNull { it.id == requestId } ?: return
+        val ask = pendingPermissions[requestId] ?: return
+        val given = if (answer == PermissionAnswer.ALLOW_ONCE && !request.offersAllowOnce) PermissionAnswer.DISMISS else answer
+        resolvePermission(requestId, given)
+        val embeddedOrigin = ask.embeddedOrigin
+        when (given) {
+            PermissionAnswer.ALLOW, PermissionAnswer.BLOCK -> {
+                _permissionRequests.value
+                    .filter { other ->
+                        other.origin == request.origin && request.kinds.containsAll(other.kinds) &&
+                            pendingPermissions[other.id]?.embeddedOrigin == embeddedOrigin
+                    }
+                    .forEach { resolvePermission(it.id, given) }
+                val state = if (given == PermissionAnswer.ALLOW) SitePermissionState.ALLOW else SitePermissionState.BLOCK
+                request.kinds.forEach { kind -> rememberSitePermission(request.origin, kind, state, embeddedOrigin) }
+                if (given == PermissionAnswer.BLOCK) {
+                    // As a Block in Settings does: other tabs' "Allow this time" streams on the site end
+                    request.kinds.forEach { forgetAllowedOnce(request.origin, it) }
+                    stopCapturing(request.origin, request.kinds)
+                }
+            }
+            PermissionAnswer.ALLOW_ONCE -> {
+                val earlier = allowedOnce[request.tabId]?.takeIf { it.origin == request.origin }?.kinds.orEmpty()
+                allowedOnce[request.tabId] = AllowedOnce(request.origin, earlier + request.kinds)
+                _permissionRequests.value
+                    .filter { other ->
+                        other.tabId == request.tabId && other.origin == request.origin &&
+                            request.kinds.containsAll(other.kinds)
+                    }
+                    .forEach { resolvePermission(it.id, PermissionAnswer.ALLOW_ONCE) }
+            }
+            PermissionAnswer.DISMISS -> Unit
+        }
+    }
+
+    /** Reloads [sitePermissions] from the engine, which keeps the decisions. */
+    fun refreshSitePermissions() {
+        engine.loadSitePermissions { entries -> _sitePermissions.value = entries.sortedWith(sitePermissionOrder) }
+    }
+
+    /**
+     * Remembers [state] for [kind] on [origin], or forgets the decision when [state] is null, so
+     * the site asks again. For STORAGE_ACCESS, [embeddedOrigin] names the embedded site (see
+     * [SitePermissionEntry.embeddedOrigin]); null changes every embedded site's decision.
+     */
+    fun setSitePermission(
+        origin: String,
+        kind: SitePermissionKind,
+        state: SitePermissionState?,
+        embeddedOrigin: String? = null
+    ) {
+        val site = SiteOrigins.originOf(origin) ?: return
+        engine.setSitePermission(site, kind, state, embeddedOrigin)
+        forgetAllowedOnce(site, kind)
+        if (state != SitePermissionState.ALLOW) stopCapturing(site, setOf(kind))
+        if (state != null) {
+            if (kind == SitePermissionKind.STORAGE_ACCESS && embeddedOrigin == null) {
+                // Only the embedded sites already listed can change: there is no new one to name
+                _sitePermissions.update { list ->
+                    list.map { if (it.origin == site && it.kind == kind) it.copy(state = state) else it }
+                }
+            } else {
+                rememberSitePermission(site, kind, state, embeddedOrigin)
+            }
+        } else {
+            _sitePermissions.update { list ->
+                list.filterNot {
+                    it.origin == site && it.kind == kind && (embeddedOrigin == null || it.embeddedOrigin == embeddedOrigin)
+                }
+            }
+        }
+    }
+
+    /** Forgets every decision remembered for [origin], so it asks again for anything. */
+    fun clearSitePermissions(origin: String) {
+        val site = SiteOrigins.originOf(origin) ?: return
+        engine.clearSitePermissions(site)
+        forgetAllowedOnce(site, kind = null)
+        stopCapturing(site, setOf(SitePermissionKind.CAMERA, SitePermissionKind.MICROPHONE))
+        _sitePermissions.update { list -> list.filterNot { it.origin == site } }
+    }
+
+    /**
+     * A decision for [site] no longer allows [kinds]. A page already capturing one of them keeps
+     * its stream until it reloads, so the tabs on [site] that are using it now are reloaded;
+     * nothing else is. Location has no such signal: a page following it stops only when it next asks.
+     */
+    private fun stopCapturing(site: String, kinds: Set<SitePermissionKind>) {
+        // The page that is capturing, as the engine committed to it: the address bar may already
+        // show a navigation that never happened (a download, a 204, window.stop())
+        captures
+            .filter { (_, capture) -> capture.pageOrigin == site && capture.devices.any { it in kinds } }
+            .keys.toList()
+            .forEach { tabId ->
+                captures.remove(tabId)
+                engine.getSession(tabId)?.reload()
+            }
+    }
+
+    private fun handlePermissionAsk(ask: SitePermissionAsk) {
+        if (ask.kinds.isEmpty() || ask.id in pendingPermissions) {
+            ask.answer(PermissionAnswer.DISMISS)
+            return
+        }
+        // What the user already decided for the site answers it without asking again
+        if (ask.kinds.any { ask.stored[it] == SitePermissionState.BLOCK }) {
+            ask.answer(PermissionAnswer.DISMISS)
+            return
+        }
+        val undecided = ask.kinds.filterNot { ask.stored[it] == SitePermissionState.ALLOW }.toSet()
+        if (undecided.isEmpty()) {
+            ask.answer(PermissionAnswer.ALLOW)
+            return
+        }
+        // Nothing to ask the user in: an unknown tab, or one not showing a web page
+        val tab = _uiState.value.tabs.firstOrNull { it.id == ask.tabId }
+        if (tab == null || !tab.isWebPage) {
+            ask.answer(PermissionAnswer.DISMISS)
+            return
+        }
+        // The ask's origin is the page in the tab's address bar, whatever frame asked
+        val grants = allowedOnce[tab.id]?.takeIf { it.origin == ask.origin }
+        if (grants != null && grants.kinds.containsAll(undecided)) {
+            ask.answer(PermissionAnswer.ALLOW_ONCE)
+            return
+        }
+        val request = PermissionRequest(
+            id = ask.id,
+            tabId = tab.id,
+            origin = ask.origin,
+            displayHost = SiteOrigins.displayHost(ask.origin),
+            kinds = undecided,
+            embeddedHost = ask.embeddedOrigin?.let(SiteOrigins::displayHost),
+            offersAllowOnce = undecided.all { it.offersAllowOnce }
+        )
+        pendingPermissions[request.id] = ask
+        _permissionRequests.update { it + request }
+    }
+
+    /** Takes request [id] off the list and gives the engine [answer]. */
+    private fun resolvePermission(id: String, answer: PermissionAnswer) {
+        val ask = pendingPermissions.remove(id)
+        _permissionRequests.update { list -> list.filterNot { it.id == id } }
+        ask?.answer(answer)
+    }
+
+    /**
+     * Tab [tabId] started loading [url] as a new document (not a change within the page). Its
+     * requests belong to the document that made them, which is going, so they are withdrawn,
+     * also for a reload or a page of the same site. Its one-time grants end with the site.
+     */
+    private fun onNewDocument(tabId: String, url: String) {
+        pendingPermissions
+            .filter { (_, ask) -> ask.tabId == tabId }
+            .keys.toList()
+            .forEach { resolvePermission(it, PermissionAnswer.DISMISS) }
+        if (allowedOnce[tabId]?.origin != SiteOrigins.originOf(url)) allowedOnce.remove(tabId)
+    }
+
+    /** Tab [tabId] closed or stopped showing web pages: its requests and one-time grants end. */
+    private fun endPermissionsOf(tabId: String) {
+        pendingPermissions
+            .filter { (_, ask) -> ask.tabId == tabId }
+            .keys.toList()
+            .forEach { resolvePermission(it, PermissionAnswer.DISMISS) }
+        allowedOnce.remove(tabId)
+        captures.remove(tabId)
+    }
+
+    /** Drops one-time grants for [kind] (every kind when null) on [site], so its new decision counts. */
+    private fun forgetAllowedOnce(site: String, kind: SitePermissionKind?) {
+        allowedOnce.entries.toList().forEach { (tabId, grant) ->
+            if (grant.origin != site) return@forEach
+            val remaining = if (kind == null) emptySet() else grant.kinds - kind
+            if (remaining.isEmpty()) allowedOnce.remove(tabId) else allowedOnce[tabId] = grant.copy(kinds = remaining)
+        }
+    }
+
+    /** Puts a decision the engine has just been told about into [sitePermissions] at once. */
+    private fun rememberSitePermission(
+        origin: String,
+        kind: SitePermissionKind,
+        state: SitePermissionState,
+        embeddedOrigin: String?
+    ) {
+        val entry = SitePermissionEntry(origin, SiteOrigins.displayHost(origin), kind, state, embeddedOrigin)
+        _sitePermissions.update { list ->
+            (list.filterNot { it.origin == origin && it.kind == kind && it.embeddedOrigin == embeddedOrigin } + entry)
+                .sortedWith(sitePermissionOrder)
+        }
     }
 
     /** What the address bar shows for [tab]; the start page shows an empty field. */
@@ -1320,7 +1663,11 @@ class BrowserViewModel(
             fullscreenId = null
         }
         val activeId = state.activeTabId
-        recordingTabIds.retainAll(state.tabs.map { it.id }.toSet())
+        val tabIds = state.tabs.map { it.id }.toSet()
+        recordingTabIds.retainAll(tabIds)
+        // Every change of focus comes through here
+        tabFocusedAt.keys.retainAll(tabIds)
+        if (activeId != null) tabFocusedAt[activeId] = ++focusCount
         // The find bar belongs to the focused tab: it closes when focus moves on or the tab goes
         _findInPage.value?.let { find ->
             if (find.tabId != activeId) closeFindInPage()

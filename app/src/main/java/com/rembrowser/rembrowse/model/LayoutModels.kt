@@ -106,6 +106,9 @@ enum class SettingsSection(val path: String, val label: String) {
     SEARCH("search", "Search"),
     TABS("tabs", "Tabs"),
     PRIVACY("privacy", "Privacy"),
+
+    /** What each site was allowed or refused: camera, microphone, location, notifications… */
+    SITE_PERMISSIONS("permissions", "Site permissions"),
     HISTORY("history", "History"),
     DOWNLOADS("downloads", "Downloads"),
     EXTENSIONS("extensions", "Extensions"),

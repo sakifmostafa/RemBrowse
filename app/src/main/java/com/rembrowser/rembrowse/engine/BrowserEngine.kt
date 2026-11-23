@@ -6,6 +6,11 @@ import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.PageContextMenu
 import com.rembrowser.rembrowse.model.PagePrompt
+import com.rembrowser.rembrowse.model.PermissionAnswer
+import com.rembrowser.rembrowse.model.SitePermissionEntry
+import com.rembrowser.rembrowse.model.SitePermissionKind
+import com.rembrowser.rembrowse.model.SitePermissionState
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.StateFlow
 
 data class SessionNavigationUpdate(
@@ -27,6 +32,46 @@ data class SessionNavigationUpdate(
  * Both are 0 when nothing matched.
  */
 data class FindResult(val query: String, val found: Boolean, val current: Int, val total: Int)
+
+/**
+ * A page's request for site permissions, as the engine hands it to the browser. The engine has
+ * already answered what never needs the user (autoplay, persistent storage, screen capture and the
+ * like) and looked up in [stored] what is remembered for the site, so the browser can decide
+ * whether to ask at all.
+ *
+ * The page waits until the first call to [answer]; later calls are ignored. What each answer does:
+ * - ALLOW grants the request and remembers ALLOW for each of [kinds] not in [stored];
+ * - ALLOW_ONCE grants it and remembers nothing;
+ * - BLOCK refuses it and remembers BLOCK for each of [kinds] not in [stored];
+ * - DISMISS refuses it and leaves every remembered decision as it was.
+ */
+class SitePermissionAsk(
+    val id: String,
+    val tabId: String,
+    /**
+     * The site the decision belongs to, as scheme://host[:port]: always the page in the tab's
+     * address bar, also when a frame inside it asked (as in Chrome).
+     */
+    val origin: String,
+    val kinds: Set<SitePermissionKind>,
+    /**
+     * For STORAGE_ACCESS, the embedded site that wants its cookies, as Gecko grants it: its scheme
+     * and registrable domain (see `SiteOrigins.siteOf`). Otherwise null.
+     */
+    val embeddedOrigin: String? = null,
+    /** The decisions already remembered for [origin], for those of [kinds] that have one. */
+    val stored: Map<SitePermissionKind, SitePermissionState> = emptyMap(),
+    private val onAnswer: (PermissionAnswer) -> Unit
+) {
+    private val answered = AtomicBoolean(false)
+
+    val isAnswered: Boolean
+        get() = answered.get()
+
+    fun answer(answer: PermissionAnswer) {
+        if (answered.compareAndSet(false, true)) onAnswer(answer)
+    }
+}
 
 interface SessionEventListener {
     fun onSessionUpdated(tabId: String, update: SessionNavigationUpdate)
@@ -55,6 +100,19 @@ interface SessionEventListener {
     /** The page in [tabId] started or stopped using the camera or microphone (a call, a recording). */
     fun onRecordingChanged(tabId: String, recording: Boolean) {}
 
+    /**
+     * Which of CAMERA and MICROPHONE the page in [tabId] is capturing now (none when it stopped),
+     * and the origin of that page as the tab last committed to it (null if unknown): the site
+     * whose decision the capture runs on. Reported together with [onRecordingChanged].
+     */
+    fun onCaptureDevicesChanged(tabId: String, devices: Set<SitePermissionKind>, pageOrigin: String?) {}
+
+    /**
+     * Remembered site permission decisions changed other than as answered: an Allow did not take
+     * because Android refused the app the device, say. A list of them should be read again.
+     */
+    fun onSitePermissionsChanged() {}
+
     /** A right click on a page, which the page left to the browser, asks for [menu]. */
     fun onContextMenuRequested(menu: PageContextMenu) {}
 
@@ -79,6 +137,17 @@ interface SessionEventListener {
      * windows opened by script, such as a "Sign in with Google" popup once it is done).
      */
     fun onCloseRequested(tabId: String) {}
+
+    /**
+     * A page asked for site permissions. The receiver must answer [ask], at once or once the user
+     * has: until then the page waits. Without a receiver, nothing is granted.
+     */
+    fun onPermissionRequested(ask: SitePermissionAsk) {
+        ask.answer(PermissionAnswer.DISMISS)
+    }
+
+    /** The engine answered request [askId] itself, as DISMISS, because the page or tab that asked went away. */
+    fun onPermissionRequestWithdrawn(askId: String) {}
 }
 
 interface BrowserSessionHandle {
@@ -128,6 +197,26 @@ interface BrowserEngine {
      * fingerprinters, cryptominers and email trackers.
      */
     fun setEnhancedPrivacy(enabled: Boolean) {}
+
+    /** Every remembered site permission decision. [onResult] is called on the main thread, possibly later. */
+    fun loadSitePermissions(onResult: (List<SitePermissionEntry>) -> Unit) {
+        onResult(emptyList())
+    }
+
+    /**
+     * Remembers [state] for [kind] on [origin], or forgets the decision when [state] is null, so
+     * the site is asked again. For STORAGE_ACCESS, [embeddedOrigin] names the embedded site; when
+     * it is null the change applies to every embedded site [origin] has a decision for.
+     */
+    fun setSitePermission(
+        origin: String,
+        kind: SitePermissionKind,
+        state: SitePermissionState?,
+        embeddedOrigin: String? = null
+    ) {}
+
+    /** Forgets every decision remembered for [origin]. */
+    fun clearSitePermissions(origin: String) {}
 }
 
 /** The user backed out of the permission prompt; not an error worth reporting. */

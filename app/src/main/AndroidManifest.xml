@@ -6,6 +6,25 @@
     <!-- Installing RemBrowse's own updates. Android still asks the user to allow it, and to
          confirm each update. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- What sites can ask for: video calls and voice messages, maps, and notifications. Android
+         asks the user for each one the first time a site needs it, after the site's own prompt
+         where Gecko allows (camera and microphone are asked for first: Gecko cannot list the
+         devices without them). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The permissions above would otherwise make the hardware required, hiding RemBrowse from
+         devices without it. A site simply finds no camera or position there. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
 
     <application
         android:name=".RemBrowseApplication"
@@ -51,6 +70,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/download_paths" />
         </provider>
+
+        <!-- Tells a page its notification was swiped away. Not exported: only RemBrowse's own
+             notifications reach it. -->
+        <receiver
+            android:name=".engine.SiteNotificationDismissReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

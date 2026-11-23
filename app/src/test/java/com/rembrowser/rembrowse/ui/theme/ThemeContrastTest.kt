@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.rembrowser.rembrowse.model.AccentColor
+import com.rembrowser.rembrowse.ui.components.pinnedShelfColors
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -78,6 +79,14 @@ class ThemeContrastTest {
                 strongest >= 3.0
             )
         }
+    }
+
+    @Test
+    fun pinnedShelf_iconsAndOpenDotStayClearOfTheShelf() = forEveryTheme { name, c ->
+        val shelf = pinnedShelfColors(c)
+        // A site without a favicon is its letter, so text contrast applies
+        assertContrast("$name pinned site icon on the shelf", shelf.icon, shelf.container, 4.5)
+        assertContrast("$name open dot on the shelf", shelf.openDot, shelf.container, 4.5)
     }
 
     @Test

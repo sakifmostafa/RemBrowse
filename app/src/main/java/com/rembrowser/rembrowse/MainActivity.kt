@@ -50,10 +50,12 @@ import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
 import com.rembrowser.rembrowse.data.SharedPrefsBrowsingHistoryStore
 import com.rembrowser.rembrowse.data.SharedPrefsDefaultExtensionStore
 import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
+import com.rembrowser.rembrowse.data.SharedPrefsSitePermissionStore
 import com.rembrowser.rembrowse.data.SharedPrefsTerminalStore
 import com.rembrowser.rembrowse.data.SharedPrefsUpdatePreferences
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
+import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
 import com.rembrowser.rembrowse.engine.PaneGeckoView
 import com.rembrowser.rembrowse.engine.TouchpadInputFilter
 import com.rembrowser.rembrowse.engine.usePageRendering
@@ -127,10 +129,21 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     /** Puts pictures from pages on the clipboard (the page menu's Copy image). */
     val imageClipboard: ImageClipboard
 
+    /**
+     * Asks Android for the camera, microphone, location and notification permissions that sites
+     * need, through the activity on screen. Kept here so a request survives activity re-creation.
+     */
+    val androidPermissions = ActivityPermissionBridge(application)
+
     init {
         val runtime = (application as RemBrowseApplication).geckoRuntime
         imageClipboard = GeckoImageClipboard(application, runtime)
-        engine = GeckoBrowserEngine(application, providedRuntime = runtime)
+        engine = GeckoBrowserEngine(
+            application,
+            providedRuntime = runtime,
+            sitePermissionStore = SharedPrefsSitePermissionStore(application),
+            androidPermissions = androidPermissions
+        )
         extensionManager = GeckoExtensionManager(
             runtime = runtime,
             openExtensionTab = { url -> engine.adoptNewTab(url, openerTabId = null) },
@@ -292,6 +305,14 @@ class MainActivity : ComponentActivity() {
             holder.installLocalExtension(uri)
         }
     }
+
+    // Android permissions that sites need (camera, microphone, location, notifications). The
+    // answer may reach a re-created activity: the request it belongs to waits in the holder.
+    private val androidPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { holder.androidPermissions.onResult() }
+
+    private val launchAndroidPermissions: (Array<String>) -> Unit = { androidPermissionsLauncher.launch(it) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -507,6 +528,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         holder.browser.setWindowShown(true)
+        // Only a window on screen can show the system's permission dialog
+        holder.androidPermissions.attach(launchAndroidPermissions)
     }
 
     // Gecko only pauses a page when its view's surface goes, and a TextureView's survives the
@@ -514,6 +537,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         holder.browser.setWindowShown(false)
+        holder.androidPermissions.detach(launchAndroidPermissions)
     }
 
     override fun onResume() {
@@ -756,6 +780,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == GeckoSiteNotifications.ACTION_OPEN) {
+            openSiteNotification(intent)
+            return
+        }
         if (intent?.action != Intent.ACTION_VIEW) return
         val dataUrl = intent.dataString?.trim().orEmpty()
         // Any app can send this activity a VIEW intent. Only ordinary web links are accepted;
@@ -764,6 +792,24 @@ class MainActivity : ComponentActivity() {
             holder.browser.openNewTab(url = dataUrl)
         } else if (dataUrl.isNotEmpty()) {
             Log.w(TAG, "Ignored VIEW intent with a non-web URL scheme")
+        }
+    }
+
+    /**
+     * A site notification was tapped, which brought the window forward: the tab with its site
+     * comes to the front (see [BrowserViewModel.showTabForSite]), and then the page handles the
+     * click as it would on a desktop (Telegram opens the chat). The page must be showing first,
+     * since its handler may only switch what it shows. After a restart the notification is no
+     * longer live, and its page is just shown.
+     */
+    private fun openSiteNotification(intent: Intent) {
+        val notification = GeckoSiteNotifications.takeNotificationOf(intent)
+        val page = notification?.source ?: GeckoSiteNotifications.sourceOf(intent)
+        chrome.showTabSwitcher = false
+        if (page != null) holder.browser.showTabForSite(page)
+        notification?.let { tapped ->
+            runCatching { tapped.click() }
+                .onFailure { Log.w(TAG, "Couldn't pass a notification's click to its page", it) }
         }
     }
 }

@@ -1,8 +1,18 @@
 package com.rembrowser.rembrowse.ui.components
 
+import android.content.Context
+import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,12 +33,14 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Tab
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -43,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -56,10 +70,55 @@ import com.rembrowser.rembrowse.model.BrowserUiState
 import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.PaneDropTarget
 import com.rembrowser.rembrowse.model.InstalledExtension
+import com.rembrowser.rembrowse.model.PageAddress
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 
 /** How many bookmarks are pinned to the rail; the rest live in the bookmarks list. */
 private const val MAX_PINNED_SITES = 6
+
+/** The pinned sites' shelf: the rail's width less a 4dp inset each side. */
+private val PinnedShelfWidth = 48.dp
+
+/** Pinned sites' icons, a little smaller than a tab's ([RemDimens.IconSize]). */
+private val PinnedIconSize = 18.dp
+
+/** Room under the shelf, so the first tab starts a group of its own. */
+private val PinnedShelfGap = 10.dp
+
+/**
+ * The colours of the pinned sites' shelf, from the theme's roles only: the same tonal surface and
+ * hairline as the find bar and the permission card, the secondary content colour for the icons,
+ * and the accent for the dot of a site with a tab open.
+ */
+internal data class PinnedShelfColors(
+    val container: Color,
+    val border: Color,
+    val icon: Color,
+    val openDot: Color
+)
+
+internal fun pinnedShelfColors(scheme: ColorScheme) = PinnedShelfColors(
+    container = scheme.surfaceContainerHigh,
+    border = scheme.outlineVariant,
+    icon = scheme.onSurfaceVariant,
+    openDot = scheme.primary
+)
+
+/** What a pinned site is called to a screen reader and in its tooltip. */
+internal fun pinnedSiteLabel(title: String, open: Boolean): String =
+    if (open) "$title, pinned, open" else "$title, pinned"
+
+/**
+ * The ids of the [bookmarks] with a tab open on them: a web page in [tabs] at the bookmark's page
+ * or below it ([PageAddress.isUnder]), the same rule that decides which tab a click shows.
+ */
+internal fun openBookmarkIds(bookmarks: List<BookmarkItem>, tabs: List<BrowserTab>): Set<String> {
+    val pages = tabs.mapNotNull { tab -> if (tab.isWebPage) PageAddress.of(tab.url) else null }
+    return bookmarks.filter { bookmark ->
+        val address = PageAddress.of(bookmark.url)
+        address != null && pages.any { it.isUnder(address) }
+    }.mapTo(HashSet()) { it.id }
+}
 
 /**
  * How many extension buttons sit at the bottom of the rail. With more extensions than this,
@@ -88,14 +147,16 @@ internal fun railExtensionSlots(railHeight: Dp): Int {
 }
 
 /**
- * The vertical strip on the left edge: tab switcher, pinned sites, open tabs, new tab, and the
- * toolbar buttons of extensions at the bottom.
+ * The vertical strip on the left edge: tab switcher, the shelf of pinned sites, open tabs, new
+ * tab, and the toolbar buttons of extensions at the bottom.
  * Shown on medium and large windows; compact windows use the tab-count button instead, and
  * their extension buttons live in the More menu.
  *
  * @param extensions extensions with a toolbar button, in the order they are shown.
  * @param openPopupExtensionId the extension whose popup is open, marked like a selected tab.
  * @param dragState when given, tab tiles can be dragged onto the panes; [onDropTab] gets the drop.
+ * @param onOpenBookmark a pinned site was clicked: show its open tab, or open it.
+ * @param onOpenBookmarkInNewTab "Open in new tab" from a pinned site's menu.
  */
 @Composable
 fun TabRail(
@@ -107,6 +168,7 @@ fun TabRail(
     onAssignTabToPane: (paneIndex: Int, tabId: String) -> Unit,
     onNewTab: () -> Unit,
     onOpenBookmark: (String) -> Unit,
+    onOpenBookmarkInNewTab: (String) -> Unit,
     onRemoveBookmark: (String) -> Unit,
     modifier: Modifier = Modifier,
     onClosePane: (paneIndex: Int) -> Unit = {},
@@ -118,6 +180,9 @@ fun TabRail(
     onManageExtensions: () -> Unit = {}
 ) {
     val pinned = uiState.bookmarks.take(MAX_PINNED_SITES)
+    val openPins = remember(pinned, uiState.tabs) { openBookmarkIds(pinned, uiState.tabs) }
+    val context = LocalContext.current
+    val reduceMotion = remember(context) { animationsOff(context) }
 
     BoxWithConstraints(
         modifier = modifier
@@ -156,14 +221,16 @@ fun TabRail(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     if (pinned.isNotEmpty()) {
-                        items(pinned, key = { "pin-${it.id}" }) { bookmark ->
-                            PinnedSiteItem(
-                                bookmark = bookmark,
-                                onOpen = { onOpenBookmark(bookmark.url) },
-                                onRemove = { onRemoveBookmark(bookmark.id) }
+                        item(key = "pinned-shelf") {
+                            PinnedShelf(
+                                pinned = pinned,
+                                openPins = openPins,
+                                reduceMotion = reduceMotion,
+                                onOpen = onOpenBookmark,
+                                onOpenInNewTab = onOpenBookmarkInNewTab,
+                                onRemove = onRemoveBookmark
                             )
                         }
-                        item(key = "pin-divider") { RailDivider() }
                     }
                     items(uiState.tabs, key = { it.id }) { tab ->
                         val paneIndex = uiState.paneIndexOf(tab.id)
@@ -352,6 +419,18 @@ private fun RailExtensionsOverflow(
     }
 }
 
+/** How a [RailTile] looks when it is neither selected nor highlighted. */
+private enum class RailTileStyle {
+    /** A bare button, such as an extension's. */
+    Button,
+
+    /** An open tab: a subtle tile of its own, a bordered card like [ListCard]. */
+    Tab,
+
+    /** A pinned site: a bare icon on the shelf, with a round hover and press area. */
+    Pinned
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun RailTile(
@@ -362,6 +441,9 @@ private fun RailTile(
     onClick: () -> Unit,
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    style: RailTileStyle = RailTileStyle.Button,
+    /** What the tooltip shows, when it says less than [label], the accessible name. */
+    tooltip: String = label,
     content: @Composable () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -369,24 +451,34 @@ private fun RailTile(
         targetValue = when {
             selected -> colors.surfaceContainerHighest
             highlighted -> colors.surfaceContainerHigh
+            style == RailTileStyle.Tab -> colors.surfaceContainerLow
             else -> Color.Transparent
         },
         label = "railTileFill"
     )
+    val shape: Shape = if (style == RailTileStyle.Pinned) CircleShape else MaterialTheme.shapes.medium
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text(label) } },
+        tooltip = { PlainTooltip { Text(tooltip) } },
         state = rememberTooltipState(),
         focusable = false
     ) {
         Box(contentAlignment = Alignment.CenterStart) {
             Box(
                 modifier = modifier
-                    .padding(horizontal = 4.dp)
+                    // On the shelf the 48dp touch target fills the shelf's width
+                    .padding(horizontal = if (style == RailTileStyle.Pinned) 0.dp else 4.dp)
                     .minimumInteractiveComponentSize()
                     .size(RemDimens.ControlSize)
-                    .clip(MaterialTheme.shapes.medium)
+                    .clip(shape)
                     .background(fill)
+                    .then(
+                        if (style == RailTileStyle.Tab) {
+                            Modifier.border(1.dp, colors.outlineVariant, shape)
+                        } else {
+                            Modifier
+                        }
+                    )
                     .contextMenuTrigger(onOpenMenu)
                     .combinedClickable(
                         role = role,
@@ -439,6 +531,7 @@ private fun RailTabItem(
             role = Role.Tab,
             onClick = onSelect,
             onOpenMenu = { showMenu = true },
+            style = RailTileStyle.Tab,
             modifier = Modifier
                 .testTag("tab_bar_item_${tab.id}")
                 .then(
@@ -518,23 +611,89 @@ private fun RailTabItem(
     }
 }
 
+/**
+ * The pinned sites, together on one tonal capsule at the top of the rail, so they never read as
+ * open tabs. A dot on a site's icon says a tab is open at its page or below it ([openPins]).
+ */
+@Composable
+private fun PinnedShelf(
+    pinned: List<BookmarkItem>,
+    openPins: Set<String>,
+    reduceMotion: Boolean,
+    onOpen: (String) -> Unit,
+    onOpenInNewTab: (String) -> Unit,
+    onRemove: (String) -> Unit
+) {
+    val shelf = pinnedShelfColors(MaterialTheme.colorScheme)
+    Surface(
+        modifier = Modifier
+            .padding(top = 2.dp, bottom = PinnedShelfGap)
+            .width(PinnedShelfWidth)
+            .testTag("pinned_shelf"),
+        // Half the shelf's width, so its ends are round and each icon's hover circle sits in them
+        shape = MaterialTheme.shapes.extraLarge,
+        color = shelf.container,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, shelf.border)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            pinned.forEach { bookmark ->
+                PinnedSiteItem(
+                    bookmark = bookmark,
+                    isOpen = bookmark.id in openPins,
+                    colors = shelf,
+                    reduceMotion = reduceMotion,
+                    onOpen = { onOpen(bookmark.url) },
+                    onOpenInNewTab = { onOpenInNewTab(bookmark.url) },
+                    onRemove = { onRemove(bookmark.id) }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun PinnedSiteItem(
     bookmark: BookmarkItem,
+    isOpen: Boolean,
+    colors: PinnedShelfColors,
+    reduceMotion: Boolean,
     onOpen: () -> Unit,
+    onOpenInNewTab: () -> Unit,
     onRemove: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box {
         RailTile(
-            label = bookmark.title,
+            // Said in words as well as shown by the dot, which is never the only sign; the
+            // tooltip, beside the dot, needs only the name
+            label = pinnedSiteLabel(bookmark.title, isOpen),
+            tooltip = bookmark.title,
             selected = false,
             highlighted = false,
             role = Role.Button,
             onClick = onOpen,
-            onOpenMenu = { showMenu = true }
+            onOpenMenu = { showMenu = true },
+            style = RailTileStyle.Pinned,
+            modifier = Modifier.testTag("pinned_site_${bookmark.id}")
         ) {
-            SiteIcon(url = bookmark.url, title = bookmark.title)
+            Box(modifier = Modifier.size(PinnedIconSize + 8.dp)) {
+                SiteIcon(
+                    url = bookmark.url,
+                    title = bookmark.title,
+                    size = PinnedIconSize,
+                    tint = colors.icon,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                OpenSiteDot(
+                    visible = isOpen,
+                    colors = colors,
+                    reduceMotion = reduceMotion,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .testTag("pinned_open_dot_${bookmark.id}")
+                )
+            }
         }
         RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
             DropdownMenuItem(
@@ -542,6 +701,13 @@ private fun PinnedSiteItem(
                 onClick = {
                     showMenu = false
                     onOpen()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Open in new tab") },
+                onClick = {
+                    showMenu = false
+                    onOpenInNewTab()
                 }
             )
             DropdownMenuItem(
@@ -554,3 +720,36 @@ private fun PinnedSiteItem(
         }
     }
 }
+
+/**
+ * The accent dot on a pinned site with a tab open, ringed in the shelf's colour so it stands
+ * clear of any favicon. It fades in and out, or just appears with Android's animations off.
+ */
+@Composable
+private fun OpenSiteDot(
+    visible: Boolean,
+    colors: PinnedShelfColors,
+    reduceMotion: Boolean,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = if (reduceMotion) EnterTransition.None else fadeIn(tween(180)),
+        exit = if (reduceMotion) ExitTransition.None else fadeOut(tween(120)),
+        modifier = modifier
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(colors.container, CircleShape)
+                .padding(2.dp)
+                .background(colors.openDot, CircleShape)
+        )
+    }
+}
+
+/** Android's animations are turned off (Settings → Accessibility → Remove animations). */
+private fun animationsOff(context: Context): Boolean =
+    runCatching {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }.getOrDefault(false)

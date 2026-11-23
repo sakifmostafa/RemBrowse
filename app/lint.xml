@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <lint>
-    <!-- Reported against ExoPlayer's notification helper bundled inside GeckoView.
-         RemBrowse itself never posts notifications, so it does not request the permission. -->
+    <!-- Reported against ExoPlayer's notification helper bundled inside GeckoView, which
+         RemBrowse never uses. RemBrowse asks for POST_NOTIFICATIONS itself when a site is allowed
+         to show notifications. -->
     <issue id="NotificationPermission" severity="ignore" />
     <!-- The terminal emulator is Termux's code, kept as it is upstream (see com/termux/README.md). -->
     <issue id="DefaultLocale">

@@ -9,11 +9,16 @@ import android.os.SystemClock
 import android.util.Log
 import android.webkit.MimeTypeMap
 import com.rembrowser.rembrowse.BuildConfig
+import com.rembrowser.rembrowse.data.SharedPrefsSitePermissionStore
+import com.rembrowser.rembrowse.data.SitePermissionStore
 import com.rembrowser.rembrowse.data.UploadCache
 import com.rembrowser.rembrowse.model.PageContextMenu
 import com.rembrowser.rembrowse.model.PageMediaType
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PromptOption
+import com.rembrowser.rembrowse.model.SitePermissionEntry
+import com.rembrowser.rembrowse.model.SitePermissionKind
+import com.rembrowser.rembrowse.model.SitePermissionState
 import com.rembrowser.rembrowse.util.ErrorPages
 import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoResult
@@ -274,7 +279,11 @@ class GeckoSessionHandle(
 
 class GeckoBrowserEngine(
     context: Context,
-    providedRuntime: GeckoRuntime? = null
+    providedRuntime: GeckoRuntime? = null,
+    /** Where camera and microphone decisions are kept; Gecko keeps the other kinds itself. */
+    sitePermissionStore: SitePermissionStore = SharedPrefsSitePermissionStore(context),
+    /** Asks Android for the app's camera, microphone and location permissions; null asks for none. */
+    androidPermissions: AndroidPermissionRequester? = null
 ) : BrowserEngine {
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -304,9 +313,14 @@ class GeckoBrowserEngine(
     /** Tells context menus apart, so the same menu asked for twice opens twice. */
     private var contextMenuSerial = 0L
 
+    // Without a permission delegate Gecko refuses camera, microphone, location and notifications
+    // to every site ("No listener for GeckoView:ContentPermission")
+    private val sitePermissions = GeckoSitePermissions(appContext, sitePermissionStore, androidPermissions)
+
     init {
         GeckoPagePrinter.clearLeftoverPrintFiles(appContext)
         installPageMenuHelper()
+        sitePermissions.start()
     }
 
     override fun createSession(
@@ -409,6 +423,7 @@ class GeckoBrowserEngine(
                     handle.lastUrl = url
                     listener.onSessionUpdated(tabId, SessionNavigationUpdate(url = url))
                 }
+                sitePermissions.onLocationChange(handle, url, perms)
             }
 
             override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
@@ -446,10 +461,18 @@ class GeckoBrowserEngine(
                 session: GeckoSession,
                 devices: Array<GeckoSession.MediaDelegate.RecordingDevice>
             ) {
-                val recording = devices.any {
-                    it.status == GeckoSession.MediaDelegate.RecordingDevice.Status.RECORDING
-                }
-                listener.onRecordingChanged(tabId, recording)
+                val capturing = devices
+                    .filter { it.status == GeckoSession.MediaDelegate.RecordingDevice.Status.RECORDING }
+                    .mapNotNull {
+                        when (it.type) {
+                            GeckoSession.MediaDelegate.RecordingDevice.Type.CAMERA -> SitePermissionKind.CAMERA
+                            GeckoSession.MediaDelegate.RecordingDevice.Type.MICROPHONE -> SitePermissionKind.MICROPHONE
+                            else -> null
+                        }
+                    }
+                    .toSet()
+                listener.onRecordingChanged(tabId, capturing.isNotEmpty())
+                listener.onCaptureDevicesChanged(tabId, capturing, sitePermissions.pageOriginOf(tabId))
             }
         }
 
@@ -514,19 +537,32 @@ class GeckoBrowserEngine(
                 listener.onCloseRequested(tabId)
             }
 
+            // A dead content process captures nothing, and can't send the "stopped" report itself.
+            // Without this the tab still counted as capturing on its old site, and blocking that
+            // site's camera later reloaded it wherever it had gone since.
+            private fun captureEnded() {
+                listener.onRecordingChanged(tabId, false)
+                listener.onCaptureDevicesChanged(tabId, emptySet(), null)
+            }
+
             override fun onCrash(session: GeckoSession) {
                 Log.w(TAG, "Content process crashed for tab $tabId")
+                sitePermissions.onPageGone(handle)
+                captureEnded()
                 handle.onContentProcessGone(crashed = true)
             }
 
             override fun onKill(session: GeckoSession) {
                 Log.w(TAG, "Content process was killed for tab $tabId")
+                sitePermissions.onPageGone(handle)
+                captureEnded()
                 handle.onContentProcessGone(crashed = false)
             }
         }
 
         geckoSession.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStart(session: GeckoSession, url: String) {
+                sitePermissions.onPageStart(handle, url)
                 listener.onSessionUpdated(
                     tabId,
                     SessionNavigationUpdate(
@@ -574,6 +610,8 @@ class GeckoBrowserEngine(
         }
 
         geckoSession.promptDelegate = GeckoPagePrompts(tabId, listener, appContext, uploads)
+
+        geckoSession.permissionDelegate = sitePermissions.delegateFor(handle)
 
         // Set before a view takes the session, so GeckoView keeps it instead of its own
         geckoSession.printDelegate = GeckoPagePrinter(
@@ -702,6 +740,7 @@ class GeckoBrowserEngine(
             if (owner != null && owner.session === handle.session) {
                 owner.releaseSession()
             }
+            sitePermissions.onSessionClosed(handle)
             handle.close()
         }
     }
@@ -729,6 +768,23 @@ class GeckoBrowserEngine(
                     .setStrictSocialTrackingProtection(enabled)
             }.onFailure { Log.w(TAG, "Could not update tracking protection", it) }
         }
+    }
+
+    override fun loadSitePermissions(onResult: (List<SitePermissionEntry>) -> Unit) {
+        runOnMain { sitePermissions.load(onResult) }
+    }
+
+    override fun setSitePermission(
+        origin: String,
+        kind: SitePermissionKind,
+        state: SitePermissionState?,
+        embeddedOrigin: String?
+    ) {
+        runOnMain { sitePermissions.set(origin, kind, state, embeddedOrigin) }
+    }
+
+    override fun clearSitePermissions(origin: String) {
+        runOnMain { sitePermissions.clear(origin) }
     }
 
     private fun runOnMain(block: () -> Unit) {

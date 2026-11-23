@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.13.16`)
+# RemBrowse (`v0.13.17`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.13.16** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
+**Version 0.13.17** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
@@ -37,6 +37,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Its own settings page**: Settings open in a tab at `rem://settings`, with sections for appearance, search engine, tabs, privacy, history, downloads, extensions and about.
 * **History** (`Ctrl+H`): the pages you have visited, grouped by day, searchable, and suggested in the command palette. It stays on the device and can be cleared or switched off.
 * **Updates itself**: Settings → About checks for a new version, downloads the one for your processor, verifies it and hands it to Android's installer, keeping your tabs and settings. A daily check (which you can turn off) lets you know when one is out.
+* **Site permissions and notifications**: when a site asks for your camera, microphone, location or notifications, a card in its tab asks Block, Allow this time or Allow, and Settings → Site permissions lists every answer. Sites you allow (Telegram, WhatsApp, Gmail…) post real Android notifications that open their tab when tapped.
 * **Uploads**: a page's upload button (Google Drive, Proton Drive, X…) opens the system file picker, for one file or several.
 * **Downloads**: files a page offers are saved to the device's Downloads folder. You are asked first, with the file's name, size and site; recent downloads are listed in Settings → Downloads (`Ctrl+J`).
 * **Ad blocking out of the box**: uBlock Origin is set up automatically on first launch and can be switched off or removed at any time (Settings → Privacy). Copies that came with AdGuard AdBlocker move to uBlock Origin once, with AdGuard kept but switched off.
