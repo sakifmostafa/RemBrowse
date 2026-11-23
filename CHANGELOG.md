@@ -2,6 +2,14 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.18 (2026-11-23) — Screenshots to the clipboard
+
+### Added
+* **Ctrl+Alt+S takes a screenshot** and puts it on the clipboard, ready to paste into a chat. The window dims and the pointer becomes a crosshair: drag around any part of it (pages, toolbar, tabs) or click a page to capture all of it; Esc cancels. A small notice with a thumbnail confirms the copy. Paste it with Ctrl+V into Telegram, WhatsApp or any page in RemBrowse, or into another app. Also **More → Take screenshot**, the command palette and the page's right-click menu. Only RemBrowse's own window is captured, and only the latest screenshot is kept on the device.
+
+### Testing
+1028 automated tests (72 of them screenshot renders that run only on request), including the selection geometry, the shortcut, the clipboard file and its type, the overlay's states, the menus, and contrast of the selection over any page. On an Android tablet emulator: a dragged area was copied at exactly its size, a click captured a whole page in both the Standard and the Direct page-rendering modes (the page's real pixels, not a black hole), the More menu's button opened the capture, and Ctrl+V into a page in RemBrowse delivered the picture as a PNG file the page could show. Checked by an independent review; its findings were fixed.
+
 ## v0.13.17 (2026-11-23) — Site permissions, notifications and a clearer tab rail
 
 ### Added

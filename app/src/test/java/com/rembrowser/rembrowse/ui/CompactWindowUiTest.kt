@@ -125,9 +125,10 @@ class CompactWindowUiTest {
     fun compactWindow_settingsScrollTheOpenSectionIntoView() {
         launch()
 
-        // Extensions is the fourth chip: on a 360dp window it starts off screen
+        // Extensions is the fourth chip: on a 360dp window it starts off screen. The menu is
+        // taller than the window too, so its row is scrolled to first.
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_extensions").performClick()
+        composeRule.onNodeWithTag("menu_extensions").performScrollTo().performClick()
 
         composeRule.onNodeWithTag("settings_section_extensions").assertIsDisplayed().assertIsSelected()
         composeRule.onNodeWithTag("extensions_panel").assertIsDisplayed()
@@ -140,7 +141,7 @@ class CompactWindowUiTest {
 
         // Downloads sits in the middle of the row: its chip is brought into view as well
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_downloads").performClick()
+        composeRule.onNodeWithTag("menu_downloads").performScrollTo().performClick()
         composeRule.onNodeWithTag("settings_section_downloads").assertIsDisplayed().assertIsSelected()
         composeRule.onNodeWithTag("downloads_panel").assertIsDisplayed()
     }

@@ -65,7 +65,10 @@ enum class PageMenuAction {
     BOOKMARK,
     COPY_PAGE_ADDRESS,
     FIND_IN_PAGE,
-    PRINT
+    PRINT,
+
+    /** Puts the screenshot overlay up, over the whole window (see the screen's ScreenCaptureOverlay). */
+    SCREENSHOT
 }
 
 /** One row of the menu; [enabled] false shows it greyed out (Back with nowhere to go back to). */
@@ -109,7 +112,8 @@ fun pageMenuSections(menu: PageContextMenu, tab: BrowserTab?, canSplit: Boolean)
                 PageMenuEntry(PageMenuAction.BOOKMARK),
                 PageMenuEntry(PageMenuAction.COPY_PAGE_ADDRESS),
                 PageMenuEntry(PageMenuAction.FIND_IN_PAGE),
-                PageMenuEntry(PageMenuAction.PRINT)
+                PageMenuEntry(PageMenuAction.PRINT),
+                PageMenuEntry(PageMenuAction.SCREENSHOT)
             )
         )
     }

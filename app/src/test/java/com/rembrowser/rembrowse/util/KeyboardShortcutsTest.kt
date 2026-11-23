@@ -202,4 +202,45 @@ class KeyboardShortcutsTest {
             )
         )
     }
+
+    @Test
+    fun ctrlAltS_takesAScreenshot_everywhere_aTerminalIncluded() {
+        for (inTerminal in listOf(false, true)) {
+            assertEquals(
+                "inTerminal=$inTerminal",
+                BrowserShortcut.SCREENSHOT,
+                KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = true, alt = true, inTerminal = inTerminal)
+            )
+            assertNull("Held, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = true, alt = true, repeatCount = 1, inTerminal = inTerminal))
+            assertNull("With Shift, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = true, shift = true, alt = true, inTerminal = inTerminal))
+            assertNull("With Meta, inTerminal=$inTerminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = true, alt = true, meta = true, inTerminal = inTerminal))
+        }
+        // The page's and the shell's own keys stay theirs: Ctrl+S saves in web apps, Ctrl+S is XOFF in a shell
+        assertNull("Ctrl+S", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = true))
+        assertNull("Ctrl+S in a terminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = true, inTerminal = true))
+        assertNull("Alt+S", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = false, alt = true))
+        assertNull("Alt+S in a terminal", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = false, alt = true, inTerminal = true))
+        assertNull("Ctrl+Shift+S", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = true, shift = true))
+        assertNull("Plain S is typing", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_S, ctrl = false))
+        // Other Ctrl+Alt keys are still left alone
+        assertNull("Ctrl+Alt+D", KeyboardShortcuts.resolve(KeyEvent.KEYCODE_D, ctrl = true, alt = true))
+    }
+
+    @Test
+    fun whileTheScreenshotOverlayIsUp_escCancels_enterTakes_andOtherKeysStayOffThePage() {
+        fun key(code: Int, system: Boolean = false, physical: Boolean = true) =
+            KeyboardShortcuts.screenCaptureKey(code, isSystemKey = system, fromPhysicalKeyboard = physical)
+
+        assertEquals(ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_ESCAPE))
+        assertEquals("An on-screen Esc too", ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_ESCAPE, physical = false))
+        // A laptop keyboard that sends its Esc key as Back
+        assertEquals(ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_BACK, system = true))
+        // The system's own Back goes on to the screen's Back handler, which cancels too
+        assertEquals(ScreenCaptureKey.PASS, key(KeyEvent.KEYCODE_BACK, system = true, physical = false))
+        assertEquals(ScreenCaptureKey.CAPTURE_FOCUSED, key(KeyEvent.KEYCODE_ENTER))
+        assertEquals(ScreenCaptureKey.CAPTURE_FOCUSED, key(KeyEvent.KEYCODE_NUMPAD_ENTER))
+        assertEquals("Volume still works", ScreenCaptureKey.PASS, key(KeyEvent.KEYCODE_VOLUME_UP, system = true))
+        listOf(KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_DPAD_DOWN)
+            .forEach { assertEquals("Key $it", ScreenCaptureKey.SWALLOW, key(it)) }
+    }
 }

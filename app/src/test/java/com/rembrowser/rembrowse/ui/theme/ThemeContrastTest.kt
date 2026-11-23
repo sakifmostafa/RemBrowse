@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.rembrowser.rembrowse.model.AccentColor
+import com.rembrowser.rembrowse.ui.components.CaptureScrimAlpha
 import com.rembrowser.rembrowse.ui.components.pinnedShelfColors
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -101,5 +102,22 @@ class ThemeContrastTest {
         )
         assertContrast("$name clock on backdrop", c.onSurface, blended, 4.5)
         assertContrast("$name date hint on backdrop", c.onSurfaceVariant, blended, 4.5)
+    }
+
+    @Test
+    fun screenshotSelectionOutline_standsOutFromAnyDimmedPage() = forEveryTheme { name, c ->
+        // The outline is the accent with a hairline of its own contrast colour beside it, drawn on
+        // the page dimmed by the overlay's scrim. Whatever the page, one of the two must stand out.
+        val pages = (0..255 step 15).map { Color(it, it, it) } +
+            listOf(Color(0xFF2F5AA8), Color(0xFFE53935), Color(0xFF43A047), Color(0xFFFFEB3B), Color(0xFF6C2038))
+        for (page in pages) {
+            val keep = 1f - CaptureScrimAlpha
+            val dimmed = Color(red = page.red * keep, green = page.green * keep, blue = page.blue * keep)
+            val strongest = maxOf(contrast(c.primary, dimmed), contrast(c.onPrimary, dimmed))
+            assertTrue(
+                "$name outline on a dimmed $page is ${"%.2f".format(strongest)}:1, needs 3.0:1",
+                strongest >= 3.0
+            )
+        }
     }
 }

@@ -941,7 +941,7 @@ private fun ResizeForKeyboard() {
 }
 
 /** Android's animations are turned off (Settings → Accessibility → Remove animations). */
-private fun systemAnimationsOff(context: Context): Boolean =
+internal fun systemAnimationsOff(context: Context): Boolean =
     runCatching {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }.getOrDefault(false)

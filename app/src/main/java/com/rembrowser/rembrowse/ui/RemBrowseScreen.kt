@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FindInPage
 import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.ScreenshotMonitor
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
@@ -54,6 +55,7 @@ import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.TerminalTarget
 import com.rembrowser.rembrowse.model.TerminalUrls
 import com.rembrowser.rembrowse.model.PageMenuAction
+import com.rembrowser.rembrowse.model.PxRect
 import com.rembrowser.rembrowse.model.pageMenuCopyText
 import com.rembrowser.rembrowse.ui.components.BookmarksDialog
 import com.rembrowser.rembrowse.ui.components.BrowserTopBar
@@ -76,6 +78,15 @@ import com.rembrowser.rembrowse.ui.components.SitePermissionActions
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
 import com.rembrowser.rembrowse.ui.components.PrintScreen
+import com.rembrowser.rembrowse.ui.components.CaptureRegionLifetime
+import com.rembrowser.rembrowse.ui.components.CaptureRegionMarker
+import com.rembrowser.rembrowse.ui.components.CaptureRegions
+import com.rembrowser.rembrowse.ui.components.FocusBeforeCapture
+import com.rembrowser.rembrowse.ui.components.ScreenCaptureOverlay
+import com.rembrowser.rembrowse.ui.components.ScreenCaptureState
+import com.rembrowser.rembrowse.ui.components.ScreenshotNoticeBar
+import com.rembrowser.rembrowse.ui.components.ScreenshotResult
+import com.rembrowser.rembrowse.ui.components.reportCaptureRegion
 import com.rembrowser.rembrowse.ui.components.sendPdfToPrinter
 import com.rembrowser.rembrowse.ui.components.SettingsActions
 import com.rembrowser.rembrowse.ui.components.SettingsPage
@@ -96,6 +107,9 @@ import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
 import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
 import androidx.compose.ui.platform.LocalContext
 import com.rembrowser.rembrowse.engine.PointerDevices
+import androidx.compose.ui.platform.LocalView
+import java.lang.ref.WeakReference
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Which overlays of the browser chrome are open. Lives outside the composition so hardware
@@ -143,11 +157,28 @@ class BrowserChromeState {
     /** True while the tab switcher's search field has keyboard focus. */
     var isTabSearchFocused by mutableStateOf(false)
 
+    /** The screenshot overlay (Ctrl+Alt+S) and the notice after it. */
+    val screenCapture = ScreenCaptureState()
+
     /** Moves keyboard focus to the address bar (and selects its text) on the next frame. */
     fun focusAddressBar() {
         showTabSwitcher = false
         pendingContentFocus = false
         addressFocusRequests++
+    }
+
+    /** Gives the address bar the keyboard back, leaving the tab switcher as it is. */
+    fun refocusAddressBar() {
+        pendingContentFocus = false
+        addressFocusRequests++
+    }
+
+    internal var tabSearchFocusRequests by mutableIntStateOf(0)
+        private set
+
+    /** Gives the open tab switcher's search field the keyboard back. */
+    fun focusTabSearch() {
+        tabSearchFocusRequests++
     }
 
     /**
@@ -183,6 +214,12 @@ fun RemBrowseScreen(
     updatesViewModel: UpdatesViewModel? = null,
     /** Terminal tabs and Settings → Terminal; null leaves them empty (as in tests that don't need them). */
     terminalViewModel: TerminalViewModel? = null,
+    /**
+     * Copies the window pixels in the area (window coordinates, the overlay already gone) to the
+     * clipboard as a picture, and says what became of it. Cancelled if it takes too long, after
+     * which it must leave the clipboard alone. Without one, a screenshot fails.
+     */
+    onCaptureScreen: suspend (area: PxRect) -> ScreenshotResult = { ScreenshotResult.Failed },
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     extensionPopupContent: @Composable (Modifier) -> Unit
 ) {
@@ -322,6 +359,11 @@ fun RemBrowseScreen(
     val printPage = {
         chrome.showTabSwitcher = false
         browserViewModel.printPage()
+    }
+    // The tab switcher stays open: it can be taken too
+    val takeScreenshot = {
+        chrome.screenCapture.start()
+        Unit
     }
     val updatesState = updatesViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     val updateActions = remember(updatesViewModel) {
@@ -467,6 +509,7 @@ fun RemBrowseScreen(
                     onOpenHistory = openHistory,
                     onFindInPage = openFindInPage,
                     onPrint = printPage,
+                    onTakeScreenshot = takeScreenshot,
                     onOpenExtensions = openExtensions,
                     onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
@@ -528,6 +571,8 @@ fun RemBrowseScreen(
                         },
                         paneViewport = paneViewport,
                         paneOverlay = { tab ->
+                            // A click on the screenshot overlay over this pane takes all of it
+                            CaptureRegionMarker(chrome.screenCapture, CaptureRegions.pane(tab.id))
                             // The oldest question of this pane's tab, under the find bar if both are open
                             PermissionPromptOverlay(
                                 request = permissionRequests.firstOrNull { it.tabId == tab.id },
@@ -547,6 +592,7 @@ fun RemBrowseScreen(
                                         if (action == PageMenuAction.COPY_IMAGE) {
                                             menu.copyableImageUrl?.let { onCopyImage(it, tab.url) }
                                         }
+                                        if (action == PageMenuAction.SCREENSHOT) takeScreenshot()
                                     }
                                     browserViewModel.onPageMenuAction(action)
                                 },
@@ -556,6 +602,7 @@ fun RemBrowseScreen(
                     )
 
                     if (chrome.showTabSwitcher && !fullscreen) {
+                        CaptureRegionLifetime(chrome.screenCapture, CaptureRegions.TAB_SWITCHER)
                         TabSwitcher(
                             uiState = browserState,
                             framed = !compact,
@@ -567,7 +614,10 @@ fun RemBrowseScreen(
                             onNewTab = openNewTab,
                             onDismiss = closeTabSwitcher,
                             onSearchFocusChange = { chrome.isTabSearchFocused = it },
-                            modifier = if (compact) Modifier else Modifier.padding(end = 6.dp, bottom = 6.dp)
+                            searchFocusRequests = chrome.tabSearchFocusRequests,
+                            modifier = (if (compact) Modifier else Modifier.padding(end = 6.dp, bottom = 6.dp))
+                                // Over the panes: a click on the screenshot overlay there takes the switcher
+                                .reportCaptureRegion(chrome.screenCapture, CaptureRegions.TAB_SWITCHER, layer = 1)
                         )
                     }
                 }
@@ -600,6 +650,10 @@ fun RemBrowseScreen(
                     downloadsViewModel.clearMessage()
                 }
             )
+            ScreenshotNoticeBar(
+                notice = chrome.screenCapture.notice,
+                onDismiss = chrome.screenCapture::dismissNotice
+            )
         }
 
         extensionsState.activePopup?.let { popup ->
@@ -611,6 +665,72 @@ fun RemBrowseScreen(
                 onDismiss = extensionsViewModel::dismissPopup,
                 popupContent = extensionPopupContent
             )
+        }
+    }
+
+    // Over everything else in the window, the chrome included
+    val screenCapture = chrome.screenCapture
+    when (screenCapture.phase) {
+        ScreenCaptureState.Phase.SELECTING -> ScreenCaptureOverlay(
+            state = screenCapture,
+            focusedRegionKey = if (chrome.showTabSwitcher && !fullscreen) {
+                CaptureRegions.TAB_SWITCHER
+            } else {
+                browserState.activeTabId?.let(CaptureRegions::pane)
+            }
+        )
+        ScreenCaptureState.Phase.CAPTURING -> screenCapture.area?.let { area ->
+            val generation = screenCapture.generation
+            LaunchedEffect(generation) {
+                // The overlay left with this phase. Two frames make sure the window has drawn
+                // without it; the copy itself then waits for the next frame to be handed over.
+                withFrameNanos { }
+                withFrameNanos { }
+                // Given up on after a while, which cancels the copy too: it frees its pictures and
+                // can't reach the clipboard later
+                val result = withTimeoutOrNull(SCREENSHOT_TIMEOUT_MILLIS) { onCaptureScreen(area) }
+                    ?: ScreenshotResult.Failed
+                screenCapture.finish(result, generation)
+            }
+        }
+        ScreenCaptureState.Phase.IDLE -> Unit
+    }
+    // Composed after every other Back handler, so it comes first while the overlay is up
+    BackHandler(enabled = screenCapture.isSelecting, onBack = screenCapture::cancel)
+    // The keyboard goes back to whatever had it when the overlay came up: noted before the overlay
+    // takes the focus (a frame later), given back once it has gone, however it went
+    val composeView = LocalView.current
+    val focusBeforeCapture = remember { arrayOfNulls<FocusBeforeCapture>(1) }
+    LaunchedEffect(screenCapture.isSelecting) {
+        if (screenCapture.isSelecting) {
+            val state = browserViewModel.uiState.value
+            val focusedView = composeView.rootView.findFocus()
+            focusBeforeCapture[0] = when {
+                chrome.showTabSwitcher && chrome.isTabSearchFocused -> FocusBeforeCapture.TabSearch
+                state.isAddressBarFocused -> FocusBeforeCapture.AddressBar(state.addressBarInput)
+                focusedView != null && focusedView !== composeView -> FocusBeforeCapture.View(WeakReference(focusedView))
+                chrome.showTabSwitcher -> FocusBeforeCapture.Nothing
+                else -> FocusBeforeCapture.Page
+            }
+            return@LaunchedEffect
+        }
+        val before = focusBeforeCapture[0] ?: return@LaunchedEffect
+        focusBeforeCapture[0] = null
+        // The overlay has left the screen, and its focus with it
+        withFrameNanos { }
+        when (before) {
+            is FocusBeforeCapture.AddressBar -> {
+                // Losing the focus put the page's address back in place of what was being typed
+                browserViewModel.onAddressBarChange(before.typed)
+                chrome.refocusAddressBar()
+            }
+            FocusBeforeCapture.TabSearch -> chrome.focusTabSearch()
+            is FocusBeforeCapture.View -> {
+                val view = before.view.get()?.takeIf { it.isAttachedToWindow && it.isShown }
+                if (view == null || !(view.isFocused || view.requestFocus())) chrome.focusContent()
+            }
+            FocusBeforeCapture.Page -> chrome.focusContent()
+            FocusBeforeCapture.Nothing -> Unit
         }
     }
 
@@ -643,6 +763,7 @@ fun RemBrowseScreen(
             },
             PaletteCommand("find_in_page", "Find in page", Icons.Outlined.FindInPage, "Ctrl+F", openFindInPage),
             PaletteCommand("print", "Print…", Icons.Outlined.Print, "Ctrl+P", printPage),
+            PaletteCommand("screenshot", "Take screenshot", Icons.Outlined.ScreenshotMonitor, "Ctrl+Alt+S", takeScreenshot),
             PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", openHistory),
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),
@@ -754,3 +875,6 @@ fun RemBrowseScreen(
         )
     }
 }
+
+/** A screenshot that hasn't come back by then (the engine never answered) is given up. */
+private const val SCREENSHOT_TIMEOUT_MILLIS = 10_000L

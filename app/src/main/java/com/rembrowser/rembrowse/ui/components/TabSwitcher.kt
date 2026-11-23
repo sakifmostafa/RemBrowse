@@ -41,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,7 +81,9 @@ fun TabSwitcher(
     onNewTab: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    onSearchFocusChange: (Boolean) -> Unit = {}
+    onSearchFocusChange: (Boolean) -> Unit = {},
+    /** Raised to put the keyboard back in the search field (after the screenshot overlay took it). */
+    searchFocusRequests: Int = 0
 ) {
     val colors = MaterialTheme.colorScheme
     var query by remember { mutableStateOf("") }
@@ -103,6 +106,14 @@ fun TabSwitcher(
         // With a hardware keyboard, typing should filter straight away. On touch devices
         // focusing would raise the on-screen keyboard over the grid, so the user opts in.
         if (hasKeyboard) runCatching { searchFocus.requestFocus() }
+    }
+    // Only requests made while the switcher is open: an older one must not raise the on-screen keyboard
+    val requestsAtOpen = remember { searchFocusRequests }
+    LaunchedEffect(searchFocusRequests) {
+        if (searchFocusRequests != requestsAtOpen) {
+            withFrameNanos { }
+            runCatching { searchFocus.requestFocus() }
+        }
     }
 
     val shape = if (framed) RoundedCornerShape(RemDimens.PaneRadius) else RoundedCornerShape(0.dp)

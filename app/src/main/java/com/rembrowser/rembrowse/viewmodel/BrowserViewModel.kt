@@ -931,7 +931,8 @@ class BrowserViewModel(
                 openFindInPage()
             }
             PageMenuAction.PRINT -> if (pane >= 0) printPage(pane)
-            // Copying happens in the UI, which has the clipboard
+            // Copying happens in the UI, which has the clipboard, and so does the screenshot overlay
+            PageMenuAction.SCREENSHOT,
             PageMenuAction.COPY_LINK,
             PageMenuAction.COPY_LINK_TEXT,
             PageMenuAction.COPY_IMAGE,

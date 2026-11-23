@@ -132,6 +132,8 @@ fun BrowserTopBar(
     onTriggerExtensionAction: (String) -> Unit,
     modifier: Modifier = Modifier,
     onPrint: () -> Unit = {},
+    /** Puts the screenshot overlay up (Ctrl+Alt+S). */
+    onTakeScreenshot: () -> Unit = {},
     onNewTerminal: () -> Unit = {},
     /** What the unfocused address bar shows instead of the address (a terminal's `ssh user@host`). */
     addressDisplay: String? = null
@@ -232,6 +234,7 @@ fun BrowserTopBar(
                 onOpenHistory = onOpenHistory,
                 onFindInPage = onFindInPage,
                 onPrint = onPrint,
+                onTakeScreenshot = onTakeScreenshot,
                 onOpenExtensions = onOpenExtensions,
                 onOpenSettings = onOpenSettings,
                 onOpenSplitView = { showLayoutMenu = true },
@@ -676,6 +679,7 @@ private fun MoreMenu(
     onOpenHistory: () -> Unit,
     onFindInPage: () -> Unit,
     onPrint: () -> Unit,
+    onTakeScreenshot: () -> Unit,
     onOpenExtensions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSplitView: () -> Unit,
@@ -740,6 +744,13 @@ private fun MoreMenu(
             enabled = pageActionsEnabled,
             onClick = run(onPrint),
             modifier = Modifier.testTag("menu_print")
+        )
+        // Anything in the window can be taken, so it is never greyed out
+        DropdownMenuItem(
+            text = { Text("Take screenshot") },
+            trailingIcon = { ShortcutHint("Ctrl+Alt+S") },
+            onClick = run(onTakeScreenshot),
+            modifier = Modifier.testTag("menu_screenshot")
         )
         if (compact) {
             DropdownMenuItem(

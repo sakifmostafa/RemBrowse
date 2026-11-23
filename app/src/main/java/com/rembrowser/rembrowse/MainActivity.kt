@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.rembrowser.rembrowse.data.ImageClipboard
 import com.rembrowser.rembrowse.data.GeckoImageClipboard
+import com.rembrowser.rembrowse.data.ScreenshotClipboard
 import com.rembrowser.rembrowse.data.AndroidDownloadStorage
 import com.rembrowser.rembrowse.data.AndroidUpdateInstaller
 import com.rembrowser.rembrowse.data.KeystoreSecretStore
@@ -58,11 +59,14 @@ import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
 import com.rembrowser.rembrowse.engine.PaneGeckoView
 import com.rembrowser.rembrowse.engine.TouchpadInputFilter
+import com.rembrowser.rembrowse.engine.WindowScreenshot
+import com.rembrowser.rembrowse.engine.asPageLayer
 import com.rembrowser.rembrowse.engine.usePageRendering
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
+import com.rembrowser.rembrowse.model.PxRect
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.terminal.TerminalScreenView
 import com.rembrowser.rembrowse.terminal.TrileadSshConnector
@@ -71,10 +75,14 @@ import com.rembrowser.rembrowse.ui.FullscreenWindowEffect
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
 import com.rembrowser.rembrowse.ui.components.ChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.components.LocalChromePointerIconClaim
+import com.rembrowser.rembrowse.ui.components.ScreenshotResult
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
+import com.rembrowser.rembrowse.ui.theme.remColorScheme
 import com.rembrowser.rembrowse.util.BrowserShortcut
 import com.rembrowser.rembrowse.util.KeyboardShortcuts
+import com.rembrowser.rembrowse.util.ScreenCaptureKey
 import com.rembrowser.rembrowse.util.PhysicalKeyRouter
+import com.rembrowser.rembrowse.util.TakenKeys
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
@@ -83,9 +91,18 @@ import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
 import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoView
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.WeakHashMap
+import kotlin.coroutines.resume
+import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -102,6 +119,9 @@ private const val TAG = "MainActivity"
 
 /** Under the cache directory; shared with the installer through the manifest's FileProvider. */
 private const val UPDATES_DIR = "updates"
+
+/** The screenshot notice's picture is drawn 40dp high; it is made twice that, to stay sharp. */
+private const val SCREENSHOT_THUMBNAIL_DP = 80
 
 /**
  * Owns the engine sessions and view models for as long as the browser window exists.
@@ -129,6 +149,9 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
     /** Puts pictures from pages on the clipboard (the page menu's Copy image). */
     val imageClipboard: ImageClipboard
 
+    /** Puts screenshots (Ctrl+Alt+S) on the clipboard, through the same files as Copy image. */
+    val screenshotClipboard: ScreenshotClipboard
+
     /**
      * Asks Android for the camera, microphone, location and notification permissions that sites
      * need, through the activity on screen. Kept here so a request survives activity re-creation.
@@ -137,7 +160,9 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
 
     init {
         val runtime = (application as RemBrowseApplication).geckoRuntime
-        imageClipboard = GeckoImageClipboard(application, runtime)
+        val clipboard = GeckoImageClipboard(application, runtime)
+        imageClipboard = clipboard
+        screenshotClipboard = clipboard
         engine = GeckoBrowserEngine(
             application,
             providedRuntime = runtime,
@@ -388,6 +413,7 @@ class MainActivity : ComponentActivity() {
                             onOpenDownload = ::openDownloadedFile,
                             onOpenDownloadsFolder = ::openDownloadsFolder,
                             onCopyImage = holder.imageClipboard::copyImage,
+                            onCaptureScreen = { area -> captureScreen(area) },
                             onPickFiles = ::pickFilesFor,
                             updatesViewModel = holder.updates,
                             terminalViewModel = holder.terminal,
@@ -580,6 +606,8 @@ class MainActivity : ComponentActivity() {
     // focus. Lint flags the override as a restricted API although it is a public Activity hook.
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (takenKeys.takesFollowUp(event.action, event.keyCode, event.repeatCount)) return true
+        if (interceptKeyForScreenCapture(event)) return true
         if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 swallowEnterKeyUp = holder.browser.uiState.value.isAddressBarFocused || chrome.isTabSearchFocused
@@ -593,6 +621,7 @@ class MainActivity : ComponentActivity() {
         if (event.action == KeyEvent.ACTION_DOWN) {
             val shortcut = resolveShortcut(event)
             if (shortcut != null) {
+                takenKeys.take(event.keyCode)
                 performShortcut(shortcut)
                 return true
             }
@@ -641,8 +670,42 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
-    /** The key of a shortcut taken before the keyboard app saw it, whose release is ours too. */
-    private var shortcutKeyTakenEarly = KeyEvent.KEYCODE_UNKNOWN
+    /**
+     * Presses taken by a shortcut or by the screenshot overlay: their repeats and their release
+     * are taken too, and nothing after them (see [TakenKeys]).
+     */
+    private val takenKeys = TakenKeys()
+
+    /**
+     * While the screenshot overlay is up, Esc cancels it and Enter takes the focused pane, and no
+     * other key press reaches the page or terminal underneath (see [KeyboardShortcuts.screenCaptureKey]).
+     * Read before the keyboard app, which may keep Esc for itself or turn it into Back. A press
+     * taken here is followed by its release (see [takenKeys]), even after the overlay has gone.
+     * Releases of keys held down from before (Ctrl and Alt of Ctrl+Alt+S) still go where they go.
+     */
+    private fun interceptKeyForScreenCapture(event: KeyEvent): Boolean {
+        val capture = chrome.screenCapture
+        if (!capture.isSelecting || event.action != KeyEvent.ACTION_DOWN) return false
+        val device = event.device
+        val action = KeyboardShortcuts.screenCaptureKey(
+            keyCode = event.keyCode,
+            isSystemKey = event.isSystem,
+            fromPhysicalKeyboard = device != null && !device.isVirtual && event.isFromSource(InputDevice.SOURCE_KEYBOARD)
+        )
+        if (action == ScreenCaptureKey.PASS) return false
+        // A key held from before the overlay keeps repeating: kept from the page, but not taken,
+        // so its release still reaches the page that saw it go down
+        if (event.repeatCount > 0) return true
+        takenKeys.take(event.keyCode)
+        when (action) {
+            // The screen gives the keyboard back to whatever had it
+            ScreenCaptureKey.CANCEL -> capture.cancel()
+            // The overlay knows where the panes are, so it does the taking
+            ScreenCaptureKey.CAPTURE_FOCUSED -> capture.requestFocusedCapture()
+            else -> Unit
+        }
+        return true
+    }
 
     /**
      * Shortcuts, read before the keyboard app (input method). With a text box focused, keys reach
@@ -653,15 +716,14 @@ class MainActivity : ComponentActivity() {
      * this layout.
      */
     private fun interceptShortcutBeforeIme(event: KeyEvent): Boolean {
+        // The repeats and release of a shortcut's key, or of a key the screenshot overlay took
+        if (takenKeys.takesFollowUp(event.action, event.keyCode, event.repeatCount)) return true
+        if (interceptKeyForScreenCapture(event)) return true
         if (interceptEscapeForFindBar(event)) return true
         if (interceptTypingBeforeIme(event)) return true
-        if (event.action == KeyEvent.ACTION_UP && event.keyCode == shortcutKeyTakenEarly) {
-            shortcutKeyTakenEarly = KeyEvent.KEYCODE_UNKNOWN
-            return true
-        }
         if (event.action != KeyEvent.ACTION_DOWN) return false
         val shortcut = resolveShortcut(event) ?: return false
-        shortcutKeyTakenEarly = event.keyCode
+        takenKeys.take(event.keyCode)
         performShortcut(shortcut)
         return true
     }
@@ -745,12 +807,81 @@ class MainActivity : ComponentActivity() {
                 chrome.showTabSwitcher = false
                 browser.printPage()
             }
+            // Over whatever is showing, the tab switcher included
+            BrowserShortcut.SCREENSHOT -> chrome.screenCapture.start()
             // With the bar closed, F3 opens it, as in a desktop browser
             BrowserShortcut.FIND_NEXT ->
                 if (browser.findInPage.value == null) browser.openFindInPage() else browser.findNext()
             BrowserShortcut.FIND_PREVIOUS ->
                 if (browser.findInPage.value == null) browser.openFindInPage() else browser.findPrevious()
         }
+    }
+
+    /**
+     * Copies [area] of the window (the screenshot overlay already gone) to the clipboard as a PNG,
+     * and reports it with a small picture for the notice. Pages shown behind the window (Direct
+     * page rendering) are filled in from the engine (see [WindowScreenshot]).
+     *
+     * Runs in the screen's coroutine, which gives up after a while and cancels it: a cancelled
+     * screenshot frees its pictures and never reaches the clipboard, however late it finishes.
+     * Running out of memory for the pictures is a failed screenshot, not a crash.
+     */
+    private suspend fun captureScreen(area: PxRect): ScreenshotResult {
+        val settings = holder.browser.uiState.value.settings
+        val pages = if (settings.pageRendering == PageRendering.DIRECT) {
+            paneViewTabs.keys.toList().mapNotNull { it.asPageLayer() }
+        } else {
+            emptyList()
+        }
+        // What a pane shows before its page paints, for a page that can't be captured
+        val holeColor = remColorScheme(settings.useDarkTheme, settings.accent).surfaceContainerLowest.toArgb()
+        val thumbnailHeight = (SCREENSHOT_THUMBNAIL_DP * resources.displayMetrics.density).roundToInt()
+        // This screenshot's own job: once it is cancelled, nothing of it goes on the clipboard
+        val job = currentCoroutineContext().job
+        var shot: Bitmap? = null
+        var thumbnail: Bitmap? = null
+        var copied = false
+        return try {
+            val taken = WindowScreenshot(window).capture(area, pages, holeColor).also { shot = it }
+            val png = withContext(Dispatchers.Default) {
+                thumbnail = thumbnailOf(taken, thumbnailHeight)
+                ByteArrayOutputStream().also { taken.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+            }
+            copied = suspendCancellableCoroutine { continuation ->
+                holder.screenshotClipboard.copyScreenshot(png, stillWanted = { job.isActive }) { done ->
+                    if (continuation.isActive) continuation.resume(done)
+                }
+            }
+            val picture = thumbnail
+            if (copied && picture != null) {
+                ScreenshotResult.Copied(picture.asImageBitmap(), taken.width, taken.height)
+            } else {
+                ScreenshotResult.Failed
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "Not enough memory for a screenshot", e)
+            ScreenshotResult.Failed
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't take a screenshot", e)
+            ScreenshotResult.Failed
+        } finally {
+            shot?.recycle()
+            // The notice keeps the small picture of a screenshot that was copied
+            if (!copied) thumbnail?.recycle()
+        }
+    }
+
+    /**
+     * A small copy of [shot] for the notice, its shape kept: at most [height] pixels high and four
+     * times that wide, and never larger than the screenshot itself.
+     */
+    private fun thumbnailOf(shot: Bitmap, height: Int): Bitmap {
+        val scale = minOf(1f, height.toFloat() / shot.height, height * 4f / shot.width)
+        val width = (shot.width * scale).roundToInt().coerceAtLeast(1)
+        val scaledHeight = (shot.height * scale).roundToInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(shot, width, scaledHeight, true)
     }
 
     /** Hands a finished download to whichever app can show it. False when none can. */

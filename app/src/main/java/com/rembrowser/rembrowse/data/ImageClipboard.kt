@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -26,6 +27,17 @@ private const val TAG = "ImageClipboard"
 fun interface ImageClipboard {
     /** Copies the picture at [url] (http(s) or a `data:` address), shown on the page at [pageUrl]. */
     fun copyImage(url: String, pageUrl: String?)
+}
+
+/** Puts a screenshot of the window on the clipboard, for pasting into a page or another app. */
+fun interface ScreenshotClipboard {
+    /**
+     * Copies [png] (a PNG image) to the clipboard, then calls [onDone] on the main thread with
+     * whether it is there. May be called on any thread; the file is written on a thread of its own.
+     * [stillWanted] is asked before the file replaces the last one and again, on the main thread,
+     * before the clipboard is touched: a screenshot given up on meanwhile changes nothing.
+     */
+    fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Boolean) -> Unit)
 }
 
 /** A picture ready for the clipboard: its bytes and its type. */
@@ -119,14 +131,79 @@ object ClipboardImages {
 }
 
 /**
- * [ImageClipboard] for the device. The picture is fetched through the engine's own network stack
- * (GeckoView's GeckoWebExecutor), so it comes with the site's cookies as on the page, saved in the
- * app's cache and put on the clipboard as a `content:` address that pasting apps can read.
+ * The files behind the pictures RemBrowse puts on the clipboard (Copy image, screenshots), and how
+ * they get there: saved in the app's cache and put on the clipboard as a `content:` address of the
+ * manifest's FileProvider, which pasting apps (and GeckoView, pasting into a page) read. Only the
+ * latest copy is kept, since older ones are no longer on the clipboard, so files never pile up.
  */
-class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipboard {
+internal class ClipboardImageFiles(context: Context) {
+    private val appContext = context.applicationContext
+    private val dir = File(appContext.cacheDir, DIR)
+
+    /**
+     * Saves [image] as the one file here, named after [name], and returns its `content:` address;
+     * null, with nothing deleted, if it is no longer [wanted]. Off the main thread. Synchronized: a
+     * picture and a screenshot copied at the same moment must not delete each other's file, and a
+     * copy given up on can't delete a newer one.
+     */
+    @Synchronized
+    fun save(image: ClipboardImage, name: String, wanted: () -> Boolean = { true }): Uri? {
+        if (!wanted()) return null
+        dir.mkdirs()
+        dir.listFiles()?.forEach { it.delete() }
+        val file = File(dir, "$name-${System.currentTimeMillis()}.${image.extension}")
+        file.writeBytes(image.bytes)
+        return FileProvider.getUriForFile(appContext, "${appContext.packageName}.downloads", file)
+    }
+
+    /**
+     * Puts [uri] on the clipboard under [label]. The clip's type comes from the FileProvider
+     * (`image/png` for a `.png`), which is what lets GeckoView offer it to a page. On the main
+     * thread. False when there is no clipboard.
+     */
+    fun putOnClipboard(uri: Uri, label: String): Boolean {
+        val clipboard = appContext.getSystemService(ClipboardManager::class.java) ?: return false
+        clipboard.setPrimaryClip(ClipData.newUri(appContext.contentResolver, label, uri))
+        return true
+    }
+
+    companion object {
+        /** Under the cache directory; named in the FileProvider's paths (res/xml/download_paths.xml). */
+        const val DIR = "clipboard"
+    }
+}
+
+/**
+ * [ImageClipboard] and [ScreenshotClipboard] for the device. A page's picture is fetched through
+ * the engine's own network stack (GeckoView's GeckoWebExecutor), so it comes with the site's
+ * cookies as on the page. Both go through [ClipboardImageFiles].
+ */
+class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipboard, ScreenshotClipboard {
     private val appContext = context.applicationContext
     private val executor = GeckoWebExecutor(runtime)
     private val main = Handler(Looper.getMainLooper())
+    private val files = ClipboardImageFiles(appContext)
+
+    override fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Boolean) -> Unit) {
+        Thread({
+            val uri = try {
+                files.save(ClipboardImage(png, "image/png"), "screenshot", stillWanted)
+            } catch (e: Exception) {
+                Log.w(TAG, "Couldn't save a screenshot for the clipboard", e)
+                null
+            }
+            main.post {
+                // Asked again on the thread that gives up on a screenshot, so a late one never lands
+                val copied = uri != null && stillWanted() && try {
+                    files.putOnClipboard(uri, "Screenshot")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Couldn't put a screenshot on the clipboard", e)
+                    false
+                }
+                onDone(copied)
+            }
+        }, "copy-screenshot").start()
+    }
 
     override fun copyImage(url: String, pageUrl: String?) {
         ClipboardImages.fromDataUrl(url)?.let { image ->
@@ -172,15 +249,9 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
     private fun finish(image: ClipboardImage) {
         try {
             val ready = if (ClipboardImages.keepsItsFormat(image.mimeType)) image else toPng(image) ?: image
-            val dir = File(appContext.cacheDir, "clipboard").apply { mkdirs() }
-            // Only the latest copy is kept: older ones are no longer on the clipboard
-            dir.listFiles()?.forEach { it.delete() }
-            val file = File(dir, "image-${System.currentTimeMillis()}.${ready.extension}")
-            file.writeBytes(ready.bytes)
-            val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.downloads", file)
+            val uri = files.save(ready, "image") ?: return
             main.post {
-                val clipboard = appContext.getSystemService(ClipboardManager::class.java) ?: return@post
-                clipboard.setPrimaryClip(ClipData.newUri(appContext.contentResolver, "Image", uri))
+                if (!files.putOnClipboard(uri, "Image")) return@post
                 // Android 13 and later show their own notice for anything copied
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                     Toast.makeText(appContext, "Image copied", Toast.LENGTH_SHORT).show()

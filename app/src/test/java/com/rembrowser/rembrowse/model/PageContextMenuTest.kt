@@ -75,7 +75,8 @@ class PageContextMenuTest {
                     PageMenuAction.BOOKMARK,
                     PageMenuAction.COPY_PAGE_ADDRESS,
                     PageMenuAction.FIND_IN_PAGE,
-                    PageMenuAction.PRINT
+                    PageMenuAction.PRINT,
+                    PageMenuAction.SCREENSHOT
                 )
             ),
             sections.map { section -> section.map { it.action } }
@@ -85,6 +86,7 @@ class PageContextMenuTest {
         assertEquals(true, back.enabled)
         assertEquals("Nowhere to go forward to", false, forward.enabled)
         assertEquals("Print is always offered on the page's own menu", true, sections[1].single { it.action == PageMenuAction.PRINT }.enabled)
+        assertEquals("So is a screenshot", true, sections[1].single { it.action == PageMenuAction.SCREENSHOT }.enabled)
     }
 
     @Test

@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.13.17`)
+# RemBrowse User Guide (`v0.13.18`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -20,7 +20,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, bookmarks, history, downloads, extensions, desktop site, settings.
+* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, take screenshot, bookmarks, history, downloads, extensions, desktop site, settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
@@ -30,6 +30,16 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 ### Go to address (`Ctrl+G`)
 
 `Ctrl+G` opens the address in the middle of the window, over a blur of everything behind it (a darkened window where the device has blur turned off, as in battery saver). It starts with the current page's address selected, so you can type over it. As you type, it offers the address or search, open tabs and pages from your history; Up and Down choose, **Enter** goes there in the focused pane, **Alt+Enter** opens it in a new tab, and Esc, a click outside or `Ctrl+G` again closes it. It is also in the command palette as **Go to address…**. In a terminal, use `Ctrl+Shift+G`.
+
+### Screenshots (`Ctrl+Alt+S`)
+
+`Ctrl+Alt+S`, **More → Take screenshot**, or **Take screenshot** in the command palette dims the RemBrowse window and turns the pointer into a crosshair.
+
+* **Drag** around any part of the window (pages, toolbar and tabs) to capture it; a label shows its size as you drag.
+* **Click** a page to capture all of it.
+* **Esc**, Back or a right-click cancels.
+
+The picture is copied to the clipboard straight away, and a small notice with a thumbnail confirms it. Paste it with `Ctrl+V` into a chat (Telegram, WhatsApp…) in RemBrowse or in any other app. Only RemBrowse's own window is captured, never other apps, and only the latest screenshot is kept on the device.
 
 ### Printing (`Ctrl+P`)
 
@@ -151,7 +161,7 @@ Press `Ctrl+K` (or **More → Command palette**), then type:
 * words to **search the web**, or an address to **open it**;
 * part of a tab's title to **switch to that tab**;
 * part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
-* a command name: new tab, close tab, find in page, print, split view, bookmarks, history, downloads, extensions, settings.
+* a command name: new tab, close tab, find in page, print, take screenshot, split view, bookmarks, history, downloads, extensions, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
@@ -349,6 +359,7 @@ Some requests are answered without asking: sites may keep their data on the devi
 | `Ctrl + K` | Command palette |
 | `Ctrl + F` | Find in page (Esc closes it) |
 | `Ctrl + P` | Print or save as PDF |
+| `Ctrl + Alt + S` | Screenshot to the clipboard (drag an area, or click a page) |
 | `Ctrl + click` / middle click | Open a link in a background tab (`Ctrl + Shift + click`: in front) |
 | `F3` / `Shift + F3` | Next / previous match |
 | `Ctrl + R` or `F5` | Reload / stop |

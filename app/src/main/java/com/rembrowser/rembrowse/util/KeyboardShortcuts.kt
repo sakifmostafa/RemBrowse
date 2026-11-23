@@ -35,7 +35,25 @@ enum class BrowserShortcut {
     GO_TO_ADDRESS,
 
     /** The print dialog for the page (Ctrl+P), which can also save it as a PDF. */
-    PRINT
+    PRINT,
+
+    /** Take a screenshot of part of the window (Ctrl+Alt+S, also in a terminal). */
+    SCREENSHOT
+}
+
+/** What a key does while the screenshot overlay is up. */
+enum class ScreenCaptureKey {
+    /** Esc (or a keyboard's Back key): close the overlay, taking nothing. */
+    CANCEL,
+
+    /** Enter: take the focused pane, or the tab switcher when it is open. */
+    CAPTURE_FOCUSED,
+
+    /** Any other key is kept from the page and the terminal underneath while the overlay is up. */
+    SWALLOW,
+
+    /** System keys (volume, power, media, the system's own Back) carry on as usual. */
+    PASS
 }
 
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
@@ -81,12 +99,15 @@ object KeyboardShortcuts {
          * loses swapping two letters and deleting a word with them (Alt+Backspace still deletes
          * a word). The other letter shortcuts move to Ctrl+Shift (Ctrl+Shift+N and Ctrl+Shift+W
          * too), as terminal apps do. Ctrl+Shift+T opens another terminal, here as everywhere
-         * else. Ctrl+Shift+C and V copy and paste in the terminal itself.
+         * else, and Ctrl+Alt+S takes a screenshot. Ctrl+Shift+C and V copy and paste in the
+         * terminal itself.
          */
         inTerminal: Boolean = false
     ): BrowserShortcut? {
         // A held key must not open a tab (or close one) per auto-repeat tick.
         if (repeatCount > 0 || meta) return null
+        // The same keys everywhere, a terminal included: a shell has no use for Ctrl+Alt+S
+        if (isScreenshot(keyCode, ctrl, shift, alt)) return BrowserShortcut.SCREENSHOT
         if (inTerminal) return resolveInTerminal(keyCode, ctrl, shift, alt)
 
         if (!ctrl && !alt && !shift && keyCode == KeyEvent.KEYCODE_F5) {
@@ -141,6 +162,23 @@ object KeyboardShortcuts {
             KeyEvent.KEYCODE_5 -> BrowserShortcut.LAYOUT_ONE_AND_TWO
             else -> null
         }
+    }
+
+    private fun isScreenshot(keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean): Boolean =
+        keyCode == KeyEvent.KEYCODE_S && ctrl && alt && !shift
+
+    /**
+     * What a key press does while the screenshot overlay is up (see [ScreenCaptureKey]). Read
+     * before the keyboard app, like the shortcuts. [isSystemKey] is `KeyEvent.isSystem`; a Back
+     * from a physical keyboard ([fromPhysicalKeyboard]) is that keyboard's Esc key, as for the
+     * find bar.
+     */
+    fun screenCaptureKey(keyCode: Int, isSystemKey: Boolean, fromPhysicalKeyboard: Boolean): ScreenCaptureKey = when {
+        keyCode == KeyEvent.KEYCODE_ESCAPE -> ScreenCaptureKey.CANCEL
+        keyCode == KeyEvent.KEYCODE_BACK && fromPhysicalKeyboard -> ScreenCaptureKey.CANCEL
+        keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER -> ScreenCaptureKey.CAPTURE_FOCUSED
+        isSystemKey -> ScreenCaptureKey.PASS
+        else -> ScreenCaptureKey.SWALLOW
     }
 
     private fun resolveInTerminal(keyCode: Int, ctrl: Boolean, shift: Boolean, alt: Boolean): BrowserShortcut? {
