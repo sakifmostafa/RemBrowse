@@ -341,7 +341,8 @@ fun ScreenCaptureOverlay(
     }
 
     val appear = remember { Animatable(if (reduceMotion) 1f else 0f) }
-    LaunchedEffect(Unit) { appear.animateTo(1f, RemMotion.defaultEffects()) }
+    val appearSpec = RemMotion.defaultEffects<Float>()
+    LaunchedEffect(Unit) { appear.animateTo(1f, appearSpec) }
 
     val scrim = colors.scrim.copy(alpha = CaptureScrimAlpha)
     val accent = colors.primary

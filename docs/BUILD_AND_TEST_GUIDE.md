@@ -91,7 +91,7 @@ Test suites included:
 * `CommandPaletteResultsTest` — what the command palette offers for a typed query.
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
 * `WindowSizeClassTest` — Material 3's window size classes at their edges (600, 840 and 1200dp wide, 480dp high).
-* `MotionTest` — the motion springs against Material 3's standard scheme, Android's Remove animations setting followed while shown, and the find bar sliding in, or in place at once with animations off.
+* `MotionTest` — `RemMotion` inside the theme against Material 3's expressive motion scheme, and every spec a snap with animations off; Android's Remove animations setting followed while shown, and the find bar sliding in, or in place at once with animations off.
 * `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01, and the saved downloads list.
 * `PopupContentSizeTest` — reading the popup helper's size reports, and ignoring anything else.
 * `UploadCacheTest` — copying files picked for an upload button: names kept, same names apart, unreadable files left out, old copies removed, the MIME types offered to the picker.

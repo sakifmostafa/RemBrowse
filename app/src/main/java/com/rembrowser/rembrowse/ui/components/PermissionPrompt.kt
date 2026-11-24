@@ -9,6 +9,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
@@ -229,6 +230,8 @@ fun PermissionPromptCard(
         border = BorderStroke(1.dp, colors.outlineVariant),
         shadowElevation = 6.dp
     ) {
+        val fadeInSpec = RemMotion.defaultEffects<Float>()
+        val fadeOutSpec = RemMotion.fastEffects<Float>()
         AnimatedContent(
             targetState = request,
             contentKey = { it.id },
@@ -237,7 +240,7 @@ fun PermissionPromptCard(
                     EnterTransition.None togetherWith ExitTransition.None
                 } else {
                     // The old request leaves quicker than the new one arrives
-                    fadeIn(RemMotion.defaultEffects()) togetherWith fadeOut(RemMotion.fastEffects())
+                    fadeIn(fadeInSpec) togetherWith fadeOut(fadeOutSpec)
                 }.using(SizeTransform(clip = false))
             },
             label = "permissionPromptContent"
@@ -267,7 +270,8 @@ private fun PromptContent(
     // PermissionActionDelayMillis (see ActionGuard)
     val scope = rememberCoroutineScope()
     val slackPx = with(LocalDensity.current) { ActionsMoveSlack.toPx() }
-    val guard = remember(request.id) { ActionGuard(scope, reduceMotion, slackPx) }
+    val readySpec = RemMotion.fastEffects<Float>()
+    val guard = remember(request.id) { ActionGuard(scope, reduceMotion, slackPx, readySpec) }
     LaunchedEffect(guard, appearing) { if (!appearing) guard.onAppeared() }
     // Every frame the window draws, the answers are looked for where they are now: a move of
     // something around them (the card sliding below the find bar) is not reported otherwise
@@ -385,7 +389,9 @@ private fun PromptContent(
 private class ActionGuard(
     private val scope: CoroutineScope,
     private val reduceMotion: Boolean,
-    private val slackPx: Float
+    private val slackPx: Float,
+    /** How the answers fade the rest of the way in once they take input. */
+    private val readySpec: FiniteAnimationSpec<Float>
 ) {
     /** Whether the wait is over. [takesInput] also makes sure the answers have not moved since. */
     var armed by mutableStateOf(false)
@@ -458,7 +464,7 @@ private class ActionGuard(
             }
             delay(PermissionActionDelayMillis)
             armed = true
-            if (reduceMotion) alpha.snapTo(1f) else alpha.animateTo(1f, RemMotion.fastEffects())
+            if (reduceMotion) alpha.snapTo(1f) else alpha.animateTo(1f, readySpec)
         }
     }
 }

@@ -3,8 +3,10 @@ package com.rembrowser.rembrowse.ui
 import android.app.Application
 import android.provider.Settings
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.SnapSpec
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -33,8 +35,8 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * RemBrowse's motion: Material 3's standard springs, and Android's "Remove animations" setting,
- * read in one place, leaving the motion out (the find bar is the example).
+ * RemBrowse's motion: the theme's Material 3 Expressive motion scheme, and Android's "Remove
+ * animations" setting, read in one place, leaving the motion out (the find bar is the example).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
@@ -56,26 +58,47 @@ class MotionTest {
         setAnimatorScale(1f)
     }
 
+    /** RemMotion's six specs, as read inside RemBrowseTheme. */
+    private fun remMotionInTheTheme(): List<FiniteAnimationSpec<Float>> {
+        var specs: List<FiniteAnimationSpec<Float>> = emptyList()
+        composeRule.setContent {
+            RemBrowseTheme {
+                specs = listOf(
+                    RemMotion.fastSpatial(),
+                    RemMotion.defaultSpatial(),
+                    RemMotion.slowSpatial(),
+                    RemMotion.fastEffects(),
+                    RemMotion.defaultEffects(),
+                    RemMotion.slowEffects()
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        return specs
+    }
+
     @Test
-    fun remMotion_isMaterialsStandardMotionScheme() {
-        // material3 1.4 keeps its motion scheme internal, so it is read by reflection; the
-        // standard scheme's JVM name carries the module's
-        val scheme = Class.forName("androidx.compose.material3.MotionScheme")
-        val companion = scheme.getField("Companion").get(null)
-        val standard = companion.javaClass.methods
-            .first { it.name == "standard" || it.name.startsWith("standard$") }
-            .invoke(companion)
-        fun spec(name: String): Any = scheme.getMethod(name).invoke(standard)!!
-        val pairs: List<Pair<Any, FiniteAnimationSpec<Float>>> = listOf(
-            spec("fastSpatialSpec") to RemMotion.fastSpatial(),
-            spec("defaultSpatialSpec") to RemMotion.defaultSpatial(),
-            spec("slowSpatialSpec") to RemMotion.slowSpatial(),
-            spec("fastEffectsSpec") to RemMotion.fastEffects(),
-            spec("defaultEffectsSpec") to RemMotion.defaultEffects(),
-            spec("slowEffectsSpec") to RemMotion.slowEffects()
+    fun remMotion_isTheThemesExpressiveMotionScheme() {
+        setAnimatorScale(1f)
+        val expressive = MotionScheme.expressive()
+        val material = listOf<FiniteAnimationSpec<Float>>(
+            expressive.fastSpatialSpec(),
+            expressive.defaultSpatialSpec(),
+            expressive.slowSpatialSpec(),
+            expressive.fastEffectsSpec(),
+            expressive.defaultEffectsSpec(),
+            expressive.slowEffectsSpec()
         )
         // SpringSpec compares its damping, stiffness and threshold
-        pairs.forEach { (material, ours) -> assertEquals(material, ours) }
+        assertEquals(material, remMotionInTheTheme())
+    }
+
+    @Test
+    fun remMotion_withAnimationsOff_reachesTheEndAtOnce() {
+        setAnimatorScale(0f)
+        val specs = remMotionInTheTheme()
+        assertEquals(6, specs.size)
+        specs.forEach { assertTrue("$it", it is SnapSpec) }
     }
 
     @Test

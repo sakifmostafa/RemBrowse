@@ -3,10 +3,12 @@ package com.rembrowser.rembrowse.ui.theme
 import android.content.Context
 import android.os.Build
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -14,6 +16,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -21,6 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rembrowser.rembrowse.model.AccentColor
+import com.rembrowser.rembrowse.ui.components.rememberReduceMotion
 
 /**
  * RemBrowse design tokens.
@@ -280,35 +284,68 @@ val RemTypography: Typography = Typography().let { base ->
     )
 }
 
+/**
+ * Corner sizes. The five base roles keep RemBrowse's scale (6/8/12/16/24dp) rather than Material 3
+ * Expressive's (4/8/12/16/28dp); they differ only at the two ends. The floating panes are rounded
+ * 12dp with 8dp between them ([RemDimens.PaneRadius], Material's medium too) and the rail's 40dp
+ * tab tiles use medium, so neither changes; extraLarge is half the pinned shelf's 48dp width, so
+ * its ends are exactly round, and the 6dp extraSmall frames the tab count. Expressive's three added
+ * roles (largeIncreased 20dp, extraLargeIncreased 32dp, extraExtraLarge 48dp) keep Material's
+ * values, for its own components that use them.
+ */
 val RemShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
     small = RoundedCornerShape(8.dp),
     medium = RoundedCornerShape(12.dp),
     large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp)
+    extraLarge = RoundedCornerShape(24.dp),
+    largeIncreased = RoundedCornerShape(20.dp),
+    extraLargeIncreased = RoundedCornerShape(32.dp),
+    extraExtraLarge = RoundedCornerShape(48.dp)
 )
 
 /**
- * Motion: Material 3's standard motion scheme, as springs. The values are material3's own
- * (StandardMotionTokens, the same in 1.4.0 and 1.5.0); `MaterialTheme.motionScheme` only becomes
- * public in 1.5.0. A spring has no fixed duration and can be interrupted midway without a jump.
+ * Motion: Material 3 Expressive's motion scheme ([MotionScheme.expressive]), read from the theme
+ * ([MaterialTheme.motionScheme]), so RemBrowse's own animations move like Material's components.
+ * Each spec is a spring: it has no fixed duration and can be interrupted midway without a jump.
  *
- * - **Spatial** specs move and resize things (a slide, a size change, a pop); damped at 0.9, they
- *   overshoot by less than a pixel.
+ * - **Spatial** specs move and resize things (a slide, a size change, a pop). Expressive's
+ *   overshoot a little and settle, where the standard scheme's barely did.
  * - **Effects** specs fade and recolour; critically damped, they never overshoot.
  * - **Fast** for small things and for leaving (exits are quicker than entrances), **default** for
  *   most, **slow** for large areas.
  *
- * With Android's animations off ([com.rembrowser.rembrowse.ui.components.rememberReduceMotion])
- * callers show the end state at once instead.
+ * With Android's animations off ([rememberReduceMotion]) the theme's scheme is [ReducedMotion],
+ * so every spec here, and Material's components, show the end state at once.
  */
 object RemMotion {
-    fun <T> fastSpatial(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.9f, stiffness = 1400f)
-    fun <T> defaultSpatial(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.9f, stiffness = 700f)
-    fun <T> slowSpatial(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.9f, stiffness = 300f)
-    fun <T> fastEffects(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 3800f)
-    fun <T> defaultEffects(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 1600f)
-    fun <T> slowEffects(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 800f)
+    @Composable @ReadOnlyComposable
+    fun <T> fastSpatial(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.fastSpatialSpec()
+
+    @Composable @ReadOnlyComposable
+    fun <T> defaultSpatial(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.defaultSpatialSpec()
+
+    @Composable @ReadOnlyComposable
+    fun <T> slowSpatial(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.slowSpatialSpec()
+
+    @Composable @ReadOnlyComposable
+    fun <T> fastEffects(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.fastEffectsSpec()
+
+    @Composable @ReadOnlyComposable
+    fun <T> defaultEffects(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.defaultEffectsSpec()
+
+    @Composable @ReadOnlyComposable
+    fun <T> slowEffects(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.slowEffectsSpec()
+}
+
+/** The motion scheme while Android's animations are off: everything reaches its end at once. */
+object ReducedMotion : MotionScheme {
+    override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> slowEffectsSpec(): FiniteAnimationSpec<T> = snap()
 }
 
 /** Sizes shared by the browser chrome. Spacing elsewhere follows a 4/8dp rhythm. */
@@ -377,13 +414,19 @@ fun RemBrowseTheme(
     RemBrowseTheme(remColorScheme(LocalContext.current, darkTheme, accent, systemColors), content)
 }
 
-/** The browser's type and shapes over [colorScheme], worked out already (see resolveTheme). */
+/**
+ * The browser's type, shapes and motion over [colorScheme], worked out already (see
+ * resolveTheme): Material 3 Expressive's theme with its expressive motion scheme, or
+ * [ReducedMotion] while Android's animations are off.
+ */
 @Composable
 fun RemBrowseTheme(colorScheme: ColorScheme, content: @Composable () -> Unit) {
-    MaterialTheme(
+    val reduceMotion = rememberReduceMotion()
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
-        typography = RemTypography,
+        motionScheme = if (reduceMotion) ReducedMotion else MotionScheme.expressive(),
         shapes = RemShapes,
+        typography = RemTypography,
         content = content
     )
 }
