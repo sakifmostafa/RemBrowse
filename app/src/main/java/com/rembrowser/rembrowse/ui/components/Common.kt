@@ -171,7 +171,9 @@ fun RemIconButton(
     tint: Color = Color.Unspecified,
     size: Dp = RemDimens.ControlSize,
     iconSize: Dp = RemDimens.IconSize,
-    bordered: Boolean = false
+    bordered: Boolean = false,
+    /** Whether the pointer over it, or a finger held on it, shows its tooltip. */
+    tooltipEnabled: Boolean = true
 ) {
     val colors = MaterialTheme.colorScheme
     val contentColor = when {
@@ -187,7 +189,8 @@ fun RemIconButton(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
             tooltip = { PlainTooltip { Text(label) } },
             state = rememberTooltipState(),
-            focusable = false
+            focusable = false,
+            enableUserInput = tooltipEnabled
         ) {
             Box(
                 modifier = Modifier

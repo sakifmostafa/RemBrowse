@@ -1072,7 +1072,11 @@ private fun RailTabItem(
             title = tab.displayTitle,
             showTitle = showTitle,
             titleTag = "rail_tab_title_${tab.id}",
-            // A desktop browser's vertical tabs' close button, at the end of the expanded row
+            // A desktop browser's vertical tabs' close button, at the end of the expanded row.
+            // A tap closes the tab; a finger held on it opens the row's menu, as anywhere else on
+            // the row, and the lift closes nothing (a plain click closed it however long it was
+            // held). Its tooltip would come up with that menu, so a finger gets none. A mouse
+            // click, however long, and Enter still close.
             trailing = {
                 RemIconButton(
                     icon = Icons.Outlined.Close,
@@ -1080,8 +1084,10 @@ private fun RailTabItem(
                     onClick = onClose,
                     size = 32.dp,
                     iconSize = 18.dp,
+                    tooltipEnabled = !touchUsed,
                     modifier = Modifier
                         .padding(end = 4.dp)
+                        .touchLongPress("More options") { showMenu = true }
                         .testTag("rail_tab_close_${tab.id}")
                 )
             },

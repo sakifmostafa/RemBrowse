@@ -46,6 +46,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.isRoot
@@ -416,6 +418,67 @@ class WideTabRailUiTest {
         node("tab_bar_item_github").performMouseInput { moveTo(center) }
         composeRule.waitForIdle()
         closeButton("chat").assertDoesNotExist()
+    }
+
+    @Test
+    fun expandedRail_aFingerHeldOnARowsCloseButton_opensTheRowsMenu_andATapCloses() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        node("tab_bar_item_github").performTouchInput { click() }
+        composeRule.waitForIdle()
+
+        closeButton("news").performTouchInput { longClick() }
+        composeRule.waitForIdle()
+
+        // The row's menu, as a long press anywhere else on the row opens; the lift closed nothing
+        node("tab_bar_close_news").assertIsDisplayed()
+        assertEquals(listOf("github", "news", "chat"), openTabIds())
+        // The menu's row only: no "Close tab" tooltip comes up with it
+        assertEquals(1, composeRule.onAllNodes(hasText("Close tab", substring = false), useUnmergedTree = true).fetchSemanticsNodes().size)
+
+        // A tap on another row's button closes its tab
+        closeButton("chat").performTouchInput { click() }
+        composeRule.waitForIdle()
+        assertEquals(listOf("github", "news"), openTabIds())
+    }
+
+    @Test
+    fun expandedRail_aRowsCloseButton_underTheMouse_closesOnAHeldClick_andLeavesRightAndMiddleClicksToTheRow() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        node("tab_bar_item_news").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+
+        // A right click on the button opens the row's menu and closes nothing
+        closeButton("news").performMouseInput {
+            moveTo(center)
+            press(MouseButton.Secondary)
+            release(MouseButton.Secondary)
+        }
+        composeRule.waitForIdle()
+        node("tab_bar_close_news").assertIsDisplayed()
+        assertEquals(listOf("github", "news", "chat"), openTabIds())
+
+        // A middle click on it closes that row's tab, as on the rest of the row
+        node("tab_bar_item_chat").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("chat").performMouseInput {
+            moveTo(center)
+            press(MouseButton.Tertiary)
+            release(MouseButton.Tertiary)
+        }
+        composeRule.waitForIdle()
+        assertEquals(listOf("github", "news"), openTabIds())
+
+        // A click held as long as a long press still closes: the mouse never had a long press here
+        node("tab_bar_item_news").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("news").performMouseInput {
+            moveTo(center)
+            press()
+            advanceEventTime(1_000)
+            release()
+        }
+        composeRule.waitForIdle()
+        assertEquals(listOf("github"), openTabIds())
     }
 
     @Test
