@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.ui
 
 import android.graphics.Bitmap
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -221,6 +222,19 @@ class TabRailSnapshotTest {
         launch(dark = true)
         composeRule.runOnUiThread { chrome.tabRailOverlayOpen = true }
         save("rail-10-over-the-page-compact-height-dark")
+    }
+
+    /** With Android's animations off the loading tab's indicator holds still: an hourglass. */
+    @Test
+    fun railAnimationsOff() {
+        val resolver = InstrumentationRegistry.getInstrumentation().targetContext.contentResolver
+        Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        try {
+            launch(dark = true, railExpanded = true)
+            save("rail-11-animations-off-expanded-dark-closeup", width = 420.dp, height = 560.dp)
+        } finally {
+            Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        }
     }
 
     @Test

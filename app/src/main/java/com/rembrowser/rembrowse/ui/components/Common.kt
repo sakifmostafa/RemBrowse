@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -36,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.ButtonDefaults
@@ -110,10 +112,12 @@ import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -778,14 +782,40 @@ fun <T> ConnectedChoiceGroup(
  * little smaller). Long, measurable waits (a download) use LinearWavyProgressIndicator instead,
  * and the page's own loading line stays a plain 2dp line.
  *
+ * With Android's animations off ([rememberReduceMotion]) it holds still: an hourglass in the
+ * same colour, about as big as the shapes. Material's indicator would go on changing shape and
+ * turning every 650ms even then (its loop waits 650ms between springs, which then only jump).
+ * Either way a screen reader hears a progress bar in progress, as Material's says.
+ *
  * material3 1.5.0 still marks LoadingIndicator experimental (ExperimentalMaterial3ExpressiveApi),
  * so this is the one place it is called: if it changes, only this wrapper does.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun RemLoadingIndicator(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
-    LoadingIndicator(modifier = modifier, color = color)
+    if (rememberReduceMotion()) {
+        Box(
+            modifier = modifier
+                .semantics(mergeDescendants = true) { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate }
+                .size(LoadingIndicatorSize)
+                .testTag("loading_indicator_still"),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.HourglassTop,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.fillMaxSize(LoadingShapeFraction)
+            )
+        }
+    } else {
+        LoadingIndicator(modifier = modifier, color = color)
+    }
 }
+
+/** Material's loading indicator's size, 48dp, and how much of it its shapes fill, 38dp. */
+private val LoadingIndicatorSize = 48.dp
+private const val LoadingShapeFraction = 38f / 48f
 
 /**
  * An outlined button as RemBrowse draws it: text and icon in the accent colour (primary) and a
