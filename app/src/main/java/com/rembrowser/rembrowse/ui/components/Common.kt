@@ -143,6 +143,11 @@ import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.TerminalUrls
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
+import androidx.compose.ui.geometry.Rect
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
 
 /**
  * Whether [SiteIcon] may fetch a site's `/favicon.ico`. Tests and previews turn this off so
@@ -239,18 +244,43 @@ fun RemIconButton(
  *
  * Put it before the element's `clip` (a ring after the clip would be cut off) and before its
  * `clickable` or `focusable`, whose focus it follows; and before a `border`, which it is drawn
- * over. Use [inside] for rows in a scrolling list, whose edge would cut an outside ring.
+ * over. Use [inside] for rows in a scrolling list whose edge sits right at the list's, with no
+ * room for an outside ring.
+ *
+ * Given the keyboard's focus in a scrolling list or grid (the rail's tabs, the switcher's cards,
+ * Settings' sections), the element is scrolled into view with the whole ring around it
+ * ([FocusRingReach] beyond each edge): the list itself only brings the element's own bounds in,
+ * so one Tab brought in from below sat on the list's edge with the bottom of its ring cut off.
  */
 @Composable
 internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): Modifier {
     var focused by remember { mutableStateOf(false) }
-    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    val inputModes = LocalInputModeManager.current
+    val keyboard = inputModes.inputMode == InputMode.Keyboard
     val color = LocalFocusRingColor.current.takeOrElse { MaterialTheme.colorScheme.primary }
+    val density = LocalDensity.current
+    val ringInView = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    // The element's size as last laid out, for the area the ring covers
+    val laidOut = remember { IntArray(2) }
     return this
-        .onFocusChanged { focused = it.isFocused }
+        .then(if (inside) Modifier else Modifier.bringIntoViewRequester(ringInView))
+        .onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused && !inside && inputModes.inputMode == InputMode.Keyboard) {
+                scope.launch {
+                    val reach = with(density) { FocusRingReach.toPx() }
+                    ringInView.bringIntoView(
+                        Rect(-reach, -reach, laidOut[0] + reach, laidOut[1] + reach)
+                    )
+                }
+            }
+        }
         // Read while placing, so a change of focus places the element again rather than recomposing it
         .layout { measurable, constraints ->
             val placeable = measurable.measure(constraints)
+            laidOut[0] = placeable.width
+            laidOut[1] = placeable.height
             layout(placeable.width, placeable.height) {
                 placeable.place(0, 0, zIndex = if (focused && keyboard) 1f else 0f)
             }
@@ -258,9 +288,9 @@ internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): 
         .drawWithContent {
             drawContent()
             if (focused && keyboard) {
-                val stroke = 2.dp.toPx()
+                val stroke = FocusRingWidth.toPx()
                 // Where the ring's centre line runs, from the element's edge
-                val offset = if (inside) -stroke / 2 else 2.dp.toPx() + stroke / 2
+                val offset = if (inside) -stroke / 2 else FocusRingGap.toPx() + stroke / 2
                 val ring = Size(size.width + offset * 2, size.height + offset * 2)
                 val outline = shape.createOutline(ring, layoutDirection, this)
                 translate(left = -offset, top = -offset) {
@@ -269,6 +299,13 @@ internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): 
             }
         }
 }
+
+/** [keyboardFocusRing]'s line, and the gap between it and the element's edge. */
+private val FocusRingWidth = 2.dp
+private val FocusRingGap = 2.dp
+
+/** How far an outside [keyboardFocusRing] reaches beyond the element's edge. */
+internal val FocusRingReach = FocusRingGap + FocusRingWidth
 
 /**
  * The indication of a control that draws its focus ring with [keyboardFocusRing], outside its

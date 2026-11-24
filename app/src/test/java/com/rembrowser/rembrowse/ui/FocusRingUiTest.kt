@@ -29,6 +29,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performScrollTo
@@ -383,5 +384,52 @@ class FocusRingUiTest {
             checkRingOutside("Another palette row", composeRule.onNodeWithTag(tags[2]))
         }
         assertRingsOutside()
+    }
+
+    // --- A control brought into view by the keyboard keeps its whole ring in sight ---
+
+    /** The screen's pixel 3dp below the middle of [node]'s bottom edge: the middle of its ring there. */
+    private fun pixelBelow(node: SemanticsNodeInteraction): Color {
+        composeRule.waitForIdle()
+        val semantics = node.fetchSemanticsNode()
+        val out = with(composeRule.density) { 3.dp.toPx() }
+        val position = semantics.positionOnScreen
+        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        return Color(screen.getPixel((position.x + semantics.size.width / 2f).toInt(), (position.y + semantics.size.height + out).toInt()))
+    }
+
+    private fun SemanticsNodeInteraction.bottomOnScreen(): Float =
+        fetchSemanticsNode().let { it.positionOnScreen.y + it.size.height }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun railTabs_oneTabbedIntoViewFromBelow_showsItsWholeRing() {
+        launchWithKeyboard()
+        composeRule.runOnIdle { repeat(19) { browserVm.openNewTab("https://tab$it.example/") } }
+        val ids = browserVm.uiState.value.tabs.map { it.id }
+        // The first tab shown, so the rail's list is at its top and the later tabs below its foot
+        composeRule.runOnIdle { browserVm.selectTab(ids.first()) }
+        composeRule.waitForIdle()
+        val listBottom = composeRule.onNodeWithTag("tab_rail_list").bottomOnScreen()
+        val shown = ids.takeWhile { id ->
+            val tile = composeRule.onAllNodesWithTag("tab_bar_item_$id").fetchSemanticsNodes().firstOrNull()
+            tile != null && tile.positionOnScreen.y + tile.size.height <= listBottom
+        }
+        assertTrue("Some tabs below the list's foot: ${shown.size} of ${ids.size} shown", shown.size in 2 until ids.size)
+
+        inBothThemes {
+            // The last tab wholly in sight, then Tab: the next one, under the list's foot, comes in
+            composeRule.onNodeWithTag("tab_bar_item_${shown.last()}").requestFocus().assertIsFocused()
+            val next = composeRule.onNodeWithTag("tab_bar_item_${ids[shown.size]}")
+            composeRule.onNodeWithTag("tab_bar_item_${shown.last()}").tab()
+            next.assertIsFocused()
+            val below = pixelBelow(next)
+            assertTrue("The ring under the tab brought in, in the accent: $below", below.isCloseTo(primary))
+            assertTrue("Inside the list", next.bottomOnScreen() + with(composeRule.density) { 4.dp.toPx() } <= listBottom + 0.5f)
+            // Back to the top for the other theme
+            composeRule.runOnIdle { browserVm.selectTab(ids.last()) }
+            composeRule.runOnIdle { browserVm.selectTab(ids.first()) }
+            composeRule.waitForIdle()
+        }
     }
 }
