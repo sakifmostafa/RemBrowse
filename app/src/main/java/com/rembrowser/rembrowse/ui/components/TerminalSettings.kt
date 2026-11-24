@@ -468,7 +468,8 @@ private fun HostEditorDialog(
                         onValueChange = { password = it },
                         label = { Text(if (initial.hasSavedPassword) "New password (leave empty to keep)" else "Password (optional)") },
                         singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
+                        // Deprecated with value-based text fields; SecureTextField needs TextFieldState, a change of its own
+                        visualTransformation = @Suppress("DEPRECATION") PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth().testTag("host_password")
                     )
@@ -600,7 +601,8 @@ private fun ImportKeyDialog(
                     onValueChange = { passphrase = it },
                     label = { Text("Passphrase (if it has one)") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
+                    // Deprecated with value-based text fields; SecureTextField needs TextFieldState, a change of its own
+                    visualTransformation = @Suppress("DEPRECATION") PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth().testTag("import_passphrase")
                 )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }

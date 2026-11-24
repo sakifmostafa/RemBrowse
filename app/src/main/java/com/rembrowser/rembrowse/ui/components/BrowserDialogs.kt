@@ -304,7 +304,8 @@ fun PagePromptDialog(prompt: PagePrompt, originLabel: String, onResolved: () -> 
                             onValueChange = { password = it },
                             label = { Text("Password") },
                             singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
+                            // Deprecated with value-based text fields; SecureTextField needs TextFieldState, a change of its own
+                            visualTransformation = @Suppress("DEPRECATION") PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
                                 imeAction = ImeAction.Done

@@ -405,6 +405,8 @@ private fun AddressPill(
         AddressStatusIcon(activeTab = activeTab, isEditing = isFocused)
         Spacer(modifier = Modifier.width(10.dp))
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            // The TextFieldState BasicTextField replaces this one; moving to it is a change of its own
+            @Suppress("DEPRECATION")
             BasicTextField(
                 value = value,
                 onValueChange = { newValue ->

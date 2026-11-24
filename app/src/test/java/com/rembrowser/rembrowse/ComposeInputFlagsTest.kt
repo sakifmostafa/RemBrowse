@@ -1,7 +1,5 @@
 package com.rembrowser.rembrowse
 
-import androidx.compose.foundation.ComposeFoundationFlags
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.test.core.app.ApplicationProvider
@@ -14,34 +12,25 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * Compose 1.11's newer touchpad and focus handling stays off in the app (see
- * keepComposeInputAsTested): it has not been tried on a touchpad and keyboard device. No
- * application is named here: like every test, this one gets RemBrowseApplication from
- * robolectric.properties, so the UI tests run with the handling as shipped.
+ * The newer focus handling Compose still has a switch for stays off in the app (see
+ * keepComposeInputAsTested): it has not been tried on a touchpad and keyboard device. Compose
+ * 1.13 removed the other four switches the app used to turn off. No application is named here:
+ * like every test, this one gets RemBrowseApplication from robolectric.properties, so the UI
+ * tests run with the handling as shipped.
  */
-@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalComposeUiApi::class)
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class ComposeInputFlagsTest {
 
     /** The flags as their names, read now, so a failure says which one */
     private fun flags(): Map<String, Boolean> = mapOf(
-        "ComposeUiFlags.isTrackpadGestureHandlingEnabled" to ComposeUiFlags.isTrackpadGestureHandlingEnabled,
-        "ComposeFoundationFlags.isTrackpadGestureHandlingEnabled" to
-            ComposeFoundationFlags.isTrackpadGestureHandlingEnabled,
-        "ComposeUiFlags.isIndirectPointerNavigationGestureDetectorEnabled" to
-            ComposeUiFlags.isIndirectPointerNavigationGestureDetectorEnabled,
         "ComposeUiFlags.isBypassUnfocusableComposeViewEnabled" to ComposeUiFlags.isBypassUnfocusableComposeViewEnabled,
-        "ComposeUiFlags.isOptimizedFocusEventDispatchEnabled" to ComposeUiFlags.isOptimizedFocusEventDispatchEnabled,
     )
 
-    /** Compose 1.11.4's defaults for all of them */
+    /** Compose 1.13.0's default */
     private fun setComposeDefaults() {
-        ComposeUiFlags.isTrackpadGestureHandlingEnabled = true
-        ComposeFoundationFlags.isTrackpadGestureHandlingEnabled = true
-        ComposeUiFlags.isIndirectPointerNavigationGestureDetectorEnabled = true
         ComposeUiFlags.isBypassUnfocusableComposeViewEnabled = true
-        ComposeUiFlags.isOptimizedFocusEventDispatchEnabled = true
     }
 
     // The flags are static and outlive the test; each test's RemBrowseApplication sets them

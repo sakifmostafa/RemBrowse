@@ -336,6 +336,8 @@ private fun HostPicker(hosts: List<SshHost>, onConnect: (TerminalTarget) -> Unit
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                        // The TextFieldState BasicTextField replaces this one; moving to it is a change of its own
+                        @Suppress("DEPRECATION")
                         BasicTextField(
                             value = address,
                             onValueChange = { address = it },
@@ -531,7 +533,8 @@ private fun BoxScope.PasswordCard(status: TerminalStatus.NeedsPassword, username
             onValueChange = { password = it },
             label = { Text("Password") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+            // Deprecated with value-based text fields; SecureTextField needs TextFieldState, a change of its own
+            visualTransformation = @Suppress("DEPRECATION") PasswordVisualTransformation(),
             isError = status.retry,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { onAnswer(password, remember) }),

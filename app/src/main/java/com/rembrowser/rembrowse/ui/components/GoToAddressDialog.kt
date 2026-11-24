@@ -215,6 +215,8 @@ fun GoToAddressDialog(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
+                    // The TextFieldState BasicTextField replaces this one; moving to it is a change of its own
+                    @Suppress("DEPRECATION")
                     BasicTextField(
                         value = value,
                         onValueChange = { next ->

@@ -190,6 +190,8 @@ fun FindInPageBar(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
+            // The TextFieldState BasicTextField replaces this one; moving to it is a change of its own
+            @Suppress("DEPRECATION")
             BasicTextField(
                 value = field,
                 onValueChange = { value ->

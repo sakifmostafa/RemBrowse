@@ -420,7 +420,7 @@ class BackNavigationUiTest {
 class ShadowInputManagerWithTouchpad : ShadowInputManager() {
 
     @Implementation
-    override fun getInputDeviceIds(): IntArray = intArrayOf(TOUCHPAD_ID)
+    fun getInputDeviceIds(): IntArray = intArrayOf(TOUCHPAD_ID)
 
     @Implementation
     fun getInputDevice(id: Int): InputDevice? = if (id == TOUCHPAD_ID) touchpad() else null
