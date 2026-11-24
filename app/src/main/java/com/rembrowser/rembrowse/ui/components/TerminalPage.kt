@@ -29,7 +29,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.GppMaybe
@@ -51,7 +50,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -597,26 +595,26 @@ private fun BoxScope.TerminalMenu(
             properties = PopupProperties(focusable = false),
             modifier = Modifier.testTag("terminal_menu")
         ) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Copy") },
                 trailingIcon = { ShortcutHint("Ctrl+Shift+C") },
                 enabled = canCopy,
                 onClick = run(onCopy),
                 modifier = Modifier.testTag("terminal_menu_copy")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Paste") },
                 trailingIcon = { ShortcutHint("Ctrl+Shift+V") },
                 enabled = connected,
                 onClick = run(onPaste),
                 modifier = Modifier.testTag("terminal_menu_paste")
             )
-            DropdownMenuItem(text = { Text("Select all") }, onClick = run(onSelectAll), modifier = Modifier.testTag("terminal_menu_select_all"))
+            RemMenuItem(text = { Text("Select all") }, onClick = run(onSelectAll), modifier = Modifier.testTag("terminal_menu_select_all"))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             if (connected) {
-                DropdownMenuItem(text = { Text("Disconnect") }, onClick = run(onDisconnect), modifier = Modifier.testTag("terminal_menu_disconnect"))
+                RemMenuItem(text = { Text("Disconnect") }, onClick = run(onDisconnect), modifier = Modifier.testTag("terminal_menu_disconnect"))
             } else {
-                DropdownMenuItem(text = { Text("Reconnect") }, onClick = run(onReconnect), modifier = Modifier.testTag("terminal_menu_reconnect"))
+                RemMenuItem(text = { Text("Reconnect") }, onClick = run(onReconnect), modifier = Modifier.testTag("terminal_menu_reconnect"))
             }
         }
     }
@@ -832,12 +830,11 @@ private fun TerminalHeader(
                     TextSizeRow(fontSizeSp = fontSizeSp, onFontSize = onFontSize)
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     TerminalThemePreset.entries.forEach { preset ->
-                        DropdownMenuItem(
+                        // One of a set: the current theme is filled and ticked
+                        RemSelectableMenuItem(
                             leadingIcon = { ThemeSwatch(preset, width = 30.dp, height = 22.dp) },
                             text = { Text(preset.label) },
-                            trailingIcon = {
-                                if (preset == theme) Icon(Icons.Outlined.Check, contentDescription = "Current", tint = MaterialTheme.colorScheme.primary)
-                            },
+                            selected = preset == theme,
                             onClick = {
                                 menuOpen = false
                                 onTheme(preset)

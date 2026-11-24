@@ -320,7 +320,7 @@ All colours, type and shapes come from `ui/theme/Theme.kt`; components read `Mat
 | `surfaceContainerHigh` / `Highest` | Hover and selected fills |
 | `primary` | Accent for text, icons, focus rings (the outer line; `onPrimary` the inner), progress and selection outlines |
 | `primaryContainer` | Deep accent fill for selected and active items |
-| `tertiaryContainer` | Soft accent tint for the start page backdrop |
+| `tertiaryContainer` | Soft accent tint for the start page backdrop; the chosen row in a menu (Material 3 Expressive's selectable and checkable menu items), with `onTertiaryContainer` for its text and tick |
 | `outline` / `outlineVariant` | Control boundaries / decorative hairlines |
 | `inverseSurface` / `inverseOnSurface` / `inversePrimary` | Notices (`NoticeSnackbar`): their fill, text and icons, and their action button and focus ring. A notice is drawn like Material's snackbar on a `Surface`, as wide as its content up to `NoticeMaxWidth` (520dp): Material's `Snackbar` takes all the width it is given |
 

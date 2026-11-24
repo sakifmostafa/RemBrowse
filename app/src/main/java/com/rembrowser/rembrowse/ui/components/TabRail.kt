@@ -31,7 +31,6 @@ import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Tab
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -350,14 +349,14 @@ private fun RailExtensionItem(
             }
         }
         RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Open ${extension.name}") },
                 onClick = {
                     showMenu = false
                     onClick()
                 }
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Manage extensions") },
                 onClick = {
                     showMenu = false
@@ -406,7 +405,7 @@ private fun RailExtensionsOverflow(
                 )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Manage extensions") },
                 onClick = {
                     showMenu = false
@@ -576,7 +575,7 @@ private fun RailTabItem(
             }
         }
         RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Close tab") },
                 trailingIcon = { ShortcutHint("Ctrl+W") },
                 onClick = {
@@ -585,7 +584,7 @@ private fun RailTabItem(
                 },
                 modifier = Modifier.testTag("tab_bar_close_${tab.id}")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Close other tabs") },
                 onClick = {
                     showMenu = false
@@ -595,7 +594,7 @@ private fun RailTabItem(
             if (paneCount > 1) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 for (pane in 0 until paneCount) {
-                    DropdownMenuItem(
+                    RemMenuItem(
                         text = { Text("Show in pane ${pane + 1}") },
                         onClick = {
                             showMenu = false
@@ -605,7 +604,7 @@ private fun RailTabItem(
                 }
                 if (isVisibleInPane) {
                     // The pane goes, the tab stays open here in the rail
-                    DropdownMenuItem(
+                    RemMenuItem(
                         text = { Text("Close pane") },
                         onClick = {
                             showMenu = false
@@ -705,21 +704,21 @@ private fun PinnedSiteItem(
             }
         }
         RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Open") },
                 onClick = {
                     showMenu = false
                     onOpen()
                 }
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Open in new tab") },
                 onClick = {
                     showMenu = false
                     onOpenInNewTab()
                 }
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Remove bookmark") },
                 onClick = {
                     showMenu = false

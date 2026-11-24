@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,7 +57,7 @@ fun BoxScope.PageContextMenuOverlay(
                 sections.forEachIndexed { index, section ->
                     if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     section.forEach { entry ->
-                        DropdownMenuItem(
+                        RemMenuItem(
                             text = { Text(labelFor(entry.action, menu.mediaType, isBookmarked)) },
                             trailingIcon = shortcutFor(entry.action)?.let { hint -> { ShortcutHint(hint) } },
                             enabled = entry.enabled,

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Extension
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -119,7 +118,7 @@ fun ExtensionMenuItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    DropdownMenuItem(
+    RemMenuItem(
         text = {
             Text(
                 text = extension.name,

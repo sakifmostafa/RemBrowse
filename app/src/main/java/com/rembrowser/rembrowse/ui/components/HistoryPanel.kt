@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -171,7 +170,7 @@ private fun HistoryRow(
     Box {
         HistoryRowContent(entry, zone, onOpen, onRemove, onOpenMenu = { showMenu = true })
         RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Open") },
                 onClick = {
                     showMenu = false
@@ -179,7 +178,7 @@ private fun HistoryRow(
                 },
                 modifier = Modifier.testTag("history_menu_open_${entry.url}")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Remove from history") },
                 onClick = {
                     showMenu = false

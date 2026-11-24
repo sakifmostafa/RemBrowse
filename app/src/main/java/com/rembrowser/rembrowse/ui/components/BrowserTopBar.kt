@@ -27,7 +27,6 @@ import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Extension
@@ -48,9 +47,9 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Terminal
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -579,35 +578,35 @@ private fun AddressFieldMenu(
             properties = PopupProperties(focusable = false),
             modifier = Modifier.testTag("address_menu")
         ) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Cut") },
                 trailingIcon = { ShortcutHint("Ctrl+X") },
                 enabled = hasSelection,
                 onClick = run(onCut),
                 modifier = Modifier.testTag("address_menu_cut")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Copy") },
                 trailingIcon = { ShortcutHint("Ctrl+C") },
                 enabled = hasSelection,
                 onClick = run(onCopy),
                 modifier = Modifier.testTag("address_menu_copy")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Paste") },
                 trailingIcon = { ShortcutHint("Ctrl+V") },
                 enabled = canPaste,
                 onClick = run(onPaste),
                 modifier = Modifier.testTag("address_menu_paste")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Paste and go") },
                 enabled = canPaste,
                 onClick = run(onPasteAndGo),
                 modifier = Modifier.testTag("address_menu_paste_and_go")
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Select all") },
                 trailingIcon = { ShortcutHint("Ctrl+A") },
                 enabled = hasText,
@@ -734,14 +733,14 @@ private fun MoreMenu(
 
     RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         if (compact) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text(if (isLoading) "Stop loading" else "Reload") },
                 leadingIcon = { MenuIcon(if (isLoading) Icons.Outlined.Close else Icons.Outlined.Refresh) },
                 enabled = pageActionsEnabled,
                 onClick = run(onReloadOrStop),
                 modifier = Modifier.testTag("menu_reload")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text(if (isBookmarked) "Remove bookmark" else "Bookmark this page") },
                 leadingIcon = { MenuIcon(if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarBorder) },
                 enabled = pageActionsEnabled,
@@ -750,34 +749,34 @@ private fun MoreMenu(
             )
             divider()
         }
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("New tab") },
             leadingIcon = { MenuIcon(Icons.Outlined.Add) },
             trailingIcon = hint("Ctrl+T"),
             onClick = run(onNewTab),
             modifier = Modifier.testTag("menu_new_tab")
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("New terminal") },
             leadingIcon = { MenuIcon(Icons.Outlined.Terminal) },
             trailingIcon = hint("Ctrl+Shift+T"),
             onClick = run(onNewTerminal),
             modifier = Modifier.testTag("menu_new_terminal")
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Close tab") },
             leadingIcon = { MenuIcon(Icons.Outlined.Close) },
             trailingIcon = hint("Ctrl+W"),
             onClick = run(onCloseActiveTab)
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Command palette") },
             leadingIcon = { MenuIcon(Icons.AutoMirrored.Outlined.ManageSearch) },
             trailingIcon = hint("Ctrl+K"),
             onClick = run(onOpenCommandPalette),
             modifier = Modifier.testTag("menu_command_palette")
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Find in page") },
             leadingIcon = { MenuIcon(Icons.Outlined.FindInPage) },
             trailingIcon = hint("Ctrl+F"),
@@ -785,7 +784,7 @@ private fun MoreMenu(
             onClick = run(onFindInPage),
             modifier = Modifier.testTag("menu_find_in_page")
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Print…") },
             leadingIcon = { MenuIcon(Icons.Outlined.Print) },
             trailingIcon = hint("Ctrl+P"),
@@ -794,7 +793,7 @@ private fun MoreMenu(
             modifier = Modifier.testTag("menu_print")
         )
         // Anything in the window can be taken, so it is never greyed out
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Take screenshot") },
             leadingIcon = { MenuIcon(Icons.Outlined.ScreenshotMonitor) },
             trailingIcon = hint("Ctrl+Alt+S"),
@@ -802,7 +801,7 @@ private fun MoreMenu(
             modifier = Modifier.testTag("menu_screenshot")
         )
         if (compact) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Split view") },
                 leadingIcon = { MenuIcon(Icons.AutoMirrored.Outlined.ViewSidebar) },
                 onClick = run(onOpenSplitView),
@@ -810,27 +809,27 @@ private fun MoreMenu(
             )
         }
         divider()
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Bookmarks") },
             leadingIcon = { MenuIcon(Icons.Outlined.StarBorder) },
             onClick = run(onOpenBookmarks),
             modifier = Modifier.testTag("menu_bookmarks")
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("History") },
             leadingIcon = { MenuIcon(Icons.Outlined.History) },
             trailingIcon = hint("Ctrl+H"),
             onClick = run(onOpenHistory),
             modifier = Modifier.testTag("menu_history")
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Downloads") },
             leadingIcon = { MenuIcon(Icons.Outlined.FileDownload) },
             trailingIcon = hint("Ctrl+J"),
             onClick = run(onOpenDownloads),
             modifier = Modifier.testTag("menu_downloads")
         )
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Extensions") },
             leadingIcon = { MenuIcon(Icons.Outlined.Extension) },
             onClick = run(onOpenExtensions),
@@ -848,29 +847,23 @@ private fun MoreMenu(
             }
         }
         divider()
-        DropdownMenuItem(
+        // On or off for this tab: ticked and filled while on
+        RemCheckableMenuItem(
             text = { Text("Desktop site") },
+            checked = desktopMode,
+            onCheckedChange = { run(onToggleDesktopMode)() },
             leadingIcon = { MenuIcon(Icons.Outlined.DesktopWindows) },
-            trailingIcon = {
-                if (desktopMode) {
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = "On",
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            },
-            onClick = run(onToggleDesktopMode)
+            modifier = Modifier.testTag("menu_desktop_site")
         )
         if (hasKeyboard) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Keyboard shortcuts") },
                 leadingIcon = { MenuIcon(Icons.Outlined.Keyboard) },
                 onClick = run(onShowKeyboardShortcuts),
                 modifier = Modifier.testTag("menu_keyboard_shortcuts")
             )
         }
-        DropdownMenuItem(
+        RemMenuItem(
             text = { Text("Settings") },
             leadingIcon = { MenuIcon(Icons.Outlined.Settings) },
             trailingIcon = hint("Ctrl+,"),
@@ -916,47 +909,52 @@ private fun SplitMenu(
 ) {
     val colors = MaterialTheme.colorScheme
 
+    /**
+     * A row; [selected] is null for an action, and true or false for one of a set of choices
+     * (the split's layout and size), which Material draws as a selectable menu item: the current
+     * one filled and ticked, so it is not told apart by colour alone.
+     */
     @Composable
     fun item(
         label: String,
         tag: String,
-        selected: Boolean = false,
+        selected: Boolean? = null,
         shortcut: String? = null,
         leading: @Composable (tint: Color) -> Unit,
         onClick: () -> Unit
     ) {
-        DropdownMenuItem(
-            text = { Text(label) },
-            leadingIcon = { leading(if (selected) colors.primary else colors.onSurfaceVariant) },
-            trailingIcon = {
-                // The current choice is ticked, so it is not told apart by colour alone
-                if (selected) {
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = null,
-                        tint = colors.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                } else if (shortcut != null) {
-                    ShortcutHint(shortcut)
-                }
-            },
-            onClick = {
-                onDismiss()
-                onClick()
-            },
-            modifier = Modifier
-                .testTag(tag)
-                .semantics { this.selected = selected }
-        )
+        val run = {
+            onDismiss()
+            onClick()
+        }
+        val hint: (@Composable () -> Unit)? = shortcut?.let { keys -> { ShortcutHint(keys) } }
+        if (selected != null) {
+            RemSelectableMenuItem(
+                text = { Text(label) },
+                selected = selected,
+                onClick = run,
+                leadingIcon = { leading(LocalContentColor.current) },
+                trailingIcon = hint,
+                modifier = Modifier.testTag(tag)
+            )
+        } else {
+            RemMenuItem(
+                text = { Text(label) },
+                onClick = run,
+                leadingIcon = { leading(LocalContentColor.current) },
+                trailingIcon = hint,
+                modifier = Modifier.testTag(tag)
+            )
+        }
     }
 
+    /** A layout: one of the choices while a split is open, a way to start one before. */
     @Composable
     fun layoutItem(label: String, mode: LayoutMode, tag: String, shortcut: String? = null, onClick: () -> Unit) {
         item(
             label = label,
             tag = tag,
-            selected = uiState.isSplit && uiState.layoutMode == mode,
+            selected = if (uiState.isSplit) uiState.layoutMode == mode else null,
             shortcut = shortcut,
             leading = { tint -> LayoutGlyph(mode = mode, color = tint) },
             onClick = onClick
@@ -969,8 +967,9 @@ private fun SplitMenu(
             text = text,
             style = MaterialTheme.typography.labelMedium,
             color = colors.onSurfaceVariant,
+            // In line with the rows' icons: 4dp inset and 12dp padding (RemMenuItem)
             modifier = Modifier
-                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
                 .semantics { heading() }
         )
     }

@@ -130,8 +130,8 @@ The **Split** menu, beside **More** in the toolbar, has buttons for the common l
 While a split is open, the **Split** button is filled and the same menu holds its controls:
 
 * **Swap panes** — exchanges the focused pane with the next one. Focus follows your page.
-* **Size** — **50 / 50** or **70 / 30** for the first pane. The current size is ticked. Offered when there are two panes.
-* **Layout** — **Side by side**, **Stacked**, **Grid** or **One left, two right**, ticked when the current arrangement is one of them. Choosing a two-pane layout while three or four pages are on screen keeps the first two and the focused one.
+* **Size** — **50 / 50** or **70 / 30** for the first pane. The current size is highlighted and ticked. Offered when there are two panes.
+* **Layout** — **Side by side**, **Stacked**, **Grid** or **One left, two right**, highlighted and ticked when the current arrangement is one of them. Choosing a two-pane layout while three or four pages are on screen keeps the first two and the focused one.
 * **Close this pane** — the focused pane goes and its neighbour takes the room. Its tab stays open in the rail.
 * **Close split** — back to a single page: the focused one. Your other tabs stay open in the rail.
 
@@ -189,7 +189,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
   * **Open new tabs** — **At the end of the tab list** (the default) or **Next to the current tab**. A tab that a page opens goes next to that page.
   * **Swipe with two fingers to go back** — on by default. A touchpad's two-finger swipe right goes back and left goes forward, when the page has nothing to scroll that way.
   * **Swipe the other way** — off by default, shown while swipes are on. Left goes back and right goes forward instead.
-  * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**.
+  * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**, which is highlighted and ticked while that tab asks for desktop sites.
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (uBlock Origin) on or off. See [Ad blocking](#8-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.

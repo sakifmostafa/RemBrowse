@@ -26,7 +26,6 @@ import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -126,7 +125,7 @@ private fun BookmarkRow(
     Box {
         BookmarkRowContent(bookmark, onOpen, onOpenInNewTab, onRemove, onOpenMenu = { showMenu = true })
         RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Open") },
                 onClick = {
                     showMenu = false
@@ -134,7 +133,7 @@ private fun BookmarkRow(
                 },
                 modifier = Modifier.testTag("bookmark_menu_open_${bookmark.id}")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Open in new tab") },
                 onClick = {
                     showMenu = false
@@ -142,7 +141,7 @@ private fun BookmarkRow(
                 },
                 modifier = Modifier.testTag("bookmark_menu_new_tab_${bookmark.id}")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Remove bookmark") },
                 onClick = {
                     showMenu = false

@@ -142,6 +142,13 @@ open class ThemeContrastTest {
     }
 
     @Test
+    fun chosenMenuRows_keepTheirTextAndTickReadable() = forEveryTheme { name, c ->
+        // Material's selectable and checkable menu items: tertiaryContainer behind the chosen row,
+        // its text, icon and tick in onTertiaryContainer
+        assertContrast("$name onTertiaryContainer on tertiaryContainer", c.onTertiaryContainer, c.tertiaryContainer, 4.5)
+    }
+
+    @Test
     fun outlinedButtons_textAndBorderStandOutWhereTheButtonsSit() = forEveryTheme { name, c ->
         // RemOutlinedButton sits on Settings (surfaceContainerLowest), the print panel and the
         // terminal page's cards (surface) and dialogs (surfaceContainerHigh)

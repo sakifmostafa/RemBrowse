@@ -30,20 +30,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CheckableDropdownMenuItem
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.RippleConfiguration
+import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -582,6 +587,107 @@ fun RemDropdownMenu(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         content = content
     )
+}
+
+/**
+ * A row in a [RemDropdownMenu]: Material 3 Expressive's menu item, set 4dp in from the menu's
+ * sides with rounded corners for its hover, press and focus. The parameters are those of the
+ * classic DropdownMenuItem it replaces; [trailingIcon] is usually a [ShortcutHint].
+ */
+@Composable
+fun RemMenuItem(
+    text: @Composable () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    DropdownMenuItem(
+        onClick = onClick,
+        text = text,
+        shape = MenuDefaults.itemShapes().shape,
+        modifier = modifier,
+        leadingIcon = leadingIcon,
+        trailingContent = trailingIcon,
+        enabled = enabled
+    )
+}
+
+/**
+ * A menu row that is on or off, such as Desktop site: Material 3 Expressive's checkable menu item.
+ * While on it takes the selected fill (tertiaryContainer), rounder corners and a tick at its end,
+ * so the state never rests on colour alone; screen readers hear a checkbox.
+ */
+@Composable
+fun RemCheckableMenuItem(
+    text: @Composable () -> Unit,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    CheckableDropdownMenuItem(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        text = text,
+        shapes = MenuDefaults.itemShapes(),
+        modifier = modifier,
+        leadingIcon = leadingIcon,
+        trailingContent = if (checked) {
+            { MenuTick() }
+        } else {
+            null
+        },
+        enabled = enabled,
+        colors = selectableMenuItemColors()
+    )
+}
+
+/**
+ * One of a set of choices in a menu, such as a split's layout: Material 3 Expressive's selectable
+ * menu item. The chosen one takes the selected fill, rounder corners and a tick at its end (in
+ * place of [trailingIcon], usually a shortcut); screen readers hear a radio button.
+ */
+@Composable
+fun RemSelectableMenuItem(
+    text: @Composable () -> Unit,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    SelectableDropdownMenuItem(
+        selected = selected,
+        onClick = onClick,
+        text = text,
+        shapes = MenuDefaults.itemShapes(),
+        modifier = modifier,
+        leadingIcon = leadingIcon,
+        trailingContent = if (selected) {
+            { MenuTick() }
+        } else {
+            trailingIcon
+        },
+        enabled = enabled,
+        colors = selectableMenuItemColors()
+    )
+}
+
+/** Material's selectable menu item colours, on the menu's own fill rather than one of their own. */
+@Composable
+private fun selectableMenuItemColors() = MenuDefaults.selectableItemColors(
+    containerColor = Color.Transparent,
+    disabledContainerColor = Color.Transparent
+)
+
+/** The tick at the end of a chosen menu row, in the row's content colour. */
+@Composable
+private fun MenuTick() {
+    Icon(imageVector = Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
 }
 
 /**

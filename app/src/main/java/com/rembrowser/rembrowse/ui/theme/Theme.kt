@@ -44,7 +44,8 @@ import com.rembrowser.rembrowse.ui.components.rememberReduceMotion
  * - `surfaceContainerHigh` / `Highest`: hover and selected fills
  * - `primary`: accent for text, icons, focus and progress
  * - `primaryContainer` / `onPrimaryContainer`: deep accent fill for selected/active items
- * - `tertiaryContainer`: soft accent tint used for the start page backdrop
+ * - `tertiaryContainer`: soft accent tint used for the start page backdrop and, as Material 3
+ *   Expressive has it, the chosen row of a menu
  * - `outline`: control boundaries (3:1), `outlineVariant`: decorative hairlines
  *
  * With system colours (Material You) the wallpaper's scheme is re-mapped onto the same roles by

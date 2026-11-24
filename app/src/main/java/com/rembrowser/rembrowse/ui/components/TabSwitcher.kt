@@ -31,7 +31,6 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -289,7 +288,7 @@ private fun TabCard(
             onOpenMenu = { showMenu = true }
         )
         RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Close tab") },
                 trailingIcon = { ShortcutHint("Ctrl+W") },
                 onClick = {
@@ -298,7 +297,7 @@ private fun TabCard(
                 },
                 modifier = Modifier.testTag("switcher_menu_close_${tab.id}")
             )
-            DropdownMenuItem(
+            RemMenuItem(
                 text = { Text("Close other tabs") },
                 onClick = {
                     showMenu = false
