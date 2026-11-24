@@ -33,7 +33,8 @@ import org.robolectric.annotation.Config
  * interop hands an embedded view a copy of that move: at the pretend finger, which has moved with
  * the scroll, not at the cursor. A web view would give the page a mouse move there. The page
  * views below are wired as PaneGeckoView wires its guard; a real GeckoView needs Gecko's native
- * engine to take a touch at all.
+ * engine to take a touch at all, so PaneGeckoView itself is checked with listeners standing in
+ * for the page (paneGeckoView_keepsTheMadeUpMoveFromThePage).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], qualifiers = "w800dp-h600dp-mdpi")
@@ -76,14 +77,20 @@ class TouchpadGestureHoverGuardTest {
      * and the cursor moving on.
      */
     private fun scrollWithARelayout(guarded: Boolean): Page {
+        lateinit var page: Page
+        scrollWithARelayout { context -> Page(context, guarded).also { page = it } }
+        return page
+    }
+
+    /** The same scroll over the page view [pageView] makes. */
+    private fun scrollWithARelayout(pageView: (Context) -> View) {
         val above = mutableIntStateOf(100)
         lateinit var root: View
-        lateinit var page: Page
         composeRule.setContent {
             root = LocalView.current
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxWidth().height(above.intValue.dp))
-                AndroidView(factory = { Page(it, guarded).also { view -> page = view } }, modifier = Modifier.fillMaxSize())
+                AndroidView(factory = pageView, modifier = Modifier.fillMaxSize())
             }
         }
         composeRule.waitForIdle()
@@ -105,7 +112,6 @@ class TouchpadGestureHoverGuardTest {
         send(swipe.last())
         send(gestures.hover(310f, 200f, eventTime = 1_200L))
         composeRule.waitForIdle()
-        return page
     }
 
     @Test
@@ -117,6 +123,31 @@ class TouchpadGestureHoverGuardTest {
         assertTrue("Compose 1.13 handed the view its made-up hover move: ${page.handed}", "300,140" in page.handed)
         assertFalse(page.reached.toString(), "300,140" in page.reached)
         assertEquals("Before and after the gesture, the cursor", listOf("300,100", "310,80"), page.reached)
+    }
+
+    /**
+     * The same scroll over PaneGeckoView itself, through its own dispatchTouchEvent and
+     * dispatchGenericMotionEvent, so this fails if either override goes. Gecko's native engine,
+     * which takes a page's touches, can't run on the JVM: a touch listener takes them in its place
+     * (GeckoView's own dispatch calls it first), and a hover listener, which View's hover dispatch
+     * calls before anything else, notes the hover moves that get past PaneGeckoView to the page.
+     */
+    @Test
+    fun paneGeckoView_keepsTheMadeUpMoveFromThePage() {
+        val reached = mutableListOf<String>()
+        scrollWithARelayout { context ->
+            PaneGeckoView(context).apply {
+                @SuppressLint("ClickableViewAccessibility")
+                setOnTouchListener { _, _ -> true }
+                setOnHoverListener { _, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_HOVER_MOVE) reached += "${event.x.toInt()},${event.y.toInt()}"
+                    true
+                }
+            }
+        }
+
+        assertFalse(reached.toString(), "300,140" in reached)
+        assertEquals("Before and after the gesture, the cursor", listOf("300,100", "310,80"), reached)
     }
 
     @Test
