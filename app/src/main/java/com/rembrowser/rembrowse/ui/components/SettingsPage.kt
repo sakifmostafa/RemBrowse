@@ -48,6 +48,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -510,8 +511,13 @@ private fun RadioRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .selectable(
+                selected = selected,
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                role = Role.RadioButton,
+                onClick = onClick
+            )
             .testTag(testTag)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -543,11 +549,16 @@ private fun SectionNavItem(
     Row(
         modifier = modifier
             .heightIn(min = 48.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small)
             .clip(MaterialTheme.shapes.small)
             .background(if (selected) colors.primaryContainer else Color.Transparent)
             .border(1.dp, if (selected) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .selectable(
+                selected = selected,
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                role = Role.Tab,
+                onClick = onClick
+            )
             .testTag("settings_section_${section.path}")
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -622,6 +633,9 @@ private fun AppearanceSection(
                     .clip(CircleShape)
                     .selectable(
                         selected = selected,
+                        interactionSource = null,
+                        // The ring is keyboardFocusRing's, outside the swatch (see below)
+                        indication = ripple(enableFocusIndication = false),
                         enabled = accentsInUse,
                         role = Role.RadioButton,
                         onClick = { onSetAccent(accent) }
@@ -632,7 +646,9 @@ private fun AppearanceSection(
                     .testTag("accent_${accent.name.lowercase()}"),
                 contentAlignment = Alignment.Center
             ) {
-                // The selected swatch gets a ring, so the choice does not rely on hue alone
+                // The selected swatch gets a ring, so the choice does not rely on hue alone. The
+                // keyboard's ring stays outside it (keyboardFocusRing): Material's inset ring would
+                // sit on this one and hide which swatch is chosen.
                 if (selected) {
                     Box(
                         modifier = Modifier
@@ -851,7 +867,6 @@ private fun SwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .hapticToggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
             .testTag(testTag)
             .padding(vertical = 8.dp),

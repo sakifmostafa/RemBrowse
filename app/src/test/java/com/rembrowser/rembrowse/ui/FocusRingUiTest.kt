@@ -153,13 +153,16 @@ class FocusRingUiTest {
         composeRule.onNodeWithTag("menu_settings").assertIsDisplayed()
     }
 
-    /** The screen's pixel 3dp above the middle of [node]'s top edge: where its ring's line runs. */
+    /**
+     * The screen's pixel 1dp inside the middle of [node]'s top edge: where the outer line of its
+     * ring runs (Material's inset ring, 2dp wide along the edge).
+     */
     private fun pixelOnTheRing(node: SemanticsNodeInteraction): Color {
         composeRule.waitForIdle()
         val semantics = node.fetchSemanticsNode()
-        val ringOffset = with(composeRule.density) { 3.dp.toPx() }
+        val ringOffset = with(composeRule.density) { 1.dp.toPx() }
         val x = semantics.positionOnScreen.x + semantics.size.width / 2f
-        val y = semantics.positionOnScreen.y - ringOffset
+        val y = semantics.positionOnScreen.y + ringOffset
         // The whole display, as UiSnapshotTest renders it
         val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         return Color(screen.getPixel(x.roundToInt(), y.roundToInt()))

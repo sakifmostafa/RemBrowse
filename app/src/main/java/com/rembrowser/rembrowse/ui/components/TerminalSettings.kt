@@ -39,6 +39,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -326,8 +327,11 @@ private fun KeyRow(key: SshKeyInfo, onShow: () -> Unit, onDelete: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-            .clickable(onClick = onShow)
+            .clickable(
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                onClick = onShow
+            )
             .testTag("terminal_key_${key.id}")
             .padding(vertical = 4.dp)
     ) {
@@ -476,8 +480,13 @@ private fun HostEditorDialog(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-                            .toggleable(value = savePassword, role = Role.Checkbox, onValueChange = { savePassword = it })
+                            .toggleable(
+                                value = savePassword,
+                                interactionSource = null,
+                                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                                role = Role.Checkbox,
+                                onValueChange = { savePassword = it }
+                            )
                             .testTag("host_save_password")
                     ) {
                         Checkbox(checked = savePassword, onCheckedChange = null)
@@ -521,8 +530,13 @@ private fun ChoiceRow(label: String, selected: Boolean, testTag: String, onClick
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 40.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .selectable(
+                selected = selected,
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                role = Role.RadioButton,
+                onClick = onClick
+            )
             .testTag(testTag)
     ) {
         RadioButton(selected = selected, onClick = null)
@@ -678,9 +692,14 @@ private fun ThemeCard(theme: TerminalThemePreset, font: TerminalFont, selected: 
     val line = MaterialTheme.typography.labelSmall.copy(fontFamily = family, fontSize = 10.sp, lineHeight = 14.sp)
     Column(
         modifier = modifier
-            .keyboardFocusRing(MaterialTheme.shapes.medium)
             .clip(MaterialTheme.shapes.medium)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .selectable(
+                selected = selected,
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.medium),
+                role = Role.RadioButton,
+                onClick = onClick
+            )
             .testTag("terminal_theme_card_${theme.name.lowercase()}")
     ) {
         Column(
@@ -746,9 +765,14 @@ private fun <T> OptionRow(title: String, options: List<T>, selected: T, label: (
                     contentColor = if (isSelected) colors.onPrimaryContainer else colors.onSurface,
                     border = BorderStroke(1.dp, if (isSelected) colors.primaryContainer else colors.outlineVariant),
                     modifier = Modifier
-                        .keyboardFocusRing(CircleShape, inside = true)
                         .clip(CircleShape)
-                        .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(option) })
+                        .selectable(
+                            selected = isSelected,
+                            interactionSource = null,
+                            indication = ripple(focusRingShape = CircleShape),
+                            role = Role.RadioButton,
+                            onClick = { onSelect(option) }
+                        )
                         .testTag("${tagPrefix}_${option.toString().lowercase()}")
                 ) {
                     Text(label(option), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
@@ -765,7 +789,6 @@ private fun ToggleRow(title: String, description: String, checked: Boolean, onCh
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .hapticToggleable(value = checked, role = Role.Switch, onValueChange = onChange)
             .testTag(testTag)
             .padding(vertical = 8.dp)

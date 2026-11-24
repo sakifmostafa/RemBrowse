@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -208,11 +209,15 @@ private fun HistoryRowContent(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .contextMenuTrigger(onOpenMenu)
             .middleClickTrigger(onOpen)
             .touchLongPress("More options", onOpenMenu)
-            .clickable(onClickLabel = "Open", onClick = onOpen)
+            .clickable(
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                onClickLabel = "Open",
+                onClick = onOpen
+            )
             .padding(start = 4.dp)
             .testTag("history_entry_${entry.url}"),
         verticalAlignment = Alignment.CenterVertically,

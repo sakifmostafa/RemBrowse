@@ -38,10 +38,12 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +52,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -159,7 +162,6 @@ fun RemIconButton(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .size(size)
-                    .keyboardFocusRing(MaterialTheme.shapes.medium)
                     .clip(MaterialTheme.shapes.medium)
                     .background(if (selected) colors.surfaceContainerHighest else Color.Transparent)
                     .then(
@@ -169,7 +171,13 @@ fun RemIconButton(
                             Modifier
                         }
                     )
-                    .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                    .clickable(
+                        interactionSource = null,
+                        indication = ripple(focusRingShape = MaterialTheme.shapes.medium),
+                        enabled = enabled,
+                        role = Role.Button,
+                        onClick = onClick
+                    )
                     .semantics { if (selected) this.selected = true },
                 contentAlignment = Alignment.Center
             ) {
@@ -188,6 +196,11 @@ fun RemIconButton(
  * A ring around the element while it has keyboard focus (Tab, arrows), in the accent colour,
  * outside its edge unless [inside]. Touch and pointer use show none, as on the web's
  * :focus-visible. It is drawn, not laid out, so it never moves anything.
+ *
+ * Controls normally show Material's inset ring instead (see focusRingConfiguration in Theme.kt);
+ * this one is left only where that can't be drawn or would mislead: a focusable that is not a
+ * clickable (the print preview's page list), a focus also taken on touch (the print screen's
+ * Save tile), and the accent swatches, whose selection ring Material's ring would cover.
  *
  * Put it before the element's `clip` (a ring after the clip would be cut off) and before its
  * `clickable` or `focusable`, whose focus it follows. Use [inside] for rows in a scrolling list,
@@ -480,13 +493,21 @@ fun Modifier.hapticToggleable(
     value: Boolean,
     role: Role,
     enabled: Boolean = true,
+    /** The shape of the keyboard focus ring Material draws inside the element. */
+    focusRingShape: Shape = MaterialTheme.shapes.small,
     onValueChange: (Boolean) -> Unit
 ): Modifier {
     val haptics = rememberTouchHaptics()
     val latest by rememberUpdatedState(onValueChange)
     return this
         .touchPressFor(haptics)
-        .toggleable(value = value, enabled = enabled, role = role) { checked ->
+        .toggleable(
+            value = value,
+            interactionSource = null,
+            indication = ripple(focusRingShape = focusRingShape),
+            enabled = enabled,
+            role = role
+        ) { checked ->
             haptics.perform(if (checked) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
             latest(checked)
         }
@@ -624,7 +645,10 @@ internal fun NoticeSnackbar(
 ) {
     val colors = MaterialTheme.colorScheme
     // The accent is meant for the normal surfaces; on the inverse one the ring takes the inverse accent
-    CompositionLocalProvider(LocalFocusRingColor provides colors.inversePrimary) {
+    CompositionLocalProvider(
+        LocalFocusRingColor provides colors.inversePrimary,
+        LocalRippleConfiguration provides noticeFocusRing(colors)
+    ) {
         Surface(
             modifier = modifier
                 .padding(16.dp)
@@ -658,9 +682,7 @@ internal fun NoticeSnackbar(
                     TextButton(
                         onClick = onAction,
                         colors = ButtonDefaults.textButtonColors(contentColor = colors.inversePrimary),
-                        modifier = Modifier
-                            .keyboardFocusRing(ButtonDefaults.textShape)
-                            .then(if (actionTestTag != null) Modifier.testTag(actionTestTag) else Modifier)
+                        modifier = if (actionTestTag != null) Modifier.testTag(actionTestTag) else Modifier
                     ) {
                         Text(actionLabel)
                     }
@@ -677,6 +699,14 @@ internal fun NoticeSnackbar(
         }
     }
 }
+
+/**
+ * Focus rings on a notice's inverse surface: the inverse accent, with the inner stroke in the
+ * notice's own colour, so the ring reads as one line in the colour checked in ThemeContrastTest.
+ */
+internal fun noticeFocusRing(colors: ColorScheme): RippleConfiguration = RippleConfiguration(
+    focus = RippleConfiguration.Focus.InsetRing(outerStrokeColor = colors.inversePrimary, innerStrokeColor = colors.inverseSurface)
+)
 
 /** How wide a notice ([NoticeSnackbar]) can grow; shorter ones are as wide as their text. */
 internal val NoticeMaxWidth = 520.dp

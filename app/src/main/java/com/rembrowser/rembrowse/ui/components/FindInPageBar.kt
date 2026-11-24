@@ -314,10 +314,14 @@ private fun MatchCaseToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .size(32.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.medium)
             .clip(MaterialTheme.shapes.medium)
             .background(background)
-            .hapticToggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .hapticToggleable(
+                value = checked,
+                role = Role.Switch,
+                focusRingShape = MaterialTheme.shapes.medium,
+                onValueChange = onCheckedChange
+            )
             .semantics { contentDescription = "Match case" }
             .testTag("find_match_case"),
         contentAlignment = Alignment.Center

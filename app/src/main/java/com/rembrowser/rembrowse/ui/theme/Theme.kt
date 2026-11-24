@@ -8,7 +8,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.LocalRippleThemeConfiguration
 import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.RippleConfiguration
+import androidx.compose.material3.RippleDefaults
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -16,7 +20,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -415,18 +421,37 @@ fun RemBrowseTheme(
 }
 
 /**
+ * Keyboard focus rings: Material 3's inset rings, two strokes just inside a control's edge, here
+ * the accent (primary) outside and onPrimary inside it, so one of the two stands out on any fill
+ * (ThemeContrastTest). Material's components draw them on their own; RemBrowse's own controls get
+ * them from `ripple(focusRingShape = ...)` with their shape. Like the web's :focus-visible they
+ * show only for the keyboard: a control takes the focus from a touch or a click only if it is a
+ * text field.
+ */
+fun focusRingConfiguration(colors: ColorScheme): RippleConfiguration = RippleConfiguration(
+    focus = RippleConfiguration.Focus.InsetRing(outerStrokeColor = colors.primary, innerStrokeColor = colors.onPrimary)
+)
+
+/**
  * The browser's type, shapes and motion over [colorScheme], worked out already (see
  * resolveTheme): Material 3 Expressive's theme with its expressive motion scheme, or
- * [ReducedMotion] while Android's animations are off.
+ * [ReducedMotion] while Android's animations are off, and Material's inset focus rings
+ * ([focusRingConfiguration]).
  */
 @Composable
 fun RemBrowseTheme(colorScheme: ColorScheme, content: @Composable () -> Unit) {
     val reduceMotion = rememberReduceMotion()
+    val focusRing = remember(colorScheme) { focusRingConfiguration(colorScheme) }
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
         motionScheme = if (reduceMotion) ReducedMotion else MotionScheme.expressive(),
         shapes = RemShapes,
-        typography = RemTypography,
-        content = content
-    )
+        typography = RemTypography
+    ) {
+        CompositionLocalProvider(
+            LocalRippleThemeConfiguration provides RippleDefaults.InsetFocusRingThemeConfiguration,
+            LocalRippleConfiguration provides focusRing,
+            content = content
+        )
+    }
 }

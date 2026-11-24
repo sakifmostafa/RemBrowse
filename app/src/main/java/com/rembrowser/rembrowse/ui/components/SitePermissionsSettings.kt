@@ -189,7 +189,6 @@ private fun SitePermissionRow(entry: SitePermissionEntry, actions: SitePermissio
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = 56.dp)
-                .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
                 .hapticToggleable(
                     value = allowed,
                     role = Role.Switch,

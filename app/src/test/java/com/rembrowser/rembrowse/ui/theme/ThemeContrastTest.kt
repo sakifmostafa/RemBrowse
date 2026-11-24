@@ -1,12 +1,14 @@
 package com.rembrowser.rembrowse.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.ui.components.CaptureScrimAlpha
+import com.rembrowser.rembrowse.ui.components.noticeFocusRing
 import com.rembrowser.rembrowse.ui.components.outlinedButtonBorderColor
 import com.rembrowser.rembrowse.ui.components.outlinedButtonContentColor
 import com.rembrowser.rembrowse.ui.components.pinnedShelfColors
@@ -110,6 +112,33 @@ open class ThemeContrastTest {
                 strongest >= 3.0
             )
         }
+    }
+
+    @Test
+    fun focusRings_oneOfTheirTwoLinesStandsOutOnEveryFill() = forEveryTheme { name, c ->
+        // Material's inset ring: an outer and an inner line, drawn over the control's own fill
+        val ring = focusRingConfiguration(c).focus as RippleConfiguration.Focus.InsetRing
+        val fills = mapOf(
+            "background" to c.background,
+            "surface" to c.surface,
+            "surfaceContainerLowest" to c.surfaceContainerLowest,
+            "surfaceContainerLow" to c.surfaceContainerLow,
+            "surfaceContainerHigh" to c.surfaceContainerHigh,
+            "surfaceContainerHighest" to c.surfaceContainerHighest,
+            "primaryContainer" to c.primaryContainer,
+            "tertiaryContainer" to c.tertiaryContainer,
+            "secondaryContainer" to c.secondaryContainer
+        )
+        for ((fillName, fill) in fills) {
+            val strongest = maxOf(contrast(ring.outerStrokeColor, fill), contrast(ring.innerStrokeColor, fill))
+            assertTrue(
+                "$name focus ring on $fillName is ${"%.2f".format(strongest)}:1, needs 3.0:1",
+                strongest >= 3.0
+            )
+        }
+        // On a notice the ring is one line in the inverse accent
+        val notice = noticeFocusRing(c).focus as RippleConfiguration.Focus.InsetRing
+        assertContrast("$name notice focus ring on inverseSurface", notice.outerStrokeColor, c.inverseSurface, 3.0)
     }
 
     @Test

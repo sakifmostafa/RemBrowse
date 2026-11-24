@@ -54,6 +54,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -307,11 +308,10 @@ private fun SplitButton(isSplit: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .height(36.dp)
-            .keyboardFocusRing(shape)
             .clip(shape)
             .background(if (isSplit) colors.primaryContainer else colors.surface)
             .border(1.dp, if (isSplit) colors.primary else colors.outlineVariant, shape)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(interactionSource = null, indication = ripple(focusRingShape = shape), role = Role.Button, onClick = onClick)
             .semantics { selected = isSplit }
             .testTag("split_button")
             .padding(horizontal = 12.dp),
@@ -665,9 +665,13 @@ private fun TabCountButton(count: Int, onClick: () -> Unit) {
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .size(RemDimens.ControlSize)
-            .keyboardFocusRing(MaterialTheme.shapes.medium)
             .clip(MaterialTheme.shapes.medium)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.medium),
+                role = Role.Button,
+                onClick = onClick
+            )
             .semantics { contentDescription = label }
             .testTag("tab_switcher_button"),
         contentAlignment = Alignment.Center

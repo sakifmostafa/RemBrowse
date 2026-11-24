@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -260,7 +261,12 @@ internal fun PaletteRow(command: PaletteCommand, isHighlighted: Boolean, onClick
             .clip(MaterialTheme.shapes.small)
             .background(if (isHighlighted) colors.primaryContainer else Color.Transparent)
             .border(1.dp, if (isHighlighted) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                role = Role.Button,
+                onClick = onClick
+            )
             .semantics { selected = isHighlighted }
             .testTag("palette_${command.id}")
             .padding(horizontal = 12.dp),

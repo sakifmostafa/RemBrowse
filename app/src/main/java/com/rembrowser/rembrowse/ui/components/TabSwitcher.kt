@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -321,7 +322,6 @@ private fun TabCardContent(
     val shape = MaterialTheme.shapes.medium
     Column(
         modifier = Modifier
-            .keyboardFocusRing(shape)
             .clip(shape)
             .background(colors.surface)
             .border(
@@ -332,7 +332,7 @@ private fun TabCardContent(
             .contextMenuTrigger(onOpenMenu)
             .middleClickTrigger(onClose)
             .touchLongPress("More options", onOpenMenu)
-            .clickable(role = Role.Tab, onClick = onSelect)
+            .clickable(interactionSource = null, indication = ripple(focusRingShape = shape), role = Role.Tab, onClick = onSelect)
             .semantics { selected = isActive }
             .testTag("switcher_tab_${tab.id}")
     ) {

@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -166,11 +167,15 @@ private fun BookmarkRowContent(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .contextMenuTrigger(onOpenMenu)
             .middleClickTrigger(onOpenInNewTab)
             .touchLongPress("More options", onOpenMenu)
-            .clickable(role = Role.Button, onClick = onOpen)
+            .clickable(
+                interactionSource = null,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                role = Role.Button,
+                onClick = onOpen
+            )
             .padding(start = 20.dp, end = 8.dp)
             .testTag("bookmark_item_${bookmark.id}"),
         verticalAlignment = Alignment.CenterVertically
@@ -392,16 +397,30 @@ private fun ChoicePromptDialog(prompt: PagePrompt.Choice, onDismiss: () -> Unit,
 private fun ChoiceRow(option: PromptOption, multiple: Boolean, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val enabled = option.isSelectable
+    val ring = ripple(focusRingShape = MaterialTheme.shapes.small)
     val interaction = if (multiple) {
-        Modifier.toggleable(value = selected, enabled = enabled, role = Role.Checkbox, onValueChange = { onClick() })
+        Modifier.toggleable(
+            value = selected,
+            interactionSource = null,
+            indication = ring,
+            enabled = enabled,
+            role = Role.Checkbox,
+            onValueChange = { onClick() }
+        )
     } else {
-        Modifier.selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+        Modifier.selectable(
+            selected = selected,
+            interactionSource = null,
+            indication = ring,
+            enabled = enabled,
+            role = Role.RadioButton,
+            onClick = onClick
+        )
     }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .then(interaction)
             .padding(start = if (option.indented) 36.dp else 20.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically

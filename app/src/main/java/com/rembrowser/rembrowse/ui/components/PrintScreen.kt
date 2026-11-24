@@ -52,7 +52,6 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -455,8 +454,7 @@ private fun PanelHeader(onClose: () -> Unit, summary: String? = null) {
         RemIconButton(
             icon = Icons.Outlined.Close,
             label = "Close",
-            onClick = onClose,
-            modifier = Modifier.keyboardFocusRing(MaterialTheme.shapes.medium)
+            onClick = onClose
         )
     }
 }
@@ -616,9 +614,7 @@ private fun PrintTile(form: PrintForm, modifier: Modifier = Modifier) {
 private fun CancelButton(form: PrintForm, modifier: Modifier = Modifier) {
     TextButton(
         onClick = form.actions.cancel,
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .keyboardFocusRing(ButtonDefaults.textShape)
+        modifier = modifier.heightIn(min = 48.dp)
     ) {
         Text("Cancel")
     }
@@ -633,15 +629,18 @@ private fun ActionTile(
     primary: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Goes between the focus ring and the button, so the ring follows the focus it adds. */
-    focusModifier: Modifier = Modifier
+    /**
+     * A focus of the tile's own instead of the button's. It goes after a [keyboardFocusRing], so
+     * the ring follows the focus it adds: Material's ring would follow the button's focus, and
+     * this focus is also taken on touch, where no ring should show.
+     */
+    focusModifier: Modifier? = null
 ) {
     val colors = MaterialTheme.colorScheme
     val shape = MaterialTheme.shapes.medium
     val tileModifier = modifier
         .heightIn(min = 56.dp)
-        .keyboardFocusRing(shape)
-        .then(focusModifier)
+        .then(if (focusModifier != null) Modifier.keyboardFocusRing(shape).then(focusModifier) else Modifier)
     val padding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
     val content: @Composable RowScope.() -> Unit = {
         Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(20.dp))

@@ -44,6 +44,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -473,7 +474,6 @@ private fun RailTile(
                     .padding(horizontal = if (style == RailTileStyle.Pinned) 0.dp else 4.dp)
                     .minimumInteractiveComponentSize()
                     .size(RemDimens.ControlSize)
-                    .keyboardFocusRing(shape)
                     .clip(shape)
                     .background(fill)
                     .then(
@@ -486,6 +486,8 @@ private fun RailTile(
                     .contextMenuTrigger(onOpenMenu)
                     .then(if (onMiddleClick != null) Modifier.middleClickTrigger(onMiddleClick) else Modifier)
                     .combinedClickable(
+                        interactionSource = null,
+                        indication = ripple(focusRingShape = shape),
                         role = role,
                         onClick = onClick,
                         onLongClick = onOpenMenu,

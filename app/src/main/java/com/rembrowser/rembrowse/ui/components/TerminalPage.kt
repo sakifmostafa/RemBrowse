@@ -1,7 +1,6 @@
 package com.rembrowser.rembrowse.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +59,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -406,9 +406,12 @@ private fun HostCard(host: SshHost, onClick: () -> Unit, modifier: Modifier = Mo
         border = BorderStroke(1.dp, if (hovered) colors.primary else colors.outlineVariant),
         modifier = modifier
             .hoverable(interaction)
-            .keyboardFocusRing(MaterialTheme.shapes.large)
             .clip(MaterialTheme.shapes.large)
-            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
+            .clickable(
+                interactionSource = interaction,
+                indication = ripple(focusRingShape = MaterialTheme.shapes.large),
+                onClick = onClick
+            )
             .testTag("terminal_pick_${host.id}")
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -546,8 +549,13 @@ private fun BoxScope.PasswordCard(status: TerminalStatus.NeedsPassword, username
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 6.dp)
-                    .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-                    .toggleable(value = remember, role = Role.Checkbox, onValueChange = { remember = it })
+                    .toggleable(
+                        value = remember,
+                        interactionSource = null,
+                        indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                        role = Role.Checkbox,
+                        onValueChange = { remember = it }
+                    )
                     .testTag("terminal_password_remember")
             ) {
                 Checkbox(checked = remember, onCheckedChange = null)
