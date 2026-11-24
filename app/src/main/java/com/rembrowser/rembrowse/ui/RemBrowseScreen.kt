@@ -108,6 +108,7 @@ import com.rembrowser.rembrowse.ui.components.TerminalPage
 import com.rembrowser.rembrowse.ui.components.TerminalSettingsActions
 import com.rembrowser.rembrowse.ui.components.TiledBrowserGrid
 import com.rembrowser.rembrowse.ui.theme.RemDimens
+import com.rembrowser.rembrowse.ui.theme.WindowWidthClass
 import com.rembrowser.rembrowse.ui.theme.terminalCursorColor
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
@@ -481,7 +482,8 @@ fun RemBrowseScreen(
             // Fullscreen reaches under the (hidden) system bars and around any cutout
             .then(if (fullscreen) Modifier else Modifier.safeDrawingPadding())
     ) {
-        val compact = maxWidth < RemDimens.CompactWidth
+        // A phone-sized window: no tab rail, a touch-sized toolbar
+        val compact = WindowWidthClass.of(maxWidth) == WindowWidthClass.Compact
         val toolbarExtensions = remember(extensionsState.installedExtensions) {
             extensionsState.installedExtensions.filter { it.enabled && it.hasBrowserAction }
         }
@@ -880,7 +882,7 @@ fun RemBrowseScreen(
     if (chrome.showGoToAddress) {
         val tab = browserState.activeTab
         // The window's own width, as the layout measures it (a freeform window included)
-        val windowIsCompact = LocalConfiguration.current.screenWidthDp.dp < RemDimens.CompactWidth
+        val windowIsCompact = WindowWidthClass.of(LocalConfiguration.current.screenWidthDp.dp) == WindowWidthClass.Compact
         GoToAddressDialog(
             currentAddress = tab?.takeUnless { it.isNewTabPage || it.isInternalPage }?.url.orEmpty(),
             tabs = browserState.tabs,

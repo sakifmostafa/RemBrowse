@@ -178,6 +178,14 @@ class TabRailSnapshotTest {
         save("rail-02-dark-closeup", width = 260.dp, height = 560.dp)
     }
 
+    /** A phone held sideways: a medium-width window of compact height, where the rail still shows. */
+    @Test
+    @Config(qualifiers = "w800dp-h360dp-land-xhdpi")
+    fun railCompactHeight() {
+        launch(dark = true)
+        save("rail-05-compact-height-dark")
+    }
+
     @Test
     fun railLight() {
         launch(dark = false)

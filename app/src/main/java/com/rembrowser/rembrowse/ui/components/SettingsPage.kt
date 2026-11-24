@@ -93,6 +93,13 @@ import java.util.Locale
 /** Settings rows are capped to this width so a label and its switch stay close on wide windows. */
 private val ContentMaxWidth = 760.dp
 
+/**
+ * From this width the section list stands beside the section instead of above it: a little
+ * past where a window stops being compact (600dp), so a medium window's section still gets a
+ * readable width beside the list.
+ */
+private val SectionsBesideMinWidth = 640.dp
+
 private val SettingsSection.icon: ImageVector
     get() = when (this) {
         SettingsSection.APPEARANCE -> Icons.Outlined.Palette
@@ -173,7 +180,7 @@ fun SettingsPage(
         contentColor = colors.onSurface
     ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val wide = maxWidth >= 640.dp
+        val wide = maxWidth >= SectionsBesideMinWidth
 
         // The body takes the remaining space; its content is capped to a readable width inside
         // it. (A cap on the weighted element itself would be ignored.)

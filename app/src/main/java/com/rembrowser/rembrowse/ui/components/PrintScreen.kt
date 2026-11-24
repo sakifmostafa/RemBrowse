@@ -134,6 +134,12 @@ private const val TAG = "PrintScreen"
 /** From this width the previews and the panel sit side by side; below it they are stacked. */
 private val SideBySideMinWidth = 720.dp
 
+/** From this width the side-by-side layout's settings panel is 380dp wide instead of 340dp. */
+private val WidePanelMinWidth = 900.dp
+
+/** From this width the stacked layout puts its Save as PDF and Print tiles side by side. */
+private val TilesSideBySideMinWidth = 520.dp
+
 /** In a compact window the panel may take this much of the height; the previews keep the rest. */
 private const val COMPACT_PANEL_MAX_FRACTION = 0.6f
 
@@ -303,7 +309,7 @@ internal fun PrintScreen(
                         document = document,
                         load = load,
                         reduceMotion = reduceMotion,
-                        panelWidth = if (maxWidth >= 900.dp) 380.dp else 340.dp
+                        panelWidth = if (maxWidth >= WidePanelMinWidth) 380.dp else 340.dp
                     )
                 } else {
                     StackedLayout(
@@ -312,7 +318,7 @@ internal fun PrintScreen(
                         load = load,
                         reduceMotion = reduceMotion,
                         panelMaxHeight = panelMaxHeight,
-                        tilesSideBySide = maxWidth >= 520.dp
+                        tilesSideBySide = maxWidth >= TilesSideBySideMinWidth
                     )
                 }
             }

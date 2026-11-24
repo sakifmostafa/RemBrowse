@@ -80,7 +80,7 @@ fun NewTabPage(modifier: Modifier = Modifier) {
             }
             .testTag("new_tab_page")
     ) {
-        val roomy = maxWidth >= 420.dp && maxHeight >= 360.dp
+        val roomy = maxWidth >= LargeClockMinWidth && maxHeight >= LargeClockMinHeight
         Text(
             text = time,
             style = if (roomy) MaterialTheme.typography.displayLarge else MaterialTheme.typography.displayMedium,
@@ -111,3 +111,7 @@ fun NewTabPage(modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** From this width, and [LargeClockMinHeight] high, the start page has room for its large clock and wider margins. */
+private val LargeClockMinWidth = 420.dp
+private val LargeClockMinHeight = 360.dp

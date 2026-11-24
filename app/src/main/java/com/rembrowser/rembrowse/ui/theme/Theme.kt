@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rembrowser.rembrowse.model.AccentColor
@@ -324,9 +325,46 @@ object RemDimens {
     val IconSize = 20.dp
     val PaneGap = 8.dp
     val PaneRadius = 12.dp
-    /** Below this window width the tab rail gives way to a tab-count button. */
-    val CompactWidth = 600.dp
+
+    // Material 3's window size classes, by the width the layout is given (BoxWithConstraints:
+    // a desktop or freeform window's own size, not the screen's). See [WindowWidthClass].
+
+    /** Medium windows start here; below it a window is compact (a phone held upright). */
+    val MediumWidth = 600.dp
+
+    /** Expanded windows start here (a tablet held sideways, a laptop window). */
+    val ExpandedWidth = 840.dp
+
+    /** Large windows start here (a laptop's full screen). */
+    val LargeWidth = 1200.dp
+
+    /** Below this height a window is compact in height (a phone held sideways). */
+    val MediumHeight = 480.dp
 }
+
+/**
+ * Material 3's window size class for a window [RemDimens] wide: Compact below 600dp, Medium to
+ * 839dp, Expanded to 1199dp, Large from 1200dp. Compact windows (phones) drop the tab rail for a
+ * tab-count button and use a touch-sized toolbar; the others share the desktop layout.
+ */
+enum class WindowWidthClass {
+    Compact,
+    Medium,
+    Expanded,
+    Large;
+
+    companion object {
+        fun of(width: Dp): WindowWidthClass = when {
+            width < RemDimens.MediumWidth -> Compact
+            width < RemDimens.ExpandedWidth -> Medium
+            width < RemDimens.LargeWidth -> Expanded
+            else -> Large
+        }
+    }
+}
+
+/** Whether a window [height] tall is compact in height (Material 3: below 480dp), as a phone held sideways. */
+fun isCompactHeight(height: Dp): Boolean = height < RemDimens.MediumHeight
 
 @Composable
 fun RemBrowseTheme(
