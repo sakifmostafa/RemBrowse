@@ -41,6 +41,26 @@ enum class AccentColor(val label: String) {
     }
 }
 
+/** Light or dark. New installs follow the device; [label] and [description] are shown in Settings. */
+enum class ThemeMode(val label: String, val description: String?) {
+    SYSTEM("System default", "Light or dark, as your device is set."),
+    LIGHT("Light", null),
+    DARK("Dark", null);
+
+    /** Whether the browser is dark in this mode, when the device's own setting is [systemIsDark]. */
+    fun isDark(systemIsDark: Boolean): Boolean = when (this) {
+        SYSTEM -> systemIsDark
+        LIGHT -> false
+        DARK -> true
+    }
+
+    companion object {
+        val DEFAULT = SYSTEM
+
+        fun fromNameOrNull(name: String?): ThemeMode? = entries.firstOrNull { it.name == name }
+    }
+}
+
 /** Where searches typed into the address bar are sent. */
 enum class SearchEngine(val label: String, val queryUrl: String) {
     GOOGLE("Google", "https://www.google.com/search?q="),
@@ -128,7 +148,8 @@ enum class SettingsSection(val path: String, val label: String) {
 }
 
 data class BrowserSettings(
-    val useDarkTheme: Boolean = true,
+    /** Light, dark, or as the device is set (the default). */
+    val themeMode: ThemeMode = ThemeMode.DEFAULT,
     val accent: AccentColor = AccentColor.MAROON,
     val searchEngine: SearchEngine = SearchEngine.DEFAULT,
     /**

@@ -3,6 +3,7 @@ package com.rembrowser.rembrowse
 import android.annotation.SuppressLint
 import android.app.Application
 import android.app.DownloadManager
+import android.app.UiModeManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color as AndroidColor
@@ -27,15 +28,18 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -71,6 +75,7 @@ import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.PxRect
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.terminal.TerminalScreenView
 import com.rembrowser.rembrowse.terminal.TrileadSshConnector
 import com.rembrowser.rembrowse.ui.BrowserChromeState
@@ -80,7 +85,6 @@ import com.rembrowser.rembrowse.ui.components.ChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.components.LocalChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.components.ScreenshotResult
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
-import com.rembrowser.rembrowse.ui.theme.remColorScheme
 import com.rembrowser.rembrowse.util.BrowserShortcut
 import com.rembrowser.rembrowse.util.KeyboardShortcuts
 import com.rembrowser.rembrowse.util.ScreenCaptureKey
@@ -315,6 +319,10 @@ class MainActivity : ComponentActivity() {
     // The window was made fullscreen for a page and should be given back when the page leaves it
     private var desktopFullscreenRequested = false
 
+    // The colour a pane shows before its page paints, in the theme on screen (light or dark as
+    // resolved from the device, when the theme follows it). Kept for screenshots.
+    private var pageBackgroundArgb = AndroidColor.BLACK
+
     // An Enter press that submitted a text field must not also deliver its key release to
     // whatever receives focus next (the page, or a button).
     private var swallowEnterKeyUp = false
@@ -345,6 +353,9 @@ class MainActivity : ComponentActivity() {
     private val launchAndroidPermissions: (Array<String>) -> Unit = { androidPermissionsLauncher.launch(it) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The launch screen (the icon on the chrome's colour) gives way to the browser as soon
+        // as it draws; nothing holds it on screen
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -364,7 +375,10 @@ class MainActivity : ComponentActivity() {
         val content = ComposeView(this).apply {
             setContent {
                 val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
-                val darkTheme = settings.useDarkTheme
+                // The activity handles uiMode changes itself, so the device switching between
+                // light and dark recomposes here instead of restarting the activity
+                val darkTheme = settings.themeMode.isDark(systemIsDark = isSystemInDarkTheme())
+                LaunchedEffect(settings.themeMode) { applyNightModeToWindow(settings.themeMode) }
 
                 // Keep system bar icons legible against the chrome, and let pages that honour
                 // prefers-color-scheme match the browser.
@@ -406,6 +420,7 @@ class MainActivity : ComponentActivity() {
 
                 RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent) {
                     val pageBackground = MaterialTheme.colorScheme.surfaceContainerLowest.toArgb()
+                    SideEffect { pageBackgroundArgb = pageBackground }
                     CompositionLocalProvider(LocalChromePointerIconClaim provides chromePointerIcon) {
                         RemBrowseScreen(
                             browserViewModel = holder.browser,
@@ -510,6 +525,23 @@ class MainActivity : ComponentActivity() {
         // The window's content sits in a layout that reads the browser's shortcuts before the
         // keyboard app (input method) sees them: see ShortcutKeysLayout
         setContentView(ShortcutKeysLayout(this, ::interceptShortcutBeforeIme).apply { addView(content) })
+    }
+
+    /**
+     * Tells Android which mode the app is in (Android 12+), so it starts RemBrowse, its launch
+     * screen and its window in that mode, and the platform's own pieces (text selection toolbar,
+     * autofill) match. Android keeps the choice between launches; it is set again at every start
+     * to follow the saved setting. When the mode changes, the configuration changes with it.
+     */
+    private fun applyNightModeToWindow(mode: ThemeMode) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val nightMode = when (mode) {
+            ThemeMode.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
+            ThemeMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
+            ThemeMode.DARK -> UiModeManager.MODE_NIGHT_YES
+        }
+        runCatching { getSystemService(UiModeManager::class.java)?.setApplicationNightMode(nightMode) }
+            .onFailure { Log.w(TAG, "Couldn't set the app's night mode", it) }
     }
 
     /**
@@ -879,7 +911,7 @@ class MainActivity : ComponentActivity() {
             emptyList()
         }
         // What a pane shows before its page paints, for a page that can't be captured
-        val holeColor = remColorScheme(settings.useDarkTheme, settings.accent).surfaceContainerLowest.toArgb()
+        val holeColor = pageBackgroundArgb
         val thumbnailHeight = (SCREENSHOT_THUMBNAIL_DP * resources.displayMetrics.density).roundToInt()
         // This screenshot's own job: once it is cancelled, nothing of it goes on the clipboard
         val job = currentCoroutineContext().job

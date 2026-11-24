@@ -21,6 +21,7 @@ import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.model.TerminalTarget
+import com.rembrowser.rembrowse.model.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -848,12 +849,12 @@ class BrowserViewModelTest {
         // Standard protection by default: the enhanced level is something the user opts into
         assertEquals(false, engine.enhancedPrivacy)
 
-        viewModel.setDarkTheme(false)
+        viewModel.setThemeMode(ThemeMode.LIGHT)
         viewModel.setAccentColor(AccentColor.TEAL)
         viewModel.setEnhancedPrivacy(true)
 
         assertEquals(
-            BrowserSettings(useDarkTheme = false, accent = AccentColor.TEAL, enhancedPrivacy = true),
+            BrowserSettings(themeMode = ThemeMode.LIGHT, accent = AccentColor.TEAL, enhancedPrivacy = true),
             repository.storedState.settings
         )
         assertEquals(true, engine.enhancedPrivacy)

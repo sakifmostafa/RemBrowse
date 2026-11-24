@@ -392,7 +392,7 @@ fun RemBrowseScreen(
     }
     val settingsActions = remember(browserViewModel, extensionsViewModel) {
         SettingsActions(
-            onSetDarkTheme = browserViewModel::setDarkTheme,
+            onSetThemeMode = browserViewModel::setThemeMode,
             onSetAccent = browserViewModel::setAccentColor,
             onSetSearchEngine = browserViewModel::setSearchEngine,
             onSetRestoreTabsOnStartup = browserViewModel::setRestoreTabsOnStartup,

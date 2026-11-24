@@ -13,6 +13,7 @@ import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
+import com.rembrowser.rembrowse.model.ThemeMode
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -41,6 +42,10 @@ class SharedPrefsBrowserStateRepository(
         // Cloudflare-protected sites. The value is stored under a new key so those installs
         // return to the standard level instead of keeping a choice the user never made.
         private const val KEY_ENHANCED_PRIVACY = "enhancedTrackingProtection"
+        private const val KEY_THEME_MODE = "themeMode"
+
+        /** The light/dark switch that came before [KEY_THEME_MODE]. Read only, to carry it over. */
+        private const val KEY_LEGACY_DARK_THEME = "useDarkTheme"
 
         internal fun encode(state: PersistedBrowserState): String {
             val root = JSONObject()
@@ -83,7 +88,7 @@ class SharedPrefsBrowserStateRepository(
             root.put(
                 "settings",
                 JSONObject().apply {
-                    put("useDarkTheme", state.settings.useDarkTheme)
+                    put(KEY_THEME_MODE, state.settings.themeMode.name)
                     put("accent", state.settings.accent.name)
                     put("searchEngine", state.settings.searchEngine.name)
                     put(KEY_ENHANCED_PRIVACY, state.settings.enhancedPrivacy)
@@ -160,7 +165,7 @@ class SharedPrefsBrowserStateRepository(
                 defaults
             } else {
                 BrowserSettings(
-                    useDarkTheme = settingsObj.optBoolean("useDarkTheme", defaults.useDarkTheme),
+                    themeMode = decodeThemeMode(settingsObj),
                     accent = AccentColor.fromNameOrDefault(settingsObj.optString("accent", "")),
                     searchEngine = SearchEngine.fromNameOrDefault(settingsObj.optString("searchEngine", "")),
                     enhancedPrivacy = settingsObj.optBoolean(KEY_ENHANCED_PRIVACY, defaults.enhancedPrivacy),
@@ -190,6 +195,18 @@ class SharedPrefsBrowserStateRepository(
                 // dropped the same way, and the layout is rebuilt from the fields above.
                 layout = root.optJSONObject("layout")?.let { decodeLayout(it, depth = 0) }
             )
+        }
+
+        /**
+         * The saved theme. Earlier versions saved a dark theme switch instead, written by every
+         * install whether it was touched or not: that choice is kept, so nobody's theme changes
+         * on the update. Only saved settings with neither (none at all, or a new install) follow
+         * the device.
+         */
+        internal fun decodeThemeMode(settings: JSONObject): ThemeMode {
+            ThemeMode.fromNameOrNull(settings.optString(KEY_THEME_MODE, ""))?.let { return it }
+            if (!settings.has(KEY_LEGACY_DARK_THEME)) return ThemeMode.DEFAULT
+            return if (settings.optBoolean(KEY_LEGACY_DARK_THEME, true)) ThemeMode.DARK else ThemeMode.LIGHT
         }
 
         private fun encodeLayout(node: PaneNode): JSONObject = when (node) {

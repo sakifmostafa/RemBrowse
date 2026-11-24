@@ -38,6 +38,7 @@ import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.components.TabRail
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
@@ -127,7 +128,7 @@ class TabRailSnapshotTest {
     }
 
     private fun launch(dark: Boolean) {
-        val settings = BrowserSettings(useDarkTheme = dark)
+        val settings = BrowserSettings(themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT)
         scene(settings)
         val extVm = ExtensionsViewModel(FakeExtensionManager(), FakeAmoApiClient(), uiScope)
         val downloadsVm = DownloadsViewModel(
@@ -138,7 +139,7 @@ class TabRailSnapshotTest {
         )
         composeRule.setContent {
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
-                RemBrowseTheme(darkTheme = settings.useDarkTheme, accent = settings.accent) {
+                RemBrowseTheme(darkTheme = settings.themeMode.isDark(systemIsDark = true), accent = settings.accent) {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,

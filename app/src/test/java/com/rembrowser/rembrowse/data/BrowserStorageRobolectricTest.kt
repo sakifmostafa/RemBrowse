@@ -17,6 +17,7 @@ import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
+import com.rembrowser.rembrowse.model.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -74,7 +75,7 @@ class BrowserStorageRobolectricTest {
     @Test
     fun saveAndLoadState_persistsAppearanceAndPrivacySettings() {
         val settings = BrowserSettings(
-            useDarkTheme = false,
+            themeMode = ThemeMode.LIGHT,
             accent = AccentColor.BLUE,
             searchEngine = SearchEngine.BRAVE,
             enhancedPrivacy = true,
@@ -91,6 +92,50 @@ class BrowserStorageRobolectricTest {
         repository.saveState(PersistedBrowserState(settings = settings))
 
         assertEquals(settings, repository.loadState().settings)
+    }
+
+    @Test
+    fun themeMode_followsTheDeviceOnANewInstall() {
+        assertEquals(ThemeMode.SYSTEM, BrowserSettings().themeMode)
+        assertEquals("Nothing saved yet", ThemeMode.SYSTEM, repository.loadState().settings.themeMode)
+
+        saveRawSettings("""{"accent":"GREEN"}""")
+        assertEquals("Saved settings without either key", ThemeMode.SYSTEM, repository.loadState().settings.themeMode)
+    }
+
+    @Test
+    fun themeMode_keepsTheDarkThemeSwitchOfAnOlderVersion() {
+        // Every older install saved the switch, touched or not: its choice carries over
+        saveRawSettings("""{"useDarkTheme":true,"accent":"GREEN"}""")
+        assertEquals(ThemeMode.DARK, repository.loadState().settings.themeMode)
+
+        saveRawSettings("""{"useDarkTheme":false,"accent":"GREEN"}""")
+        assertEquals(ThemeMode.LIGHT, repository.loadState().settings.themeMode)
+        assertEquals("Other choices are kept", AccentColor.GREEN, repository.loadState().settings.accent)
+    }
+
+    @Test
+    fun themeMode_isSavedAsItsOwnKey_andWinsOverTheOldSwitch() {
+        for (mode in ThemeMode.entries) {
+            repository.saveState(PersistedBrowserState(settings = BrowserSettings(themeMode = mode)))
+            assertEquals(mode, repository.loadState().settings.themeMode)
+        }
+        val saved = context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+            .getString("browser_state_json", null)!!
+        assertTrue(saved.contains("\"themeMode\":\"DARK\""))
+        assertFalse("The old switch is no longer written", saved.contains("useDarkTheme"))
+
+        saveRawSettings("""{"themeMode":"SYSTEM","useDarkTheme":false}""")
+        assertEquals(ThemeMode.SYSTEM, repository.loadState().settings.themeMode)
+        saveRawSettings("""{"themeMode":"SEPIA","useDarkTheme":false}""")
+        assertEquals("An unknown mode falls back to the old switch", ThemeMode.LIGHT, repository.loadState().settings.themeMode)
+    }
+
+    private fun saveRawSettings(settingsJson: String) {
+        context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+            .edit()
+            .putString("browser_state_json", """{"tabs":[],"settings":$settingsJson}""")
+            .commit()
     }
 
     @Test
@@ -215,7 +260,7 @@ class BrowserStorageRobolectricTest {
 
         val settings = repository.loadState().settings
         assertEquals("Other choices are kept", AccentColor.GREEN, settings.accent)
-        assertEquals(false, settings.useDarkTheme)
+        assertEquals(ThemeMode.LIGHT, settings.themeMode)
         assertEquals("Back to standard protection", false, settings.enhancedPrivacy)
     }
 

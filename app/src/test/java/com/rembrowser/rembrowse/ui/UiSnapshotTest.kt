@@ -73,6 +73,7 @@ import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import com.rembrowser.rembrowse.model.DropZone
+import com.rembrowser.rembrowse.model.ThemeMode
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -199,7 +200,7 @@ class UiSnapshotTest {
         composeRule.setContent {
             inputModes = LocalInputModeManager.current
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
-                RemBrowseTheme(darkTheme = settings.useDarkTheme, accent = settings.accent) {
+                RemBrowseTheme(darkTheme = settings.themeMode.isDark(systemIsDark = true), accent = settings.accent) {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
@@ -358,7 +359,7 @@ class UiSnapshotTest {
 
     @Test
     fun findInPageNoResultsLightSplit() {
-        launch(settings = BrowserSettings(useDarkTheme = false), layout = LayoutMode.SPLIT_1X2)
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT), layout = LayoutMode.SPLIT_1X2)
         composeRule.runOnUiThread {
             browserVm.focusPane(1)
             browserVm.openFindInPage()
@@ -374,13 +375,13 @@ class UiSnapshotTest {
 
     @Test
     fun lightTheme() {
-        launch(settings = BrowserSettings(useDarkTheme = false), startOnNewTab = true)
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT), startOnNewTab = true)
         save("09-light-new-tab")
     }
 
     @Test
     fun lightThemeSplit() {
-        launch(settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE), layout = LayoutMode.SPLIT_1X2)
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT, accent = AccentColor.BLUE), layout = LayoutMode.SPLIT_1X2)
         save("10-light-blue-split")
     }
 
@@ -435,7 +436,7 @@ class UiSnapshotTest {
 
     @Test
     fun settingsLightTheme() {
-        launch(settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.TEAL), withExtensions = true)
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT, accent = AccentColor.TEAL), withExtensions = true)
         composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.PRIVACY) }
         save("07d-settings-light")
     }
@@ -463,7 +464,7 @@ class UiSnapshotTest {
 
     @Test
     fun settingsDownloadsEmpty() {
-        launch(settings = BrowserSettings(useDarkTheme = false))
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT))
         composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.DOWNLOADS) }
         save("17b-settings-downloads-empty-light")
     }
@@ -607,7 +608,7 @@ class UiSnapshotTest {
 
     @Test
     fun keyboardFocusRingsLight() {
-        launch(settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE))
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT, accent = AccentColor.BLUE))
         composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
         composeRule.onNodeWithTag("split_button").requestFocus()
         save("22c-keyboard-focus-split-light")

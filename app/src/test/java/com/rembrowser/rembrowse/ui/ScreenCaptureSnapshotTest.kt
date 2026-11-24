@@ -42,6 +42,7 @@ import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.components.ScreenshotResult
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
@@ -98,7 +99,7 @@ class ScreenCaptureSnapshotTest {
             BrowserTab(id = "chat", url = "https://web.telegram.org/a/", title = "Telegram Web"),
             BrowserTab(id = "news", url = "https://news.example.com/", title = "The Example Times")
         )
-        val settings = BrowserSettings(useDarkTheme = dark)
+        val settings = BrowserSettings(themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT)
         val browserVm = BrowserViewModel(
             engine,
             FakeBrowserStateRepository(
@@ -120,7 +121,7 @@ class ScreenCaptureSnapshotTest {
         engine.sessions.values.forEach { it.simulateSecurityChange(true) }
         composeRule.setContent {
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
-                RemBrowseTheme(darkTheme = settings.useDarkTheme, accent = settings.accent) {
+                RemBrowseTheme(darkTheme = settings.themeMode.isDark(systemIsDark = true), accent = settings.accent) {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,

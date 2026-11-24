@@ -21,6 +21,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -62,6 +63,7 @@ import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
@@ -614,8 +616,19 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("more_button").performClick()
         composeRule.onNodeWithTag("menu_settings").performClick()
 
-        composeRule.onNodeWithTag("setting_dark_theme").performClick()
-        assertFalse(browserVm.uiState.value.settings.useDarkTheme)
+        // Light, dark, or as the device is set (the default), one at a time
+        composeRule.onNodeWithTag("setting_dark_theme").assertIsDisplayed()
+        composeRule.onNodeWithTag("theme_system").assertIsSelected()
+        composeRule.onNodeWithTag("theme_light").performClick()
+        assertEquals(ThemeMode.LIGHT, browserVm.uiState.value.settings.themeMode)
+        composeRule.onNodeWithTag("theme_light").assertIsSelected()
+        composeRule.onNodeWithTag("theme_system").assertIsNotSelected()
+        composeRule.onNodeWithTag("theme_dark").performClick()
+        assertEquals(ThemeMode.DARK, browserVm.uiState.value.settings.themeMode)
+        composeRule.onNodeWithTag("theme_dark").assertIsSelected()
+        composeRule.onNodeWithTag("theme_light").assertIsNotSelected()
+        composeRule.onNodeWithTag("theme_system").performClick()
+        assertEquals(ThemeMode.SYSTEM, browserVm.uiState.value.settings.themeMode)
 
         composeRule.onNodeWithTag("accent_teal").performClick()
         assertEquals(AccentColor.TEAL, browserVm.uiState.value.settings.accent)

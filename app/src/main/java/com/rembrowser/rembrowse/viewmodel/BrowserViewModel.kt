@@ -37,6 +37,7 @@ import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.model.TerminalTarget
 import com.rembrowser.rembrowse.model.TerminalUrls
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.util.DownloadFileNames
 import com.rembrowser.rembrowse.util.UrlResolver
 import java.io.File
@@ -1160,8 +1161,8 @@ class BrowserViewModel(
         }
     }
 
-    fun setDarkTheme(enabled: Boolean) {
-        _uiState.update { it.copy(settings = it.settings.copy(useDarkTheme = enabled)) }
+    fun setThemeMode(mode: ThemeMode) {
+        _uiState.update { it.copy(settings = it.settings.copy(themeMode = mode)) }
         persistCurrentState()
     }
 

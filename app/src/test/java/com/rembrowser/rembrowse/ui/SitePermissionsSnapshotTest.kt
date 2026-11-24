@@ -36,6 +36,7 @@ import com.rembrowser.rembrowse.model.SiteOrigins
 import com.rembrowser.rembrowse.model.SitePermissionEntry
 import com.rembrowser.rembrowse.model.SitePermissionKind
 import com.rembrowser.rembrowse.model.SitePermissionState
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.components.PermissionActionDelayMillis
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
@@ -91,7 +92,7 @@ class SitePermissionsSnapshotTest {
             BrowserTab(id = "news", url = "https://news.example.com/", title = "The Example Times"),
             BrowserTab(id = "new")
         )
-        val settings = BrowserSettings(useDarkTheme = dark)
+        val settings = BrowserSettings(themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT)
         browserVm = BrowserViewModel(
             engine,
             FakeBrowserStateRepository(
@@ -113,7 +114,7 @@ class SitePermissionsSnapshotTest {
         engine.sessions.values.forEach { it.simulateSecurityChange(true) }
         composeRule.setContent {
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
-                RemBrowseTheme(darkTheme = settings.useDarkTheme, accent = settings.accent) {
+                RemBrowseTheme(darkTheme = settings.themeMode.isDark(systemIsDark = true), accent = settings.accent) {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,

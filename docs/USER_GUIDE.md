@@ -175,7 +175,7 @@ Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them
 
 Sections are listed down the left side (across the top on a phone-sized window):
 
-* **Appearance** — theme colour (six choices), **Use dark theme**, and **Page rendering**, how web pages are put on the screen:
+* **Appearance** — **Theme**: **System default** (light or dark as the device is set, switching when it does; the default for new installs), **Light** or **Dark**. Then the theme colour (six choices), and **Page rendering**, how web pages are put on the screen:
   * **Standard** (the default) — pages are drawn inside the window, set up once rather than again for every frame as before 0.13.3.
   * **Direct (experimental)** — pages go straight to the screen, which may scroll more smoothly still; a pane may flicker while it is resized or opens.
   * **As in 0.13.2 and earlier** — the old way, to compare against if scrolling is still not smooth, or if pages ever stay blank on the others.

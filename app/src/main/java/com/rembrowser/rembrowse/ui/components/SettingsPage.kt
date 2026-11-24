@@ -77,6 +77,7 @@ import com.rembrowser.rembrowse.model.PageRendering
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.model.SitePermissionEntry
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.viewmodel.TerminalUiState
 import com.rembrowser.rembrowse.model.UpdateStatus
 import com.rembrowser.rembrowse.model.UpdatesUiState
@@ -108,7 +109,7 @@ private val SettingsSection.icon: ImageVector
 
 /** What the settings page can change. Grouped so the page is not a wall of parameters. */
 class SettingsActions(
-    val onSetDarkTheme: (Boolean) -> Unit,
+    val onSetThemeMode: (ThemeMode) -> Unit,
     val onSetAccent: (AccentColor) -> Unit,
     val onSetSearchEngine: (SearchEngine) -> Unit,
     val onSetRestoreTabsOnStartup: (Boolean) -> Unit,
@@ -237,7 +238,7 @@ fun SettingsPage(
                     when (section) {
                         SettingsSection.APPEARANCE -> AppearanceSection(
                             settings = settings,
-                            onSetDarkTheme = actions.onSetDarkTheme,
+                            onSetThemeMode = actions.onSetThemeMode,
                             onSetAccent = actions.onSetAccent,
                             onSetPageRendering = actions.onSetPageRendering
                         )
@@ -556,11 +557,29 @@ private fun SectionNavItem(
 @Composable
 private fun AppearanceSection(
     settings: BrowserSettings,
-    onSetDarkTheme: (Boolean) -> Unit,
+    onSetThemeMode: (ThemeMode) -> Unit,
     onSetAccent: (AccentColor) -> Unit,
     onSetPageRendering: (PageRendering) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
+    GroupTitle("Theme")
+    Spacer(modifier = Modifier.height(4.dp))
+    // The group keeps the tag of the dark theme switch it replaced
+    Column(modifier = Modifier.selectableGroup().testTag("setting_dark_theme")) {
+        ThemeMode.entries.forEach { mode ->
+            RadioRow(
+                title = mode.label,
+                description = mode.description,
+                selected = mode == settings.themeMode,
+                onClick = { onSetThemeMode(mode) },
+                testTag = "theme_${mode.name.lowercase()}"
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    HorizontalDivider(color = colors.outlineVariant)
+    Spacer(modifier = Modifier.height(16.dp))
+
     GroupTitle("Theme color")
     Spacer(modifier = Modifier.height(8.dp))
     Row(
@@ -604,14 +623,6 @@ private fun AppearanceSection(
         }
     }
     Spacer(modifier = Modifier.height(16.dp))
-    HorizontalDivider(color = colors.outlineVariant)
-    SwitchRow(
-        title = "Use dark theme",
-        description = null,
-        checked = settings.useDarkTheme,
-        onCheckedChange = onSetDarkTheme,
-        testTag = "setting_dark_theme"
-    )
     HorizontalDivider(color = colors.outlineVariant)
     Spacer(modifier = Modifier.height(16.dp))
 

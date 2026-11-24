@@ -47,6 +47,7 @@ import com.rembrowser.rembrowse.model.SshAuthMethod
 import com.rembrowser.rembrowse.model.SshHost
 import com.rembrowser.rembrowse.model.SshKeyInfo
 import com.rembrowser.rembrowse.model.TerminalTarget
+import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.terminal.HostKeyCheck
 import com.rembrowser.rembrowse.terminal.TerminalStatus
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
@@ -157,7 +158,7 @@ class TerminalSnapshotTest {
         )
         composeRule.setContent {
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
-                RemBrowseTheme(darkTheme = settings.useDarkTheme, accent = settings.accent) {
+                RemBrowseTheme(darkTheme = settings.themeMode.isDark(systemIsDark = true), accent = settings.accent) {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = ExtensionsViewModel(FakeExtensionManager(), FakeAmoApiClient(), uiScope),
@@ -369,7 +370,7 @@ class TerminalSnapshotTest {
 
     @Test
     fun otherAccentAndLightTheme() {
-        launch(settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.entries[2]), terminalUrl = "rem://terminal/host/homelab", split = true)
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT, accent = AccentColor.entries[2]), terminalUrl = "rem://terminal/host/homelab", split = true)
         printSession(connectHomelab())
         save("t10-light-accent")
     }
@@ -377,7 +378,7 @@ class TerminalSnapshotTest {
     @Test
     fun paperTheme() {
         launch(
-            settings = BrowserSettings(useDarkTheme = false),
+            settings = BrowserSettings(themeMode = ThemeMode.LIGHT),
             terminalUrl = "rem://terminal/host/homelab",
             terminalSettings = TerminalSettings(theme = TerminalThemePreset.PAPER)
         )

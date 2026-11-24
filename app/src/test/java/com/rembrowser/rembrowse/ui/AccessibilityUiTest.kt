@@ -87,10 +87,11 @@ class AccessibilityUiTest {
         composeRule.onNode(hasText("Settings") and isHeading).assertExists()
         // The open section's title, and a group within it
         composeRule.onNode(hasText("Appearance") and isHeading).assertExists()
+        composeRule.onNode(hasText("Theme")).assert(isHeading)
         composeRule.onNode(hasText("Theme color")).assert(isHeading)
         composeRule.onNode(hasText("Page rendering")).assert(isHeading)
         // A setting's own name is not a heading
-        composeRule.onNode(hasText("Use dark theme")).assert(!isHeading)
+        composeRule.onNode(hasText("System default")).assert(!isHeading)
     }
 
     @Test
