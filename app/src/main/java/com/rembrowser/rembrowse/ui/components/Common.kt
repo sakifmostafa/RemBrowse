@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -37,11 +38,10 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
-import androidx.compose.material3.Snackbar
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -595,12 +595,16 @@ internal fun outlinedButtonContentColor(colors: ColorScheme): Color = colors.pri
 internal fun outlinedButtonBorderColor(colors: ColorScheme): Color = colors.outline
 
 /**
- * A notice over the bottom of the window (a download, an update, a screenshot): a Material 3
- * snackbar in the inverse colours, dark in the light theme and light in the dark one, so it
- * stands out from any page under it. Each notice keeps its own state and timing (when it leaves
- * by itself, or that it waits for an answer); this only draws it. [content] (an icon or picture
- * and the text) is announced politely when it changes. [actionLabel] adds a text button before
- * the close button.
+ * A notice over the bottom of the window (a download, an update, a screenshot), drawn as a
+ * Material 3 snackbar in the inverse colours: dark in the light theme and light in the dark one,
+ * so it stands out from any page under it. It is as wide as what it holds, up to
+ * [NoticeMaxWidth], so on a wide window or in split view it covers no more of the page than it
+ * needs. Material's own Snackbar takes all the width it is given (up to 600dp), so this is built
+ * on a Surface with the snackbar's colours, elevation, text style, spacing and heights (48dp for
+ * one line, 68dp for two). Each notice keeps its own state and timing (when it leaves by itself,
+ * or that it waits for an answer); this only draws it. The whole notice, [content] (an icon or
+ * picture and the text), the action and the close button, is announced politely when it changes.
+ * [actionLabel] adds a text button before the close button.
  */
 @Composable
 internal fun NoticeSnackbar(
@@ -617,13 +621,36 @@ internal fun NoticeSnackbar(
     val colors = MaterialTheme.colorScheme
     // The accent is meant for the normal surfaces; on the inverse one the ring takes the inverse accent
     CompositionLocalProvider(LocalFocusRingColor provides colors.inversePrimary) {
-        Snackbar(
+        Surface(
             modifier = modifier
                 .padding(16.dp)
-                .widthIn(max = 520.dp)
+                .widthIn(max = NoticeMaxWidth)
                 .testTag(testTag),
-            action = actionLabel?.let { label ->
-                {
+            // Rounded like the menus and panes, rather than Material's 4dp
+            shape = MaterialTheme.shapes.medium,
+            color = colors.inverseSurface,
+            contentColor = colors.inverseOnSurface,
+            // Material's snackbar elevation (level 3)
+            shadowElevation = 6.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+                    .heightIn(min = 48.dp)
+                    .padding(start = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Gives way to the buttons when the text is long; short text keeps the notice short
+                Row(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .padding(vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                if (actionLabel != null) {
                     TextButton(
                         onClick = onAction,
                         colors = ButtonDefaults.textButtonColors(contentColor = colors.inversePrimary),
@@ -631,36 +658,24 @@ internal fun NoticeSnackbar(
                             .keyboardFocusRing(ButtonDefaults.textShape)
                             .then(if (actionTestTag != null) Modifier.testTag(actionTestTag) else Modifier)
                     ) {
-                        Text(label)
+                        Text(actionLabel)
                     }
                 }
-            },
-            dismissAction = {
                 RemIconButton(
                     icon = Icons.Outlined.Close,
                     label = dismissLabel,
                     onClick = onDismiss,
-                    // The snackbar's colour for it, inverseOnSurface
-                    tint = LocalContentColor.current,
+                    tint = colors.inverseOnSurface,
                     iconSize = 18.dp,
                     modifier = if (dismissTestTag != null) Modifier.testTag(dismissTestTag) else Modifier
                 )
-            },
-            // Rounded like the menus and panes, rather than Material's 4dp
-            shape = MaterialTheme.shapes.medium,
-            containerColor = colors.inverseSurface,
-            contentColor = colors.inverseOnSurface,
-            actionContentColor = colors.inversePrimary,
-            dismissActionContentColor = colors.inverseOnSurface
-        ) {
-            Row(
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                verticalAlignment = Alignment.CenterVertically,
-                content = content
-            )
+            }
         }
     }
 }
+
+/** How wide a notice ([NoticeSnackbar]) can grow; shorter ones are as wide as their text. */
+internal val NoticeMaxWidth = 520.dp
 
 /** Keyboard shortcut hint shown at the trailing edge of menu and palette rows. */
 @Composable

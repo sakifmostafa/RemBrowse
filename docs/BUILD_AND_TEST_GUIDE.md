@@ -62,6 +62,7 @@ Run a single test class:
 
 Test suites included:
 * `MouseAffordancesUiTest` — the middle button on rail tabs, pinned sites, tab switcher cards, bookmarks and History; right-click menus on the cards, bookmarks and History rows; a finger's long press opening the same menus while a held mouse click stays a click; plain clicks unchanged.
+* `NoticeLayoutUiTest` — a notice is as wide as its text on a wide window, stops at 520dp with its buttons kept, and is one polite live region with its buttons.
 * `TouchHapticsUiTest` — haptics for a finger only: Settings switches and Match case (on and off), a switcher card's long press, a tab picked up and dropped, a divider double-tapped; nothing for the same with a mouse or a screen reader.
 * `SplitDividerMouseTest` / `PaneGeckoViewTest` — dragging a divider with a mouse (every step followed, side by side, stacked and nested, past a limit and back, one save per drag, a split that turns), double-click with and without a slip, the other mouse buttons, the resize cursor over the whole grip and during a drag, finger drag and double-tap; and a pane's web view giving up its cursor while the chrome has the pointer.
 * `OneAndTwoLayoutUiTest` — the One left, two right layout from the Split menu.
