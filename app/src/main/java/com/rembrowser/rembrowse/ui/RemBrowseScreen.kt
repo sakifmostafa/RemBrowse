@@ -263,15 +263,21 @@ fun RemBrowseScreen(
     // make by accident. Phones keep Android's own Back. Composed first, so every handler below,
     // which only acts when it has something to do, comes before it.
     //
-    // While the on-screen keyboard is up, every handler here stands aside on Android 13 and later,
-    // so Back puts the keyboard away first, as it always did. With predictive back on, Android
-    // gives Back to the last callback registered, and one that becomes enabled while the keyboard
-    // is up (a page that gains history as you type) would otherwise come before the keyboard's
-    // own. Up to Android 12L they never stand aside (see backHandlersYieldToKeyboard).
+    // While the on-screen keyboard is up, every other handler here stands aside on Android 13 and
+    // later, so Back puts the keyboard away first, as it always did. With predictive back on,
+    // Android gives Back to the last callback registered, and one that becomes enabled while the
+    // keyboard is up (a page that gains history as you type) would otherwise come before the
+    // keyboard's own. Up to Android 12L they never stand aside (see backHandlersYieldToKeyboard).
+    //
+    // This one never stands aside: if the keyboard inset kept reading "up" with no keyboard on
+    // screen (Gboard's floating toolbar is a suspect), every handler would be off and Back would
+    // leave RemBrowse from a laptop. It is on from the first frame and stays on, so it never
+    // becomes enabled while the keyboard is up, and the keyboard's own Back, which comes later,
+    // still goes first.
     val context = LocalContext.current
     val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
     val keyboardUp = backHandlersYieldToKeyboard(imeVisible = WindowInsets.isImeVisible)
-    BackHandler(enabled = backAtRootStays && !keyboardUp) { }
+    BackHandler(enabled = backAtRootStays) { }
     BackHandler(enabled = !keyboardUp && !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)) {
         browserViewModel.goBack()
     }

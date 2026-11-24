@@ -1,7 +1,9 @@
 package com.rembrowser.rembrowse.ui
 
 import android.app.Application
+import android.hardware.input.InputManager
 import android.provider.Settings
+import android.view.InputDevice
 import android.view.View
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedDispatcher
@@ -22,6 +24,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rembrowser.rembrowse.engine.PointerDevices
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
@@ -48,6 +51,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
+import org.robolectric.shadows.ShadowInputDevice
+import org.robolectric.shadows.ShadowInputManager
+import org.robolectric.util.ReflectionHelpers
 
 /**
  * Which overlay the system's Back closes first. Since predictive back is on (Android 13+), Back
@@ -272,6 +280,37 @@ class BackNavigationUiTest {
     }
 
     @Test
+    @Config(shadows = [ShadowInputManagerWithTouchpad::class])
+    fun onALaptop_aKeyboardInsetStuckUp_stillNeverLetsBackLeaveTheApp() {
+        // The inset reads "up" with no keyboard on screen (Gboard's floating toolbar is a
+        // suspect): the other handlers stand aside, the laptop's root handler stays on
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        assertTrue("A touchpad is connected", PointerDevices.hasMouseOrTouchpad(context))
+        val tab = launchOnAPageWithHistory()
+        composeRule.runOnUiThread { browserVm.openFindInPage() }
+        composeRule.waitForIdle()
+
+        setKeyboard(up = true)
+        assertTrue(imeVisible)
+        assertTrue("Back stays in RemBrowse", backDispatcher!!.hasEnabledCallbacks())
+        pressBack()
+        assertNotNull("The find bar's handler stood aside", browserVm.findInPage.value)
+        assertEquals("So did the page's", 0, goBackCount(tab))
+
+        // Down again, Back closes things in the usual order, and at the root still does nothing
+        setKeyboard(up = false)
+        pressBack()
+        assertNull(browserVm.findInPage.value)
+        pressBack()
+        assertEquals(1, goBackCount(tab))
+        composeRule.runOnUiThread {
+            engine.sessions.getValue(tab).simulatePageLoad("https://example.com/", "First", canGoBack = false)
+        }
+        composeRule.waitForIdle()
+        assertTrue("Nothing to go back to, still kept", backDispatcher!!.hasEnabledCallbacks())
+    }
+
+    @Test
     @Config(sdk = [32])
     fun onScreenKeyboardUp_beforeAndroid13_theHandlersActAsTheyAlwaysDid() {
         // Up to Android 12L Back is a key, and the keyboard app gets it before the window: it goes
@@ -370,5 +409,28 @@ class BackNavigationUiTest {
         } finally {
             Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
         }
+    }
+}
+
+/**
+ * The InputManager of a laptop: one touchpad (a mouse source, not a touchscreen), which
+ * [PointerDevices.hasMouseOrTouchpad] counts. Robolectric's own lists no devices.
+ */
+@Implements(InputManager::class)
+class ShadowInputManagerWithTouchpad : ShadowInputManager() {
+
+    @Implementation
+    override fun getInputDeviceIds(): IntArray = intArrayOf(TOUCHPAD_ID)
+
+    @Implementation
+    fun getInputDevice(id: Int): InputDevice? = if (id == TOUCHPAD_ID) touchpad() else null
+
+    private fun touchpad(): InputDevice = ShadowInputDevice.makeInputDeviceNamed("Touchpad").also {
+        ReflectionHelpers.setField(it, "mId", TOUCHPAD_ID)
+        ReflectionHelpers.setField(it, "mSources", InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_TOUCHPAD)
+    }
+
+    private companion object {
+        const val TOUCHPAD_ID = 7
     }
 }
