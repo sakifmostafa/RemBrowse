@@ -386,6 +386,41 @@ class BackNavigationUiTest {
     }
 
     @Test
+    fun keyboardUp_withNothingElseForBackToDo_onAPhone_backIsLeftToTheKeyboardApp() {
+        // No handler of the window is on, so the window has no callback with Android and the
+        // keyboard app gets Back as it always did (its emoji or clipboard panel closes first).
+        // The keyboard's handler turned on here would register the window's callback after the
+        // keyboard app's, and take that Back from it.
+        launchOnAPageWithoutHistory()
+        assertFalse(backDispatcher!!.hasEnabledCallbacks())
+        keyboardUpFor()
+
+        assertFalse("Nothing of the window's is on", backDispatcher!!.hasEnabledCallbacks())
+        assertEquals(0, hideRequests)
+    }
+
+    @Test
+    fun keyboardUp_andThenTheFindBarOpens_theKeyboardsBackIsOnWithIt_andComesFirst() {
+        // The find bar's handler turns on while the keyboard is up, which registers the window's
+        // callback after the keyboard app's: the keyboard's handler is on with it, before it
+        val tab = launchOnAPageWithoutHistory()
+        keyboardUpFor()
+        assertFalse(backDispatcher!!.hasEnabledCallbacks())
+        composeRule.runOnUiThread { browserVm.openFindInPage() }
+        composeRule.waitForIdle()
+        keyboardUpFor("find_input")
+
+        assertBackPutsTheKeyboardAwayFirst(
+            untouched = { assertNotNull(browserVm.findInPage.value) },
+            actedOn = {
+                assertNull(browserVm.findInPage.value)
+                assertEquals(0, goBackCount(tab))
+            }
+        )
+        assertFalse("Nothing left on", backDispatcher!!.hasEnabledCallbacks())
+    }
+
+    @Test
     fun keyboardUp_theWindowBackFromTheBackground_andAHandlerTurnedOnAfter_stillComeAfterTheKeyboard() {
         val tab = launchOnAPageWithHistory()
         keyboardUpFor()
