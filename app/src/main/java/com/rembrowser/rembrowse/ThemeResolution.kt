@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse
 
 import android.app.UiModeManager
 import android.content.Context
+import androidx.annotation.StyleRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import com.rembrowser.rembrowse.model.BrowserSettings
@@ -55,3 +56,11 @@ val ThemeMode.applicationNightMode: Int
         ThemeMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
         ThemeMode.DARK -> UiModeManager.MODE_NIGHT_YES
     }
+
+/**
+ * The activity's window theme before Android 12, where the window can't follow the app's mode by
+ * itself (see values/themes.xml): dark is the manifest's own, light is set over it at start.
+ */
+@StyleRes
+fun windowThemeBeforeAndroid12(dark: Boolean): Int =
+    if (dark) R.style.Theme_RemBrowse else R.style.Theme_RemBrowse_Light

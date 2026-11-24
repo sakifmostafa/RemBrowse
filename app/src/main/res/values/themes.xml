@@ -1,12 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The window in the light theme (values-night has the dark one). Its background is the
-         chrome's colour, so there is no flash before Compose draws, and the platform's own pieces
-         (text selection toolbar over a page, autofill) follow light or dark. Android 12+ starts
-         the app in the mode chosen in Settings (UiModeManager.setApplicationNightMode); before
-         that, these follow the device. System bars are styled at runtime by enableEdgeToEdge. -->
-    <style name="Theme.RemBrowse" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+    <!-- The window. Its background is the chrome's colour, so there is no flash before Compose
+         draws, and the platform's own pieces (the text selection toolbar over a page, autofill)
+         take their light or dark look from it. System bars are styled at runtime by
+         enableEdgeToEdge.
+
+         Android 12+ starts the app in the mode chosen in Settings
+         (UiModeManager.setApplicationNightMode), and values-v31 / values-night-v31 give the light
+         and the dark window. Before Android 12 the app can't choose its mode ahead of its start,
+         so this window, like the launch screen, is dark, as in 0.14.0 and earlier; for the Light
+         theme MainActivity sets Theme.RemBrowse.Light before the window is made. -->
+    <style name="Theme.RemBrowse" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/rem_chrome</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- The light window before Android 12, set at runtime by MainActivity -->
+    <style name="Theme.RemBrowse.Light" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/rem_chrome_light</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
