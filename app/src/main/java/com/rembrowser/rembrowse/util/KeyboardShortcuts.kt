@@ -74,8 +74,9 @@ data class ShortcutHelp(
 object KeyboardShortcuts {
 
     /**
-     * What the system's Keyboard Shortcuts sheet lists, by group, in the More menu's words. Only
-     * shortcuts that work outside a terminal are listed; the terminal's own are in the user guide.
+     * What the system's Keyboard Shortcuts sheet lists, by group, in the More menu's words: the
+     * shortcuts as they work outside a terminal. [helpGroups] leaves out the ones a terminal keeps
+     * for itself; the terminal's own keys are in the user guide.
      */
     val HELP_GROUPS: List<Pair<String, List<ShortcutHelp>>> = listOf(
         "Tabs" to listOf(
@@ -113,6 +114,20 @@ object KeyboardShortcuts {
             ShortcutHelp("Settings", KeyEvent.KEYCODE_COMMA, shortcut = BrowserShortcut.OPEN_SETTINGS)
         )
     )
+
+    /**
+     * [HELP_GROUPS] as they work where the keyboard is: with a terminal tab active
+     * ([inTerminal]), only the rows whose keys [resolve] still gives the browser there (Ctrl+T,
+     * Ctrl+W, Ctrl+Tab, Ctrl+Shift+T, Ctrl+Alt+S); a group left empty is left out too.
+     */
+    fun helpGroups(inTerminal: Boolean): List<Pair<String, List<ShortcutHelp>>> =
+        HELP_GROUPS
+            .map { (title, rows) ->
+                title to rows.filter { help ->
+                    resolve(help.keyCode, help.ctrl, help.shift, help.alt, inTerminal = inTerminal) == help.shortcut
+                }
+            }
+            .filter { (_, rows) -> rows.isNotEmpty() }
 
     /**
      * Whether a press of [keyCode] closes the find bar: a plain Esc while the bar is open

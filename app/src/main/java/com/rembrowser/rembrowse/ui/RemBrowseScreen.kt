@@ -793,7 +793,7 @@ fun RemBrowseScreen(
     // both connect to: built here only, when one of them is open
     fun paletteCommands(): List<PaletteCommand> {
         val isSplit = browserState.isSplit
-        return listOf(
+        return listOfNotNull(
             // Neither is offered by Go to address: one would drop what was typed there, the other
             // would only open it again
             PaletteCommand("search", "Search the web", Icons.Outlined.Search, "Ctrl+L", inGoToAddress = false) {
@@ -837,10 +837,15 @@ fun RemBrowseScreen(
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", keywords = listOf("files"), action = openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, keywords = listOf("addons"), action = openExtensions),
             PaletteCommand("site_permissions", "Site permissions", Icons.Outlined.Tune, action = openSitePermissions),
-            PaletteCommand(
-                "keyboard_shortcuts", "Keyboard shortcuts", Icons.Outlined.Keyboard,
-                keywords = listOf("keys", "help"), action = onShowKeyboardShortcuts
-            ),
+            // As in the More menu: only worth offering when there is a keyboard to press them on
+            if (hasKeyboard) {
+                PaletteCommand(
+                    "keyboard_shortcuts", "Keyboard shortcuts", Icons.Outlined.Keyboard,
+                    keywords = listOf("keys", "help"), action = onShowKeyboardShortcuts
+                )
+            } else {
+                null
+            },
             PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,", keywords = listOf("preferences", "options")) {
                 openSettings(null)
             }

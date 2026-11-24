@@ -649,7 +649,10 @@ class MainActivity : ComponentActivity() {
     /** The browser's shortcuts in the system's Keyboard Shortcuts sheet (Meta+/). */
     override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>?, menu: Menu?, deviceId: Int) {
         super.onProvideKeyboardShortcuts(data, menu, deviceId)
-        data?.addAll(keyboardShortcutGroups())
+        // In a terminal tab the shell keeps most keys (Ctrl+R, Ctrl+L, Alt+arrows...): the sheet
+        // lists only what still reaches the browser there
+        val inTerminal = currentFocus is TerminalScreenView || holder.browser.uiState.value.activeTab?.isTerminal == true
+        data?.addAll(keyboardShortcutGroups(inTerminal))
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {

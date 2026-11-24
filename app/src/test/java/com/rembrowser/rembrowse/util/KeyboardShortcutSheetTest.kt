@@ -31,4 +31,12 @@ class KeyboardShortcutSheetTest {
         assertEquals(KeyEvent.META_CTRL_ON or KeyEvent.META_ALT_ON, row("Take screenshot").modifiers)
         assertEquals(KeyEvent.KEYCODE_COMMA, row("Settings").keycode)
     }
+
+    @Test
+    fun inATerminal_theSheetListsOnlyTheKeysThatReachTheBrowser() {
+        val groups = keyboardShortcutGroups(inTerminal = true)
+        assertEquals(listOf("Tabs", "Page"), groups.map { it.label.toString() })
+        val labels = groups.flatMap { it.items }.map { it.label.toString() }
+        assertEquals(listOf("New tab", "New terminal", "Close tab", "Next tab", "Previous tab", "Take screenshot"), labels)
+    }
 }

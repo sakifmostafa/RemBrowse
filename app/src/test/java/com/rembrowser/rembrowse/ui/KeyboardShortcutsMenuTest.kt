@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
@@ -33,7 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Keyboard shortcuts in More (with a keyboard attached) and in the command palette. */
+/** Keyboard shortcuts in More and in the command palette, both only with a keyboard attached. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi-qwerty")
 class KeyboardShortcutsMenuTest {
@@ -101,5 +102,20 @@ class KeyboardShortcutsMenuTest {
         composeRule.onNodeWithTag("command_palette_input").performTextInput("shortcuts")
         composeRule.onNodeWithTag("palette_keyboard_shortcuts").performClick()
         assertEquals(1, sheetsShown)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-land-mdpi-nokeys")
+    fun withoutAKeyboard_theCommandPaletteLeavesItOut() {
+        launch()
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_command_palette").performClick()
+        composeRule.onNodeWithTag("command_palette_input").performTextInput("shortcuts")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("palette_keyboard_shortcuts").assertDoesNotExist()
+        // The rest of the palette is there: the other commands still match
+        composeRule.onNodeWithTag("command_palette_input").performTextClearance()
+        composeRule.onNodeWithTag("command_palette_input").performTextInput("settings")
+        composeRule.onNodeWithTag("palette_settings").assertExists()
     }
 }

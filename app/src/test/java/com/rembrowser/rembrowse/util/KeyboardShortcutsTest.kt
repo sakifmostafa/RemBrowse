@@ -260,6 +260,26 @@ class KeyboardShortcutsTest {
     }
 
     @Test
+    fun inATerminal_theSheetLeavesOutWhatTheShellKeeps() {
+        assertEquals("Outside a terminal, everything", KeyboardShortcuts.HELP_GROUPS, KeyboardShortcuts.helpGroups(inTerminal = false))
+        val groups = KeyboardShortcuts.helpGroups(inTerminal = true)
+        assertEquals(
+            listOf(
+                "Tabs" to listOf("New tab", "New terminal", "Close tab", "Next tab", "Previous tab"),
+                "Page" to listOf("Take screenshot")
+            ),
+            groups.map { (title, rows) -> title to rows.map { it.label } }
+        )
+        groups.flatMap { it.second }.forEach { help ->
+            assertEquals(
+                help.label,
+                help.shortcut,
+                KeyboardShortcuts.resolve(help.keyCode, help.ctrl, help.shift, help.alt, inTerminal = true)
+            )
+        }
+    }
+
+    @Test
     fun aMouseForwardButton_goesForward_inAPageAndInATerminal() {
         assertEquals(BrowserShortcut.FORWARD, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_FORWARD, ctrl = false))
         assertEquals(BrowserShortcut.FORWARD, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_FORWARD, ctrl = false, inTerminal = true))

@@ -12,10 +12,13 @@ fun ShortcutHelp.modifierState(): Int =
 
 /**
  * The browser's shortcuts as the system's Keyboard Shortcuts sheet (Meta+/ on a keyboard, or
- * Keyboard shortcuts in the command palette) takes them, one group per [KeyboardShortcuts.HELP_GROUPS] entry.
+ * Keyboard shortcuts in the command palette) takes them, one group per entry of
+ * [KeyboardShortcuts.helpGroups]: with a terminal tab active ([inTerminal]), without the keys
+ * the terminal keeps.
  */
 fun keyboardShortcutGroups(
-    groups: List<Pair<String, List<ShortcutHelp>>> = KeyboardShortcuts.HELP_GROUPS
+    inTerminal: Boolean = false,
+    groups: List<Pair<String, List<ShortcutHelp>>> = KeyboardShortcuts.helpGroups(inTerminal)
 ): List<KeyboardShortcutGroup> = groups.map { (title, items) ->
     KeyboardShortcutGroup(
         title,
