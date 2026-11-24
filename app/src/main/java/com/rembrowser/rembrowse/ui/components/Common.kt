@@ -73,6 +73,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -104,11 +105,14 @@ import androidx.compose.ui.input.pointer.areAnyPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -600,6 +604,57 @@ fun Modifier.touchLongPress(label: String, onLongPress: () -> Unit): Modifier {
         }
 }
 
+/**
+ * The font scale from which text counts as very large (Settings → Display → Font size at 150% and
+ * up): menu rows drop their extra padding, and the More menu its key hints.
+ */
+internal const val LargeFontScale = 1.5f
+
+/**
+ * Where a menu's anchor ends in its window, noted by [menuAnchor], so a [RemDropdownMenu] opened
+ * from it can stay below it.
+ */
+@Stable
+class MenuAnchor {
+    internal var bottomInWindow by mutableFloatStateOf(Float.NaN)
+}
+
+/** Notes where this anchor of a [RemDropdownMenu] ends; see [MenuAnchor]. */
+fun Modifier.menuAnchor(anchor: MenuAnchor): Modifier =
+    onGloballyPositioned { anchor.bottomInWindow = it.boundsInWindow().bottom }
+
+/**
+ * Material's margin between a menu and the window's top and bottom edges (MenuVerticalMargin),
+ * which its placement keeps: a menu goes below its anchor only if it ends this far above the foot
+ * of the window.
+ */
+private val MenuWindowMargin = 48.dp
+
+/** Below this, a menu is left to Material's placement rather than squeezed under its anchor. */
+private val MinMenuRoomBelow = 144.dp
+
+/**
+ * How tall a menu opened [offsetY] below [anchor] may be and still fit under it, as Material's
+ * placement measures it (the window's visible frame, less [MenuWindowMargin]); null when that is
+ * unknown yet or less than three rows.
+ */
+@Composable
+private fun menuRoomBelow(anchor: MenuAnchor, offsetY: Dp): Dp? {
+    val bottom = anchor.bottomInWindow
+    if (bottom.isNaN()) return null
+    val view = LocalView.current
+    val frame = android.graphics.Rect().also { view.getWindowVisibleDisplayFrame(it) }
+    val room = with(LocalDensity.current) { (frame.height() - bottom).toDp() } - offsetY - MenuWindowMargin
+    return room.takeIf { it >= MinMenuRoomBelow }
+}
+
+/**
+ * A menu in RemBrowse's style: Material's, on the surface colour with a hairline border and a
+ * shadow, at least 220dp wide. Given its [anchor] ([menuAnchor]), it opens below the anchor
+ * however long it is: with very large text, or on a short window, it scrolls in the room below
+ * instead of moving up over its anchor (and the toolbar the anchor sits in), as Material's menus
+ * do when they don't fit under it.
+ */
 @Composable
 fun RemDropdownMenu(
     expanded: Boolean,
@@ -608,12 +663,16 @@ fun RemDropdownMenu(
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     /** Not focusable for a menu that acts on a text field, which must keep its focus meanwhile. */
     properties: PopupProperties = PopupProperties(focusable = true),
+    anchor: MenuAnchor? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val roomBelow = anchor?.let { menuRoomBelow(it, offset.y) }
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
-        modifier = modifier.widthIn(min = 220.dp),
+        modifier = modifier
+            .widthIn(min = 220.dp)
+            .then(if (roomBelow != null) Modifier.heightIn(max = roomBelow) else Modifier),
         offset = offset,
         properties = properties,
         shape = MaterialTheme.shapes.medium,
@@ -626,9 +685,24 @@ fun RemDropdownMenu(
 }
 
 /**
+ * A menu row's padding: Material 3 Expressive's, 12dp above and below the text, at the usual font
+ * sizes; from [LargeFontScale] none above and below, as Material's classic rows had, the row
+ * keeping Material's 48dp minimum height. At 200% the expressive padding makes every row 62dp
+ * tall, and a long menu (More) longer than a laptop's window.
+ */
+@Composable
+private fun menuItemPadding(): PaddingValues =
+    if (LocalDensity.current.fontScale >= LargeFontScale) {
+        MenuDefaults.DropdownMenuItemContentPadding
+    } else {
+        MenuDefaults.DropdownMenuSelectableItemContentPadding
+    }
+
+/**
  * A row in a [RemDropdownMenu]: Material 3 Expressive's menu item, set 4dp in from the menu's
- * sides with rounded corners for its hover, press and focus. The parameters are those of the
- * classic DropdownMenuItem it replaces; [trailingIcon] is usually a [ShortcutHint].
+ * sides with rounded corners for its hover, press and focus, less tall with very large text
+ * ([menuItemPadding]). The parameters are those of the classic DropdownMenuItem it replaces;
+ * [trailingIcon] is usually a [ShortcutHint].
  */
 @Composable
 fun RemMenuItem(
@@ -646,14 +720,16 @@ fun RemMenuItem(
         modifier = modifier,
         leadingIcon = leadingIcon,
         trailingContent = trailingIcon,
-        enabled = enabled
+        enabled = enabled,
+        contentPadding = menuItemPadding()
     )
 }
 
 /**
  * A menu row that is on or off, such as Desktop site: Material 3 Expressive's checkable menu item.
  * While on it takes the selected fill (tertiaryContainer), rounder corners and a tick at its end,
- * so the state never rests on colour alone; screen readers hear a checkbox.
+ * so the state never rests on colour alone; screen readers hear a checkbox. Its padding is
+ * [menuItemPadding]'s.
  */
 @Composable
 fun RemCheckableMenuItem(
@@ -677,7 +753,8 @@ fun RemCheckableMenuItem(
             null
         },
         enabled = enabled,
-        colors = selectableMenuItemColors()
+        colors = selectableMenuItemColors(),
+        contentPadding = menuItemPadding()
     )
 }
 
@@ -709,7 +786,8 @@ fun RemSelectableMenuItem(
             trailingIcon
         },
         enabled = enabled,
-        colors = selectableMenuItemColors()
+        colors = selectableMenuItemColors(),
+        contentPadding = menuItemPadding()
     )
 }
 

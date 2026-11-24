@@ -161,6 +161,9 @@ fun BrowserTopBar(
     val noWebPage = activeTab?.isWebPage != true
     var showMoreMenu by remember { mutableStateOf(false) }
     var showLayoutMenu by remember { mutableStateOf(false) }
+    // The More and Split buttons' menus open below them, however large the text (RemDropdownMenu)
+    val moreAnchor = remember { MenuAnchor() }
+    val splitAnchor = remember { MenuAnchor() }
 
     Row(
         modifier = modifier
@@ -227,7 +230,7 @@ fun BrowserTopBar(
             )
         }
 
-        Box {
+        Box(modifier = Modifier.menuAnchor(moreAnchor)) {
             RemIconButton(
                 icon = Icons.Outlined.MoreHoriz,
                 label = "More",
@@ -237,6 +240,7 @@ fun BrowserTopBar(
             MoreMenu(
                 expanded = showMoreMenu,
                 onDismiss = { showMoreMenu = false },
+                anchor = moreAnchor,
                 compact = compact,
                 pageActionsEnabled = !noWebPage,
                 isLoading = isLoading,
@@ -266,6 +270,7 @@ fun BrowserTopBar(
                 SplitMenu(
                     expanded = showLayoutMenu,
                     onDismiss = { showLayoutMenu = false },
+                    anchor = moreAnchor,
                     uiState = uiState,
                     onSelectLayout = onSelectLayout,
                     onSplit = onSplit,
@@ -277,7 +282,7 @@ fun BrowserTopBar(
         }
 
         if (!compact) {
-            Box(modifier = Modifier.padding(start = 4.dp, end = 2.dp)) {
+            Box(modifier = Modifier.padding(start = 4.dp, end = 2.dp).menuAnchor(splitAnchor)) {
                 SplitButton(
                     isSplit = uiState.isSplit,
                     onClick = { showLayoutMenu = true }
@@ -285,6 +290,7 @@ fun BrowserTopBar(
                 SplitMenu(
                     expanded = showLayoutMenu,
                     onDismiss = { showLayoutMenu = false },
+                    anchor = splitAnchor,
                     uiState = uiState,
                     onSelectLayout = onSelectLayout,
                     onSplit = onSplit,
@@ -696,6 +702,7 @@ private fun TabCountButton(count: Int, onClick: () -> Unit) {
 private fun MoreMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    anchor: MenuAnchor,
     compact: Boolean,
     pageActionsEnabled: Boolean,
     isLoading: Boolean,
@@ -725,7 +732,7 @@ private fun MoreMenu(
     val hasKeyboard = LocalConfiguration.current.keyboard == Configuration.KEYBOARD_QWERTY
     // With very large text the hints would squeeze the names until a word breaks in two
     // ("Take screensho-t"); the names come first, and Keyboard shortcuts still lists the keys
-    val showHints = LocalDensity.current.fontScale < 1.5f
+    val showHints = LocalDensity.current.fontScale < LargeFontScale
     fun hint(keys: String): (@Composable () -> Unit)? = if (showHints) { { ShortcutHint(keys) } } else null
     val divider = @Composable { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
     fun run(action: () -> Unit): () -> Unit = {
@@ -733,7 +740,7 @@ private fun MoreMenu(
         action()
     }
 
-    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss, anchor = anchor) {
         if (compact) {
             RemMenuItem(
                 text = { Text(if (isLoading) "Stop loading" else "Reload") },
@@ -902,6 +909,7 @@ private const val ONE_AND_TWO_LABEL = "One left, two right"
 private fun SplitMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    anchor: MenuAnchor,
     uiState: BrowserUiState,
     onSelectLayout: (LayoutMode) -> Unit,
     onSplit: (currentOnLeft: Boolean) -> Unit,
@@ -977,7 +985,7 @@ private fun SplitMenu(
     }
 
     val mode = uiState.layoutMode
-    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+    RemDropdownMenu(expanded = expanded, onDismissRequest = onDismiss, anchor = anchor) {
         if (!uiState.isSplit) {
             layoutItem("Split right", LayoutMode.SPLIT_1X2, "layout_1x2", "Ctrl+2") { onSplit(true) }
             layoutItem("Split left", LayoutMode.SPLIT_1X2, "split_left") { onSplit(false) }

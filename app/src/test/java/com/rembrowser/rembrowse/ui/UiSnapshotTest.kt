@@ -618,6 +618,15 @@ class UiSnapshotTest {
         save("25c-font-200-settings")
     }
 
+    /** On a phone at 200% the More menu is longer than the room below the toolbar: it scrolls there. */
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 2.0f)
+    fun fontScale200CompactMoreMenu() {
+        launch()
+        composeRule.onNodeWithTag("more_button").performClick()
+        save("25f-font-200-compact-more-menu")
+    }
+
     @Test
     @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 2.0f)
     fun fontScale200Compact() {
