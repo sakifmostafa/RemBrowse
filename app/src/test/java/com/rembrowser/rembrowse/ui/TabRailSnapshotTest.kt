@@ -126,8 +126,13 @@ class TabRailSnapshotTest {
         engine.sessions.values.forEach { it.simulateSecurityChange(true) }
     }
 
-    private fun launch(dark: Boolean) {
-        val settings = BrowserSettings(themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT)
+    private val chrome = BrowserChromeState()
+
+    private fun launch(dark: Boolean, railExpanded: Boolean = false) {
+        val settings = BrowserSettings(
+            themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT,
+            tabRailExpanded = railExpanded
+        )
         scene(settings)
         val extVm = ExtensionsViewModel(FakeExtensionManager(), FakeAmoApiClient(), uiScope)
         val downloadsVm = DownloadsViewModel(
@@ -143,6 +148,7 @@ class TabRailSnapshotTest {
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
                         downloadsViewModel = downloadsVm,
+                        chrome = chrome,
                         versionName = "0.13.17",
                         onPickLocalXpi = {},
                         paneViewport = { tab, modifier -> SamplePage(tab, modifier) },
@@ -185,6 +191,38 @@ class TabRailSnapshotTest {
         save("rail-05-compact-height-dark")
     }
 
+    /** Expanded beside the page (Settings, the menu button or the palette), on a laptop's screen. */
+    @Test
+    fun railExpandedDark() {
+        launch(dark = true, railExpanded = true)
+        save("rail-06-expanded-dark")
+        save("rail-07-expanded-dark-closeup", width = 420.dp, height = 560.dp)
+    }
+
+    @Test
+    fun railExpandedLight() {
+        launch(dark = false, railExpanded = true)
+        save("rail-08-expanded-light")
+    }
+
+    /** Expanded over the page from the menu button, on a window too narrow for it to sit beside. */
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-xhdpi")
+    fun railOverThePageLight() {
+        launch(dark = false)
+        composeRule.runOnUiThread { chrome.tabRailOverlayOpen = true }
+        save("rail-09-over-the-page-light")
+    }
+
+    /** The same on a phone held sideways, where the tab switcher scrolls with the list. */
+    @Test
+    @Config(qualifiers = "w800dp-h360dp-land-xhdpi")
+    fun railOverThePageCompactHeight() {
+        launch(dark = true)
+        composeRule.runOnUiThread { chrome.tabRailOverlayOpen = true }
+        save("rail-10-over-the-page-compact-height-dark")
+    }
+
     @Test
     fun railLight() {
         launch(dark = false)
@@ -211,6 +249,8 @@ class TabRailSnapshotTest {
                                 Box(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                                     TabRail(
                                         uiState = state,
+                                        expanded = false,
+                                        onToggleExpanded = {},
                                         onOpenTabSwitcher = {},
                                         onSelectTab = {},
                                         onCloseTab = {},

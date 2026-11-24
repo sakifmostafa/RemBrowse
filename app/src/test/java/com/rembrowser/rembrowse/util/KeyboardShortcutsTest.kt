@@ -166,6 +166,31 @@ class KeyboardShortcutsTest {
     }
 
     @Test
+    fun escape_closesTheTabRailOpenOverThePage_wheneverTheFocusIs() {
+        val esc = KeyEvent.KEYCODE_ESCAPE
+        assertTrue(KeyboardShortcuts.escapeClosesTabRail(esc, railOverlayOpen = true, noModifiers = true))
+        // Nothing open over the page: Esc goes where it went before
+        assertFalse(KeyboardShortcuts.escapeClosesTabRail(esc, railOverlayOpen = false, noModifiers = true))
+        // Shift+Esc and the rest are left alone; a held Esc closes it once
+        assertFalse(KeyboardShortcuts.escapeClosesTabRail(esc, railOverlayOpen = true, noModifiers = false))
+        assertFalse(KeyboardShortcuts.escapeClosesTabRail(esc, railOverlayOpen = true, noModifiers = true, repeatCount = 1))
+        // The system's Back is not Esc: the rail's Back handler closes it
+        assertFalse(KeyboardShortcuts.escapeClosesTabRail(KeyEvent.KEYCODE_BACK, railOverlayOpen = true, noModifiers = true))
+        // A laptop keyboard's Esc sent as Back, up to Android 12L only, as for the find bar
+        assertTrue(
+            KeyboardShortcuts.escapeClosesTabRail(
+                KeyEvent.KEYCODE_BACK, railOverlayOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 32
+            )
+        )
+        assertFalse(
+            KeyboardShortcuts.escapeClosesTabRail(
+                KeyEvent.KEYCODE_BACK, railOverlayOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 33
+            )
+        )
+        assertFalse(KeyboardShortcuts.escapeClosesTabRail(KeyEvent.KEYCODE_A, railOverlayOpen = true, noModifiers = true))
+    }
+
+    @Test
     fun escape_closesTheOpenFindBar_wheneverTheFocusIs_butNotInATerminal() {
         val esc = KeyEvent.KEYCODE_ESCAPE
         assertTrue(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true))

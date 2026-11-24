@@ -687,6 +687,7 @@ class MainActivity : ComponentActivity() {
                 return true
             }
         }
+        if (interceptEscapeForTabRail(event)) return true
         if (interceptEscapeForFindBar(event)) return true
         if (event.action == KeyEvent.ACTION_DOWN) {
             val shortcut = resolveShortcut(event)
@@ -697,6 +698,29 @@ class MainActivity : ComponentActivity() {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /**
+     * Esc closes the expanded tab rail open over the page (see
+     * [KeyboardShortcuts.escapeClosesTabRail]), wherever the focus is: a page or a terminal under
+     * it never sees the key. Its release and repeats are taken too ([takenKeys]). The focus stays
+     * where it was.
+     */
+    private fun interceptEscapeForTabRail(event: KeyEvent): Boolean {
+        if (event.action != KeyEvent.ACTION_DOWN || !chrome.tabRailOverlayOpen) return false
+        val device = event.device
+        val closes = KeyboardShortcuts.escapeClosesTabRail(
+            keyCode = event.keyCode,
+            railOverlayOpen = true,
+            noModifiers = event.hasNoModifiers(),
+            repeatCount = event.repeatCount,
+            fromPhysicalKeyboard = device != null && !device.isVirtual &&
+                event.isFromSource(InputDevice.SOURCE_KEYBOARD)
+        )
+        if (!closes) return false
+        takenKeys.take(event.keyCode)
+        chrome.tabRailOverlayOpen = false
+        return true
     }
 
     /** The key (Esc, or a keyboard's Back) that closed the find bar; its release is ours too. */
@@ -790,6 +814,7 @@ class MainActivity : ComponentActivity() {
         // The repeats and release of a shortcut's key, or of a key the screenshot overlay took
         if (takenKeys.takesFollowUp(event.action, event.keyCode, event.repeatCount)) return true
         if (interceptKeyForScreenCapture(event)) return true
+        if (interceptEscapeForTabRail(event)) return true
         if (interceptEscapeForFindBar(event)) return true
         if (interceptTypingBeforeIme(event)) return true
         if (event.action != KeyEvent.ACTION_DOWN) return false

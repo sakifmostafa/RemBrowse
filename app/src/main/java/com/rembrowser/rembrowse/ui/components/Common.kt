@@ -964,18 +964,6 @@ fun RemDialog(
     }
 }
 
-/** A 1dp line used between groups in the tab rail. */
-@Composable
-fun RailDivider(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .padding(vertical = 6.dp)
-            .width(24.dp)
-            .heightIn(min = 1.dp, max = 1.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant)
-    )
-}
-
 @Composable
 fun VerticalHairline(modifier: Modifier = Modifier) {
     Box(

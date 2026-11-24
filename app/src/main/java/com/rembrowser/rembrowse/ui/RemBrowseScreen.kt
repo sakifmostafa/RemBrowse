@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuOpen
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
@@ -27,6 +30,7 @@ import androidx.compose.material.icons.outlined.ScreenshotMonitor
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
@@ -36,6 +40,7 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -49,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
@@ -103,6 +109,7 @@ import com.rembrowser.rembrowse.ui.components.SettingsPage
 import com.rembrowser.rembrowse.ui.components.TabDragGhost
 import com.rembrowser.rembrowse.ui.components.TabDragState
 import com.rembrowser.rembrowse.ui.components.TabRail
+import com.rembrowser.rembrowse.ui.components.TabRailScrim
 import com.rembrowser.rembrowse.ui.components.TabSwitcher
 import com.rembrowser.rembrowse.ui.components.TerminalPage
 import com.rembrowser.rembrowse.ui.components.TerminalSettingsActions
@@ -139,6 +146,14 @@ class BrowserChromeState {
         internal set
     var showCommandPalette by mutableStateOf(false)
     var showBookmarks by mutableStateOf(false)
+
+    /**
+     * The expanded tab rail is open over the page: on a window narrower than 840dp, where it would
+     * crowd the page beside it, the rail's menu button (or the palette) opens it there for a
+     * moment. A click outside it, Esc or Back closes it, as does choosing a tab or a site in it.
+     * Wider windows keep the rail expanded or not by the setting instead (tabRailExpanded).
+     */
+    var tabRailOverlayOpen by mutableStateOf(false)
 
     /** The Go to address popup (Ctrl+G). */
     var showGoToAddress by mutableStateOf(false)
@@ -400,6 +415,16 @@ fun RemBrowseScreen(
         enabled = findInPage != null && !fullscreen && !chrome.showTabSwitcher && !keyboardUp,
         onBack = findActions.onClose
     )
+    // The expanded rail open over the page is in front of the tab switcher and the find bar, so
+    // its Back, which closes it, is composed after theirs and comes first. Only the screenshot
+    // overlay's (below) comes before it.
+    val closeTabRailOverlay = { chrome.tabRailOverlayOpen = false }
+    BackHandler(enabled = chrome.tabRailOverlayOpen && !keyboardUp, onBack = closeTabRailOverlay)
+    // A tab picked up from the rail over the page: the rail steps back to its icons, so every pane
+    // shows for the drop. The tile under the pointer stays, and so does the drag.
+    LaunchedEffect(tabDrag.draggedTabId) {
+        if (tabDrag.draggedTabId != null) chrome.tabRailOverlayOpen = false
+    }
     val openFindInPage = {
         chrome.showTabSwitcher = false
         browserViewModel.openFindInPage()
@@ -447,7 +472,8 @@ fun RemBrowseScreen(
             onSetKeepHistory = browserViewModel::setKeepHistory,
             onSetSwipeNavigation = browserViewModel::setSwipeNavigation,
             onSetReverseSwipeDirection = browserViewModel::setReverseSwipeDirection,
-            onSetPageRendering = browserViewModel::setPageRendering
+            onSetPageRendering = browserViewModel::setPageRendering,
+            onSetTabRailExpanded = browserViewModel::setTabRailExpanded
         )
     }
     val openDownload = { id: String -> downloadsViewModel.open(id, onOpenDownload) }
@@ -481,6 +507,22 @@ fun RemBrowseScreen(
             browserViewModel.splitCurrentTab(currentOnLeft = true)
         }
     }
+    // Noted by the layout below, for the palette: whether the rail shows (not on a phone-sized
+    // window, nor under a fullscreen page), and whether the window is wide enough (840dp,
+    // Material's expanded width) for the expanded rail to sit beside the page
+    var railShown by remember { mutableStateOf(false) }
+    var railBesidePage by remember { mutableStateOf(true) }
+    val railExpandedNow = railShown &&
+        if (railBesidePage) browserState.settings.tabRailExpanded else chrome.tabRailOverlayOpen
+    // The rail's menu button and the palette. Beside the page the choice is kept, as the setting
+    // in Settings -> Tabs; over the page the expanded rail is only opened for a moment.
+    val toggleTabRail = {
+        if (railBesidePage) {
+            browserViewModel.setTabRailExpanded(!browserViewModel.uiState.value.settings.tabRailExpanded)
+        } else {
+            chrome.tabRailOverlayOpen = !chrome.tabRailOverlayOpen
+        }
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -494,200 +536,257 @@ fun RemBrowseScreen(
         val toolbarExtensions = remember(extensionsState.installedExtensions) {
             extensionsState.installedExtensions.filter { it.enabled && it.hasBrowserAction }
         }
+        val showRail = !compact && !fullscreen
+        val besidePage = WindowWidthClass.of(maxWidth) >= WindowWidthClass.Expanded
+        SideEffect {
+            railShown = showRail
+            railBesidePage = besidePage
+        }
+        // The rail is only ever over the page on a window narrower than 840dp that shows it
+        LaunchedEffect(showRail, besidePage) {
+            if (!showRail || besidePage) chrome.tabRailOverlayOpen = false
+        }
+        val railOverlay = showRail && !besidePage && chrome.tabRailOverlayOpen
+        val railExpanded = showRail && if (besidePage) browserState.settings.tabRailExpanded else railOverlay
+        // The room the page leaves the rail
+        val railRoom = if (railExpanded && besidePage) RemDimens.RailExpandedWidth else RemDimens.RailWidth
 
-        Row(modifier = Modifier.fillMaxSize()) {
-            if (!compact && !fullscreen) {
+        // The rail is placed before the page, so the keyboard's Tab reaches it first as before, and
+        // drawn over it (zIndex): when it is wider than the room the page leaves it, it lies over
+        // the toolbar and the panes. On a window 840dp and wider the page makes room for the
+        // expanded rail at once, so the panes are resized once rather than on every frame, and the
+        // rail grows into the room; on a narrower one the expanded rail opens over the page, which
+        // is dimmed, and anything chosen in it closes it.
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (showRail) {
                 TabRail(
                     uiState = browserState,
-                    onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
+                    expanded = railExpanded,
+                    onToggleExpanded = toggleTabRail,
+                    floating = !besidePage,
+                    onDismiss = closeTabRailOverlay,
+                    onOpenTabSwitcher = {
+                        closeTabRailOverlay()
+                        chrome.showTabSwitcher = !chrome.showTabSwitcher
+                    },
                     onSelectTab = { tabId ->
+                        closeTabRailOverlay()
                         browserViewModel.selectTab(tabId)
                         closeTabSwitcher()
                     },
                     onCloseTab = browserViewModel::closeTab,
                     onCloseOtherTabs = browserViewModel::closeOtherTabs,
-                    onAssignTabToPane = browserViewModel::assignTabToPane,
-                    onClosePane = browserViewModel::closePane,
+                    onAssignTabToPane = { pane, tabId ->
+                        closeTabRailOverlay()
+                        browserViewModel.assignTabToPane(pane, tabId)
+                    },
+                    onClosePane = { pane ->
+                        closeTabRailOverlay()
+                        browserViewModel.closePane(pane)
+                    },
                     dragState = tabDrag,
                     onDropTab = browserViewModel::dropTabOnPane,
-                    onNewTab = openNewTab,
+                    onNewTab = {
+                        closeTabRailOverlay()
+                        openNewTab()
+                    },
                     onOpenBookmark = { url ->
+                        closeTabRailOverlay()
                         browserViewModel.openBookmark(url)
                         closeTabSwitcher()
                     },
                     onOpenBookmarkInNewTab = { url ->
+                        closeTabRailOverlay()
                         browserViewModel.openBookmarkInNewTab(url)
                         closeTabSwitcher()
                     },
                     onRemoveBookmark = browserViewModel::removeBookmark,
                     extensions = toolbarExtensions,
                     openPopupExtensionId = extensionsState.activePopup?.extensionId,
-                    onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
-                    onManageExtensions = openExtensions
+                    onTriggerExtensionAction = { id ->
+                        closeTabRailOverlay()
+                        extensionsViewModel.triggerBrowserAction(id)
+                    },
+                    onManageExtensions = {
+                        closeTabRailOverlay()
+                        openExtensions()
+                    },
+                    modifier = Modifier.zIndex(1f)
                 )
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                if (!fullscreen) BrowserTopBar(
-                    uiState = browserState,
-                    compact = compact,
-                    installedExtensions = extensionsState.installedExtensions,
-                    addressBarFocusRequester = chrome.addressBarFocusRequester,
-                    onAddressBarChange = browserViewModel::onAddressBarChange,
-                    onAddressBarFocusChange = browserViewModel::onAddressBarFocusChange,
-                    onSubmitAddressBar = {
-                        chrome.showTabSwitcher = false
-                        browserViewModel.submitAddressBar()
-                    },
-                    onLeaveAddressBar = chrome::focusContent,
-                    onBack = { browserViewModel.goBack() },
-                    onForward = { browserViewModel.goForward() },
-                    onReloadOrStop = { browserViewModel.reloadOrStop() },
-                    onToggleBookmark = browserViewModel::toggleBookmarkForActiveTab,
-                    onToggleDesktopMode = { browserViewModel.toggleDesktopMode() },
-                    onSelectLayout = browserViewModel::setLayoutMode,
-                    onSplit = browserViewModel::splitCurrentTab,
-                    onSwapPanes = browserViewModel::swapFocusedPane,
-                    onSetSplitPreset = browserViewModel::setSplitPreset,
-                    onClosePane = { browserViewModel.closePane() },
-                    onNewTab = openNewTab,
-                    onCloseActiveTab = closeActiveTab,
-                    onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
-                    onOpenCommandPalette = { chrome.showCommandPalette = true },
-                    onOpenBookmarks = { chrome.showBookmarks = true },
-                    onOpenDownloads = openDownloads,
-                    onOpenHistory = openHistory,
-                    onFindInPage = openFindInPage,
-                    onPrint = printPage,
-                    onTakeScreenshot = takeScreenshot,
-                    onOpenExtensions = openExtensions,
-                    onOpenSettings = { openSettings(null) },
-                    onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
-                    onNewTerminal = { openTerminal(TerminalTarget.Picker) },
-                    onShowKeyboardShortcuts = onShowKeyboardShortcuts,
-                    addressDisplay = terminalAddress
-                )
-
-                Box(modifier = Modifier.weight(1f)) {
-                    TiledBrowserGrid(
+            Row(modifier = Modifier.fillMaxSize()) {
+                if (showRail) Spacer(modifier = Modifier.width(railRoom))
+                Column(modifier = Modifier.weight(1f)) {
+                    if (!fullscreen) BrowserTopBar(
                         uiState = browserState,
                         compact = compact,
-                        onFocusPane = browserViewModel::focusPane,
-                        onResizeSplit = browserViewModel::setSplitRatio,
-                        onCommitSplit = browserViewModel::commitSplitRatios,
-                        onResetSplit = browserViewModel::resetSplit,
-                        dragState = tabDrag,
-                        onReloadPane = browserViewModel::reloadOrStop,
-                        contentFocusRequested = chrome.pendingContentFocus,
-                        onContentFocusHandled = { chrome.pendingContentFocus = false },
-                        onFocusWebContent = onFocusWebContent,
-                        internalPage = { tab, pageModifier ->
-                            if (tab.isTerminal && terminalViewModel != null) {
-                                TerminalPage(
-                                    tab = tab,
-                                    terminal = terminalViewModel,
-                                    isActive = browserState.activeTabId == tab.id && !browserState.isAddressBarFocused,
-                                    onChooseTarget = { target -> browserViewModel.showTerminalTarget(tab.id, target) },
-                                    onOpenSettings = { openSettings(SettingsSection.TERMINAL) },
-                                    modifier = pageModifier,
-                                    cursorColor = terminalCursorColor(
-                                        context,
-                                        browserState.settings.accent,
-                                        browserState.settings.useSystemColors
-                                    )
-                                )
-                            } else {
-                            SettingsPage(
-                                section = SettingsSection.fromUrl(tab.url),
-                                onSelectSection = { section ->
-                                    if (section == SettingsSection.EXTENSIONS) extensionsViewModel.refreshInstalled()
-                                    browserViewModel.showSettingsSection(tab.id, section)
-                                },
-                                settings = browserState.settings,
-                                versionName = versionName,
-                                extensionsState = extensionsState,
-                                downloadsState = downloadsState,
-                                downloadLocation = downloadsViewModel.locationLabel,
-                                canShowDownloadFolder = downloadsViewModel.canShowFolder,
-                                actions = settingsActions,
-                                extensionActions = extensionActions,
-                                downloadActions = downloadActions,
-                                modifier = pageModifier,
-                                history = history,
-                                historyActions = historyActions,
-                                updates = updatesState,
-                                updateActions = updateActions,
-                                terminal = terminalState,
-                                terminalActions = terminalActions,
-                                sitePermissions = sitePermissions,
-                                sitePermissionActions = sitePermissionActions
-                            )
-                            }
+                        installedExtensions = extensionsState.installedExtensions,
+                        addressBarFocusRequester = chrome.addressBarFocusRequester,
+                        onAddressBarChange = browserViewModel::onAddressBarChange,
+                        onAddressBarFocusChange = browserViewModel::onAddressBarFocusChange,
+                        onSubmitAddressBar = {
+                            chrome.showTabSwitcher = false
+                            browserViewModel.submitAddressBar()
                         },
-                        paneViewport = paneViewport,
-                        paneOverlay = { tab ->
-                            // A click on the screenshot overlay over this pane takes all of it
-                            CaptureRegionMarker(chrome.screenCapture, CaptureRegions.pane(tab.id))
-                            // The oldest question of this pane's tab, under the find bar if both are open
-                            PermissionPromptOverlay(
-                                request = permissionRequests.firstOrNull { it.tabId == tab.id },
-                                findBarOpen = findInPage?.tabId == tab.id,
-                                onAnswer = browserViewModel::answerPermission,
-                                onReturnFocus = chrome::focusContent
-                            )
-                            FindInPageOverlay(tabId = tab.id, find = findInPage, actions = findActions)
-                            PageContextMenuOverlay(
-                                menu = pageMenu,
-                                tab = tab,
-                                canSplit = browserState.paneCount < PaneNode.MAX_PANES,
-                                isBookmarked = browserState.isBookmarked(tab.url),
-                                onAction = { action ->
-                                    pageMenu?.let { menu ->
-                                        pageMenuCopyText(menu, action, tab.url)?.let { clipboard.setText(AnnotatedString(it)) }
-                                        if (action == PageMenuAction.COPY_IMAGE) {
-                                            menu.copyableImageUrl?.let { onCopyImage(it, tab.url) }
-                                        }
-                                        if (action == PageMenuAction.SCREENSHOT) takeScreenshot()
-                                    }
-                                    browserViewModel.onPageMenuAction(action)
-                                },
-                                onDismiss = browserViewModel::dismissPageMenu
-                            )
-                        }
+                        onLeaveAddressBar = chrome::focusContent,
+                        onBack = { browserViewModel.goBack() },
+                        onForward = { browserViewModel.goForward() },
+                        onReloadOrStop = { browserViewModel.reloadOrStop() },
+                        onToggleBookmark = browserViewModel::toggleBookmarkForActiveTab,
+                        onToggleDesktopMode = { browserViewModel.toggleDesktopMode() },
+                        onSelectLayout = browserViewModel::setLayoutMode,
+                        onSplit = browserViewModel::splitCurrentTab,
+                        onSwapPanes = browserViewModel::swapFocusedPane,
+                        onSetSplitPreset = browserViewModel::setSplitPreset,
+                        onClosePane = { browserViewModel.closePane() },
+                        onNewTab = openNewTab,
+                        onCloseActiveTab = closeActiveTab,
+                        onOpenTabSwitcher = { chrome.showTabSwitcher = !chrome.showTabSwitcher },
+                        onOpenCommandPalette = { chrome.showCommandPalette = true },
+                        onOpenBookmarks = { chrome.showBookmarks = true },
+                        onOpenDownloads = openDownloads,
+                        onOpenHistory = openHistory,
+                        onFindInPage = openFindInPage,
+                        onPrint = printPage,
+                        onTakeScreenshot = takeScreenshot,
+                        onOpenExtensions = openExtensions,
+                        onOpenSettings = { openSettings(null) },
+                        onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
+                        onNewTerminal = { openTerminal(TerminalTarget.Picker) },
+                        onShowKeyboardShortcuts = onShowKeyboardShortcuts,
+                        addressDisplay = terminalAddress
                     )
 
-                    if (chrome.showTabSwitcher && !fullscreen) {
-                        CaptureRegionLifetime(chrome.screenCapture, CaptureRegions.TAB_SWITCHER)
-                        val stillBackPreview = rememberReduceMotion()
-                        TabSwitcher(
+                    Box(modifier = Modifier.weight(1f)) {
+                        TiledBrowserGrid(
                             uiState = browserState,
-                            framed = !compact,
-                            onSelectTab = { tabId ->
-                                browserViewModel.selectTab(tabId)
-                                closeTabSwitcher()
-                            },
-                            onCloseTab = browserViewModel::closeTab,
-                            onNewTab = openNewTab,
-                            onCloseOtherTabs = browserViewModel::closeOtherTabs,
-                            onDismiss = closeTabSwitcher,
-                            onSearchFocusChange = { chrome.isTabSearchFocused = it },
-                            searchFocusRequests = chrome.tabSearchFocusRequests,
-                            modifier = (if (compact) Modifier else Modifier.padding(end = 6.dp, bottom = 6.dp))
-                                // Over the panes: a click on the screenshot overlay there takes the switcher
-                                .reportCaptureRegion(chrome.screenCapture, CaptureRegions.TAB_SWITCHER, layer = 1)
-                                // A Back gesture shrinks it towards 90% and lets the pages show
-                                // through, as Material's predictive back does for a full-screen
-                                // surface. Read while drawing, so the gesture only redraws it.
-                                .graphicsLayer {
-                                    val progress = if (stillBackPreview) 0f else chrome.tabSwitcherBack
-                                    scaleX = 1f - TAB_SWITCHER_BACK_SHRINK * progress
-                                    scaleY = scaleX
-                                    alpha = 1f - TAB_SWITCHER_BACK_FADE * progress
+                            compact = compact,
+                            onFocusPane = browserViewModel::focusPane,
+                            onResizeSplit = browserViewModel::setSplitRatio,
+                            onCommitSplit = browserViewModel::commitSplitRatios,
+                            onResetSplit = browserViewModel::resetSplit,
+                            dragState = tabDrag,
+                            onReloadPane = browserViewModel::reloadOrStop,
+                            contentFocusRequested = chrome.pendingContentFocus,
+                            onContentFocusHandled = { chrome.pendingContentFocus = false },
+                            onFocusWebContent = onFocusWebContent,
+                            internalPage = { tab, pageModifier ->
+                                if (tab.isTerminal && terminalViewModel != null) {
+                                    TerminalPage(
+                                        tab = tab,
+                                        terminal = terminalViewModel,
+                                        isActive = browserState.activeTabId == tab.id && !browserState.isAddressBarFocused,
+                                        onChooseTarget = { target -> browserViewModel.showTerminalTarget(tab.id, target) },
+                                        onOpenSettings = { openSettings(SettingsSection.TERMINAL) },
+                                        modifier = pageModifier,
+                                        cursorColor = terminalCursorColor(
+                                            context,
+                                            browserState.settings.accent,
+                                            browserState.settings.useSystemColors
+                                        )
+                                    )
+                                } else {
+                                SettingsPage(
+                                    section = SettingsSection.fromUrl(tab.url),
+                                    onSelectSection = { section ->
+                                        if (section == SettingsSection.EXTENSIONS) extensionsViewModel.refreshInstalled()
+                                        browserViewModel.showSettingsSection(tab.id, section)
+                                    },
+                                    settings = browserState.settings,
+                                    versionName = versionName,
+                                    extensionsState = extensionsState,
+                                    downloadsState = downloadsState,
+                                    downloadLocation = downloadsViewModel.locationLabel,
+                                    canShowDownloadFolder = downloadsViewModel.canShowFolder,
+                                    actions = settingsActions,
+                                    extensionActions = extensionActions,
+                                    downloadActions = downloadActions,
+                                    modifier = pageModifier,
+                                    history = history,
+                                    historyActions = historyActions,
+                                    updates = updatesState,
+                                    updateActions = updateActions,
+                                    terminal = terminalState,
+                                    terminalActions = terminalActions,
+                                    sitePermissions = sitePermissions,
+                                    sitePermissionActions = sitePermissionActions
+                                )
                                 }
+                            },
+                            paneViewport = paneViewport,
+                            paneOverlay = { tab ->
+                                // A click on the screenshot overlay over this pane takes all of it
+                                CaptureRegionMarker(chrome.screenCapture, CaptureRegions.pane(tab.id))
+                                // The oldest question of this pane's tab, under the find bar if both are open
+                                PermissionPromptOverlay(
+                                    request = permissionRequests.firstOrNull { it.tabId == tab.id },
+                                    findBarOpen = findInPage?.tabId == tab.id,
+                                    onAnswer = browserViewModel::answerPermission,
+                                    onReturnFocus = chrome::focusContent
+                                )
+                                FindInPageOverlay(tabId = tab.id, find = findInPage, actions = findActions)
+                                PageContextMenuOverlay(
+                                    menu = pageMenu,
+                                    tab = tab,
+                                    canSplit = browserState.paneCount < PaneNode.MAX_PANES,
+                                    isBookmarked = browserState.isBookmarked(tab.url),
+                                    onAction = { action ->
+                                        pageMenu?.let { menu ->
+                                            pageMenuCopyText(menu, action, tab.url)?.let { clipboard.setText(AnnotatedString(it)) }
+                                            if (action == PageMenuAction.COPY_IMAGE) {
+                                                menu.copyableImageUrl?.let { onCopyImage(it, tab.url) }
+                                            }
+                                            if (action == PageMenuAction.SCREENSHOT) takeScreenshot()
+                                        }
+                                        browserViewModel.onPageMenuAction(action)
+                                    },
+                                    onDismiss = browserViewModel::dismissPageMenu
+                                )
+                            }
                         )
+
+                        if (chrome.showTabSwitcher && !fullscreen) {
+                            CaptureRegionLifetime(chrome.screenCapture, CaptureRegions.TAB_SWITCHER)
+                            val stillBackPreview = rememberReduceMotion()
+                            TabSwitcher(
+                                uiState = browserState,
+                                framed = !compact,
+                                onSelectTab = { tabId ->
+                                    browserViewModel.selectTab(tabId)
+                                    closeTabSwitcher()
+                                },
+                                onCloseTab = browserViewModel::closeTab,
+                                onNewTab = openNewTab,
+                                onCloseOtherTabs = browserViewModel::closeOtherTabs,
+                                onDismiss = closeTabSwitcher,
+                                onSearchFocusChange = { chrome.isTabSearchFocused = it },
+                                searchFocusRequests = chrome.tabSearchFocusRequests,
+                                modifier = (if (compact) Modifier else Modifier.padding(end = 6.dp, bottom = 6.dp))
+                                    // Over the panes: a click on the screenshot overlay there takes the switcher
+                                    .reportCaptureRegion(chrome.screenCapture, CaptureRegions.TAB_SWITCHER, layer = 1)
+                                    // A Back gesture shrinks it towards 90% and lets the pages show
+                                    // through, as Material's predictive back does for a full-screen
+                                    // surface. Read while drawing, so the gesture only redraws it.
+                                    .graphicsLayer {
+                                        val progress = if (stillBackPreview) 0f else chrome.tabSwitcherBack
+                                        scaleX = 1f - TAB_SWITCHER_BACK_SHRINK * progress
+                                        scaleY = scaleX
+                                        alpha = 1f - TAB_SWITCHER_BACK_FADE * progress
+                                    }
+                            )
+                        }
                     }
                 }
             }
+            // Over the page and the toolbar, under the rail
+            TabRailScrim(
+                visible = railOverlay,
+                onDismiss = closeTabRailOverlay,
+                modifier = Modifier
+                    .matchParentSize()
+                    .zIndex(0.5f)
+            )
         }
 
         TabDragGhost(dragState = tabDrag, tabs = browserState.tabs)
@@ -728,6 +827,7 @@ fun RemBrowseScreen(
                 icon = extensionsState.installedExtensions.firstOrNull { it.id == popup.extensionId }?.icon,
                 // Beside the extension buttons when the rail shows them, like a toolbar popup
                 anchorToRail = !compact,
+                railWidth = railRoom,
                 onDismiss = extensionsViewModel::dismissPopup,
                 popupContent = extensionPopupContent
             )
@@ -827,6 +927,19 @@ fun RemBrowseScreen(
                 promotable = false,
                 action = toggleSplitView
             ),
+            // Only with the rail on screen: a phone-sized window has none
+            if (railShown) {
+                PaletteCommand(
+                    id = "tab_rail",
+                    label = if (railExpandedNow) "Collapse tab rail" else "Expand tab rail",
+                    icon = if (railExpandedNow) Icons.AutoMirrored.Outlined.MenuOpen else Icons.Outlined.Menu,
+                    keywords = listOf("titles", "sidebar", "vertical", "tabs"),
+                    promotable = false,
+                    action = toggleTabRail
+                )
+            } else {
+                null
+            },
             PaletteCommand("new_tab", "New tab", Icons.Outlined.Add, "Ctrl+T", action = openNewTab),
             PaletteCommand(
                 "new_terminal", "New terminal", Icons.Outlined.Terminal, "Ctrl+Shift+T",

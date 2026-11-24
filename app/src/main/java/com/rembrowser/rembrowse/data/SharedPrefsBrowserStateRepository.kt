@@ -114,6 +114,7 @@ class SharedPrefsBrowserStateRepository(
                     put("pageRendering", state.settings.pageRendering.name)
                     put("swipeNavigation", state.settings.swipeNavigation)
                     put("reverseSwipeDirection", state.settings.reverseSwipeDirection)
+                    put("tabRailExpanded", state.settings.tabRailExpanded)
                 }
             )
 
@@ -194,7 +195,8 @@ class SharedPrefsBrowserStateRepository(
                     keepHistory = settingsObj.optBoolean("keepHistory", defaults.keepHistory),
                     pageRendering = PageRendering.fromNameOrDefault(settingsObj.optString("pageRendering", "")),
                     swipeNavigation = settingsObj.optBoolean("swipeNavigation", defaults.swipeNavigation),
-                    reverseSwipeDirection = settingsObj.optBoolean("reverseSwipeDirection", defaults.reverseSwipeDirection)
+                    reverseSwipeDirection = settingsObj.optBoolean("reverseSwipeDirection", defaults.reverseSwipeDirection),
+                    tabRailExpanded = settingsObj.optBoolean("tabRailExpanded", defaults.tabRailExpanded)
                 )
             }
 

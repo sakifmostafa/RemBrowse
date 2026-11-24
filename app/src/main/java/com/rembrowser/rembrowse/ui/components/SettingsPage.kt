@@ -137,7 +137,8 @@ class SettingsActions(
     val onSetPageRendering: (PageRendering) -> Unit = {},
     val onSetSwipeNavigation: (Boolean) -> Unit = {},
     val onSetReverseSwipeDirection: (Boolean) -> Unit = {},
-    val onSetSystemColors: (Boolean) -> Unit = {}
+    val onSetSystemColors: (Boolean) -> Unit = {},
+    val onSetTabRailExpanded: (Boolean) -> Unit = {}
 )
 
 /**
@@ -481,6 +482,19 @@ private fun TabsSection(settings: BrowserSettings, actions: SettingsActions) {
             )
         }
     }
+    Spacer(modifier = Modifier.height(24.dp))
+
+    GroupTitle("Tab rail")
+    Spacer(modifier = Modifier.height(8.dp))
+    SwitchRow(
+        title = "Show tab titles",
+        description = "On a wide window, such as a laptop's, the tab rail is wider, with each tab's title " +
+            "beside its icon, and the page moves over to make room. On a narrower window, the menu button " +
+            "at the top of the rail shows the titles over the page instead.",
+        checked = settings.tabRailExpanded,
+        onCheckedChange = actions.onSetTabRailExpanded,
+        testTag = "setting_tab_rail_expanded"
+    )
 }
 
 @Composable

@@ -88,7 +88,8 @@ class BrowserStorageRobolectricTest {
             askBeforeDownloading = false,
             pageRendering = PageRendering.DIRECT,
             swipeNavigation = false,
-            reverseSwipeDirection = true
+            reverseSwipeDirection = true,
+            tabRailExpanded = true
         )
         repository.saveState(PersistedBrowserState(settings = settings))
 
@@ -170,6 +171,20 @@ class BrowserStorageRobolectricTest {
             .edit()
             .putString("browser_state_json", """{"tabs":[],"settings":$settingsJson}""")
             .commit()
+    }
+
+    @Test
+    fun tabRail_isCollapsedUntilExpanded_andForDataSavedByAnOlderVersion() {
+        assertFalse(BrowserSettings().tabRailExpanded)
+        assertFalse(repository.loadState().settings.tabRailExpanded)
+
+        saveRawSettings("""{"accent":"GREEN"}""")
+        assertFalse("No saved value means the default", repository.loadState().settings.tabRailExpanded)
+
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(tabRailExpanded = true)))
+        assertTrue(repository.loadState().settings.tabRailExpanded)
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(tabRailExpanded = false)))
+        assertFalse(repository.loadState().settings.tabRailExpanded)
     }
 
     @Test

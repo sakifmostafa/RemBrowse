@@ -72,6 +72,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -669,7 +670,9 @@ fun ExtensionPopupDialog(
     onDismiss: () -> Unit,
     popupContent: @Composable (Modifier) -> Unit,
     icon: Bitmap? = null,
-    anchorToRail: Boolean = false
+    anchorToRail: Boolean = false,
+    /** The rail's width beside the page: wider while the rail is expanded there. */
+    railWidth: Dp = RemDimens.RailWidth
 ) {
     val colors = MaterialTheme.colorScheme
     // Sized to what the popup's content asked for, as desktop Firefox does, within its limits
@@ -689,7 +692,7 @@ fun ExtensionPopupDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        PlaceDialogWindow(anchorToRail)
+        PlaceDialogWindow(anchorToRail, railWidth)
         Surface(
             modifier = Modifier
                 .padding(PopupShadowMargin)
@@ -767,11 +770,11 @@ private const val POPUP_SIZE_WAIT_MS = 700L
  * the window becoming phone-sized.
  */
 @Composable
-private fun PlaceDialogWindow(anchorToRail: Boolean) {
+private fun PlaceDialogWindow(anchorToRail: Boolean, railWidth: Dp) {
     val view = LocalView.current
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
-    DisposableEffect(view, anchorToRail, density, layoutDirection) {
+    DisposableEffect(view, anchorToRail, railWidth, density, layoutDirection) {
         val window = (view.parent as? DialogWindowProvider)?.window
         if (window != null) {
             val params = window.attributes
@@ -786,7 +789,7 @@ private fun PlaceDialogWindow(anchorToRail: Boolean) {
                 with(density) {
                     // The visible popup starts 4dp past the rail and lines up with the panes'
                     // bottom edge; x is measured from whichever side the gravity names
-                    params.x = (RemDimens.RailWidth + 4.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
+                    params.x = (railWidth + 4.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
                     params.y = (6.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
                 }
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND.inv()

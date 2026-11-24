@@ -1221,6 +1221,12 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
+    /** Whether the tab rail is expanded, with tab titles, on windows wide enough for it. */
+    fun setTabRailExpanded(expanded: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(tabRailExpanded = expanded)) }
+        persistCurrentState()
+    }
+
     /** Whether visited pages are recorded. Turning it off keeps the history already there. */
     fun setKeepHistory(enabled: Boolean) {
         _uiState.update { it.copy(settings = it.settings.copy(keepHistory = enabled)) }

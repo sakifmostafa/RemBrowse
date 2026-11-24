@@ -365,6 +365,13 @@ object ReducedMotion : MotionScheme {
 /** Sizes shared by the browser chrome. Spacing elsewhere follows a 4/8dp rhythm. */
 object RemDimens {
     val RailWidth = 56.dp
+
+    /**
+     * The tab rail expanded, with titles beside the icons: Material 3's expanded navigation rail
+     * is 220 to 360dp wide. Beside the page from [ExpandedWidth], which leaves the page at least
+     * a medium window's 600dp; over it on narrower windows.
+     */
+    val RailExpandedWidth = 240.dp
     val ToolbarHeight = 52.dp
     val ControlSize = 40.dp
 

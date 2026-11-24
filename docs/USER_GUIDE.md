@@ -8,7 +8,8 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 **Tab rail (left edge)**, top to bottom:
 
-* **Tab switcher** — opens a grid of every open tab.
+* **Menu (☰)** — expands the rail to show each tab's title beside its icon, and collapses it again (see [The expanded tab rail](#the-expanded-tab-rail) below).
+* **Tab switcher** — opens a grid of every open tab. On a short window, such as a phone held sideways, it scrolls with the pinned sites and tabs below it, so they keep their room.
 * **Pinned sites** — your first six bookmarks, together on a soft shelf at the top so they never look like open tabs. A small dot marks a pinned site that is open in a tab. Selecting one takes you to its open tab (one on the bookmarked page or a page under it, preferring a tab already on screen in split view) instead of opening another; if you are already in that tab on another page under it, it takes you back to the bookmarked page. Only when none is open does it open the site. Right-click or long-press it for **Open**, **Open in new tab** and **Remove bookmark**; a middle click opens it in a new tab. The bookmarks list (**More → Bookmarks**) opens bookmarks the same way, and its rows have the same menu and middle click.
 * **Open tabs** — each on its own tile below the shelf. A tab shown in a split pane is a step brighter; the focused tab is brightest and has a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Middle-click a tab to close it. Drag a tab onto the pages to build a split (see [Split view](#5-split-view)). The rail keeps the active tab in sight: on a short window, or when you move to a tab further down with `Ctrl+Tab`, it scrolls to it, and only as far as it needs to. A list you scroll by hand stays where you leave it.
 * **+** — opens a new tab.
@@ -16,12 +17,21 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 
 **Toolbar (top)**, left to right:
 
-* **Back**, and **Forward** when there is somewhere to go forward to. In a tab a link opened (one that opens in a new tab), Back closes it and shows the page it came from. On a laptop, Back with nothing to go back to does nothing, so a three-finger swipe on the touchpad no longer minimizes RemBrowse. Android's Back (the gesture, button or key) first puts the on-screen keyboard away, then closes what is in front, in this order: the screenshot overlay, a fullscreen video, the tab switcher, the find bar; then it goes back as the Back button does. On Android 13 and later a slow Back swipe previews where it goes: Android's home screen when there is nothing left to go back to on a phone, or the tab switcher shrinking away; move your finger back to cancel.
+* **Back**, and **Forward** when there is somewhere to go forward to. In a tab a link opened (one that opens in a new tab), Back closes it and shows the page it came from. On a laptop, Back with nothing to go back to does nothing, so a three-finger swipe on the touchpad no longer minimizes RemBrowse. Android's Back (the gesture, button or key) first puts the on-screen keyboard away, then closes what is in front, in this order: the screenshot overlay, a fullscreen video, the tab rail open over the page, the tab switcher, the find bar; then it goes back as the Back button does. On Android 13 and later a slow Back swipe previews where it goes: Android's home screen when there is nothing left to go back to on a phone, or the tab switcher shrinking away; move your finger back to cancel.
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
 * **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, take screenshot, bookmarks, history, downloads, extensions, desktop site, keyboard shortcuts (with a keyboard attached), settings. Each row has the icon the command palette shows for the same command.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
+
+### The expanded tab rail
+
+Select **Menu (☰)** at the top of the rail, or **Expand tab rail** in the command palette, to widen the rail with each tab's, pinned site's and extension's name beside its icon, as Android's newer apps do with their navigation rail. Select it again (its icon turns to a collapse arrow), or **Collapse tab rail** in the palette, to go back to the narrow strip of icons. Everything works as on the narrow rail: select, right-click or long-press, middle-click and drag tabs; the pinned sites keep their open dot and the extensions their badge. The names replace the tooltips; a name too long to fit still shows whole in its tooltip.
+
+* **On a wide window** (840dp and wider, such as a laptop's or a tablet's held sideways) the expanded rail sits beside the page, which moves over to make room, and RemBrowse remembers it: it opens expanded next time too. **Settings → Tabs → Show tab titles** does the same.
+* **On a narrower window** (a phone held sideways, or a small desktop window) it would leave the page too little room, so it opens over the page, which is dimmed, and only for a moment: click or tap outside it, press **Esc** or **Back**, or choose a tab or a site in it, and it closes. Picking up a tab to drag it also closes it, so the whole page shows for the drop. Closing tabs from its menus leaves it open.
+
+There is no keyboard shortcut for it: the usual ones (`Ctrl+B`, `Ctrl+Shift+,`) belong to the page or to text editors on it.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu. The toolbar is a little taller there, so the address bar is a full-size touch target.
 
@@ -92,7 +102,7 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 
 ## 4. Tabs
 
-* **Tab switcher**: select the top icon of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it. Right-click or long-press a card for **Close tab** and **Close other tabs** (the tabs on screen stay), or middle-click it to close it.
+* **Tab switcher**: select **Tab switcher** under the menu button at the top of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it. Right-click or long-press a card for **Close tab** and **Close other tabs** (the tabs on screen stay), or middle-click it to close it.
 * `Ctrl+Tab` / `Ctrl+Shift+Tab` move to the next or previous tab.
 * Tabs in the background keep running at a slower pace, as in a desktop browser, so a chat or mail app open in another tab keeps working (and Telegram open in several tabs no longer hangs). They stop drawing until you show them again. When Android closes a background tab to free memory, it is reloaded when you return to it, and tabs are restored after a restart.
 * While RemBrowse is minimised its pages keep running as long as it is the last app you used; once you use other apps, Android pauses RemBrowse until you come back.
@@ -165,7 +175,7 @@ Press `Ctrl+K` (or **More → Command palette**), then type:
 * words to **search the web**, or an address to **open it** (a command whose name or keyword starts with what you type, three letters or more, comes first, as in Go to address: `ter` + Enter opens a terminal);
 * part of a tab's title to **switch to that tab**;
 * part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
-* a command name: new tab, close tab, find in page, print, take screenshot, split view, bookmarks, history, downloads, extensions, keyboard shortcuts, settings.
+* a command name: new tab, close tab, find in page, print, take screenshot, split view, expand or collapse the tab rail (`rail`), bookmarks, history, downloads, extensions, keyboard shortcuts, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
@@ -190,6 +200,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
   * **Swipe with two fingers to go back** — on by default. A touchpad's two-finger swipe right goes back and left goes forward, when the page has nothing to scroll that way.
   * **Swipe the other way** — off by default, shown while swipes are on. Left goes back and right goes forward instead.
   * **Ask for desktop sites** — on by default. New tabs ask websites for their desktop version; turn it off to get mobile sites. It applies to new tabs and to tabs with no site in them yet. To change a single tab, use **More → Desktop site**, which is highlighted and ticked while that tab asks for desktop sites.
+  * **Show tab titles** — off by default. On a wide window the tab rail is expanded, with each tab's title beside its icon, and the page moves over to make room; the rail's menu button does the same. On a narrower window the rail stays narrow, and its menu button opens it over the page for a moment. See [The expanded tab rail](#the-expanded-tab-rail).
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (uBlock Origin) on or off. See [Ad blocking](#8-ad-blocking).
   * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.

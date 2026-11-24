@@ -177,6 +177,27 @@ object KeyboardShortcuts {
         return isEscape && findBarOpen && noModifiers && repeatCount == 0 && !inTerminal && !escapeTakenInFront
     }
 
+    /**
+     * Whether a press of [keyCode] closes the expanded tab rail open over the page
+     * ([railOverlayOpen]): a plain Esc, wherever the focus is (the page, a terminal, the rail),
+     * since the rail is in front of all of them. Read before the keyboard app and before the find
+     * bar's Esc, the rail being in front of the find bar too. A physical keyboard's Back counts
+     * as its Esc up to Android 12L ([physicalBackIsEscape]); from Android 13 the rail's Back
+     * handler closes it.
+     */
+    fun escapeClosesTabRail(
+        keyCode: Int,
+        railOverlayOpen: Boolean,
+        noModifiers: Boolean,
+        repeatCount: Int = 0,
+        fromPhysicalKeyboard: Boolean = false,
+        sdkInt: Int = Build.VERSION.SDK_INT
+    ): Boolean {
+        val isEscape = keyCode == KeyEvent.KEYCODE_ESCAPE ||
+            keyCode == KeyEvent.KEYCODE_BACK && fromPhysicalKeyboard && physicalBackIsEscape(sdkInt)
+        return isEscape && railOverlayOpen && noModifiers && repeatCount == 0
+    }
+
     fun resolve(
         keyCode: Int,
         ctrl: Boolean,

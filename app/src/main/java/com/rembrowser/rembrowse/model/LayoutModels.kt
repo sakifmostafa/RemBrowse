@@ -180,7 +180,14 @@ data class BrowserSettings(
      */
     val swipeNavigation: Boolean = true,
     /** Swipes the other way round: fingers moving left go back, right go forward. */
-    val reverseSwipeDirection: Boolean = false
+    val reverseSwipeDirection: Boolean = false,
+    /**
+     * The tab rail expanded, with each tab's title beside its icon, on windows wide enough for it
+     * to sit beside the page (840dp and wider). Off by default: the rail is the narrow strip of
+     * icons. Narrower windows open the expanded rail over the page for a moment instead, which is
+     * not kept.
+     */
+    val tabRailExpanded: Boolean = false
 )
 
 data class SplitRatios(
