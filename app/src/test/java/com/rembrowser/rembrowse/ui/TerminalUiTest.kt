@@ -9,6 +9,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
@@ -204,6 +206,12 @@ class TerminalUiTest {
         composeRule.onNodeWithTag("host_label").performTextInput("Home")
         composeRule.onNodeWithTag("host_hostname").performTextInput("home.example")
         composeRule.onNodeWithTag("host_username").performTextInput("sakif")
+        // Password or key: one of two buttons, password first
+        composeRule.onNodeWithTag("host_auth_password").assertIsOn()
+        composeRule.onNodeWithTag("host_auth_key").assertIsOff().performClick()
+        composeRule.onNodeWithTag("host_auth_key").assertIsOn()
+        composeRule.onNodeWithTag("host_password").assertDoesNotExist()
+        composeRule.onNodeWithTag("host_auth_password").performClick()
         composeRule.onNodeWithTag("host_password").performTextInput("secret")
         composeRule.onNodeWithTag("host_save_password").performClick()
         composeRule.onNodeWithTag("host_save").assertIsEnabled().performClick()

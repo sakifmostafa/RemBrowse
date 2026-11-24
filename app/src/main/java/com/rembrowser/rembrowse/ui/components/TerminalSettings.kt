@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -462,10 +461,14 @@ private fun HostEditorDialog(
                     modifier = Modifier.fillMaxWidth().testTag("host_username")
                 )
                 Text("Sign in with", style = MaterialTheme.typography.labelLarge)
-                Column(modifier = Modifier.selectableGroup()) {
-                    ChoiceRow("Password", auth == SshAuthMethod.PASSWORD, "host_auth_password") { auth = SshAuthMethod.PASSWORD }
-                    ChoiceRow("Key", auth == SshAuthMethod.KEY, "host_auth_key") { auth = SshAuthMethod.KEY }
-                }
+                // Two ways, one on: a connected button group
+                ConnectedChoiceGroup(
+                    options = SshAuthMethod.entries,
+                    selected = auth,
+                    onSelect = { auth = it },
+                    label = { if (it == SshAuthMethod.PASSWORD) "Password" else "Key" },
+                    testTag = { "host_auth_${it.name.lowercase()}" }
+                )
                 if (auth == SshAuthMethod.PASSWORD) {
                     OutlinedTextField(
                         value = password,
@@ -750,35 +753,24 @@ private fun ThemeCard(theme: TerminalThemePreset, font: TerminalFont, selected: 
     }
 }
 
-/** A setting with a few choices, as a row of chips. */
+/**
+ * A setting with a few choices: its name, then a connected button group (see
+ * [ConnectedChoiceGroup]), which goes on to a second line when the labels are wider than the page.
+ */
 @Composable
 private fun <T> OptionRow(title: String, options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit, tagPrefix: String) {
-    val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).selectableGroup()) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(96.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            options.forEach { option ->
-                val isSelected = option == selected
-                Surface(
-                    shape = CircleShape,
-                    color = if (isSelected) colors.primaryContainer else colors.surface,
-                    contentColor = if (isSelected) colors.onPrimaryContainer else colors.onSurface,
-                    border = BorderStroke(1.dp, if (isSelected) colors.primaryContainer else colors.outlineVariant),
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .selectable(
-                            selected = isSelected,
-                            interactionSource = null,
-                            indication = ripple(focusRingShape = CircleShape),
-                            role = Role.RadioButton,
-                            onClick = { onSelect(option) }
-                        )
-                        .testTag("${tagPrefix}_${option.toString().lowercase()}")
-                ) {
-                    Text(label(option), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
-                }
-            }
-        }
+        ConnectedChoiceGroup(
+            options = options,
+            selected = selected,
+            onSelect = onSelect,
+            label = label,
+            testTag = { "${tagPrefix}_${it.toString().lowercase()}" },
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 4.dp)
+        )
     }
 }
 

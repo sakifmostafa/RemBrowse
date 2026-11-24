@@ -13,10 +13,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -35,6 +38,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.CheckableDropdownMenuItem
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
@@ -52,6 +56,7 @@ import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -105,6 +110,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -688,6 +694,55 @@ private fun selectableMenuItemColors() = MenuDefaults.selectableItemColors(
 @Composable
 private fun MenuTick() {
     Icon(imageVector = Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+}
+
+/**
+ * A small set of choices of which one is on, such as the theme (System, Light, Dark): Material 3
+ * Expressive's connected button group. Toggle buttons sit side by side, 2dp apart, the outer ones
+ * rounded on their outer side; the chosen one is filled with the accent (primary), turns fully
+ * round and carries a tick, so it is not told apart by colour alone. Screen readers hear a group
+ * of radio buttons. Each button is as wide as its label, so no word is broken; on a narrow window
+ * or with large text the buttons that don't fit go on to a second line instead of off the side.
+ * [testTag] names each option's button.
+ */
+@Composable
+fun <T> ConnectedChoiceGroup(
+    options: List<T>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    label: (T) -> String,
+    testTag: (T) -> String,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier.selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        verticalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        itemVerticalAlignment = Alignment.CenterVertically
+    ) {
+        options.forEachIndexed { index, option ->
+            val checked = option == selected
+            ToggleButton(
+                checked = checked,
+                onCheckedChange = { onSelect(option) },
+                modifier = Modifier
+                    .semantics { role = Role.RadioButton }
+                    .testTag(testTag(option)),
+                icon = if (checked) {
+                    { Icon(imageVector = Icons.Outlined.Check, contentDescription = null) }
+                } else {
+                    null
+                },
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                }
+            ) {
+                Text(text = label(option), maxLines = 1)
+            }
+        }
+    }
 }
 
 /**

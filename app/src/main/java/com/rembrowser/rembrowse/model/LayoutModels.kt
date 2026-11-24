@@ -43,7 +43,7 @@ enum class AccentColor(val label: String) {
 
 /** Light or dark. New installs follow the device; [label] and [description] are shown in Settings. */
 enum class ThemeMode(val label: String, val description: String?) {
-    SYSTEM("System default", "Light or dark, as your device is set."),
+    SYSTEM("System", "System is light or dark, as your device is set."),
     LIGHT("Light", null),
     DARK("Dark", null);
 

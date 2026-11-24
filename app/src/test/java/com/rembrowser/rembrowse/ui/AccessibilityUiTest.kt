@@ -90,7 +90,7 @@ class AccessibilityUiTest {
         composeRule.onNode(hasText("Theme color")).assert(isHeading)
         composeRule.onNode(hasText("Page rendering")).assert(isHeading)
         // A setting's own name is not a heading
-        composeRule.onNode(hasText("System default")).assert(!isHeading)
+        composeRule.onNode(hasText("System")).assert(!isHeading)
     }
 
     @Test

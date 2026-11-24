@@ -149,6 +149,14 @@ open class ThemeContrastTest {
     }
 
     @Test
+    fun buttonGroups_bothStatesKeepTheirLabelsReadable() = forEveryTheme { name, c ->
+        // Material's toggle buttons in a connected group: off, onSurfaceVariant on surfaceContainer;
+        // on, onPrimary on primary
+        assertContrast("$name toggle off: onSurfaceVariant on surfaceContainer", c.onSurfaceVariant, c.surfaceContainer, 4.5)
+        assertContrast("$name toggle on: onPrimary on primary", c.onPrimary, c.primary, 4.5)
+    }
+
+    @Test
     fun outlinedButtons_textAndBorderStandOutWhereTheButtonsSit() = forEveryTheme { name, c ->
         // RemOutlinedButton sits on Settings (surfaceContainerLowest), the print panel and the
         // terminal page's cards (surface) and dialogs (surfaceContainerHigh)

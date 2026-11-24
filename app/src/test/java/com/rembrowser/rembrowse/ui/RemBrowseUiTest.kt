@@ -10,6 +10,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -615,17 +616,23 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("more_button").performClick()
         composeRule.onNodeWithTag("menu_settings").performClick()
 
-        // Light, dark, or as the device is set (the default), one at a time
+        // Light, dark, or as the device is set (the default), one at a time: a connected button
+        // group, whose toggle buttons are radio buttons, on or off
         composeRule.onNodeWithTag("setting_dark_theme").assertIsDisplayed()
-        composeRule.onNodeWithTag("theme_system").assertIsSelected()
+        composeRule.onNodeWithTag("theme_system").assertIsOn()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
         composeRule.onNodeWithTag("theme_light").performClick()
         assertEquals(ThemeMode.LIGHT, browserVm.uiState.value.settings.themeMode)
-        composeRule.onNodeWithTag("theme_light").assertIsSelected()
-        composeRule.onNodeWithTag("theme_system").assertIsNotSelected()
+        composeRule.onNodeWithTag("theme_light").assertIsOn()
+        composeRule.onNodeWithTag("theme_system").assertIsOff()
         composeRule.onNodeWithTag("theme_dark").performClick()
         assertEquals(ThemeMode.DARK, browserVm.uiState.value.settings.themeMode)
-        composeRule.onNodeWithTag("theme_dark").assertIsSelected()
-        composeRule.onNodeWithTag("theme_light").assertIsNotSelected()
+        composeRule.onNodeWithTag("theme_dark").assertIsOn()
+        composeRule.onNodeWithTag("theme_light").assertIsOff()
+        // Pressing the one that is on leaves it on
+        composeRule.onNodeWithTag("theme_dark").performClick()
+        assertEquals(ThemeMode.DARK, browserVm.uiState.value.settings.themeMode)
+        composeRule.onNodeWithTag("theme_dark").assertIsOn()
         composeRule.onNodeWithTag("theme_system").performClick()
         assertEquals(ThemeMode.SYSTEM, browserVm.uiState.value.settings.themeMode)
 

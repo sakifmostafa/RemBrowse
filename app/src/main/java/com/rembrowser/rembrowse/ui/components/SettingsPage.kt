@@ -586,20 +586,26 @@ private fun AppearanceSection(
 ) {
     val colors = MaterialTheme.colorScheme
     GroupTitle("Theme")
-    Spacer(modifier = Modifier.height(4.dp))
-    // The group keeps the tag of the dark theme switch it replaced
-    Column(modifier = Modifier.selectableGroup().testTag("setting_dark_theme")) {
-        ThemeMode.entries.forEach { mode ->
-            RadioRow(
-                title = mode.label,
-                description = mode.description,
-                selected = mode == settings.themeMode,
-                onClick = { onSetThemeMode(mode) },
-                testTag = "theme_${mode.name.lowercase()}"
-            )
-        }
+    Spacer(modifier = Modifier.height(12.dp))
+    // Three choices, one on: a connected button group. It keeps the tag of the dark theme switch
+    // it replaced.
+    ConnectedChoiceGroup(
+        options = ThemeMode.entries,
+        selected = settings.themeMode,
+        onSelect = onSetThemeMode,
+        label = { it.label },
+        testTag = { "theme_${it.name.lowercase()}" },
+        modifier = Modifier.testTag("setting_dark_theme")
+    )
+    ThemeMode.SYSTEM.description?.let { systemMeans ->
+        Text(
+            text = systemMeans,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(16.dp))
     HorizontalDivider(color = colors.outlineVariant)
     Spacer(modifier = Modifier.height(16.dp))
 
