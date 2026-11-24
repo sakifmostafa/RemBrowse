@@ -29,7 +29,8 @@ import com.rembrowser.rembrowse.util.PageKeyTarget
  * Touchpad input goes through a [TouchpadInputFilter] first, so that a touchpad's right click
  * reaches the page as a right click and resting fingers mid-scroll are never a long press, and
  * then through a [TouchpadSwipeNavigator], so a two-finger sideways swipe the page has no use
- * for goes back or forward ([swipeNavigation]), with an arrow drawn by [swipeFeedback].
+ * for goes back or forward ([swipeNavigation]), with an arrow drawn by [swipeFeedback]. Hover
+ * moves made up during a two-finger scroll are kept from the page ([TouchpadGestureHoverGuard]).
  */
 @SuppressLint("ViewConstructor") // Only ever created in code
 class PaneGeckoView(
@@ -61,6 +62,8 @@ class PaneGeckoView(
         },
         fingersMoveWithPage = { touchpadNaturalScrolling(context) }
     )
+
+    private val hoverGuard = TouchpadGestureHoverGuard()
 
     /** Where a two-finger swipe on this page goes; null leaves every swipe to the page. */
     var swipeNavigation: SwipeNavigation?
@@ -135,6 +138,14 @@ class PaneGeckoView(
 
     override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): PointerIcon? =
         if (chromeHasPointer()) null else super.onResolvePointerIcon(event, pointerIndex)
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
+        super.dispatchTouchEvent(event).also { took -> hoverGuard.onTouchEvent(event, took) }
+
+    // During a touchpad's two-finger scroll, a hover move is one Compose made up at the pretend
+    // finger, not the mouse (see TouchpadGestureHoverGuard): the page doesn't get it
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
+        hoverGuard.drops(event) || super.dispatchGenericMotionEvent(event)
 
     @SuppressLint("ClickableViewAccessibility") // GeckoView handles the page's own clicks
     override fun onTouchEvent(event: MotionEvent): Boolean {

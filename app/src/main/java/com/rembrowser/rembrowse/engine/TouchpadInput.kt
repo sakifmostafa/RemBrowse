@@ -225,3 +225,44 @@ class TouchpadInputFilter(
         }
     }
 }
+
+/**
+ * Keeps hover events from a page's view while a touchpad's two-finger scroll or pinch is on it,
+ * from its press to its lift.
+ *
+ * When the layout changes during a two-finger scroll, Compose 1.13 sends the last event again
+ * as a hover move, so that hover states follow content moving under the cursor
+ * (`AndroidComposeView.resendMotionEventOnLayout`, under
+ * `ComposeUiFlags.isTrackpadPanHoverFixEnabled`, on by default). Compose places its own pointer
+ * at the cursor, but what its view interop hands
+ * an embedded view (`AndroidViewHolder.dispatchGenericMotionEvent`) is a copy of the last move,
+ * at the pretend finger, which Android moves with the scroll, away from the cursor. A web view
+ * takes a hover move for the mouse (GeckoView sends it to the page as a mouse move), so mid-scroll
+ * the page saw the mouse jump to where the pretend finger was, with hover effects there, and
+ * [PaneGeckoView.lastPointerPosition] moved with it. The cursor stays put during such a gesture,
+ * so no real hover is lost.
+ *
+ * Main thread only, as views are.
+ */
+class TouchpadGestureHoverGuard {
+
+    private var gestureOn = false
+
+    /**
+     * Every touch event the view was handed, once it has, and whether it [took] it. A view that
+     * declines a press (a web view without a page) is handed nothing more of that gesture, its
+     * lift included, so the gesture counts only when taken.
+     */
+    fun onTouchEvent(event: MotionEvent, took: Boolean) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> gestureOn = took && TouchpadInputFilter.isClassifiedGesture(event)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> gestureOn = false
+        }
+    }
+
+    /** Whether the view drops [event], a generic motion event it was handed. */
+    fun drops(event: MotionEvent): Boolean = gestureOn && when (event.actionMasked) {
+        MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_EXIT -> true
+        else -> false
+    }
+}

@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.engine
 
 import android.app.Application
+import android.graphics.PointF
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -9,7 +10,9 @@ import android.view.PointerIcon
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rembrowser.rembrowse.fakes.TouchpadGestures
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,5 +77,27 @@ class PaneGeckoViewTest {
     fun takesKeysPastTheKeyboardApp_isFalseWithoutAPage() {
         assertEquals(false, view.takesKeysPastKeyboardApp(enter = false))
         assertEquals(false, view.takesKeysPastKeyboardApp(enter = true))
+    }
+
+    // A web view keeps Compose's made-up hover moves from the page only during a two-finger
+    // scroll it took (TouchpadGestureHoverGuardTest drives that through Compose). Without a page
+    // it declines the press and is handed nothing more of the gesture, the lift included, so it
+    // must not wait for one: hover goes on reaching it. lastPointerPosition shows what reached it.
+    @Test
+    fun withoutAPage_aTouchpadScrollIsDeclined_andHoverGoesOnReachingTheView() {
+        val gestures = TouchpadGestures()
+        try {
+            screen.dispatchGenericMotionEvent(gestures.hover(100f, 100f, eventTime = 900L))
+            assertEquals(PointF(100f, 100f), view.lastPointerPosition)
+
+            val swipe = gestures.swipe(100f, 100f, steps = List(4) { 0f to 15f })
+            assertFalse(screen.dispatchTouchEvent(swipe.first()))
+            swipe.drop(1).forEach { screen.dispatchTouchEvent(it) }
+
+            screen.dispatchGenericMotionEvent(gestures.hover(120f, 110f, eventTime = 1_200L))
+            assertEquals(PointF(120f, 110f), view.lastPointerPosition)
+        } finally {
+            gestures.recycle()
+        }
     }
 }
