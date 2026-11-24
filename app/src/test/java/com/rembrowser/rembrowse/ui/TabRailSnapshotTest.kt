@@ -215,6 +215,15 @@ class TabRailSnapshotTest {
         save("rail-09-over-the-page-light")
     }
 
+    /** The same in the dark theme: an edge along its page side and a stronger scrim. */
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-xhdpi")
+    fun railOverThePageDark() {
+        launch(dark = true)
+        composeRule.runOnUiThread { chrome.tabRailOverlayOpen = true }
+        save("rail-12-over-the-page-dark")
+    }
+
     /** The same on a phone held sideways, where the tab switcher scrolls with the list. */
     @Test
     @Config(qualifiers = "w800dp-h360dp-land-xhdpi")

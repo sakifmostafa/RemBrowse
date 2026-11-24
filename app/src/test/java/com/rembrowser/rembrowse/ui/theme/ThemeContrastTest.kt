@@ -8,6 +8,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.ui.components.CaptureScrimAlpha
+import com.rembrowser.rembrowse.ui.components.RailScrimAlpha
+import com.rembrowser.rembrowse.ui.components.floatingRailEdge
+import com.rembrowser.rembrowse.ui.components.railScrimAlpha
 import com.rembrowser.rembrowse.ui.components.noticeFocusRing
 import com.rembrowser.rembrowse.ui.components.outlinedButtonBorderColor
 import com.rembrowser.rembrowse.ui.components.outlinedButtonContentColor
@@ -234,6 +237,39 @@ open class ThemeContrastTest {
             val strongest = maxOf(contrast(c.primary, dimmed), contrast(c.onPrimary, dimmed))
             assertTrue(
                 "$name outline on a dimmed $page is ${"%.2f".format(strongest)}:1, needs 3.0:1",
+                strongest >= 3.0
+            )
+        }
+    }
+
+    @Test
+    fun railOverThePage_itsEdgeStandsOutFromTheDimmedToolbarAndPage() = forEveryTheme { name, c ->
+        val edge = floatingRailEdge(c)
+        val keep = 1f - railScrimAlpha(c)
+        fun dimmed(page: Color) = Color(red = page.red * keep, green = page.green * keep, blue = page.blue * keep)
+        if (c.background.luminance() >= 0.5f) {
+            // The light theme: its shadow and the dimmed toolbar mark it, under Material's scrim
+            assertTrue("$name: no edge line, Material's 32% scrim", edge == null && railScrimAlpha(c) == RailScrimAlpha)
+            return@forEveryTheme
+        }
+        // The dark theme: the rail is the toolbar's colour and its shadow doesn't show, so the line
+        // marks it, seen against the rail on one side and the dimmed toolbar on the other
+        assertTrue("$name: a stronger scrim than Material's 32%", railScrimAlpha(c) > RailScrimAlpha)
+        assertContrast("$name rail edge on the rail", edge!!, c.background, 3.0)
+        assertContrast("$name rail edge on the dimmed toolbar", edge, dimmed(c.background), 3.0)
+        // Beside a page, the line or the rail itself stands out: the theme's own pages (the start
+        // page, Settings) and the web's commonest, white and black
+        val pages = listOf(
+            "surface" to c.surface,
+            "surfaceContainerLowest" to c.surfaceContainerLowest,
+            "surfaceContainer" to c.surfaceContainer,
+            "a white page" to Color.White,
+            "a black page" to Color.Black
+        )
+        for ((pageName, page) in pages) {
+            val strongest = maxOf(contrast(edge, dimmed(page)), contrast(c.background, dimmed(page)))
+            assertTrue(
+                "$name rail edge beside $pageName, dimmed, is ${"%.2f".format(strongest)}:1, needs 3.0:1",
                 strongest >= 3.0
             )
         }

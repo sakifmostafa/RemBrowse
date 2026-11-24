@@ -54,6 +54,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
@@ -615,7 +618,17 @@ fun RemBrowseScreen(
                 )
             }
 
-            Row(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Under the rail drawn over it, the dimmed page and toolbar are out of reach,
+                    // as behind a dialog: screen readers don't find them (the scrim's "Close the
+                    // tab rail" is beside the rail instead), and the keyboard's Tab and arrows
+                    // never move into them (the rail keeps the focus too: TabRail)
+                    .then(if (railOverlay) Modifier.clearAndSetSemantics {} else Modifier)
+                    .focusProperties { onEnter = { if (railOverlay) cancelFocusChange() } }
+                    .focusGroup()
+            ) {
                 if (showRail) Spacer(modifier = Modifier.width(railRoom))
                 Column(modifier = Modifier.weight(1f)) {
                     if (!fullscreen) BrowserTopBar(

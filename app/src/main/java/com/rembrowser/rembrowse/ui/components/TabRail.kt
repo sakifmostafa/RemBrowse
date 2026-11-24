@@ -65,6 +65,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.drawscope.inset
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -131,11 +142,33 @@ private val PinnedShelfGap = 10.dp
  * The expanded rail drawn over the page (see [TabRail]'s `floating`): rounded on the page's side
  * as Material's modal navigation rail is (its large shape, 16dp), with a level 2 shadow.
  */
-private val FloatingRailShape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+private val FloatingRailCorner = 16.dp
+private val FloatingRailShape = RoundedCornerShape(topEnd = FloatingRailCorner, bottomEnd = FloatingRailCorner)
 private val FloatingRailElevation = 3.dp
 
 /** How much the page behind the rail drawn over it is dimmed: Material's scrim, 32%. */
 internal const val RailScrimAlpha = 0.32f
+
+/**
+ * The same in the dark theme, 50%: over the dark toolbar and a dark page Material's 32% hardly
+ * shows, and a light page dimmed this far still stands 4.5:1 from the rail's dark fill.
+ */
+internal const val DarkRailScrimAlpha = 0.5f
+
+private fun ColorScheme.isDark(): Boolean = background.luminance() < 0.5f
+
+/** How much the page behind the rail drawn over it is dimmed in [scheme]. */
+internal fun railScrimAlpha(scheme: ColorScheme): Float = if (scheme.isDark()) DarkRailScrimAlpha else RailScrimAlpha
+
+/**
+ * The line along the page side of the rail drawn over the page, in the dark theme: there its
+ * shadow doesn't show, and its fill is the toolbar's, so without it the rail's edge was lost
+ * against the toolbar and a dark page. The theme's outline, 3:1 against them dimmed (and against
+ * the rail). The light theme needs none: its shadow and the dimmed toolbar mark the edge.
+ */
+internal fun floatingRailEdge(scheme: ColorScheme): Color? = if (scheme.isDark()) scheme.outline else null
+
+private val FloatingRailEdgeWidth = 1.dp
 
 /**
  * The colours of the pinned sites' shelf, from the theme's roles only: the same tonal surface and
@@ -274,15 +307,25 @@ fun TabRail(
         label = "railWidth"
     )
     val colors = MaterialTheme.colorScheme
+    val edge = floatingRailEdge(colors)
     val floatingOpen = floating && expanded
-    // Opened over the page from the keyboard: the keyboard moves into it, as into a dialog
+    // Opened over the page, it holds the keyboard as a dialog does. From the keyboard the focus
+    // moves into it; opened with a pointer, the focus leaves the page, so Tab starts in the rail
+    // rather than in a page under the scrim. Tab and Shift+Tab then go round the rail (its first
+    // place, the menu button, and its last), and the arrows stop at its ends (onExit below).
     val toggleFocus = remember { FocusRequester() }
+    val lastFocus = remember { FocusRequester() }
     val inputModes = LocalInputModeManager.current
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(floatingOpen) {
-        if (floatingOpen && inputModes.inputMode == InputMode.Keyboard) {
+        if (!floatingOpen) return@LaunchedEffect
+        if (inputModes.inputMode == InputMode.Keyboard) {
             runCatching { toggleFocus.requestFocus() }
+        } else {
+            focusManager.clearFocus()
         }
     }
+    val trapsFocus by rememberUpdatedState(floatingOpen)
     val dismiss by rememberUpdatedState(onDismiss)
 
     BoxWithConstraints(
@@ -337,6 +380,41 @@ fun TabRail(
                 }
                 // The chrome's colour, so a page beside it never shows through while it narrows
                 .background(colors.background, if (floating) FloatingRailShape else RectangleShape)
+                .drawWithContent {
+                    drawContent()
+                    // In the dark theme, an edge along its page side while it is over the page
+                    if (edge != null && floating && width.value > RemDimens.RailWidth + 1.dp) {
+                        val stroke = FloatingRailEdgeWidth.toPx()
+                        val corner = FloatingRailCorner.toPx()
+                        val rtl = layoutDirection == LayoutDirection.Rtl
+                        // The page side only: not along the window's edges at the top, bottom and start
+                        clipRect(
+                            left = if (rtl) 0f else size.width - corner - stroke,
+                            right = if (rtl) corner + stroke else size.width
+                        ) {
+                            inset(stroke / 2) {
+                                drawOutline(
+                                    outline = FloatingRailShape.createOutline(size, layoutDirection, this),
+                                    color = edge,
+                                    style = Stroke(stroke)
+                                )
+                            }
+                        }
+                    }
+                }
+                .focusProperties {
+                    onExit = {
+                        if (trapsFocus) {
+                            val wrapped = when (requestedFocusDirection) {
+                                FocusDirection.Next -> toggleFocus.requestFocus(FocusDirection.Enter)
+                                FocusDirection.Previous -> lastFocus.requestFocus(FocusDirection.Enter)
+                                else -> false
+                            }
+                            if (!wrapped) cancelFocusChange()
+                        }
+                    }
+                }
+                .focusGroup()
                 .onPreviewKeyEvent { event ->
                     if (floatingOpen && event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                         dismiss()
@@ -437,7 +515,9 @@ fun TabRail(
                     title = "New tab",
                     showTitle = expanded,
                     titleTag = "new_tab_title",
-                    modifier = Modifier.testTag("new_tab_button")
+                    modifier = Modifier
+                        .testTag("new_tab_button")
+                        .then(if (extensions.isEmpty()) Modifier.focusRequester(lastFocus) else Modifier)
                 ) {
                     RailIcon(Icons.Outlined.Add)
                 }
@@ -450,7 +530,8 @@ fun TabRail(
                     showTitles = expanded,
                     openPopupExtensionId = openPopupExtensionId,
                     onTrigger = onTriggerExtensionAction,
-                    onManage = onManageExtensions
+                    onManage = onManageExtensions,
+                    lastFocus = lastFocus
                 )
             }
         }
@@ -458,8 +539,10 @@ fun TabRail(
 }
 
 /**
- * The page dimmed behind the expanded rail drawn over it, Material's scrim. A click or tap on it
- * closes the rail ([onDismiss]), as does a screen reader's "Close the tab rail" on it.
+ * The page dimmed behind the expanded rail drawn over it, Material's scrim (stronger in the dark
+ * theme, [railScrimAlpha]). A click or tap on it closes the rail ([onDismiss]), as does a screen
+ * reader's "Close the tab rail" on it: the page under it is hidden from screen readers meanwhile
+ * (RemBrowseScreen), so this is what they find beside the rail.
  */
 @Composable
 fun TabRailScrim(visible: Boolean, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
@@ -473,7 +556,7 @@ fun TabRailScrim(visible: Boolean, onDismiss: () -> Unit, modifier: Modifier = M
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = RailScrimAlpha))
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = railScrimAlpha(MaterialTheme.colorScheme)))
                 // Taken here, so nothing under it (a page, the toolbar) is clicked through it
                 .pointerInput(Unit) { detectTapGestures { dismiss() } }
                 .semantics {
@@ -604,7 +687,9 @@ private fun RailExtensions(
     showTitles: Boolean,
     openPopupExtensionId: String?,
     onTrigger: (String) -> Unit,
-    onManage: () -> Unit
+    onManage: () -> Unit,
+    /** Given to the last button, the rail's last place (see TabRail). */
+    lastFocus: FocusRequester
 ) {
     val shown = if (extensions.size > slots) extensions.take(slots - 1) else extensions
     val overflow = extensions.drop(shown.size)
@@ -617,13 +702,14 @@ private fun RailExtensions(
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         RailSeparator()
-        shown.forEach { extension ->
+        shown.forEachIndexed { index, extension ->
             RailExtensionItem(
                 extension = extension,
                 showTitle = showTitles,
                 popupOpen = extension.id == openPopupExtensionId,
                 onClick = { onTrigger(extension.id) },
-                onManage = onManage
+                onManage = onManage,
+                modifier = if (overflow.isEmpty() && index == shown.lastIndex) Modifier.focusRequester(lastFocus) else Modifier
             )
         }
         if (overflow.isNotEmpty()) {
@@ -633,7 +719,8 @@ private fun RailExtensions(
                 showTitle = showTitles,
                 popupOpen = overflow.any { it.id == openPopupExtensionId },
                 onTrigger = onTrigger,
-                onManage = onManage
+                onManage = onManage,
+                modifier = Modifier.focusRequester(lastFocus)
             )
         }
     }
@@ -645,7 +732,8 @@ private fun RailExtensionItem(
     showTitle: Boolean,
     popupOpen: Boolean,
     onClick: () -> Unit,
-    onManage: () -> Unit
+    onManage: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val badge = extension.badgeText?.takeIf { it.isNotBlank() }
@@ -661,7 +749,7 @@ private fun RailExtensionItem(
             title = extension.name,
             showTitle = showTitle,
             titleTag = "rail_extension_title_${extension.id}",
-            modifier = Modifier.testTag("rail_extension_${extension.id}")
+            modifier = modifier.testTag("rail_extension_${extension.id}")
         ) {
             ExtensionIcon(
                 icon = extension.icon,
@@ -705,7 +793,8 @@ private fun RailExtensionsOverflow(
     showTitle: Boolean,
     popupOpen: Boolean,
     onTrigger: (String) -> Unit,
-    onManage: () -> Unit
+    onManage: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val label = if (showsAll) "Extensions" else "More extensions"
@@ -720,7 +809,7 @@ private fun RailExtensionsOverflow(
             title = label,
             showTitle = showTitle,
             titleTag = "rail_extensions_more_title",
-            modifier = Modifier.testTag("rail_extensions_more")
+            modifier = modifier.testTag("rail_extensions_more")
         ) {
             RailIcon(Icons.Outlined.Extension)
         }
