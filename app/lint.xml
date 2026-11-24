@@ -11,9 +11,14 @@
     <issue id="ObsoleteSdkInt">
         <ignore path="src/main/java/com/termux/**" />
     </issue>
-    <!-- AndroidX lint checks shipped with the newer Compose libraries crash under the lint of
-         Android Gradle Plugin 8.7 (IncompatibleClassChangeError) and stop the whole run. They are
-         turned back on with the build tools update. -->
+    <!-- The AndroidX lint checks shipped with the newer Compose libraries (BOM 2026.06.01) are
+         newer than the lint of Android Gradle Plugin 8.7. Compose UI's whole check registry
+         (androidx.compose.ui.lint.UiIssueRegistry: UnnecessaryComposedModifier, the
+         LocalContext* and Modifier* checks, MultipleAwaitPointerEventScopes and the rest) is
+         skipped because it references APIs this lint lacks; that is the ObsoleteLintCustomCheck
+         warning in every report. The checks below do load but crash
+         (IncompatibleClassChangeError) and stop the whole run, so they are off. All of them come
+         back with the build tools update. -->
     <issue id="FlowOperatorInvokedInComposition" severity="ignore" />
     <issue id="RememberInComposition" severity="ignore" />
     <issue id="FrequentlyChangingValue" severity="ignore" />
