@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -47,7 +46,7 @@ import org.robolectric.annotation.Config
 
 /** The shelf of pinned sites at the top of the tab rail, on a laptop-sized window. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class PinnedSitesUiTest {
 
     @get:Rule

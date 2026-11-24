@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.viewmodel
 
-import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.data.InMemorySecretStore
 import com.rembrowser.rembrowse.data.InMemoryTerminalStore
@@ -32,7 +31,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class TerminalViewModelTest {
 
     private val main = TestMainQueue()

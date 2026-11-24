@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
  * app is started in (night or not).
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class WindowThemeTest {
 
     private val context: Application get() = ApplicationProvider.getApplicationContext()

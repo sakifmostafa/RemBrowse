@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.ClipboardManager
@@ -39,7 +38,7 @@ import org.robolectric.annotation.Config
 
 /** The menu a right click opens on a page: for a link or picture, or the page's own. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class PageContextMenuUiTest {
 
     @get:Rule

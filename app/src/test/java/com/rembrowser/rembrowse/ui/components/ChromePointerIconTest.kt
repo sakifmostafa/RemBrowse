@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui.components
 
-import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
@@ -27,7 +26,7 @@ import org.robolectric.annotation.Config
 /** The cursor claim that chrome drawn over a terminal or page takes while the mouse is on it. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w400dp-h400dp-mdpi")
+@Config(sdk = [34], qualifiers = "w400dp-h400dp-mdpi")
 class ChromePointerIconTest {
 
     @get:Rule

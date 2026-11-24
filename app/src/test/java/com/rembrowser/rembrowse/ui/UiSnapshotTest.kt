@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -88,7 +87,7 @@ import java.io.File
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class UiSnapshotTest {
 
     @get:Rule

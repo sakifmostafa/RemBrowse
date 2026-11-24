@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.activity.ComponentActivity
@@ -66,7 +65,7 @@ import org.robolectric.annotation.GraphicsMode
 /** The permission card: what it says, which answers it gives, and the half second it ignores taps. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class PermissionPromptUiTest {
 
     @get:Rule

@@ -13,7 +13,7 @@ import org.robolectric.annotation.Config
 
 /** Enter past the keyboard app needs to know whether a word is still being composed. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class ComposingAwareInputConnectionTest {
 
     /** Records what reaches the page's own input connection. */

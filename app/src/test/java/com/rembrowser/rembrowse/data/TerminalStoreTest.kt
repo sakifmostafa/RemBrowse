@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
 
 /** Saved hosts, keys and accepted servers survive a restart; nothing secret is written with them. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class TerminalStoreTest {
 
     private val context = ApplicationProvider.getApplicationContext<Application>()

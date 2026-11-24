@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui.components
 
-import android.app.Application
 import android.view.Gravity
 import android.view.Window
 import android.view.WindowManager
@@ -31,7 +30,7 @@ import org.robolectric.annotation.Config
 
 /** Where an extension popup's window goes, beside the rail or centred. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class ExtensionPopupDialogTest {
 
     @get:Rule

@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
@@ -36,7 +35,7 @@ import org.robolectric.annotation.Config
 
 /** The "One left, two right" layout from the Split menu, on a laptop-sized window. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class OneAndTwoLayoutUiTest {
 
     @get:Rule

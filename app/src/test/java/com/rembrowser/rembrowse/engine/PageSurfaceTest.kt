@@ -25,7 +25,7 @@ import org.robolectric.annotation.Config
  * together differently after an upgrade.
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class PageSurfaceTest {
 
     private val context = ApplicationProvider.getApplicationContext<Application>()

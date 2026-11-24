@@ -17,7 +17,7 @@ import java.io.File
 
 /** Private copies of files picked for a page's upload button. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class UploadCacheTest {
 
     @get:Rule

@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui.theme
 
-import android.app.Application
 import android.content.Context
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -24,7 +23,7 @@ import org.robolectric.annotation.Config
  * roles, so both are checked.
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [31, 34], application = Application::class)
+@Config(sdk = [31, 34])
 class DynamicSchemeContrastTest : ThemeContrastTest() {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()

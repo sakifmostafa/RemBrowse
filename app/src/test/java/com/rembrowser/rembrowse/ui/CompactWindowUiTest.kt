@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -40,7 +39,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /** The same screen on a phone-sized window: no tab rail, a tab counter instead. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w360dp-h640dp-port-xhdpi")
+@Config(sdk = [34], qualifiers = "w360dp-h640dp-port-xhdpi")
 class CompactWindowUiTest {
 
     @get:Rule

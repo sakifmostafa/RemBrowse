@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.data
 
-import android.app.Application
 import android.util.Base64
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.InputStream
@@ -16,7 +15,7 @@ import org.robolectric.annotation.Config
 
 /** What can be known about a copied picture without a device: its type and its `data:` address. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class ClipboardImagesTest {
 
     private fun bytes(vararg values: Int) = ByteArray(values.size) { values[it].toByte() }

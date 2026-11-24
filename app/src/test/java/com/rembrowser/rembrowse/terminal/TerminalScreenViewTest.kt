@@ -28,7 +28,7 @@ import org.robolectric.annotation.GraphicsMode
 /** What the terminal view sends for keys, and how it selects, scrolls and copies. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class TerminalScreenViewTest {
 
     private val context = ApplicationProvider.getApplicationContext<Application>()

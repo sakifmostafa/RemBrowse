@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -71,7 +70,7 @@ import org.robolectric.annotation.GraphicsMode
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi-keysexposed-qwerty")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi-keysexposed-qwerty")
 class ScreenCaptureSnapshotTest {
 
     @get:Rule

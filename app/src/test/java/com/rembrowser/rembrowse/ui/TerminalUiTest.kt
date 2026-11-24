@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.app.Application
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.layout.Box
@@ -64,7 +63,7 @@ import org.robolectric.shadows.ShadowLooper
 /** Terminal tabs and Settings → Terminal on the real screen, against a fake SSH server. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class TerminalUiTest {
 
     @get:Rule

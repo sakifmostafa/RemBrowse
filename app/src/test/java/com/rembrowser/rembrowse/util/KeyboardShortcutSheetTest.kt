@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.util
 
-import android.app.Application
 import android.view.KeyEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -10,7 +9,7 @@ import org.robolectric.annotation.Config
 
 /** The groups handed to the system's Keyboard Shortcuts sheet (Meta+/). */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class KeyboardShortcutSheetTest {
 
     @Test

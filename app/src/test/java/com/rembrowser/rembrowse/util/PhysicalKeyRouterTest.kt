@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.util
 
-import android.app.Application
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -13,7 +12,7 @@ import org.robolectric.annotation.Config
 
 /** How a physical keyboard's key presses, repeats and releases follow each other to a page. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class PhysicalKeyRouterTest {
 
     private class FakePage(

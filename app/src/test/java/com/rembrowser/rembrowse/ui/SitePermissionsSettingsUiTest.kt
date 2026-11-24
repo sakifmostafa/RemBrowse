@@ -72,7 +72,7 @@ import org.robolectric.annotation.Config
 
 /** Settings → Site permissions, alone and wired to the browser, and its command palette entry. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h1100dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h1100dp-land-mdpi")
 class SitePermissionsSettingsUiTest {
 
     @get:Rule

@@ -14,7 +14,7 @@ import org.robolectric.annotation.Config
 
 /** The browsing history survives a restart in real SharedPreferences. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class BrowsingHistoryStoreTest {
 
     private val context = ApplicationProvider.getApplicationContext<Application>()

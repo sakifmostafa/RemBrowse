@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 
 /** Camera and microphone decisions, which Gecko does not keep, survive a restart in SharedPreferences. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class SitePermissionStoreTest {
 
     private val context = ApplicationProvider.getApplicationContext<Application>()

@@ -37,7 +37,7 @@ import org.robolectric.annotation.Config
  * read in one place, leaving the motion out (the find bar is the example).
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class MotionTest {
 
     @get:Rule

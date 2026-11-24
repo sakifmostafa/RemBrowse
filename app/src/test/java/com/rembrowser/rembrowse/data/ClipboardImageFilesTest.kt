@@ -22,7 +22,7 @@ import org.robolectric.annotation.Config
  * time, handed out through the manifest's FileProvider, as an image clip pasting apps can read.
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class ClipboardImageFilesTest {
 
     private val context: Application = ApplicationProvider.getApplicationContext()

@@ -55,7 +55,7 @@ import org.robolectric.annotation.Config
  * of their order there, so these drive the activity's dispatcher, as Android does.
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class BackNavigationUiTest {
 
     @get:Rule

@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
  * its page asked for, so it has to step aside while the browser's chrome has the pointer.
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class PaneGeckoViewTest {
 
     private val context = ApplicationProvider.getApplicationContext<Application>()

@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui.components
 
-import android.app.Application
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -25,7 +24,7 @@ import org.robolectric.shadows.ShadowDialog
 
 /** A dialog is a window of its own; its touchpad clicks must reach it as a mouse too. */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class TouchpadWindowsTest {
 
     @get:Rule

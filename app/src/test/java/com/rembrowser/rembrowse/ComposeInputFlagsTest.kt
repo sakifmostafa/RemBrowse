@@ -15,12 +15,13 @@ import org.robolectric.annotation.Config
 
 /**
  * Compose 1.11's newer touchpad and focus handling stays off in the app (see
- * keepComposeInputAsTested): it has not been tried on a touchpad and keyboard device. The other
- * tests run on plain Application, so this one starts RemBrowseApplication itself.
+ * keepComposeInputAsTested): it has not been tried on a touchpad and keyboard device. No
+ * application is named here: like every test, this one gets RemBrowseApplication from
+ * robolectric.properties, so the UI tests run with the handling as shipped.
  */
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = RemBrowseApplication::class)
+@Config(sdk = [34])
 class ComposeInputFlagsTest {
 
     /** The flags as their names, read now, so a failure says which one */
@@ -43,12 +44,13 @@ class ComposeInputFlagsTest {
         ComposeUiFlags.isOptimizedFocusEventDispatchEnabled = true
     }
 
-    // The flags are static and outlive the test: the other tests keep Compose's defaults
+    // The flags are static and outlive the test; each test's RemBrowseApplication sets them
+    // again, and this puts them back as shipped in case a test stopped halfway
     @After
-    fun restoreComposeDefaults() = setComposeDefaults()
+    fun restoreShippedFlags() = keepComposeInputAsTested()
 
     @Test
-    fun startedApplicationHasTheNewHandlingOff() {
+    fun everyTestsApplication_hasTheNewHandlingOff() {
         assertTrue(ApplicationProvider.getApplicationContext<android.app.Application>() is RemBrowseApplication)
         assertEquals(flags().mapValues { false }, flags())
     }

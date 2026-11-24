@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.engine
 
-import android.app.Application
 import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -41,7 +40,7 @@ private fun pointerEvent(
 }
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class SwipeRulesTest {
 
     private val made = mutableListOf<MotionEvent>()
@@ -123,7 +122,7 @@ class SwipeRulesTest {
 }
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class TouchpadSwipeNavigatorTest {
 
     private class FakeNavigation : SwipeNavigation {

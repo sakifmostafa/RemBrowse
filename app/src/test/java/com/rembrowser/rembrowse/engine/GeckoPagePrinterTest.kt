@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.engine
 
-import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.CancellationSignal
@@ -31,7 +30,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [34])
 class GeckoPagePrinterTest {
 
     private lateinit var dir: File
