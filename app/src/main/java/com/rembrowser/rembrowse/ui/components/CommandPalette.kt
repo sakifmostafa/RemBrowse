@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -233,7 +233,9 @@ fun CommandPalette(
                         state = listState,
                         modifier = Modifier
                             .heightIn(max = 360.dp)
-                            .padding(8.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        // Room inside the list's edge for the first and last rows' focus rings
+                        contentPadding = PaddingValues(vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         itemsIndexed(results, key = { _, item -> item.id }) { index, command ->
@@ -258,12 +260,14 @@ internal fun PaletteRow(command: PaletteCommand, isHighlighted: Boolean, onClick
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
+            // Outside its border, which is the accent on the highlighted row (see keyboardFocusRing)
+            .keyboardFocusRing(MaterialTheme.shapes.small)
             .clip(MaterialTheme.shapes.small)
             .background(if (isHighlighted) colors.primaryContainer else Color.Transparent)
             .border(1.dp, if (isHighlighted) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
             .clickable(
                 interactionSource = null,
-                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                indication = ringOutsideRipple(),
                 role = Role.Button,
                 onClick = onClick
             )

@@ -802,6 +802,10 @@ private fun RailTile(
         label = "railTileFill"
     )
     val shape: Shape = if (style == RailTileStyle.Pinned) CircleShape else MaterialTheme.shapes.medium
+    // The rail's tiles ring outside their edge, as tabs must outside their border (see
+    // keyboardFocusRing); the 48dp touch target leaves the room. A pin, on the shelf, which would
+    // cut such a ring, keeps Material's inset ring: it has no border of its own.
+    val ringOutside = style != RailTileStyle.Pinned
     var titleCut by remember { mutableStateOf(false) }
     TooltipBox(
         // Beside the rail, as on desktop, so it never covers the tile above
@@ -820,6 +824,7 @@ private fun RailTile(
                     .fillMaxWidth()
                     .minimumInteractiveComponentSize()
                     .height(RemDimens.ControlSize)
+                    .then(if (ringOutside) Modifier.keyboardFocusRing(shape) else Modifier)
                     .clip(shape)
                     .background(fill)
                     .then(
@@ -833,7 +838,7 @@ private fun RailTile(
                     .then(if (onMiddleClick != null) Modifier.middleClickTrigger(onMiddleClick) else Modifier)
                     .combinedClickable(
                         interactionSource = null,
-                        indication = ripple(focusRingShape = shape),
+                        indication = if (ringOutside) ringOutsideRipple() else ripple(focusRingShape = shape),
                         role = role,
                         onClick = onClick,
                         onLongClick = onOpenMenu,

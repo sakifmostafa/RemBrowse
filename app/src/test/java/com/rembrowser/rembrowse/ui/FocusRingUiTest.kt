@@ -6,6 +6,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -15,6 +16,10 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
@@ -38,6 +43,8 @@ import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
 import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
 import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
+import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.SettingsSection
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.components.ScreenshotNotice
 import com.rembrowser.rembrowse.ui.components.ScreenshotNoticeBar
@@ -85,7 +92,11 @@ class FocusRingUiTest {
         ioDispatcher = Dispatchers.Unconfined
     )
     private lateinit var inputModes: InputModeManager
+    private val chrome = BrowserChromeState()
     private var primary = Color.Unspecified
+
+    /** The theme the screen is drawn in: dark, as by default, or light. */
+    private val darkTheme = mutableStateOf(true)
 
     /**
      * The input mode the screen's composables see, when set; otherwise the window's. Asking the
@@ -110,13 +121,15 @@ class FocusRingUiTest {
                     override fun requestInputMode(inputMode: InputMode): Boolean = window.requestInputMode(inputMode)
                 }
             }
+            val dark by darkTheme
             CompositionLocalProvider(LocalSiteIconsEnabled provides false, LocalInputModeManager provides shown) {
-                RemBrowseTheme {
+                RemBrowseTheme(darkTheme = dark) {
                     primary = MaterialTheme.colorScheme.primary
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
                         downloadsViewModel = downloadsVm,
+                        chrome = chrome,
                         onPickLocalXpi = {},
                         paneViewport = { tab, modifier -> Box(modifier) { Text(tab.displayTitle) } },
                         extensionPopupContent = { Box(it) }
@@ -221,5 +234,153 @@ class FocusRingUiTest {
         button("More").assertIsFocused()
         button("More").tab(shift = true)
         composeRule.onNodeWithTag("tab_switcher_button").assertIsFocused()
+    }
+
+    // --- Controls with a border of their own: the ring outside it, over it, in both themes ---
+
+    /**
+     * The screen's pixels 3dp out from the middle of the top edge and of the start edge of a
+     * control: the middle of a ring drawn 2 to 4dp outside its edge, which a border along the
+     * inside of the edge can't cover.
+     */
+    private fun pixelsOutside(node: SemanticsNodeInteraction): List<Color> {
+        composeRule.waitForIdle()
+        val semantics = node.fetchSemanticsNode()
+        val out = with(composeRule.density) { 3.dp.toPx() }
+        val position = semantics.positionOnScreen
+        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val above = Color(screen.getPixel((position.x + semantics.size.width / 2f).toInt(), (position.y - out).toInt()))
+        val before = Color(screen.getPixel((position.x - out).toInt(), (position.y + semantics.size.height / 2f).toInt()))
+        return listOf(above, before)
+    }
+
+    /** The controls checked by [checkRingOutside] that showed no ring, reported by [assertRingsOutside]. */
+    private val missingRings = mutableListOf<String>()
+
+    /**
+     * [name]'s ring: nothing in the accent just outside its edge until it has the keyboard focus,
+     * then the accent there, above it and before it. A missing ring is noted, and the test goes
+     * on to the next control, so [assertRingsOutside] lists every one.
+     */
+    private fun checkRingOutside(name: String, node: SemanticsNodeInteraction) {
+        val theme = if (darkTheme.value) "dark" else "light"
+        node.assertIsNotFocused()
+        pixelsOutside(node).forEach {
+            assertFalse("$name ($theme): no accent outside it before it has the focus: $it", it.isCloseTo(primary))
+        }
+        node.requestFocus().assertIsFocused()
+        val ring = pixelsOutside(node)
+        if (!ring.all { it.isCloseTo(primary) }) missingRings += "$name ($theme): $ring"
+    }
+
+    private fun assertRingsOutside() {
+        assertTrue("No ring in the accent outside the border:\n" + missingRings.joinToString("\n"), missingRings.isEmpty())
+    }
+
+    /**
+     * Moves the keyboard focus to the toolbar's More button, away from the controls checked. (With
+     * the keyboard in use, a window with nothing focused gives the focus to its first control,
+     * the rail's menu button.)
+     */
+    private fun focusElsewhere() {
+        button("More").requestFocus().assertIsFocused()
+        composeRule.waitForIdle()
+    }
+
+    /** Runs [checks] in the dark theme, then again in the light one. */
+    private fun inBothThemes(checks: () -> Unit) {
+        listOf(true, false).forEach { dark ->
+            composeRule.runOnIdle { darkTheme.value = dark }
+            composeRule.waitForIdle()
+            checks()
+        }
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun splitButton_ringsOutsideItsBorder_andOutsideTheAccentBorderOfAnOpenSplit() {
+        launchWithKeyboard()
+        inBothThemes {
+            focusElsewhere()
+            checkRingOutside("Split", composeRule.onNodeWithTag("split_button"))
+            focusElsewhere()
+            composeRule.runOnIdle { browserVm.splitCurrentTab(currentOnLeft = true) }
+            checkRingOutside("Split, a split open", composeRule.onNodeWithTag("split_button"))
+            composeRule.runOnIdle { browserVm.setLayoutMode(LayoutMode.SINGLE_1X1) }
+        }
+        assertRingsOutside()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun railTiles_ringOutside_collapsedAndExpanded() {
+        launchWithKeyboard()
+        composeRule.runOnIdle { browserVm.openNewTab("https://two.example/") }
+        val (first, second) = browserVm.uiState.value.tabs.map { it.id }
+        fun tile(tag: String, name: String) {
+            focusElsewhere()
+            checkRingOutside(name, composeRule.onNodeWithTag(tag))
+        }
+        inBothThemes {
+            tile("tab_rail_toggle", "The rail's menu button")
+            tile("tab_bar_item_$first", "A tab")
+            tile("tab_bar_item_$second", "The active tab")
+            composeRule.runOnIdle { browserVm.setTabRailExpanded(true) }
+            tile("tab_rail_toggle", "The expanded rail's menu button")
+            tile("tab_bar_item_$first", "A tab's row on the expanded rail")
+            tile("tab_bar_item_$second", "The active tab's row on the expanded rail")
+            composeRule.runOnIdle { browserVm.setTabRailExpanded(false) }
+        }
+        assertRingsOutside()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun switcherCards_ringOutside_activeAndNot() {
+        launchWithKeyboard()
+        composeRule.runOnIdle { browserVm.openNewTab("https://two.example/") }
+        val (first, second) = browserVm.uiState.value.tabs.map { it.id }
+        composeRule.runOnIdle { chrome.showTabSwitcher = true }
+        inBothThemes {
+            focusElsewhere()
+            checkRingOutside("A switcher card", composeRule.onNodeWithTag("switcher_tab_$first"))
+            focusElsewhere()
+            checkRingOutside("The active tab's switcher card", composeRule.onNodeWithTag("switcher_tab_$second"))
+        }
+        assertRingsOutside()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun settingsSections_ringOutside_shownAndNot() {
+        launchWithKeyboard()
+        composeRule.runOnIdle { browserVm.openSettings(SettingsSection.APPEARANCE) }
+        inBothThemes {
+            focusElsewhere()
+            checkRingOutside("The section shown", composeRule.onNodeWithTag("settings_section_appearance"))
+            focusElsewhere()
+            checkRingOutside("Another section", composeRule.onNodeWithTag("settings_section_privacy"))
+        }
+        assertRingsOutside()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun paletteRows_ringOutside_highlightedAndNot() {
+        launchWithKeyboard()
+        composeRule.runOnIdle { chrome.showCommandPalette = true }
+        composeRule.waitForIdle()
+        val row = SemanticsMatcher("a palette row") {
+            it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("palette_") == true
+        }
+        val tags = composeRule.onAllNodes(row).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }
+        inBothThemes {
+            // The keyboard is in the palette's field, as it opened
+            composeRule.onNodeWithTag("command_palette_input").requestFocus()
+            checkRingOutside("The highlighted palette row", composeRule.onNodeWithTag(tags[0]))
+            // Not the next row, whose top the highlighted row's accent border runs just above
+            checkRingOutside("Another palette row", composeRule.onNodeWithTag(tags[2]))
+        }
+        assertRingsOutside()
     }
 }

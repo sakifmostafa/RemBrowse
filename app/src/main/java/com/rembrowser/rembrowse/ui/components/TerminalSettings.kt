@@ -698,11 +698,13 @@ private fun ThemeCard(theme: TerminalThemePreset, font: TerminalFont, selected: 
     val line = MaterialTheme.typography.labelSmall.copy(fontFamily = family, fontSize = 10.sp, lineHeight = 14.sp)
     Column(
         modifier = modifier
+            // Outside the card, whose preview is outlined in the accent when chosen (see keyboardFocusRing)
+            .keyboardFocusRing(MaterialTheme.shapes.medium)
             .clip(MaterialTheme.shapes.medium)
             .selectable(
                 selected = selected,
                 interactionSource = null,
-                indication = ripple(focusRingShape = MaterialTheme.shapes.medium),
+                indication = ringOutsideRipple(),
                 role = Role.RadioButton,
                 onClick = onClick
             )

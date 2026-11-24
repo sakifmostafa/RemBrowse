@@ -17,7 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -630,6 +634,48 @@ class UiSnapshotTest {
         composeRule.onNodeWithTag("split_button").requestFocus()
         save("22c-keyboard-focus-split-light")
     }
+
+    /**
+     * Keyboard focus rings on controls whose border is the accent already: outside it, with a gap.
+     * A split open, the active tab's row on the expanded rail, the active tab's switcher card and
+     * the Settings section shown.
+     */
+    @Test
+    fun keyboardFocusRingsOnAccentBorders() {
+        launch(settings = BrowserSettings(tabRailExpanded = true))
+        composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
+        composeRule.runOnUiThread { browserVm.splitCurrentTab(currentOnLeft = true) }
+        composeRule.onNodeWithTag("split_button").requestFocus()
+        save("22d-keyboard-focus-split-open")
+        composeRule.onNodeWithTag("tab_bar_item_arch").requestFocus()
+        save("22e-keyboard-focus-expanded-rail")
+        composeRule.runOnUiThread { browserVm.setLayoutMode(LayoutMode.SINGLE_1X1) }
+        // Opened and closed without a click, which would put the window in touch mode
+        composeRule.runOnUiThread { chrome.showTabSwitcher = true }
+        composeRule.onNodeWithTag("switcher_tab_arch").requestFocus()
+        save("22f-keyboard-focus-switcher-active")
+        composeRule.runOnUiThread { chrome.showTabSwitcher = false }
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.APPEARANCE) }
+        composeRule.onNodeWithTag("settings_section_appearance").requestFocus()
+        save("22g-keyboard-focus-settings-section")
+    }
+
+    /** The highlighted command palette row with the keyboard focus: its ring outside its accent border. */
+    @Test
+    fun keyboardFocusRingOnThePalette() {
+        launch()
+        // Out of touch mode, as a keyboard leaves every window; the palette is a window of its own
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
+        composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
+        composeRule.runOnUiThread { chrome.showCommandPalette = true }
+        composeRule.waitForIdle()
+        composeRule.onAllNodes(hasTestTagStartingWith("palette_"))[0].requestFocus()
+        save("22h-keyboard-focus-palette-row")
+    }
+}
+
+private fun hasTestTagStartingWith(prefix: String) = SemanticsMatcher("a test tag starting with $prefix") {
+    it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
 }
 
 private val sampleDownloads = listOf(

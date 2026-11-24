@@ -307,10 +307,12 @@ private fun SplitButton(isSplit: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .height(36.dp)
+            // Outside its border, which is the accent while a split is open (see keyboardFocusRing)
+            .keyboardFocusRing(shape)
             .clip(shape)
             .background(if (isSplit) colors.primaryContainer else colors.surface)
             .border(1.dp, if (isSplit) colors.primary else colors.outlineVariant, shape)
-            .clickable(interactionSource = null, indication = ripple(focusRingShape = shape), role = Role.Button, onClick = onClick)
+            .clickable(interactionSource = null, indication = ringOutsideRipple(), role = Role.Button, onClick = onClick)
             .semantics { selected = isSplit }
             .testTag("split_button")
             .padding(horizontal = 12.dp),

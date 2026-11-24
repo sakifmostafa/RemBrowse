@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -101,6 +102,7 @@ import androidx.compose.ui.input.pointer.areAnyPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -175,6 +177,8 @@ fun RemIconButton(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .size(size)
+                    // A bordered button rings outside its border (see keyboardFocusRing)
+                    .then(if (bordered) Modifier.keyboardFocusRing(MaterialTheme.shapes.medium) else Modifier)
                     .clip(MaterialTheme.shapes.medium)
                     .background(if (selected) colors.surfaceContainerHighest else Color.Transparent)
                     .then(
@@ -186,7 +190,7 @@ fun RemIconButton(
                     )
                     .clickable(
                         interactionSource = null,
-                        indication = ripple(focusRingShape = MaterialTheme.shapes.medium),
+                        indication = if (bordered) ringOutsideRipple() else ripple(focusRingShape = MaterialTheme.shapes.medium),
                         enabled = enabled,
                         role = Role.Button,
                         onClick = onClick
@@ -207,17 +211,24 @@ fun RemIconButton(
 
 /**
  * A ring around the element while it has keyboard focus (Tab, arrows), in the accent colour,
- * outside its edge unless [inside]. Touch and pointer use show none, as on the web's
- * :focus-visible. It is drawn, not laid out, so it never moves anything.
+ * 2dp wide and 2dp outside its edge unless [inside]. Touch and pointer use show none, as on the
+ * web's :focus-visible. It is drawn, not laid out, so it never moves anything; while it shows,
+ * the element is drawn above its neighbours, so one with a fill of its own (the selected section
+ * just below) never covers the ring where it reaches over the gap between them.
  *
  * Controls normally show Material's inset ring instead (see focusRingConfiguration in Theme.kt);
- * this one is left only where that can't be drawn or would mislead: a focusable that is not a
+ * this one is left where that can't be drawn or would mislead: a focusable that is not a
  * clickable (the print preview's page list), a focus also taken on touch (the print screen's
- * Save tile), and the accent swatches, whose selection ring Material's ring would cover.
+ * Save tile), and controls with a border of their own (the Split button, the rail's tiles,
+ * switcher cards, Settings' sections, command palette rows, the terminal's theme cards, the
+ * accent swatches). On those, the border would cover half of Material's ring, which runs along
+ * the inside of the edge, and where the border is the accent (a split open, the active tab, the
+ * section shown, the selected swatch) the ring would look like it. Their clickable takes
+ * [ringOutsideRipple].
  *
  * Put it before the element's `clip` (a ring after the clip would be cut off) and before its
- * `clickable` or `focusable`, whose focus it follows. Use [inside] for rows in a scrolling list,
- * whose edge would cut an outside ring.
+ * `clickable` or `focusable`, whose focus it follows; and before a `border`, which it is drawn
+ * over. Use [inside] for rows in a scrolling list, whose edge would cut an outside ring.
  */
 @Composable
 internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): Modifier {
@@ -226,6 +237,13 @@ internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): 
     val color = LocalFocusRingColor.current.takeOrElse { MaterialTheme.colorScheme.primary }
     return this
         .onFocusChanged { focused = it.isFocused }
+        // Read while placing, so a change of focus places the element again rather than recomposing it
+        .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, placeable.height) {
+                placeable.place(0, 0, zIndex = if (focused && keyboard) 1f else 0f)
+            }
+        }
         .drawWithContent {
             drawContent()
             if (focused && keyboard) {
@@ -240,6 +258,12 @@ internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): 
             }
         }
 }
+
+/**
+ * The indication of a control that draws its focus ring with [keyboardFocusRing], outside its
+ * border: Material's ripple for hover and press, without Material's own inset ring.
+ */
+internal fun ringOutsideRipple(): IndicationNodeFactory = ripple(enableFocusIndication = false)
 
 /**
  * Whether Android's animations are off (Settings → Accessibility → Remove animations, or the

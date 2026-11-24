@@ -51,7 +51,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -600,13 +599,15 @@ private fun SectionNavItem(
     Row(
         modifier = modifier
             .heightIn(min = 48.dp)
+            // Outside its border, which is the accent on the section shown (see keyboardFocusRing)
+            .keyboardFocusRing(MaterialTheme.shapes.small)
             .clip(MaterialTheme.shapes.small)
             .background(if (selected) colors.primaryContainer else Color.Transparent)
             .border(1.dp, if (selected) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
             .selectable(
                 selected = selected,
                 interactionSource = null,
-                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                indication = ringOutsideRipple(),
                 role = Role.Tab,
                 onClick = onClick
             )
@@ -691,7 +692,7 @@ private fun AppearanceSection(
                         selected = selected,
                         interactionSource = null,
                         // The ring is keyboardFocusRing's, outside the swatch (see below)
-                        indication = ripple(enableFocusIndication = false),
+                        indication = ringOutsideRipple(),
                         enabled = accentsInUse,
                         role = Role.RadioButton,
                         onClick = { onSetAccent(accent) }
