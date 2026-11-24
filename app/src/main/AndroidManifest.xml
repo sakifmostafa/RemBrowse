@@ -28,7 +28,8 @@
     <uses-feature android:name="android.hardware.location.network" android:required="false" />
 
     <!-- enableOnBackInvokedCallback: predictive back (Android 13+). Back arrives through the
-         Back handlers in RemBrowseScreen instead of as a key; ignored on older versions. -->
+         Back handlers in RemBrowseScreen instead of as a key; ignored on older versions. Since
+         targetSdk 36 it is the default on Android 16+; kept so older versions opt in too. -->
     <application
         android:name=".RemBrowseApplication"
         android:allowBackup="false"

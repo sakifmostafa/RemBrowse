@@ -54,7 +54,7 @@ android {
     defaultConfig {
         applicationId = "com.rembrowser.rembrowse"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 35
         versionName = "0.14.0"
 
