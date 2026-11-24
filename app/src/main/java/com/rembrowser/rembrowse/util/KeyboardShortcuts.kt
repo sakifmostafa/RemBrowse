@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.util
 
+import android.os.Build
 import android.view.KeyEvent
 
 enum class BrowserShortcut {
@@ -130,13 +131,25 @@ object KeyboardShortcuts {
             .filter { (_, rows) -> rows.isNotEmpty() }
 
     /**
+     * Whether a physical keyboard's Back is read as that keyboard's Esc key by the browser's own
+     * key checks ([escapeClosesFindBar], [screenCaptureKey]) on Android [sdkInt]: only up to
+     * Android 12L. From Android 13 predictive back is on, and Android takes a Back key before the
+     * window sees it: Android 13 to 15 and 17 never pass its press on, so the Back handlers in
+     * RemBrowseScreen act on it alone (the on-screen keyboard first, when it is up). Android 16
+     * passes the press on but still gives the release to the newest Back handler, so taking the
+     * press here as well would do two things for one key: close the find bar, then go back in
+     * the page or leave the app when no handler is left.
+     */
+    fun physicalBackIsEscape(sdkInt: Int): Boolean = sdkInt < Build.VERSION_CODES.TIRAMISU
+
+    /**
      * Whether a press of [keyCode] closes the find bar: a plain Esc while the bar is open
      * ([findBarOpen]), wherever the focus is (the bar itself, or the page after a search),
      * except in a terminal, whose programs use Esc. Read before the keyboard app, which may keep
      * a hardware Esc for itself or turn it into Back. Some laptop keyboards send their Esc key
-     * as Back, so a Back from a physical keyboard ([fromPhysicalKeyboard]) counts as Esc too;
-     * the system's Back gesture or button does not. Only up to Android 12L: from Android 13 Back
-     * never arrives as a key (predictive back is on), and the find bar's Back handler closes it.
+     * as Back, so a Back from a physical keyboard ([fromPhysicalKeyboard]) counts as Esc too, up
+     * to Android 12L ([physicalBackIsEscape]); the system's Back gesture or button does not.
+     * From Android 13 the find bar's Back handler closes it.
      */
     fun escapeClosesFindBar(
         keyCode: Int,
@@ -149,10 +162,11 @@ object KeyboardShortcuts {
          * Something in front uses Esc itself: the address bar or the tab search being typed in
          * (Esc abandons the edit), the tab switcher, or a page in fullscreen (Esc leaves it).
          */
-        escapeTakenInFront: Boolean = false
+        escapeTakenInFront: Boolean = false,
+        sdkInt: Int = Build.VERSION.SDK_INT
     ): Boolean {
         val isEscape = keyCode == KeyEvent.KEYCODE_ESCAPE ||
-            keyCode == KeyEvent.KEYCODE_BACK && fromPhysicalKeyboard
+            keyCode == KeyEvent.KEYCODE_BACK && fromPhysicalKeyboard && physicalBackIsEscape(sdkInt)
         return isEscape && findBarOpen && noModifiers && repeatCount == 0 && !inTerminal && !escapeTakenInFront
     }
 
@@ -244,11 +258,17 @@ object KeyboardShortcuts {
      * What a key press does while the screenshot overlay is up (see [ScreenCaptureKey]). Read
      * before the keyboard app, like the shortcuts. [isSystemKey] is `KeyEvent.isSystem`; a Back
      * from a physical keyboard ([fromPhysicalKeyboard]) is that keyboard's Esc key, as for the
-     * find bar (up to Android 12L; from 13 the overlay's Back handler cancels it).
+     * find bar, up to Android 12L ([physicalBackIsEscape]); from 13 it passes on to the
+     * overlay's Back handler, which cancels it.
      */
-    fun screenCaptureKey(keyCode: Int, isSystemKey: Boolean, fromPhysicalKeyboard: Boolean): ScreenCaptureKey = when {
+    fun screenCaptureKey(
+        keyCode: Int,
+        isSystemKey: Boolean,
+        fromPhysicalKeyboard: Boolean,
+        sdkInt: Int = Build.VERSION.SDK_INT
+    ): ScreenCaptureKey = when {
         keyCode == KeyEvent.KEYCODE_ESCAPE -> ScreenCaptureKey.CANCEL
-        keyCode == KeyEvent.KEYCODE_BACK && fromPhysicalKeyboard -> ScreenCaptureKey.CANCEL
+        keyCode == KeyEvent.KEYCODE_BACK && fromPhysicalKeyboard && physicalBackIsEscape(sdkInt) -> ScreenCaptureKey.CANCEL
         keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER -> ScreenCaptureKey.CAPTURE_FOCUSED
         isSystemKey -> ScreenCaptureKey.PASS
         else -> ScreenCaptureKey.SWALLOW

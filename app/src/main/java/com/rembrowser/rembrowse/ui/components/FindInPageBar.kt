@@ -214,9 +214,11 @@ fun FindInPageBar(
                             // Back (once the on-screen keyboard is down) closes the bar, as in
                             // Chrome, instead of only taking the focus out of the box. On the
                             // release, as Android's own Back, so the press is not seen twice.
-                            // Android 12L and older only: from Android 13 Back no longer arrives
-                            // as a key (predictive back), and the find bar's BackHandler in
-                            // RemBrowseScreen closes it.
+                            // Up to Android 12L. From Android 13 (predictive back) Android hands
+                            // Back to the newest Back callback first (the on-screen keyboard's,
+                            // or the find bar's BackHandler in RemBrowseScreen); Android 16 then
+                            // still passes the key on, its release cancelled, and closing an
+                            // already closed bar again changes nothing.
                             Key.Back -> {
                                 if (event.type == KeyEventType.KeyUp) actions.onClose()
                                 true

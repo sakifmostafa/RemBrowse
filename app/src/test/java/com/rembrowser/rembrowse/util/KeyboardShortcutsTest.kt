@@ -178,15 +178,15 @@ class KeyboardShortcutsTest {
         assertFalse(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true, inTerminal = true))
         // The system's Back gesture or button is not Esc (the bar has its own Back handling)
         assertFalse(KeyboardShortcuts.escapeClosesFindBar(KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true))
-        // A laptop keyboard that sends its Esc key as Back
+        // A laptop keyboard that sends its Esc key as Back (up to Android 12L, see below)
         assertTrue(
             KeyboardShortcuts.escapeClosesFindBar(
-                KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true
+                KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 32
             )
         )
         assertFalse(
             KeyboardShortcuts.escapeClosesFindBar(
-                KeyEvent.KEYCODE_BACK, findBarOpen = false, noModifiers = true, fromPhysicalKeyboard = true
+                KeyEvent.KEYCODE_BACK, findBarOpen = false, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 32
             )
         )
         // The address bar, the tab search, the tab switcher or a fullscreen page keep their Esc
@@ -201,6 +201,51 @@ class KeyboardShortcutsTest {
                 KeyEvent.KEYCODE_A, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true
             )
         )
+    }
+
+    @Test
+    fun aPhysicalKeyboardsBack_isItsEsc_onlyUpToAndroid12L() {
+        for (sdk in listOf(26, 30, 32)) {
+            assertTrue("SDK $sdk", KeyboardShortcuts.physicalBackIsEscape(sdk))
+            assertTrue(
+                "Find bar, SDK $sdk",
+                KeyboardShortcuts.escapeClosesFindBar(
+                    KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = sdk
+                )
+            )
+            assertEquals(
+                "Screenshot overlay, SDK $sdk",
+                ScreenCaptureKey.CANCEL,
+                KeyboardShortcuts.screenCaptureKey(KeyEvent.KEYCODE_BACK, isSystemKey = true, fromPhysicalKeyboard = true, sdkInt = sdk)
+            )
+        }
+        // From Android 13 the Back handlers take it (predictive back): Android 13-15 and 17 never
+        // show the window its press, and Android 16 shows it but still gives the release to the
+        // newest handler, so taking the press too would act twice
+        for (sdk in listOf(33, 34, 35, 36)) {
+            assertFalse("SDK $sdk", KeyboardShortcuts.physicalBackIsEscape(sdk))
+            assertFalse(
+                "Find bar, SDK $sdk",
+                KeyboardShortcuts.escapeClosesFindBar(
+                    KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = sdk
+                )
+            )
+            assertEquals(
+                "Screenshot overlay, SDK $sdk",
+                ScreenCaptureKey.PASS,
+                KeyboardShortcuts.screenCaptureKey(KeyEvent.KEYCODE_BACK, isSystemKey = true, fromPhysicalKeyboard = true, sdkInt = sdk)
+            )
+            // A real Esc key is read first on every version
+            assertTrue(
+                "Esc, SDK $sdk",
+                KeyboardShortcuts.escapeClosesFindBar(KeyEvent.KEYCODE_ESCAPE, findBarOpen = true, noModifiers = true, sdkInt = sdk)
+            )
+            assertEquals(
+                "Esc over the overlay, SDK $sdk",
+                ScreenCaptureKey.CANCEL,
+                KeyboardShortcuts.screenCaptureKey(KeyEvent.KEYCODE_ESCAPE, isSystemKey = false, fromPhysicalKeyboard = true, sdkInt = sdk)
+            )
+        }
     }
 
     @Test
@@ -229,7 +274,7 @@ class KeyboardShortcutsTest {
     @Test
     fun whileTheScreenshotOverlayIsUp_escCancels_enterTakes_andOtherKeysStayOffThePage() {
         fun key(code: Int, system: Boolean = false, physical: Boolean = true) =
-            KeyboardShortcuts.screenCaptureKey(code, isSystemKey = system, fromPhysicalKeyboard = physical)
+            KeyboardShortcuts.screenCaptureKey(code, isSystemKey = system, fromPhysicalKeyboard = physical, sdkInt = 32)
 
         assertEquals(ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_ESCAPE))
         assertEquals("An on-screen Esc too", ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_ESCAPE, physical = false))
