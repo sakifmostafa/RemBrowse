@@ -424,7 +424,8 @@ class BackNavigationUiTest {
     fun keyboardUp_theWindowBackFromTheBackground_andAHandlerTurnedOnAfter_stillComeAfterTheKeyboard() {
         val tab = launchOnAPageWithHistory()
         keyboardUpFor()
-        // The window goes to the background and comes back: every handler is added again
+        // The window goes to the background and comes back: every handler is turned off and on
+        // again, each in its place
         val scenario = composeRule.activityRule.scenario
         scenario.moveToState(Lifecycle.State.CREATED)
         scenario.moveToState(Lifecycle.State.RESUMED)

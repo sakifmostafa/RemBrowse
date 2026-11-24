@@ -1205,8 +1205,9 @@ internal const val KEYBOARD_BACK_AGAIN_MILLIS = 1_000L
  * handler that is turned on meanwhile, took Back before the keyboard went. This one comes before
  * every other handler of the window instead: it is composed after them, and it only enters the
  * composition when the keyboard comes up, so it is always the newest one then (the dispatcher hands
- * Back to the newest enabled handler, and after the window was in the background it adds the
- * handlers back in the order they first came).
+ * Back to the newest enabled handler, and a handler's place is set once, when it enters the
+ * composition: turning handlers off and on, as the window going to the background and coming back
+ * does to all of them, never moves one).
  *
  * It stays off while no other handler is on: the window then has no callback with Android at all,
  * as there is nothing for it to do, and the keyboard app gets Back as it always did, which closes
