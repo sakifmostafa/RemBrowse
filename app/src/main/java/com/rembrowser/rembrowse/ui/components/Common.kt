@@ -105,6 +105,7 @@ import androidx.compose.ui.input.pointer.areAnyPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -118,6 +119,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onLongClick
@@ -127,6 +129,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -809,9 +812,16 @@ private fun MenuTick() {
  * Expressive's connected button group. Toggle buttons sit side by side, 2dp apart, the outer ones
  * rounded on their outer side; the chosen one is filled with the accent (primary), turns fully
  * round and carries a tick, so it is not told apart by colour alone. Screen readers hear a group
- * of radio buttons. Each button is as wide as its label, so no word is broken; on a narrow window
- * or with large text the buttons that don't fit go on to a second line instead of off the side.
- * [testTag] names each option's button.
+ * of radio buttons. Each button is as wide as its label, so no word is broken. [testTag] names
+ * each option's button.
+ *
+ * Material's button groups stay on one line (they "shouldn't wrap to a second line"), and its
+ * remedies, narrower buttons or an overflow menu, can't hold three names at 200% on a phone. So
+ * when the group doesn't fit (a narrow window, large text), the choices become separate round
+ * toggle buttons, 8dp apart, that go on to a second line: a connected group broken over two lines
+ * would show square corners at the end of the first line and the start of the second. Whether it
+ * fits is measured with the chosen one's tick on any of them, so choosing another never moves
+ * the buttons from one form to the other.
  */
 @Composable
 fun <T> ConnectedChoiceGroup(
@@ -822,34 +832,103 @@ fun <T> ConnectedChoiceGroup(
     testTag: (T) -> String,
     modifier: Modifier = Modifier
 ) {
-    FlowRow(
-        modifier = modifier.selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-        verticalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-        itemVerticalAlignment = Alignment.CenterVertically
-    ) {
-        options.forEachIndexed { index, option ->
-            val checked = option == selected
+    @Composable
+    fun choice(index: Int, option: T, connected: Boolean) {
+        val checked = option == selected
+        val icon: (@Composable () -> Unit)? = if (checked) {
+            { Icon(imageVector = Icons.Outlined.Check, contentDescription = null) }
+        } else {
+            null
+        }
+        val buttonModifier = Modifier
+            .semantics { role = Role.RadioButton }
+            .testTag(testTag(option))
+        val text: @Composable RowScope.() -> Unit = { Text(text = label(option), maxLines = 1) }
+        if (connected) {
             ToggleButton(
                 checked = checked,
                 onCheckedChange = { onSelect(option) },
-                modifier = Modifier
-                    .semantics { role = Role.RadioButton }
-                    .testTag(testTag(option)),
-                icon = if (checked) {
-                    { Icon(imageVector = Icons.Outlined.Check, contentDescription = null) }
-                } else {
-                    null
-                },
+                modifier = buttonModifier,
+                icon = icon,
                 shapes = when (index) {
                     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                     options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                }
-            ) {
-                Text(text = label(option), maxLines = 1)
-            }
+                },
+                content = text
+            )
+        } else {
+            ToggleButton(
+                checked = checked,
+                onCheckedChange = { onSelect(option) },
+                modifier = buttonModifier,
+                icon = icon,
+                content = text
+            )
         }
+    }
+
+    SubcomposeLayout(modifier = modifier.selectableGroup()) { constraints ->
+        val gap = ButtonGroupDefaults.ConnectedSpaceBetween.roundToPx()
+        // Measured, never shown: each button without the tick, and the first one with it
+        val probes = subcompose(ChoiceGroupSlot.Probe) {
+            options.forEach { option -> ChoiceProbe(label(option), ticked = false) }
+            options.firstOrNull()?.let { option -> ChoiceProbe(label(option), ticked = true) }
+        }.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val tick = if (probes.isEmpty()) 0 else probes.last() - probes.first()
+        val needed = probes.dropLast(1).sum() + tick + gap * (options.size - 1).coerceAtLeast(0)
+        val oneLine = !constraints.hasBoundedWidth || needed <= constraints.maxWidth
+        val placeable = subcompose(if (oneLine) ChoiceGroupSlot.Connected else ChoiceGroupSlot.Separate) {
+            if (oneLine) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    options.forEachIndexed { index, option -> choice(index, option, connected = true) }
+                }
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(SeparateChoiceSpacing),
+                    verticalArrangement = Arrangement.spacedBy(SeparateChoiceSpacing),
+                    itemVerticalAlignment = Alignment.CenterVertically
+                ) {
+                    options.forEachIndexed { index, option -> choice(index, option, connected = false) }
+                }
+            }
+        }.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+        layout(
+            placeable.width.coerceIn(constraints.minWidth, constraints.maxWidth),
+            placeable.height.coerceIn(constraints.minHeight, constraints.maxHeight)
+        ) {
+            placeable.place(0, 0)
+        }
+    }
+}
+
+/** What [ConnectedChoiceGroup] lays out: its probes, then one of its two forms. */
+private enum class ChoiceGroupSlot { Probe, Connected, Separate }
+
+/** The space between [ConnectedChoiceGroup]'s buttons when they no longer fit on one line. */
+private val SeparateChoiceSpacing = 8.dp
+
+/**
+ * A toggle button as [ConnectedChoiceGroup] draws one, [ticked] or not, for its width alone:
+ * disabled and without semantics, so neither the keyboard nor a screen reader ever reaches it.
+ */
+@Composable
+private fun ChoiceProbe(label: String, ticked: Boolean) {
+    ToggleButton(
+        checked = ticked,
+        onCheckedChange = {},
+        enabled = false,
+        modifier = Modifier.clearAndSetSemantics {},
+        icon = if (ticked) {
+            { Icon(imageVector = Icons.Outlined.Check, contentDescription = null) }
+        } else {
+            null
+        }
+    ) {
+        Text(text = label, maxLines = 1)
     }
 }
 

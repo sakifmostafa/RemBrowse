@@ -89,7 +89,7 @@ class KeyboardShortcutsMenuTest {
     fun withoutAKeyboard_moreLeavesItOut() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_settings").assertIsDisplayed()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("menu_keyboard_shortcuts").assertDoesNotExist()
     }
 

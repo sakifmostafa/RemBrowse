@@ -31,6 +31,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.withKeyDown
@@ -163,7 +164,7 @@ class FocusRingUiTest {
         composeRule.onNodeWithTag("split_button").tab(shift = true)
         button("More").assertIsFocused()
         button("More").performKeyInput { pressKey(Key.Enter) }
-        composeRule.onNodeWithTag("menu_settings").assertIsDisplayed()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().assertIsDisplayed()
     }
 
     /**

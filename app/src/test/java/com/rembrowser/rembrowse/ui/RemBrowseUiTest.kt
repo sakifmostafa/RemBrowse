@@ -522,7 +522,7 @@ class RemBrowseUiTest {
         launch()
 
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_settings").performClick()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().performClick()
 
         composeRule.onNodeWithTag("settings_page").assertIsDisplayed()
         assertEquals("Settings opened in a tab of its own", 2, browserVm.uiState.value.tabs.size)
@@ -539,7 +539,7 @@ class RemBrowseUiTest {
 
         // Asking for settings again goes back to the same tab instead of opening another
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_settings").performClick()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().performClick()
         assertEquals(2, browserVm.uiState.value.tabs.size)
     }
 
@@ -617,7 +617,7 @@ class RemBrowseUiTest {
     fun settings_changeThemeAccentAndPrivacy() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_settings").performClick()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().performClick()
 
         // Light, dark, or as the device is set (the default), one at a time: a connected button
         // group, whose toggle buttons are radio buttons, on or off
@@ -1240,7 +1240,7 @@ class RemBrowseUiTest {
     fun settings_systemColorsSwitchSetsTheAccentsAside() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_settings").performClick()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().performClick()
 
         composeRule.onNodeWithTag("setting_system_colors").performScrollTo().assertIsOff()
         composeRule.onNodeWithTag("accent_maroon").assertIsEnabled().assertIsSelected()
@@ -1263,7 +1263,7 @@ class RemBrowseUiTest {
     fun settings_pageRenderingIsChosenUnderAppearance() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_settings").performClick()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().performClick()
 
         composeRule.onNodeWithTag("page_rendering_standard").performScrollTo().assertIsSelected()
         composeRule.onNodeWithTag("page_rendering_direct").performScrollTo().performClick()
