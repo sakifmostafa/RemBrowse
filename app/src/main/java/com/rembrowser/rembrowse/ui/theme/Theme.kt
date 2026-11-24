@@ -41,6 +41,9 @@ import com.rembrowser.rembrowse.ui.components.rememberReduceMotion
  * - `background`: window chrome (tab rail and toolbar)
  * - `surface`: raised elements on the chrome (address pill, menus, dialogs, cards)
  * - `surfaceContainerLowest`: the page container behind web content and the start page
+ * - `surfaceContainer`: the tiles of a settings group (segmented list) and a toggle button
+ *   that is off
+ * - `secondaryContainer` / `onSecondaryContainer`: the chosen tile in a settings group
  * - `surfaceContainerHigh` / `Highest`: hover and selected fills
  * - `primary`: accent for text, icons, focus and progress
  * - `primaryContainer` / `onPrimaryContainer`: deep accent fill for selected/active items

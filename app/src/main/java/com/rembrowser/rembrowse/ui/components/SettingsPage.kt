@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -41,8 +42,10 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -58,6 +61,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -65,7 +69,10 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.AccentColor
@@ -223,8 +230,7 @@ fun SettingsPage(
                         onCheckedChange = actions.onSetKeepHistory,
                         testTag = "setting_keep_history"
                     )
-                    HorizontalDivider(color = colors.outlineVariant)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     HistoryPanel(
                         entries = history,
                         keepHistory = settings.keepHistory,
@@ -382,14 +388,15 @@ private fun SearchSection(selected: SearchEngine, onSelect: (SearchEngine) -> Un
         color = colors.onSurfaceVariant,
         modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
     )
-    Column(modifier = Modifier.selectableGroup()) {
-        SearchEngine.entries.forEach { engine ->
+    SettingsRows(choices = true) {
+        SearchEngine.entries.forEachIndexed { index, engine ->
             RadioRow(
                 title = engine.label,
                 description = null,
                 selected = engine == selected,
                 onClick = { onSelect(engine) },
-                testTag = "search_engine_${engine.name.lowercase()}"
+                testTag = "search_engine_${engine.name.lowercase()}",
+                place = RowPlace(index, SearchEngine.entries.size)
             )
         }
     }
@@ -397,77 +404,82 @@ private fun SearchSection(selected: SearchEngine, onSelect: (SearchEngine) -> Un
 
 @Composable
 private fun TabsSection(settings: BrowserSettings, actions: SettingsActions) {
-    val colors = MaterialTheme.colorScheme
     GroupTitle("When RemBrowse starts")
-    Spacer(modifier = Modifier.height(4.dp))
-    Column(modifier = Modifier.selectableGroup()) {
+    Spacer(modifier = Modifier.height(8.dp))
+    SettingsRows(choices = true) {
         RadioRow(
             title = "Continue where you left off",
             description = "Reopens the tabs and the layout you had last time.",
             selected = settings.restoreTabsOnStartup,
             onClick = { actions.onSetRestoreTabsOnStartup(true) },
-            testTag = "setting_startup_restore"
+            testTag = "setting_startup_restore",
+            place = RowPlace(0, 2)
         )
         RadioRow(
             title = "Open a new tab",
             description = "Last time's tabs are closed. Bookmarks and settings are kept.",
             selected = !settings.restoreTabsOnStartup,
             onClick = { actions.onSetRestoreTabsOnStartup(false) },
-            testTag = "setting_startup_new_tab"
+            testTag = "setting_startup_new_tab",
+            place = RowPlace(1, 2)
         )
     }
-    Spacer(modifier = Modifier.height(8.dp))
-    HorizontalDivider(color = colors.outlineVariant)
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(24.dp))
 
     GroupTitle("Open new tabs")
-    Spacer(modifier = Modifier.height(4.dp))
-    Column(modifier = Modifier.selectableGroup()) {
+    Spacer(modifier = Modifier.height(8.dp))
+    SettingsRows(choices = true) {
         RadioRow(
             title = "At the end of the tab list",
             description = null,
             selected = !settings.openNewTabsNextToCurrent,
             onClick = { actions.onSetOpenNewTabsNextToCurrent(false) },
-            testTag = "setting_new_tab_end"
+            testTag = "setting_new_tab_end",
+            place = RowPlace(0, 2)
         )
         RadioRow(
             title = "Next to the current tab",
             description = null,
             selected = settings.openNewTabsNextToCurrent,
             onClick = { actions.onSetOpenNewTabsNextToCurrent(true) },
-            testTag = "setting_new_tab_next"
+            testTag = "setting_new_tab_next",
+            place = RowPlace(1, 2)
         )
     }
-    Spacer(modifier = Modifier.height(8.dp))
-    HorizontalDivider(color = colors.outlineVariant)
+    Spacer(modifier = Modifier.height(24.dp))
 
-    SwitchRow(
-        title = "Ask for desktop sites",
-        description = "New tabs ask websites for their desktop version rather than the mobile one. " +
-            "To change it for one tab, use More → Desktop site.",
-        checked = settings.desktopSiteByDefault,
-        onCheckedChange = actions.onSetDesktopSiteByDefault,
-        testTag = "setting_desktop_default"
-    )
-    HorizontalDivider(color = colors.outlineVariant)
-
-    SwitchRow(
-        title = "Swipe with two fingers to go back",
-        description = "On a touchpad, swipe right with two fingers to go back and left to go forward. " +
-            "Pages that scroll sideways keep the swipe until they reach their edge.",
-        checked = settings.swipeNavigation,
-        onCheckedChange = actions.onSetSwipeNavigation,
-        testTag = "setting_swipe_navigation"
-    )
-    if (settings.swipeNavigation) {
+    // The pages and the touchpad: switches, one group
+    val switches = if (settings.swipeNavigation) 3 else 2
+    SettingsRows {
         SwitchRow(
-            title = "Swipe the other way",
-            description = "Swipe left to go back and right to go forward. RemBrowse already follows the " +
-                "touchpad's Reverse scrolling setting; use this if swipes still go the wrong way.",
-            checked = settings.reverseSwipeDirection,
-            onCheckedChange = actions.onSetReverseSwipeDirection,
-            testTag = "setting_reverse_swipe"
+            title = "Ask for desktop sites",
+            description = "New tabs ask websites for their desktop version rather than the mobile one. " +
+                "To change it for one tab, use More → Desktop site.",
+            checked = settings.desktopSiteByDefault,
+            onCheckedChange = actions.onSetDesktopSiteByDefault,
+            testTag = "setting_desktop_default",
+            place = RowPlace(0, switches)
         )
+        SwitchRow(
+            title = "Swipe with two fingers to go back",
+            description = "On a touchpad, swipe right with two fingers to go back and left to go forward. " +
+                "Pages that scroll sideways keep the swipe until they reach their edge.",
+            checked = settings.swipeNavigation,
+            onCheckedChange = actions.onSetSwipeNavigation,
+            testTag = "setting_swipe_navigation",
+            place = RowPlace(1, switches)
+        )
+        if (settings.swipeNavigation) {
+            SwitchRow(
+                title = "Swipe the other way",
+                description = "Swipe left to go back and right to go forward. RemBrowse already follows the " +
+                    "touchpad's Reverse scrolling setting; use this if swipes still go the wrong way.",
+                checked = settings.reverseSwipeDirection,
+                onCheckedChange = actions.onSetReverseSwipeDirection,
+                testTag = "setting_reverse_swipe",
+                place = RowPlace(2, switches)
+            )
+        }
     }
 }
 
@@ -488,8 +500,7 @@ private fun DownloadsSection(
         onCheckedChange = onSetAskBeforeDownloading,
         testTag = "setting_ask_before_download"
     )
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(24.dp))
     DownloadsPanel(
         uiState = downloadsState,
         locationLabel = downloadLocation,
@@ -498,42 +509,68 @@ private fun DownloadsSection(
     )
 }
 
-/** One choice in a group. The whole row is the touch target; the button itself is decoration. */
+/**
+ * Where a row sits in a group of settings that go together, for Material 3 Expressive's segmented
+ * list: the first is rounded at the top, the last at the bottom, the ones between barely.
+ */
+internal data class RowPlace(val index: Int, val count: Int) {
+    companion object {
+        val Alone = RowPlace(0, 1)
+    }
+}
+
+/**
+ * A group of settings rows ([SwitchRow], [RadioRow]), Material 3 Expressive's segmented list:
+ * each row its own rounded container, 2dp apart. [choices] makes it one radio group.
+ */
 @Composable
-private fun RadioRow(
+internal fun SettingsRows(
+    modifier: Modifier = Modifier,
+    choices: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (choices) Modifier.selectableGroup() else Modifier),
+        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+        content = content
+    )
+}
+
+/**
+ * The segmented list's colours on the settings page: the rows a step off the page
+ * (surfaceContainer on surfaceContainerLowest, which in the light theme is white like Material's
+ * own row colour), the chosen one in secondaryContainer as Material has it.
+ */
+@Composable
+private fun settingsRowColors() = ListItemDefaults.segmentedColors(
+    containerColor = MaterialTheme.colorScheme.surfaceContainer
+)
+
+/**
+ * One choice in a group: a segmented list item with a radio button, the whole row the touch
+ * target. The chosen row is filled and rounder, besides its radio button.
+ */
+@Composable
+internal fun RadioRow(
     title: String,
     description: String?,
     selected: Boolean,
     onClick: () -> Unit,
-    testTag: String
+    testTag: String,
+    place: RowPlace = RowPlace.Alone
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .selectable(
-                selected = selected,
-                interactionSource = null,
-                indication = ripple(focusRingShape = MaterialTheme.shapes.small),
-                role = Role.RadioButton,
-                onClick = onClick
-            )
-            .testTag(testTag)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+    SegmentedListItem(
+        selected = selected,
+        onClick = onClick,
+        shapes = ListItemDefaults.segmentedShapes(index = place.index, count = place.count),
+        modifier = Modifier.testTag(testTag),
+        leadingContent = { RadioButton(selected = selected, onClick = null) },
+        supportingContent = description?.let { { Text(it) } },
+        colors = settingsRowColors()
     ) {
-        RadioButton(selected = selected, onClick = null)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            if (description != null) {
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        Text(title)
     }
 }
 
@@ -605,14 +642,13 @@ private fun AppearanceSection(
             modifier = Modifier.padding(top = 8.dp)
         )
     }
-    Spacer(modifier = Modifier.height(16.dp))
-    HorizontalDivider(color = colors.outlineVariant)
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(24.dp))
 
     GroupTitle("Theme color")
     // The accents stay chosen while the wallpaper's colours are used, for when they are turned off
     val accentsInUse = !(canUseSystemColors && settings.useSystemColors)
     if (canUseSystemColors) {
+        Spacer(modifier = Modifier.height(8.dp))
         SwitchRow(
             title = "Use system colors",
             description = "Takes its colors from your wallpaper (Material You). The theme color below " +
@@ -671,9 +707,7 @@ private fun AppearanceSection(
             }
         }
     }
-    Spacer(modifier = Modifier.height(16.dp))
-    HorizontalDivider(color = colors.outlineVariant)
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(24.dp))
 
     GroupTitle("Page rendering")
     Text(
@@ -683,14 +717,15 @@ private fun AppearanceSection(
         color = colors.onSurfaceVariant,
         modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
     )
-    Column(modifier = Modifier.selectableGroup()) {
-        PageRendering.entries.forEach { rendering ->
+    SettingsRows(choices = true) {
+        PageRendering.entries.forEachIndexed { index, rendering ->
             RadioRow(
                 title = rendering.label,
                 description = rendering.description,
                 selected = rendering == settings.pageRendering,
                 onClick = { onSetPageRendering(rendering) },
-                testTag = "page_rendering_${rendering.name.lowercase()}"
+                testTag = "page_rendering_${rendering.name.lowercase()}",
+                place = RowPlace(index, PageRendering.entries.size)
             )
         }
     }
@@ -705,29 +740,32 @@ private fun PrivacySection(
     onSetAdBlocker: (Boolean) -> Unit,
     onSetEnhancedPrivacy: (Boolean) -> Unit
 ) {
-    SwitchRow(
-        title = "Block ads and trackers",
-        description = when {
-            adBlockerBusy -> "Installing uBlock Origin…"
-            adBlockerError != null -> adBlockerError
-            else -> "Uses the uBlock Origin extension from addons.mozilla.org. To filter pages " +
-                "it can read and change the sites you visit. Manage or remove it under Extensions."
-        },
-        checked = adBlockerOn,
-        onCheckedChange = onSetAdBlocker,
-        testTag = "setting_ad_blocker",
-        enabled = !adBlockerBusy,
-        isError = adBlockerError != null && !adBlockerBusy
-    )
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    SwitchRow(
-        title = "Enhanced privacy (restricts tracking)",
-        description = "Also blocks known fingerprinters, cryptominers and email trackers. " +
-            "Standard tracking protection stays on either way. Turn this off if a site stops working.",
-        checked = settings.enhancedPrivacy,
-        onCheckedChange = onSetEnhancedPrivacy,
-        testTag = "setting_enhanced_privacy"
-    )
+    SettingsRows {
+        SwitchRow(
+            title = "Block ads and trackers",
+            description = when {
+                adBlockerBusy -> "Installing uBlock Origin…"
+                adBlockerError != null -> adBlockerError
+                else -> "Uses the uBlock Origin extension from addons.mozilla.org. To filter pages " +
+                    "it can read and change the sites you visit. Manage or remove it under Extensions."
+            },
+            checked = adBlockerOn,
+            onCheckedChange = onSetAdBlocker,
+            testTag = "setting_ad_blocker",
+            enabled = !adBlockerBusy,
+            isError = adBlockerError != null && !adBlockerBusy,
+            place = RowPlace(0, 2)
+        )
+        SwitchRow(
+            title = "Enhanced privacy (restricts tracking)",
+            description = "Also blocks known fingerprinters, cryptominers and email trackers. " +
+                "Standard tracking protection stays on either way. Turn this off if a site stops working.",
+            checked = settings.enhancedPrivacy,
+            onCheckedChange = onSetEnhancedPrivacy,
+            testTag = "setting_enhanced_privacy",
+            place = RowPlace(1, 2)
+        )
+    }
 }
 
 @Composable
@@ -747,9 +785,7 @@ private fun AboutSection(versionName: String, updates: UpdatesUiState?, updateAc
         color = colors.onSurfaceVariant
     )
     if (updates != null && updateActions != null) {
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider(color = colors.outlineVariant)
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         UpdatesBlock(state = updates, actions = updateActions)
     }
 }
@@ -831,7 +867,7 @@ private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
                 .testTag("update_message")
         )
     }
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(16.dp))
     SwitchRow(
         title = "Check for updates automatically",
         description = "Once a day RemBrowse looks on GitHub for a newer version and lets you know. " +
@@ -857,48 +893,57 @@ private fun lastCheckedText(millis: Long): String {
     }
 }
 
-/** The whole row toggles, which gives the switch a full-width touch target and one label. */
+/**
+ * A setting that is on or off: a segmented list item with a switch, the whole row the touch target
+ * and the switch's label. A finger flipping it gets Android's switch haptics; a mouse, the
+ * touchpad, the keyboard and screen readers flip it silently (see [hapticToggleable]).
+ */
 @Composable
-private fun SwitchRow(
+internal fun SwitchRow(
     title: String,
     description: String?,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     testTag: String,
     enabled: Boolean = true,
-    isError: Boolean = false
+    isError: Boolean = false,
+    place: RowPlace = RowPlace.Alone
 ) {
     val colors = MaterialTheme.colorScheme
-    Row(
+    val haptics = rememberTouchHaptics()
+    // The clickable overload with a switch's semantics, rather than the checkable one: that one
+    // fills and rounds a row while it is on, as for a list's checked items; here the switch shows it
+    SegmentedListItem(
+        onClick = {
+            haptics.perform(if (checked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+            onCheckedChange(!checked)
+        },
+        shapes = ListItemDefaults.segmentedShapes(index = place.index, count = place.count),
         modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .hapticToggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
-            .testTag(testTag)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            if (description != null) {
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isError) colors.error else colors.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+            .touchPressFor(haptics)
+            .semantics {
+                role = Role.Switch
+                toggleableState = ToggleableState(checked)
             }
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = colors.primaryContainer,
-                checkedThumbColor = colors.onPrimaryContainer,
-                checkedBorderColor = colors.primaryContainer
+            .testTag(testTag),
+        enabled = enabled,
+        supportingContent = description?.let {
+            { Text(text = it, color = if (isError) colors.error else Color.Unspecified) }
+        },
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = null,
+                enabled = enabled,
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = colors.primaryContainer,
+                    checkedThumbColor = colors.onPrimaryContainer,
+                    checkedBorderColor = colors.primaryContainer
+                )
             )
-        )
+        },
+        colors = settingsRowColors()
+    ) {
+        Text(title)
     }
 }

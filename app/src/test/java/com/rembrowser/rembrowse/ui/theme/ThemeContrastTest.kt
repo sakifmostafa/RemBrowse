@@ -157,6 +157,17 @@ open class ThemeContrastTest {
     }
 
     @Test
+    fun settingsRows_textAndControlsReadOnTheirContainers() = forEveryTheme { name, c ->
+        // Material's segmented list items on the settings page: surfaceContainer rows, the chosen
+        // radio row in secondaryContainer with onSecondaryContainer for its title and description
+        assertContrast("$name row title on surfaceContainer", c.onSurface, c.surfaceContainer, 4.5)
+        assertContrast("$name row description on surfaceContainer", c.onSurfaceVariant, c.surfaceContainer, 4.5)
+        assertContrast("$name switch outline on surfaceContainer", c.outline, c.surfaceContainer, 3.0)
+        assertContrast("$name chosen row text on secondaryContainer", c.onSecondaryContainer, c.secondaryContainer, 4.5)
+        assertContrast("$name radio button on secondaryContainer", c.primary, c.secondaryContainer, 3.0)
+    }
+
+    @Test
     fun outlinedButtons_textAndBorderStandOutWhereTheButtonsSit() = forEveryTheme { name, c ->
         // RemOutlinedButton sits on Settings (surfaceContainerLowest), the print panel and the
         // terminal page's cards (surface) and dialogs (surfaceContainerHigh)

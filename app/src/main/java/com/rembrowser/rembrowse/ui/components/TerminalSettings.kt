@@ -34,8 +34,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
@@ -167,23 +165,28 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
 
     // --- Suggestions ---
     GroupTitle("Suggestions")
-    ToggleRow(
-        title = "Suggest commands as you type",
-        description = "Dimmed text after the cursor shows how a command you ran before, or a common one, might end. " +
-            "Tab or → takes it; with no suggestion, Tab completes in the shell as usual.",
-        checked = state.settings.suggestions,
-        onChange = actions.onSetSuggestions,
-        testTag = "terminal_suggestions"
-    )
-    ToggleRow(
-        title = "Remember commands I run",
-        description = "Kept on this device only, and never what you type at a password prompt. A command " +
-            "typed with a space in front isn't kept either, the way shells keep secrets out of their history." +
-            if (state.rememberedCommands > 0) " ${state.rememberedCommands} remembered." else "",
-        checked = state.settings.rememberCommands,
-        onChange = actions.onSetRememberCommands,
-        testTag = "terminal_remember_commands"
-    )
+    Spacer(Modifier.height(8.dp))
+    SettingsRows {
+        SwitchRow(
+            title = "Suggest commands as you type",
+            description = "Dimmed text after the cursor shows how a command you ran before, or a common one, might end. " +
+                "Tab or → takes it; with no suggestion, Tab completes in the shell as usual.",
+            checked = state.settings.suggestions,
+            onCheckedChange = actions.onSetSuggestions,
+            testTag = "terminal_suggestions",
+            place = RowPlace(0, 2)
+        )
+        SwitchRow(
+            title = "Remember commands I run",
+            description = "Kept on this device only, and never what you type at a password prompt. A command " +
+                "typed with a space in front isn't kept either, the way shells keep secrets out of their history." +
+                if (state.rememberedCommands > 0) " ${state.rememberedCommands} remembered." else "",
+            checked = state.settings.rememberCommands,
+            onCheckedChange = actions.onSetRememberCommands,
+            testTag = "terminal_remember_commands",
+            place = RowPlace(1, 2)
+        )
+    }
     if (state.rememberedCommands > 0) {
         TextButton(onClick = actions.onClearCommandHistory, modifier = Modifier.testTag("terminal_clear_history")) {
             Text("Forget remembered commands")
@@ -770,34 +773,6 @@ private fun <T> OptionRow(title: String, options: List<T>, selected: T, label: (
             modifier = Modifier
                 .weight(1f)
                 .padding(vertical = 4.dp)
-        )
-    }
-}
-
-@Composable
-private fun ToggleRow(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit, testTag: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .hapticToggleable(value = checked, role = Role.Switch, onValueChange = onChange)
-            .testTag(testTag)
-            .padding(vertical = 8.dp)
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
-        }
-        Spacer(Modifier.width(16.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                checkedThumbColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                checkedBorderColor = MaterialTheme.colorScheme.primaryContainer
-            )
         )
     }
 }

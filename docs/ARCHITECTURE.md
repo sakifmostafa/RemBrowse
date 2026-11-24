@@ -317,6 +317,8 @@ All colours, type and shapes come from `ui/theme/Theme.kt`; components read `Mat
 | `background` | Window chrome: tab rail and toolbar (`#14161B` in the dark theme) |
 | `surface` | Raised elements on the chrome: address pill, menus, dialogs, cards |
 | `surfaceContainerLowest` | The page container behind web content and the start page |
+| `surfaceContainer` | The tiles of a settings group (Material 3 Expressive's segmented list, `SettingsRows`) and a connected button group's buttons that are off |
+| `secondaryContainer` | The chosen tile of a settings group, with `onSecondaryContainer` for its text |
 | `surfaceContainerHigh` / `Highest` | Hover and selected fills |
 | `primary` | Accent for text, icons, focus rings (the outer line; `onPrimary` the inner), progress and selection outlines |
 | `primaryContainer` | Deep accent fill for selected and active items |
