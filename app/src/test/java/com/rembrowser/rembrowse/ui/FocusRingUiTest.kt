@@ -2,8 +2,12 @@ package com.rembrowser.rembrowse.ui
 
 import android.app.Application
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.input.key.Key
@@ -20,7 +24,9 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.withKeyDown
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
@@ -38,14 +44,20 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * The toolbar with a keyboard: Tab walks its buttons in the order they are drawn, left to right,
- * and each one can take the focus (and so show its focus ring).
+ * and each one can take the focus and show its focus ring, which is drawn only while the keyboard
+ * is in use.
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -65,6 +77,14 @@ class FocusRingUiTest {
         ioDispatcher = Dispatchers.Unconfined
     )
     private lateinit var inputModes: InputModeManager
+    private var primary = Color.Unspecified
+
+    /**
+     * The input mode the screen's composables see, when set; otherwise the window's. Asking the
+     * window for touch mode again after the keyboard one changes nothing here (a real touch on the
+     * screen is what does it), so this stands in for it.
+     */
+    private val shownInputMode = mutableStateOf<InputMode?>(null)
 
     @After
     fun tearDown() {
@@ -75,8 +95,16 @@ class FocusRingUiTest {
         browserVm.openNewTab("https://one.example/")
         composeRule.setContent {
             inputModes = LocalInputModeManager.current
-            CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
+            val window = inputModes
+            val shown = remember {
+                object : InputModeManager {
+                    override val inputMode: InputMode get() = shownInputMode.value ?: window.inputMode
+                    override fun requestInputMode(inputMode: InputMode): Boolean = window.requestInputMode(inputMode)
+                }
+            }
+            CompositionLocalProvider(LocalSiteIconsEnabled provides false, LocalInputModeManager provides shown) {
                 RemBrowseTheme {
+                    primary = MaterialTheme.colorScheme.primary
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
@@ -115,6 +143,39 @@ class FocusRingUiTest {
         button("More").assertIsFocused()
         button("More").performKeyInput { pressKey(Key.Enter) }
         composeRule.onNodeWithTag("menu_settings").assertIsDisplayed()
+    }
+
+    /** The screen's pixel 3dp above the middle of [node]'s top edge: where its ring's line runs. */
+    private fun pixelOnTheRing(node: SemanticsNodeInteraction): Color {
+        composeRule.waitForIdle()
+        val semantics = node.fetchSemanticsNode()
+        val ringOffset = with(composeRule.density) { 3.dp.toPx() }
+        val x = semantics.positionOnScreen.x + semantics.size.width / 2f
+        val y = semantics.positionOnScreen.y - ringOffset
+        // The whole display, as UiSnapshotTest renders it
+        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        return Color(screen.getPixel(x.roundToInt(), y.roundToInt()))
+    }
+
+    private fun Color.isCloseTo(other: Color): Boolean =
+        abs(red - other.red) < 0.05f && abs(green - other.green) < 0.05f && abs(blue - other.blue) < 0.05f
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun theRingIsDrawnForTheKeyboard_andNotForTouch() {
+        launchWithKeyboard()
+        val more = button("More")
+        val unfocused = pixelOnTheRing(more)
+        assertFalse("Nothing drawn there before it has the focus", unfocused.isCloseTo(primary))
+
+        more.requestFocus().assertIsFocused()
+        composeRule.waitForIdle()
+        assertTrue("The ring, in the accent colour", pixelOnTheRing(more).isCloseTo(primary))
+
+        // Touch use hides it (and the button, focusable only for the keyboard, gives up the focus)
+        shownInputMode.value = InputMode.Touch
+        composeRule.waitForIdle()
+        assertEquals(unfocused, pixelOnTheRing(more))
     }
 
     @Test
