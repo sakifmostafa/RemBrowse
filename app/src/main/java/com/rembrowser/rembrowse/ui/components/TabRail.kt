@@ -60,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -369,6 +370,42 @@ fun TabRail(
         if (!moved) runCatching { toggleFocus.requestFocus() }
     }
 
+    // The same for the pinned sites: a pin removed while it has the focus (its menu's Remove
+    // bookmark, Ctrl+D on its page) hands it to the pin that took its place, else the one before
+    // it, else the first tab, else the menu button
+    val pinFocus = remember { HashMap<String, FocusRequester>() }
+    val focusedPin = remember { arrayOfNulls<String>(1) }
+    val pinIds = pinned.map { it.id }
+    val shownPinIds by rememberUpdatedState(pinIds)
+    val pinIdsBefore = remember { arrayOf(pinIds) }
+    LaunchedEffect(pinIds) {
+        val before = pinIdsBefore[0]
+        pinIdsBefore[0] = pinIds
+        val removed = focusedPin[0]?.takeIf { it !in pinIds } ?: return@LaunchedEffect
+        focusedPin[0] = null
+        val at = before.indexOf(removed)
+        val places = listOfNotNull(pinIds.getOrNull(at), pinIds.getOrNull(at - 1)).mapNotNull { pinFocus[it] } +
+            listOfNotNull(tabIds.firstOrNull()?.let { rowFocus[it] }) + toggleFocus
+        places.firstOrNull { runCatching { it.requestFocus() }.getOrDefault(false) }
+    }
+    val pinModifier: @Composable (String) -> Modifier = { id ->
+        val focus = remember { FocusRequester() }
+        DisposableEffect(id) {
+            pinFocus[id] = focus
+            onDispose { if (pinFocus[id] === focus) pinFocus.remove(id) }
+        }
+        Modifier
+            .focusRequester(focus)
+            .onFocusChanged {
+                if (it.hasFocus) {
+                    focusedPin[0] = id
+                } else if (focusedPin[0] == id && id in shownPinIds) {
+                    // Left for somewhere else; a pin being removed keeps its place
+                    focusedPin[0] = null
+                }
+            }
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxHeight()
@@ -543,7 +580,8 @@ fun TabRail(
                                 reduceMotion = reduceMotion,
                                 onOpen = onOpenBookmark,
                                 onOpenInNewTab = onOpenBookmarkInNewTab,
-                                onRemove = onRemoveBookmark
+                                onRemove = onRemoveBookmark,
+                                pinModifier = pinModifier
                             )
                         }
                     }
@@ -1303,7 +1341,9 @@ private fun PinnedShelf(
     reduceMotion: Boolean,
     onOpen: (String) -> Unit,
     onOpenInNewTab: (String) -> Unit,
-    onRemove: (String) -> Unit
+    onRemove: (String) -> Unit,
+    /** Each pin's own, by its bookmark's id: where the keyboard's focus goes when one is removed. */
+    pinModifier: @Composable (String) -> Modifier = { Modifier }
 ) {
     val shelf = pinnedShelfColors(MaterialTheme.colorScheme)
     Surface(
@@ -1320,16 +1360,20 @@ private fun PinnedShelf(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             pinned.forEach { bookmark ->
-                PinnedSiteItem(
-                    bookmark = bookmark,
-                    isOpen = bookmark.id in openPins,
-                    showTitle = showTitles,
-                    colors = shelf,
-                    reduceMotion = reduceMotion,
-                    onOpen = { onOpen(bookmark.url) },
-                    onOpenInNewTab = { onOpenInNewTab(bookmark.url) },
-                    onRemove = { onRemove(bookmark.id) }
-                )
+                // By its bookmark, so a pin removed takes its own place with it, the focus included
+                key(bookmark.id) {
+                    PinnedSiteItem(
+                        bookmark = bookmark,
+                        isOpen = bookmark.id in openPins,
+                        showTitle = showTitles,
+                        colors = shelf,
+                        reduceMotion = reduceMotion,
+                        onOpen = { onOpen(bookmark.url) },
+                        onOpenInNewTab = { onOpenInNewTab(bookmark.url) },
+                        onRemove = { onRemove(bookmark.id) },
+                        modifier = pinModifier(bookmark.id)
+                    )
+                }
             }
         }
     }
@@ -1344,7 +1388,8 @@ private fun PinnedSiteItem(
     reduceMotion: Boolean,
     onOpen: () -> Unit,
     onOpenInNewTab: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box {
@@ -1364,7 +1409,7 @@ private fun PinnedSiteItem(
             title = bookmark.title,
             showTitle = showTitle,
             titleTag = "pinned_site_title_${bookmark.id}",
-            modifier = Modifier.testTag("pinned_site_${bookmark.id}")
+            modifier = modifier.testTag("pinned_site_${bookmark.id}")
         ) {
             Box(modifier = Modifier.size(PinnedIconSize + 8.dp)) {
                 SiteIcon(

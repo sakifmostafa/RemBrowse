@@ -170,9 +170,13 @@ class WideTabRailUiTest {
     /** Each tab's page, an Android view as a web page is, when launched [withPageViews][launch]. */
     private val pageViews = mutableMapOf<String, View>()
 
-    private fun launch(settings: BrowserSettings = BrowserSettings(), withPageViews: Boolean = false) {
+    private fun launch(
+        settings: BrowserSettings = BrowserSettings(),
+        withPageViews: Boolean = false,
+        bookmarks: List<BookmarkItem> = listOf(gmail)
+    ) {
         repository = FakeBrowserStateRepository(
-            PersistedBrowserState(tabs = tabs, paneTabIds = listOf("github"), bookmarks = listOf(gmail), settings = settings)
+            PersistedBrowserState(tabs = tabs, paneTabIds = listOf("github"), bookmarks = bookmarks, settings = settings)
         )
         browserVm = BrowserViewModel(engine, repository)
         val extVm = ExtensionsViewModel(extensionManager, FakeAmoApiClient(), uiScope)
@@ -1079,6 +1083,34 @@ class WideTabRailUiTest {
         pressOnTheFocused(Key.Enter)
         assertEquals(listOf("github"), openTabIds())
         node("tab_bar_item_github").assertIsFocused()
+    }
+
+    @Test
+    fun removingTheFocusedPin_movesTheFocusToTheNextPin_elseThePreviousOne_elseTheFirstTab() {
+        // The second pin is the page shown, so Ctrl+D (bookmark the page, or unbookmark it) removes it
+        val githubPin = BookmarkItem(id = "gh", title = "GitHub", url = tabs[0].url, createdAtMillis = 0L)
+        val calendar = BookmarkItem(id = "cal", title = "Calendar", url = "https://calendar.example/", createdAtMillis = 0L)
+        launch(bookmarks = listOf(gmail, githubPin, calendar))
+        composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
+
+        // Ctrl+D on the focused pin's page: the pin that takes its place has the focus
+        node("pinned_site_gh").requestFocus()
+        pressThroughTheWindow(KeyEvent.KEYCODE_D, ctrl)
+        assertEquals(listOf("mail", "cal"), browserVm.uiState.value.bookmarks.map { it.id })
+        node("pinned_site_cal").assertIsFocused()
+
+        // The last pin: the one before it
+        composeRule.runOnUiThread { browserVm.removeBookmark("cal") }
+        composeRule.waitForIdle()
+        node("pinned_site_mail").assertIsFocused()
+
+        // The only one: the first tab, and typing a key still lands in the rail
+        composeRule.runOnUiThread { browserVm.removeBookmark("mail") }
+        composeRule.waitForIdle()
+        node("pinned_shelf").assertDoesNotExist()
+        node("tab_bar_item_github").assertIsFocused()
+        pressOnTheFocused(Key.Tab)
+        assertFocusInTheRail("Tab after the last pin went")
     }
 
     @Test
