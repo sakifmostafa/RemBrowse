@@ -659,6 +659,7 @@ fun RemBrowseScreen(
                             },
                             onCloseTab = browserViewModel::closeTab,
                             onNewTab = openNewTab,
+                            onCloseOtherTabs = browserViewModel::closeOtherTabs,
                             onDismiss = closeTabSwitcher,
                             onSearchFocusChange = { chrome.isTabSearchFocused = it },
                             searchFocusRequests = chrome.tabSearchFocusRequests,
@@ -913,7 +914,11 @@ fun RemBrowseScreen(
                 closeTabSwitcher()
             },
             onRemoveBookmark = browserViewModel::removeBookmark,
-            onDismiss = { chrome.showBookmarks = false }
+            onDismiss = { chrome.showBookmarks = false },
+            onOpenBookmarkInNewTab = { url ->
+                browserViewModel.openBookmarkInNewTab(url)
+                closeTabSwitcher()
+            }
         )
     }
 

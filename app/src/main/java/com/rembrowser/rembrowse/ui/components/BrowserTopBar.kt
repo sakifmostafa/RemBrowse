@@ -23,16 +23,28 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.ManageSearch
+import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DesktopWindows
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FindInPage
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.ScreenshotMonitor
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Terminal
@@ -59,6 +71,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -717,12 +730,14 @@ private fun MoreMenu(
         if (compact) {
             DropdownMenuItem(
                 text = { Text(if (isLoading) "Stop loading" else "Reload") },
+                leadingIcon = { MenuIcon(if (isLoading) Icons.Outlined.Close else Icons.Outlined.Refresh) },
                 enabled = pageActionsEnabled,
                 onClick = run(onReloadOrStop),
                 modifier = Modifier.testTag("menu_reload")
             )
             DropdownMenuItem(
                 text = { Text(if (isBookmarked) "Remove bookmark" else "Bookmark this page") },
+                leadingIcon = { MenuIcon(if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarBorder) },
                 enabled = pageActionsEnabled,
                 onClick = run(onToggleBookmark),
                 modifier = Modifier.testTag("bookmark_button")
@@ -731,29 +746,34 @@ private fun MoreMenu(
         }
         DropdownMenuItem(
             text = { Text("New tab") },
+            leadingIcon = { MenuIcon(Icons.Outlined.Add) },
             trailingIcon = hint("Ctrl+T"),
             onClick = run(onNewTab),
             modifier = Modifier.testTag("menu_new_tab")
         )
         DropdownMenuItem(
             text = { Text("New terminal") },
+            leadingIcon = { MenuIcon(Icons.Outlined.Terminal) },
             trailingIcon = hint("Ctrl+Shift+T"),
             onClick = run(onNewTerminal),
             modifier = Modifier.testTag("menu_new_terminal")
         )
         DropdownMenuItem(
             text = { Text("Close tab") },
+            leadingIcon = { MenuIcon(Icons.Outlined.Close) },
             trailingIcon = hint("Ctrl+W"),
             onClick = run(onCloseActiveTab)
         )
         DropdownMenuItem(
             text = { Text("Command palette") },
+            leadingIcon = { MenuIcon(Icons.AutoMirrored.Outlined.ManageSearch) },
             trailingIcon = hint("Ctrl+K"),
             onClick = run(onOpenCommandPalette),
             modifier = Modifier.testTag("menu_command_palette")
         )
         DropdownMenuItem(
             text = { Text("Find in page") },
+            leadingIcon = { MenuIcon(Icons.Outlined.FindInPage) },
             trailingIcon = hint("Ctrl+F"),
             enabled = pageActionsEnabled,
             onClick = run(onFindInPage),
@@ -761,6 +781,7 @@ private fun MoreMenu(
         )
         DropdownMenuItem(
             text = { Text("Print…") },
+            leadingIcon = { MenuIcon(Icons.Outlined.Print) },
             trailingIcon = hint("Ctrl+P"),
             enabled = pageActionsEnabled,
             onClick = run(onPrint),
@@ -769,6 +790,7 @@ private fun MoreMenu(
         // Anything in the window can be taken, so it is never greyed out
         DropdownMenuItem(
             text = { Text("Take screenshot") },
+            leadingIcon = { MenuIcon(Icons.Outlined.ScreenshotMonitor) },
             trailingIcon = hint("Ctrl+Alt+S"),
             onClick = run(onTakeScreenshot),
             modifier = Modifier.testTag("menu_screenshot")
@@ -776,6 +798,7 @@ private fun MoreMenu(
         if (compact) {
             DropdownMenuItem(
                 text = { Text("Split view") },
+                leadingIcon = { MenuIcon(Icons.AutoMirrored.Outlined.ViewSidebar) },
                 onClick = run(onOpenSplitView),
                 modifier = Modifier.testTag("split_button")
             )
@@ -783,23 +806,27 @@ private fun MoreMenu(
         divider()
         DropdownMenuItem(
             text = { Text("Bookmarks") },
+            leadingIcon = { MenuIcon(Icons.Outlined.StarBorder) },
             onClick = run(onOpenBookmarks),
             modifier = Modifier.testTag("menu_bookmarks")
         )
         DropdownMenuItem(
             text = { Text("History") },
+            leadingIcon = { MenuIcon(Icons.Outlined.History) },
             trailingIcon = hint("Ctrl+H"),
             onClick = run(onOpenHistory),
             modifier = Modifier.testTag("menu_history")
         )
         DropdownMenuItem(
             text = { Text("Downloads") },
+            leadingIcon = { MenuIcon(Icons.Outlined.FileDownload) },
             trailingIcon = hint("Ctrl+J"),
             onClick = run(onOpenDownloads),
             modifier = Modifier.testTag("menu_downloads")
         )
         DropdownMenuItem(
             text = { Text("Extensions") },
+            leadingIcon = { MenuIcon(Icons.Outlined.Extension) },
             onClick = run(onOpenExtensions),
             modifier = Modifier.testTag("menu_extensions")
         )
@@ -817,6 +844,7 @@ private fun MoreMenu(
         divider()
         DropdownMenuItem(
             text = { Text("Desktop site") },
+            leadingIcon = { MenuIcon(Icons.Outlined.DesktopWindows) },
             trailingIcon = {
                 if (desktopMode) {
                     Icon(
@@ -831,17 +859,29 @@ private fun MoreMenu(
         if (hasKeyboard) {
             DropdownMenuItem(
                 text = { Text("Keyboard shortcuts") },
+                leadingIcon = { MenuIcon(Icons.Outlined.Keyboard) },
                 onClick = run(onShowKeyboardShortcuts),
                 modifier = Modifier.testTag("menu_keyboard_shortcuts")
             )
         }
         DropdownMenuItem(
             text = { Text("Settings") },
+            leadingIcon = { MenuIcon(Icons.Outlined.Settings) },
             trailingIcon = hint("Ctrl+,"),
             onClick = run(onOpenSettings),
             modifier = Modifier.testTag("menu_settings")
         )
     }
+}
+
+/**
+ * A More menu row's icon: the one the command palette shows for the same command, at the
+ * chrome's icon size, in the menu's own colour for it (onSurfaceVariant, dimmed when the row is
+ * off). The row's text names it, so the icon is not read out.
+ */
+@Composable
+private fun MenuIcon(icon: ImageVector) {
+    Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(RemDimens.IconSize))
 }
 
 /** Preset sizes for the first pane of a two-pane split. */

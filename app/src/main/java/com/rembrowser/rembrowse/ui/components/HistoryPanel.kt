@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -153,12 +155,48 @@ private fun EmptyHistoryText(text: String) {
     )
 }
 
+/**
+ * A page in the history. A click opens it (in a new tab: History is a tab of its own), as does a
+ * middle click; a right-click or a long press opens a menu with Open and Remove from history.
+ */
 @Composable
 private fun HistoryRow(
     entry: HistoryEntry,
     zone: ZoneId,
     onOpen: () -> Unit,
     onRemove: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box {
+        HistoryRowContent(entry, zone, onOpen, onRemove, onOpenMenu = { showMenu = true })
+        RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = { Text("Open") },
+                onClick = {
+                    showMenu = false
+                    onOpen()
+                },
+                modifier = Modifier.testTag("history_menu_open_${entry.url}")
+            )
+            DropdownMenuItem(
+                text = { Text("Remove from history") },
+                onClick = {
+                    showMenu = false
+                    onRemove()
+                },
+                modifier = Modifier.testTag("history_menu_remove_${entry.url}")
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryRowContent(
+    entry: HistoryEntry,
+    zone: ZoneId,
+    onOpen: () -> Unit,
+    onRemove: () -> Unit,
+    onOpenMenu: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     val host = UrlResolver.extractDisplayHost(entry.url).ifBlank { entry.url }
@@ -171,6 +209,9 @@ private fun HistoryRow(
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
+            .contextMenuTrigger(onOpenMenu)
+            .middleClickTrigger(onOpen)
+            .touchLongPress("More options", onOpenMenu)
             .clickable(onClickLabel = "Open", onClick = onOpen)
             .padding(start = 4.dp)
             .testTag("history_entry_${entry.url}"),

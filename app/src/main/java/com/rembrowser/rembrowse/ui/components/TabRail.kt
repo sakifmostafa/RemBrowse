@@ -441,6 +441,8 @@ private fun RailTile(
     style: RailTileStyle = RailTileStyle.Button,
     /** What the tooltip shows, when it says less than [label], the accessible name. */
     tooltip: String = label,
+    /** A mouse's middle button: closes a tab, opens a pinned site in a new tab. */
+    onMiddleClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -479,6 +481,7 @@ private fun RailTile(
                         }
                     )
                     .contextMenuTrigger(onOpenMenu)
+                    .then(if (onMiddleClick != null) Modifier.middleClickTrigger(onMiddleClick) else Modifier)
                     .combinedClickable(
                         role = role,
                         onClick = onClick,
@@ -530,6 +533,7 @@ private fun RailTabItem(
             role = Role.Tab,
             onClick = onSelect,
             onOpenMenu = { showMenu = true },
+            onMiddleClick = onClose,
             style = RailTileStyle.Tab,
             modifier = Modifier
                 .testTag("tab_bar_item_${tab.id}")
@@ -673,6 +677,7 @@ private fun PinnedSiteItem(
             role = Role.Button,
             onClick = onOpen,
             onOpenMenu = { showMenu = true },
+            onMiddleClick = onOpenInNewTab,
             style = RailTileStyle.Pinned,
             modifier = Modifier.testTag("pinned_site_${bookmark.id}")
         ) {

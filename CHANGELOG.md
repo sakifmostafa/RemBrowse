@@ -25,6 +25,8 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **A focus ring for the keyboard.** `Tab` and `Shift+Tab` move through the toolbar, the tabs in the rail, the tab switcher, Settings, history, bookmarks, the terminal's pages and dialog choices, and the one with the focus gets a ring in the accent colour, as on the web's `:focus-visible`. It shows only while you are using the keyboard (touching the screen hides it), and nothing moves when it appears.
 * **RemBrowse's shortcuts in Android's Keyboard Shortcuts sheet** (`Meta+/`), in five groups: Tabs, Navigation, Page, Split view and RemBrowse. When a keyboard is attached it also opens from **More → Keyboard shortcuts** and from **Keyboard shortcuts** in the command palette (`keys` or `help` find it too). In a terminal tab it lists only the shortcuts that still work there; the shell keeps the rest (`Ctrl+R`, `Ctrl+L`, `Alt+←`…).
 * **A mouse's Forward button goes forward**, as `Alt+→` does.
+* **Middle-click and more right-click menus.** A mouse's middle button closes a tab on the rail or a card in the tab switcher, and opens a pinned site, a bookmark or a page in History in a new tab, as in a desktop browser. The tab switcher's cards now have the rail's menu (**Close tab**, **Close other tabs**), the bookmarks list **Open**, **Open in new tab** and **Remove bookmark**, and History **Open** and **Remove from history**; on a touchscreen a long press opens the same menus. Touchpad clicks and taps behave as before.
+* **Icons in the More menu**, the same ones the command palette shows for each command, so the two read alike.
 
 ## v0.14.0 (2026-11-23) — Pasting pictures into Telegram
 

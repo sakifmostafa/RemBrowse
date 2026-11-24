@@ -11,6 +11,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -71,13 +73,17 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -85,6 +91,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -383,6 +390,73 @@ fun Modifier.onSecondaryClick(onClick: () -> Unit): Modifier = pointerInput(Unit
 fun Modifier.contextMenuTrigger(onClick: () -> Unit): Modifier {
     val latest by rememberUpdatedState(onClick)
     return onSecondaryClick { latest() }
+}
+
+/**
+ * Invokes [onClick] for a mouse's middle (tertiary) button, without also triggering a tap. Only
+ * a mouse has that button: touch and the touchpad's own clicks are left as they are.
+ */
+fun Modifier.onTertiaryClick(onClick: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            if (event.type == PointerEventType.Press && event.buttons.isTertiaryPressed) {
+                event.changes.forEach { it.consume() }
+                onClick()
+            }
+        }
+    }
+}
+
+/** [onTertiaryClick] that always calls the latest [onClick]: what a middle click does, as in a desktop browser. */
+@Composable
+fun Modifier.middleClickTrigger(onClick: () -> Unit): Modifier {
+    val latest by rememberUpdatedState(onClick)
+    return onTertiaryClick { latest() }
+}
+
+/**
+ * Calls [onLongPress] when a finger (or a stylus) rests on the element for the long-press time
+ * without moving, with the long-press haptic, and keeps the lift from also counting as a tap: a
+ * touch screen's way to the menu a right-click opens. A mouse and the touchpad are left alone,
+ * so holding a click there is still a click. Screen readers offer it as the element's long-click
+ * action, named [label]. Put it before the element's `clickable`.
+ */
+@Composable
+fun Modifier.touchLongPress(label: String, onLongPress: () -> Unit): Modifier {
+    val latest by rememberUpdatedState(onLongPress)
+    val haptics = LocalHapticFeedback.current
+    return this
+        .semantics {
+            onLongClick(label = label) {
+                latest()
+                true
+            }
+        }
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                if (down.type != PointerType.Touch && down.type != PointerType.Stylus) return@awaitEachGesture
+                // Null when the time ran out with the finger still down and still
+                val endedEarly = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        val moved = (change.position - down.position).getDistance() > viewConfiguration.touchSlop
+                        if (!change.pressed || change.isConsumed || moved || event.changes.size > 1) break
+                    }
+                    true
+                }
+                if (endedEarly != null) return@awaitEachGesture
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                latest()
+                // Until the finger lifts, nothing underneath takes it as a tap or a scroll
+                do {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    event.changes.forEach { it.consume() }
+                } while (event.changes.any { it.pressed })
+            }
+        }
 }
 
 @Composable

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -80,6 +81,8 @@ fun TabSwitcher(
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
     onNewTab: () -> Unit,
+    /** "Close other tabs" in a card's menu. */
+    onCloseOtherTabs: (String) -> Unit = {},
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     onSearchFocusChange: (Boolean) -> Unit = {},
@@ -187,7 +190,8 @@ fun TabSwitcher(
                         tab = tab,
                         isActive = tab.id == uiState.activeTabId,
                         onSelect = { onSelectTab(tab.id) },
-                        onClose = { onCloseTab(tab.id) }
+                        onClose = { onCloseTab(tab.id) },
+                        onCloseOthers = { onCloseOtherTabs(tab.id) }
                     )
                 }
             }
@@ -260,12 +264,56 @@ private fun TabSearchField(
     }
 }
 
+/**
+ * A tab in the switcher. A click shows it; a right-click or a long press opens its menu (Close
+ * tab, Close other tabs, as on the rail) and a middle click closes it.
+ */
 @Composable
 private fun TabCard(
     tab: BrowserTab,
     isActive: Boolean,
     onSelect: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onCloseOthers: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box {
+        TabCardContent(
+            tab = tab,
+            isActive = isActive,
+            onSelect = onSelect,
+            onClose = onClose,
+            onOpenMenu = { showMenu = true }
+        )
+        RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = { Text("Close tab") },
+                trailingIcon = { ShortcutHint("Ctrl+W") },
+                onClick = {
+                    showMenu = false
+                    onClose()
+                },
+                modifier = Modifier.testTag("switcher_menu_close_${tab.id}")
+            )
+            DropdownMenuItem(
+                text = { Text("Close other tabs") },
+                onClick = {
+                    showMenu = false
+                    onCloseOthers()
+                },
+                modifier = Modifier.testTag("switcher_menu_close_others_${tab.id}")
+            )
+        }
+    }
+}
+
+@Composable
+private fun TabCardContent(
+    tab: BrowserTab,
+    isActive: Boolean,
+    onSelect: () -> Unit,
+    onClose: () -> Unit,
+    onOpenMenu: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     val shape = MaterialTheme.shapes.medium
@@ -279,6 +327,9 @@ private fun TabCard(
                 color = if (isActive) colors.primary else colors.outlineVariant,
                 shape = shape
             )
+            .contextMenuTrigger(onOpenMenu)
+            .middleClickTrigger(onClose)
+            .touchLongPress("More options", onOpenMenu)
             .clickable(role = Role.Tab, onClick = onSelect)
             .semantics { selected = isActive }
             .testTag("switcher_tab_${tab.id}")

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,7 +59,9 @@ fun BookmarksDialog(
     bookmarks: List<BookmarkItem>,
     onOpenBookmark: (String) -> Unit,
     onRemoveBookmark: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** "Open in new tab" in a bookmark's menu, and a middle click. */
+    onOpenBookmarkInNewTab: (String) -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     RemDialog(title = "Bookmarks", onDismiss = onDismiss, testTag = "bookmarks_dialog") {
@@ -88,44 +91,112 @@ fun BookmarksDialog(
         } else {
             LazyColumn(modifier = Modifier.padding(bottom = 8.dp)) {
                 items(bookmarks, key = { it.id }) { bookmark ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 56.dp)
-                            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-                            .clickable(role = Role.Button) {
-                                onOpenBookmark(bookmark.url)
-                                onDismiss()
-                            }
-                            .padding(start = 20.dp, end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SiteIcon(url = bookmark.url, title = bookmark.title)
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = bookmark.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = UrlResolver.toDisplayUrl(bookmark.url),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        RemIconButton(
-                            icon = Icons.Outlined.DeleteOutline,
-                            label = "Remove ${bookmark.title}",
-                            onClick = { onRemoveBookmark(bookmark.id) }
-                        )
-                    }
+                    BookmarkRow(
+                        bookmark = bookmark,
+                        onOpen = {
+                            onOpenBookmark(bookmark.url)
+                            onDismiss()
+                        },
+                        onOpenInNewTab = {
+                            onOpenBookmarkInNewTab(bookmark.url)
+                            onDismiss()
+                        },
+                        onRemove = { onRemoveBookmark(bookmark.id) }
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * A bookmark in the list. A click opens it as the pinned sites do (its open tab if there is one);
+ * a middle click opens it in a new tab; a right-click or a long press opens a menu with Open,
+ * Open in new tab and Remove bookmark, as on the rail.
+ */
+@Composable
+private fun BookmarkRow(
+    bookmark: BookmarkItem,
+    onOpen: () -> Unit,
+    onOpenInNewTab: () -> Unit,
+    onRemove: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box {
+        BookmarkRowContent(bookmark, onOpen, onOpenInNewTab, onRemove, onOpenMenu = { showMenu = true })
+        RemDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = { Text("Open") },
+                onClick = {
+                    showMenu = false
+                    onOpen()
+                },
+                modifier = Modifier.testTag("bookmark_menu_open_${bookmark.id}")
+            )
+            DropdownMenuItem(
+                text = { Text("Open in new tab") },
+                onClick = {
+                    showMenu = false
+                    onOpenInNewTab()
+                },
+                modifier = Modifier.testTag("bookmark_menu_new_tab_${bookmark.id}")
+            )
+            DropdownMenuItem(
+                text = { Text("Remove bookmark") },
+                onClick = {
+                    showMenu = false
+                    onRemove()
+                },
+                modifier = Modifier.testTag("bookmark_menu_remove_${bookmark.id}")
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookmarkRowContent(
+    bookmark: BookmarkItem,
+    onOpen: () -> Unit,
+    onOpenInNewTab: () -> Unit,
+    onRemove: () -> Unit,
+    onOpenMenu: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
+            .contextMenuTrigger(onOpenMenu)
+            .middleClickTrigger(onOpenInNewTab)
+            .touchLongPress("More options", onOpenMenu)
+            .clickable(role = Role.Button, onClick = onOpen)
+            .padding(start = 20.dp, end = 8.dp)
+            .testTag("bookmark_item_${bookmark.id}"),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SiteIcon(url = bookmark.url, title = bookmark.title)
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = bookmark.title,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = UrlResolver.toDisplayUrl(bookmark.url),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        RemIconButton(
+            icon = Icons.Outlined.DeleteOutline,
+            label = "Remove ${bookmark.title}",
+            onClick = onRemove
+        )
     }
 }
 

@@ -61,6 +61,7 @@ Run a single test class:
 ```
 
 Test suites included:
+* `MouseAffordancesUiTest` — the middle button on rail tabs, pinned sites, tab switcher cards, bookmarks and History; right-click menus on the cards, bookmarks and History rows; a finger's long press opening the same menus while a held mouse click stays a click; plain clicks unchanged.
 * `SplitDividerMouseTest` / `PaneGeckoViewTest` — dragging a divider with a mouse (every step followed, side by side, stacked and nested, past a limit and back, one save per drag, a split that turns), double-click with and without a slip, the other mouse buttons, the resize cursor over the whole grip and during a drag, finger drag and double-tap; and a pane's web view giving up its cursor while the chrome has the pointer.
 * `OneAndTwoLayoutUiTest` — the One left, two right layout from the Split menu.
 * `TouchpadInputFilterTest` — touchpad input for a page's web view: a touchpad right click (a finger pointer from a mouse source) passed on as a mouse right click with its button and position, a touchpad click-and-drag kept a mouse drag, fingers resting mid-scroll or a small nudge never reaching the page, a scroll passed on whole (press, then the move past the slop) once it moves, and touchscreen input and real mouse clicks left alone.

@@ -9,8 +9,8 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 **Tab rail (left edge)**, top to bottom:
 
 * **Tab switcher** — opens a grid of every open tab.
-* **Pinned sites** — your first six bookmarks, together on a soft shelf at the top so they never look like open tabs. A small dot marks a pinned site that is open in a tab. Selecting one takes you to its open tab (one on the bookmarked page or a page under it, preferring a tab already on screen in split view) instead of opening another; if you are already in that tab on another page under it, it takes you back to the bookmarked page. Only when none is open does it open the site. Right-click or long-press it for **Open**, **Open in new tab** and **Remove bookmark**. The bookmarks list (**More → Bookmarks**) opens bookmarks the same way.
-* **Open tabs** — each on its own tile below the shelf. A tab shown in a split pane is a step brighter; the focused tab is brightest and has a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Drag a tab onto the pages to build a split (see [Split view](#5-split-view)).
+* **Pinned sites** — your first six bookmarks, together on a soft shelf at the top so they never look like open tabs. A small dot marks a pinned site that is open in a tab. Selecting one takes you to its open tab (one on the bookmarked page or a page under it, preferring a tab already on screen in split view) instead of opening another; if you are already in that tab on another page under it, it takes you back to the bookmarked page. Only when none is open does it open the site. Right-click or long-press it for **Open**, **Open in new tab** and **Remove bookmark**; a middle click opens it in a new tab. The bookmarks list (**More → Bookmarks**) opens bookmarks the same way, and its rows have the same menu and middle click.
+* **Open tabs** — each on its own tile below the shelf. A tab shown in a split pane is a step brighter; the focused tab is brightest and has a marker on its left edge. Right-click or long-press a tab for **Close tab**, **Close other tabs** and, in split view, **Show in pane…** and **Close pane**. Middle-click a tab to close it. Drag a tab onto the pages to build a split (see [Split view](#5-split-view)).
 * **+** — opens a new tab.
 * **Extensions (bottom)** — the buttons of your extensions, such as uBlock Origin or a VPN, with their icon and badge (an ad blocker's count, for example). Select one to open its popup, which appears beside the button. Right-click or long-press one for **Manage extensions**. With more than fit (four at most; fewer on a short window, such as a phone in landscape), the last button lists the rest.
 
@@ -20,7 +20,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, take screenshot, bookmarks, history, downloads, extensions, desktop site, keyboard shortcuts (with a keyboard attached), settings.
+* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, take screenshot, bookmarks, history, downloads, extensions, desktop site, keyboard shortcuts (with a keyboard attached), settings. Each row has the icon the command palette shows for the same command.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu. The toolbar is a little taller there, so the address bar is a full-size touch target.
@@ -80,6 +80,8 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 
 **Ctrl+click** or **middle-click** a link to open it in a new tab in the background; **Ctrl+Shift+click** opens it in front. A web app that handles Ctrl+click itself keeps doing so.
 
+**In RemBrowse's own lists**, right-click (or long-press, on a touchscreen) a tab on the rail, a card in the tab switcher, a pinned site, a bookmark or a page in History for its menu. A mouse's middle button closes a tab or a card, and opens a pinned site, a bookmark or a page in History in a new tab. Touchpad clicks and taps do what they did.
+
 **The touchpad is a mouse everywhere.** Touchpad clicks work like mouse clicks in pages and in RemBrowse's own fields and buttons: double-click selects a word, click-and-drag selects text, triple-click selects a line, and the pointer shows hover highlights and resize cursors.
 
 **Touchpad scrolling.** Two fingers resting on the pad, or moving only a little, never count as a press on the page: scrolling then pausing no longer opens menus or selects words, and a small nudge no longer clicks whatever is under the pointer. A page starts to scroll once the fingers have moved about 2.5 mm.
@@ -90,7 +92,7 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 
 ## 4. Tabs
 
-* **Tab switcher**: select the top icon of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it.
+* **Tab switcher**: select the top icon of the rail (or the tab counter). Type to filter by title or address, press Enter to open the first match, select a card to switch to it, or use **×** on a card to close it. Right-click or long-press a card for **Close tab** and **Close other tabs** (the tabs on screen stay), or middle-click it to close it.
 * `Ctrl+Tab` / `Ctrl+Shift+Tab` move to the next or previous tab.
 * Tabs in the background keep running at a slower pace, as in a desktop browser, so a chat or mail app open in another tab keeps working (and Telegram open in several tabs no longer hangs). They stop drawing until you show them again. When Android closes a background tab to free memory, it is reloaded when you return to it, and tabs are restored after a restart.
 * While RemBrowse is minimised its pages keep running as long as it is the last app you used; once you use other apps, Android pauses RemBrowse until you come back.
@@ -206,7 +208,7 @@ Back, reload and bookmark do nothing on the settings page. Typing a web address 
 
 **More → History** (`Ctrl+H`, or **History** in the command palette) opens **Settings → History**: every web page you have opened, newest first, under a heading for each day, with the time of your last visit. A page visited again moves to the top rather than being listed twice. The newest 1,000 pages are kept.
 
-* **Open a page**: select it. It opens in a new tab.
+* **Open a page**: select it, or middle-click it. It opens in a new tab. Right-click or long-press it for **Open** and **Remove from history**.
 * **Search**: type in **Search history**; pages whose title or address contain every word you type are listed.
 * **Remove one page**: its **×** button. **Clear history** removes everything, after asking.
 * **Stop recording**: turn off **Keep browsing history**. What is already listed stays until you clear it.
