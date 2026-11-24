@@ -18,6 +18,7 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **Screen readers announce headings** for the Settings sections and their groups ("Theme color", "Page rendering"…), dialog titles and the tab switcher's tab count, so you can jump between them.
 
 ### Added
+* **Colours from your wallpaper (Material You), if you want them.** On Android 12 and later, **Settings → Appearance → Use system colors** takes the toolbar, tabs, buttons and highlights from your wallpaper's colours, in light and dark. It is off by default: maroon and the other five theme colours stay RemBrowse's own look, and while it is on they are shown dimmed and kept for when you turn it off. Contrast is checked the same way as for the built-in themes.
 * **A focus ring for the keyboard.** `Tab` and `Shift+Tab` move through the toolbar, the tabs in the rail, the tab switcher, Settings, history, bookmarks, the terminal's pages and dialog choices, and the one with the focus gets a ring in the accent colour, as on the web's `:focus-visible`. It shows only while you are using the keyboard (touching the screen hides it), and nothing moves when it appears.
 * **RemBrowse's shortcuts in Android's Keyboard Shortcuts sheet** (`Meta+/`), in five groups: Tabs, Navigation, Page, Split view and RemBrowse. It also opens from **More → Keyboard shortcuts** when a keyboard is attached, and from **Keyboard shortcuts** in the command palette (`keys` or `help` find it too).
 * **A mouse's Forward button goes forward**, as `Alt+→` does.

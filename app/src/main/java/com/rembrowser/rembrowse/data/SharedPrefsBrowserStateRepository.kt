@@ -90,6 +90,7 @@ class SharedPrefsBrowserStateRepository(
                 JSONObject().apply {
                     put(KEY_THEME_MODE, state.settings.themeMode.name)
                     put("accent", state.settings.accent.name)
+                    put("systemColors", state.settings.useSystemColors)
                     put("searchEngine", state.settings.searchEngine.name)
                     put(KEY_ENHANCED_PRIVACY, state.settings.enhancedPrivacy)
                     put("restoreTabsOnStartup", state.settings.restoreTabsOnStartup)
@@ -167,6 +168,7 @@ class SharedPrefsBrowserStateRepository(
                 BrowserSettings(
                     themeMode = decodeThemeMode(settingsObj),
                     accent = AccentColor.fromNameOrDefault(settingsObj.optString("accent", "")),
+                    useSystemColors = settingsObj.optBoolean("systemColors", defaults.useSystemColors),
                     searchEngine = SearchEngine.fromNameOrDefault(settingsObj.optString("searchEngine", "")),
                     enhancedPrivacy = settingsObj.optBoolean(KEY_ENHANCED_PRIVACY, defaults.enhancedPrivacy),
                     restoreTabsOnStartup = settingsObj.optBoolean("restoreTabsOnStartup", defaults.restoreTabsOnStartup),

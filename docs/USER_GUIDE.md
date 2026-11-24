@@ -175,7 +175,7 @@ Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them
 
 Sections are listed down the left side (across the top on a phone-sized window):
 
-* **Appearance** — **Theme**: **System default** (light or dark as the device is set, switching when it does; the default for new installs), **Light** or **Dark**. Then the theme colour (six choices), and **Page rendering**, how web pages are put on the screen:
+* **Appearance** — **Theme**: **System default** (light or dark as the device is set, switching when it does; the default for new installs), **Light** or **Dark**. Then the theme colour (six choices) and, on Android 12 and later, **Use system colors**, which takes the colours from your wallpaper (Material You) instead; it is off by default, and the six colours are dimmed while it is on. Last, **Page rendering**, how web pages are put on the screen:
   * **Standard** (the default) — pages are drawn inside the window, set up once rather than again for every frame as before 0.13.3.
   * **Direct (experimental)** — pages go straight to the screen, which may scroll more smoothly still; a pane may flicker while it is resized or opens.
   * **As in 0.13.2 and earlier** — the old way, to compare against if scrolling is still not smooth, or if pages ever stay blank on the others.

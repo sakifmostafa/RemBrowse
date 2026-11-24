@@ -77,6 +77,7 @@ class BrowserStorageRobolectricTest {
         val settings = BrowserSettings(
             themeMode = ThemeMode.LIGHT,
             accent = AccentColor.BLUE,
+            useSystemColors = true,
             searchEngine = SearchEngine.BRAVE,
             enhancedPrivacy = true,
             // Every one of these is the opposite of its default, so a field that is not
@@ -129,6 +130,18 @@ class BrowserStorageRobolectricTest {
         assertEquals(ThemeMode.SYSTEM, repository.loadState().settings.themeMode)
         saveRawSettings("""{"themeMode":"SEPIA","useDarkTheme":false}""")
         assertEquals("An unknown mode falls back to the old switch", ThemeMode.LIGHT, repository.loadState().settings.themeMode)
+    }
+
+    @Test
+    fun systemColors_areOffUntilTurnedOn_andForDataSavedByAnOlderVersion() {
+        assertFalse(BrowserSettings().useSystemColors)
+        saveRawSettings("""{"useDarkTheme":true,"accent":"GREEN"}""")
+        assertFalse(repository.loadState().settings.useSystemColors)
+
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(useSystemColors = true, accent = AccentColor.TEAL)))
+        val restored = repository.loadState().settings
+        assertTrue(restored.useSystemColors)
+        assertEquals("The accent waits for when they are turned off", AccentColor.TEAL, restored.accent)
     }
 
     private fun saveRawSettings(settingsJson: String) {

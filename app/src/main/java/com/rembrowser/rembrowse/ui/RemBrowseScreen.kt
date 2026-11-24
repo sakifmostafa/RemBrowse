@@ -100,7 +100,7 @@ import com.rembrowser.rembrowse.ui.components.TerminalPage
 import com.rembrowser.rembrowse.ui.components.TerminalSettingsActions
 import com.rembrowser.rembrowse.ui.components.TiledBrowserGrid
 import com.rembrowser.rembrowse.ui.theme.RemDimens
-import com.rembrowser.rembrowse.ui.theme.tones
+import com.rembrowser.rembrowse.ui.theme.terminalCursorColor
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
@@ -394,6 +394,7 @@ fun RemBrowseScreen(
         SettingsActions(
             onSetThemeMode = browserViewModel::setThemeMode,
             onSetAccent = browserViewModel::setAccentColor,
+            onSetSystemColors = browserViewModel::setSystemColors,
             onSetSearchEngine = browserViewModel::setSearchEngine,
             onSetRestoreTabsOnStartup = browserViewModel::setRestoreTabsOnStartup,
             onSetOpenNewTabsNextToCurrent = browserViewModel::setOpenNewTabsNextToCurrent,
@@ -546,7 +547,11 @@ fun RemBrowseScreen(
                                     onChooseTarget = { target -> browserViewModel.showTerminalTarget(tab.id, target) },
                                     onOpenSettings = { openSettings(SettingsSection.TERMINAL) },
                                     modifier = pageModifier,
-                                    cursorColor = browserState.settings.accent.tones().darkPrimary
+                                    cursorColor = terminalCursorColor(
+                                        context,
+                                        browserState.settings.accent,
+                                        browserState.settings.useSystemColors
+                                    )
                                 )
                             } else {
                             SettingsPage(

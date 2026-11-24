@@ -1171,6 +1171,11 @@ class BrowserViewModel(
         persistCurrentState()
     }
 
+    fun setSystemColors(enabled: Boolean) {
+        _uiState.update { it.copy(settings = it.settings.copy(useSystemColors = enabled)) }
+        persistCurrentState()
+    }
+
     fun setRestoreTabsOnStartup(enabled: Boolean) {
         _uiState.update { it.copy(settings = it.settings.copy(restoreTabsOnStartup = enabled)) }
         persistCurrentState()

@@ -1,6 +1,8 @@
 package com.rembrowser.rembrowse.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.rembrowser.rembrowse.model.AccentColor
@@ -11,9 +13,11 @@ import org.junit.Test
 
 /**
  * Checks every theme (light and dark, all six accents) against WCAG 2.x contrast minimums:
- * 4.5:1 for text and 3:1 for meaningful non-text marks such as control outlines.
+ * 4.5:1 for text and 3:1 for meaningful non-text marks such as control outlines. The system
+ * colours mapping ([remDynamicScheme]) is checked too, over Material's baseline schemes here and
+ * over the device's wallpaper schemes in [DynamicSchemeContrastTest].
  */
-class ThemeContrastTest {
+open class ThemeContrastTest {
 
     private fun contrast(foreground: Color, background: Color): Double {
         val a = foreground.luminance().toDouble()
@@ -26,12 +30,23 @@ class ThemeContrastTest {
         assertTrue("$label is ${"%.2f".format(ratio)}:1, needs $minimum:1", ratio >= minimum)
     }
 
-    private fun forEveryTheme(block: (name: String, scheme: ColorScheme) -> Unit) {
-        for (dark in listOf(true, false)) {
-            for (accent in AccentColor.entries) {
-                block("${if (dark) "dark" else "light"}/${accent.name}", remColorScheme(dark, accent))
+    /** The schemes every test below checks. */
+    protected open fun schemes(): List<Pair<String, ColorScheme>> {
+        val fixed = listOf(true, false).flatMap { dark ->
+            AccentColor.entries.map { accent ->
+                "${if (dark) "dark" else "light"}/${accent.name}" to remColorScheme(dark, accent)
             }
         }
+        // System colours, without a device: the mapping over Material's own baseline schemes
+        val systemColors = listOf(
+            "system colors/baseline light" to remDynamicScheme(lightColorScheme(), dark = false),
+            "system colors/baseline dark" to remDynamicScheme(darkColorScheme(), dark = true)
+        )
+        return fixed + systemColors
+    }
+
+    private fun forEveryTheme(block: (name: String, scheme: ColorScheme) -> Unit) {
+        schemes().forEach { (name, scheme) -> block(name, scheme) }
     }
 
     @Test

@@ -151,6 +151,11 @@ data class BrowserSettings(
     /** Light, dark, or as the device is set (the default). */
     val themeMode: ThemeMode = ThemeMode.DEFAULT,
     val accent: AccentColor = AccentColor.MAROON,
+    /**
+     * Take the colours from the wallpaper (Material You, Android 12+) instead of [accent]. Off by
+     * default: the maroon accent is RemBrowse's own look.
+     */
+    val useSystemColors: Boolean = false,
     val searchEngine: SearchEngine = SearchEngine.DEFAULT,
     /**
      * Also block known fingerprinters, cryptominers and email trackers. Off by default: the

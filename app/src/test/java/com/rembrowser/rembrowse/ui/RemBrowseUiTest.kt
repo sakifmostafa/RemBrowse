@@ -1228,6 +1228,29 @@ class RemBrowseUiTest {
     }
 
     @Test
+    fun settings_systemColorsSwitchSetsTheAccentsAside() {
+        launch()
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_settings").performClick()
+
+        composeRule.onNodeWithTag("setting_system_colors").performScrollTo().assertIsOff()
+        composeRule.onNodeWithTag("accent_maroon").assertIsEnabled().assertIsSelected()
+
+        composeRule.onNodeWithTag("setting_system_colors").performClick()
+        assertTrue(browserVm.uiState.value.settings.useSystemColors)
+        composeRule.onNodeWithTag("setting_system_colors").assertIsOn()
+        // Shown, but not choosable while the wallpaper's colours are used; the choice is kept
+        composeRule.onNodeWithTag("accent_teal").assertIsDisplayed().assertIsNotEnabled().performClick()
+        assertEquals(AccentColor.MAROON, browserVm.uiState.value.settings.accent)
+        composeRule.onNodeWithTag("accent_maroon").assertIsSelected()
+
+        composeRule.onNodeWithTag("setting_system_colors").performClick()
+        assertFalse(browserVm.uiState.value.settings.useSystemColors)
+        composeRule.onNodeWithTag("accent_teal").assertIsEnabled().performClick()
+        assertEquals(AccentColor.TEAL, browserVm.uiState.value.settings.accent)
+    }
+
+    @Test
     fun settings_pageRenderingIsChosenUnderAppearance() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()

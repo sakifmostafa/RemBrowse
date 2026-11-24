@@ -1,13 +1,18 @@
 package com.rembrowser.rembrowse.ui.theme
 
+import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +33,9 @@ import com.rembrowser.rembrowse.model.AccentColor
  * - `primaryContainer` / `onPrimaryContainer`: deep accent fill for selected/active items
  * - `tertiaryContainer`: soft accent tint used for the start page backdrop
  * - `outline`: control boundaries (3:1), `outlineVariant`: decorative hairlines
+ *
+ * With system colours (Material You) the wallpaper's scheme is re-mapped onto the same roles by
+ * [remDynamicScheme].
  */
 data class AccentTones(
     /** Accent for text and icons on dark surfaces. */
@@ -184,6 +192,70 @@ fun remColorScheme(darkTheme: Boolean, accent: AccentColor): ColorScheme {
     }
 }
 
+/**
+ * A wallpaper (Material You) scheme re-mapped to RemBrowse's roles (see the list at the top of
+ * this file), so it is laid out like the fixed themes: the chrome a step off the page colour,
+ * raised elements a step lighter (white in the light theme), a soft accent tint behind the start
+ * page and, in the light theme too, deep selected fills. Only roles already in [base] are moved,
+ * so Material's tone distances between text and surface roles hold.
+ */
+fun remDynamicScheme(base: ColorScheme, dark: Boolean): ColorScheme = if (dark) {
+    base.copy(
+        // Chrome between the lowest and the low container; raised elements one step up
+        background = base.surface,
+        surface = base.surfaceContainer,
+        // Near-black on the accent, as in the fixed dark themes: the screenshot outline pairs the
+        // two, and Material's lighter tone 20 left mid-grey pages where neither stood out
+        onPrimary = base.onPrimaryFixed,
+        tertiary = base.primary,
+        onTertiary = base.onPrimaryFixed,
+        tertiaryContainer = base.primaryContainer,
+        onTertiaryContainer = base.onPrimaryContainer
+    )
+} else {
+    base.copy(
+        // The light chrome is a soft grey, raised elements white
+        background = base.surfaceContainer,
+        surface = base.surfaceContainerLowest,
+        tertiary = base.primary,
+        onTertiary = base.onPrimary,
+        tertiaryContainer = base.primaryContainer,
+        onTertiaryContainer = base.onPrimaryContainer,
+        // Selected and active fills stay deep, as in the fixed light themes
+        primaryContainer = base.primary,
+        onPrimaryContainer = base.onPrimary
+    )
+}
+
+/** Whether this device can give the app its wallpaper colours (Android 12+). */
+val systemColorsAvailable: Boolean
+    get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+/**
+ * The browser's colours: the wallpaper's when [systemColors] is on and the device has them,
+ * otherwise the fixed theme for [accent].
+ */
+fun remColorScheme(context: Context, darkTheme: Boolean, accent: AccentColor, systemColors: Boolean): ColorScheme =
+    if (systemColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        remDynamicScheme(
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context),
+            darkTheme
+        )
+    } else {
+        remColorScheme(darkTheme, accent)
+    }
+
+/**
+ * The terminal's cursor. Terminal themes are mostly dark, so it is the accent for dark
+ * surfaces, from the wallpaper when system colours are on.
+ */
+fun terminalCursorColor(context: Context, accent: AccentColor, systemColors: Boolean): Color =
+    if (systemColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        dynamicDarkColorScheme(context).primary
+    } else {
+        accent.tones().darkPrimary
+    }
+
 /** System font throughout; only the start page clock departs from the Material type scale. */
 val RemTypography: Typography = Typography().let { base ->
     base.copy(
@@ -235,10 +307,12 @@ object RemDimens {
 fun RemBrowseTheme(
     darkTheme: Boolean = true,
     accent: AccentColor = AccentColor.MAROON,
+    /** The wallpaper's colours instead of [accent] (Android 12+; ignored before). */
+    systemColors: Boolean = false,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = remColorScheme(darkTheme, accent),
+        colorScheme = remColorScheme(LocalContext.current, darkTheme, accent, systemColors),
         typography = RemTypography,
         shapes = RemShapes,
         content = content

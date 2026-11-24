@@ -55,6 +55,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -81,6 +82,7 @@ import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.viewmodel.TerminalUiState
 import com.rembrowser.rembrowse.model.UpdateStatus
 import com.rembrowser.rembrowse.model.UpdatesUiState
+import com.rembrowser.rembrowse.ui.theme.systemColorsAvailable
 import com.rembrowser.rembrowse.ui.theme.tones
 import com.rembrowser.rembrowse.util.ByteSizes
 import java.time.Instant
@@ -121,7 +123,8 @@ class SettingsActions(
     val onSetKeepHistory: (Boolean) -> Unit = {},
     val onSetPageRendering: (PageRendering) -> Unit = {},
     val onSetSwipeNavigation: (Boolean) -> Unit = {},
-    val onSetReverseSwipeDirection: (Boolean) -> Unit = {}
+    val onSetReverseSwipeDirection: (Boolean) -> Unit = {},
+    val onSetSystemColors: (Boolean) -> Unit = {}
 )
 
 /**
@@ -240,6 +243,7 @@ fun SettingsPage(
                             settings = settings,
                             onSetThemeMode = actions.onSetThemeMode,
                             onSetAccent = actions.onSetAccent,
+                            onSetSystemColors = actions.onSetSystemColors,
                             onSetPageRendering = actions.onSetPageRendering
                         )
                         SettingsSection.SEARCH -> SearchSection(
@@ -559,7 +563,10 @@ private fun AppearanceSection(
     settings: BrowserSettings,
     onSetThemeMode: (ThemeMode) -> Unit,
     onSetAccent: (AccentColor) -> Unit,
-    onSetPageRendering: (PageRendering) -> Unit
+    onSetSystemColors: (Boolean) -> Unit,
+    onSetPageRendering: (PageRendering) -> Unit,
+    /** Whether the device has wallpaper colours to offer (Android 12+). */
+    canUseSystemColors: Boolean = systemColorsAvailable
 ) {
     val colors = MaterialTheme.colorScheme
     GroupTitle("Theme")
@@ -581,6 +588,18 @@ private fun AppearanceSection(
     Spacer(modifier = Modifier.height(16.dp))
 
     GroupTitle("Theme color")
+    // The accents stay chosen while the wallpaper's colours are used, for when they are turned off
+    val accentsInUse = !(canUseSystemColors && settings.useSystemColors)
+    if (canUseSystemColors) {
+        SwitchRow(
+            title = "Use system colors",
+            description = "Takes its colors from your wallpaper (Material You). The theme color below " +
+                "comes back when this is off.",
+            checked = settings.useSystemColors,
+            onCheckedChange = onSetSystemColors,
+            testTag = "setting_system_colors"
+        )
+    }
     Spacer(modifier = Modifier.height(8.dp))
     Row(
         modifier = Modifier
@@ -598,9 +617,12 @@ private fun AppearanceSection(
                     .clip(CircleShape)
                     .selectable(
                         selected = selected,
+                        enabled = accentsInUse,
                         role = Role.RadioButton,
                         onClick = { onSetAccent(accent) }
                     )
+                    // Material's disabled emphasis
+                    .alpha(if (accentsInUse) 1f else 0.38f)
                     .semantics { contentDescription = accent.label }
                     .testTag("accent_${accent.name.lowercase()}"),
                 contentAlignment = Alignment.Center

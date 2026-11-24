@@ -200,7 +200,11 @@ class UiSnapshotTest {
         composeRule.setContent {
             inputModes = LocalInputModeManager.current
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
-                RemBrowseTheme(darkTheme = settings.themeMode.isDark(systemIsDark = true), accent = settings.accent) {
+                RemBrowseTheme(
+                    darkTheme = settings.themeMode.isDark(systemIsDark = true),
+                    accent = settings.accent,
+                    systemColors = settings.useSystemColors
+                ) {
                     RemBrowseScreen(
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
@@ -383,6 +387,20 @@ class UiSnapshotTest {
     fun lightThemeSplit() {
         launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT, accent = AccentColor.BLUE), layout = LayoutMode.SPLIT_1X2)
         save("10-light-blue-split")
+    }
+
+    // System colours from the platform's default wallpaper palette, on the Appearance settings
+    @Test
+    fun systemColorsDark() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.DARK, useSystemColors = true), layout = LayoutMode.SPLIT_1X2)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.APPEARANCE) }
+        save("10b-system-colors-dark")
+    }
+
+    @Test
+    fun systemColorsLight() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT, useSystemColors = true), startOnNewTab = true)
+        save("10c-system-colors-light-new-tab")
     }
 
     @Test

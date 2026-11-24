@@ -418,7 +418,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent) {
+                RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent, systemColors = settings.useSystemColors) {
                     val pageBackground = MaterialTheme.colorScheme.surfaceContainerLowest.toArgb()
                     SideEffect { pageBackgroundArgb = pageBackground }
                     CompositionLocalProvider(LocalChromePointerIconClaim provides chromePointerIcon) {
