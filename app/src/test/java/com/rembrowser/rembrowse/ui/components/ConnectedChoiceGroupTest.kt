@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -53,7 +54,7 @@ class ConnectedChoiceGroupTest {
 
     private fun show(width: Dp, initial: String = "System") {
         composeRule.setContent {
-            var selected by mutableStateOf(initial)
+            var selected by remember { mutableStateOf(initial) }
             RemBrowseTheme {
                 background = MaterialTheme.colorScheme.background
                 Box(modifier = Modifier.fillMaxSize().background(background).padding(16.dp)) {
