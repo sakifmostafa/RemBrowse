@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.ui.theme
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -23,10 +24,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rembrowser.rembrowse.model.AccentColor
@@ -412,6 +416,24 @@ enum class WindowWidthClass {
 
 /** Whether a window [height] tall is compact in height (Material 3: below 480dp), as a phone held sideways. */
 fun isCompactHeight(height: Dp): Boolean = height < RemDimens.MediumHeight
+
+/**
+ * The window's size as Android's configuration gives it (`screenWidthDp`, `screenHeightDp`),
+ * which is what Go to address was laid out and tried with: whether it takes its compact form,
+ * and how many suggestion rows fit. On Android 8 to 14 the configuration leaves the system bars
+ * out (the status bar and the navigation bar), where `LocalWindowInfo.containerDpSize` counts
+ * the whole window: one or two rows too many, and a compact check that flipped near 600dp. From
+ * Android 15 the configuration of an app that targets it counts the bars as well, so the
+ * container size is read there.
+ */
+@SuppressLint("ConfigurationScreenWidthHeight") // Read on purpose up to Android 14, see above
+@Composable
+fun screenSizeDp(): DpSize {
+    val container = LocalWindowInfo.current.containerDpSize
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) return container
+    val configuration = LocalConfiguration.current
+    return DpSize(configuration.screenWidthDp.dp, configuration.screenHeightDp.dp)
+}
 
 @Composable
 fun RemBrowseTheme(

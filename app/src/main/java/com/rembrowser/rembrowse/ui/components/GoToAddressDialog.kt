@@ -53,7 +53,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -70,6 +69,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.content.ContextCompat
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.HistoryEntry
+import com.rembrowser.rembrowse.ui.theme.screenSizeDp
 import com.rembrowser.rembrowse.util.UrlResolver
 import java.util.function.Consumer
 
@@ -138,7 +138,8 @@ fun GoToAddressDialog(
     val listState = rememberLazyListState()
     val text = value.text.trim()
     val density = LocalDensity.current
-    val windowHeight = LocalWindowInfo.current.containerDpSize.height
+    // Without the system bars up to Android 14, as the rows were tried (see screenSizeDp)
+    val windowHeight = screenSizeDp().height
     val keyboardHeight = with(density) { WindowInsets.ime.getBottom(density).toDp() }
     val rowLimit = goToAddressRowLimit(compact, windowHeight, keyboardHeight)
 
