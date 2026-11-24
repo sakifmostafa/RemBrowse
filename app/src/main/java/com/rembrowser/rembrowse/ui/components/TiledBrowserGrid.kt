@@ -353,11 +353,11 @@ private fun BrowserPane(
             )
             .pointerInput(paneIndex, isActive, hidden) {
                 if (!isActive && !hidden) {
-                    // Observe the press without consuming it, so the page still receives it
+                    // Observe the gesture's start without consuming it, so the page still receives it
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(PointerEventPass.Initial)
-                            if (event.type == PointerEventType.Press) {
+                            if (activatesPane(event.type)) {
                                 latestOnFocusPane(paneIndex)
                             }
                         }
@@ -399,6 +399,19 @@ private fun BrowserPane(
         if (!hidden) paneOverlay(tab)
     }
 }
+
+/**
+ * Whether a pointer event of [type] over an inactive pane makes it the active one: the start of
+ * a gesture that acts on what the pane shows. That is a press (a finger, a pen, a mouse button, a
+ * touchpad click) and, on Android 14 and later, a touchpad's two-finger scroll or pinch, which
+ * Compose 1.13 reports with nothing pressed, as the start of a pan ([PointerEventType.PanStart])
+ * or a zoom ([PointerEventType.ScaleStart]). A page's view takes the keyboard focus for those too
+ * (GeckoView asks for it on every press it is handed), so without them a pane scrolled with two
+ * fingers got the typing while the address bar and the shortcuts stayed with the other one.
+ * Hovering and a mouse wheel leave the active pane as it is.
+ */
+internal fun activatesPane(type: PointerEventType): Boolean =
+    type == PointerEventType.Press || type == PointerEventType.PanStart || type == PointerEventType.ScaleStart
 
 /**
  * Paints the area between the pane's rectangle and its rounded outline, after the content and
