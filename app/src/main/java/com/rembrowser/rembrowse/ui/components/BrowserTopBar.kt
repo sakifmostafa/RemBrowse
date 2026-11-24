@@ -316,6 +316,8 @@ private fun AddressPill(
 ) {
     val colors = MaterialTheme.colorScheme
 
+    // The replacement, LocalClipboard, is suspend-only; moving to it is a change of its own
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val viewConfiguration = LocalViewConfiguration.current

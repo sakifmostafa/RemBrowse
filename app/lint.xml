@@ -11,4 +11,15 @@
     <issue id="ObsoleteSdkInt">
         <ignore path="src/main/java/com/termux/**" />
     </issue>
+    <!-- AndroidX lint checks shipped with the newer Compose libraries crash under the lint of
+         Android Gradle Plugin 8.7 (IncompatibleClassChangeError) and stop the whole run. They are
+         turned back on with the build tools update. -->
+    <issue id="FlowOperatorInvokedInComposition" severity="ignore" />
+    <issue id="RememberInComposition" severity="ignore" />
+    <issue id="FrequentlyChangingValue" severity="ignore" />
+    <issue id="NullSafeMutableLiveData" severity="ignore" />
+    <issue id="StateFlowValueCalledInComposition" severity="ignore" />
+    <issue id="AutoboxingStateCreation" severity="ignore" />
+    <issue id="CoroutineCreationDuringComposition" severity="ignore" />
+    <issue id="UnrememberedMutableState" severity="ignore" />
 </lint>

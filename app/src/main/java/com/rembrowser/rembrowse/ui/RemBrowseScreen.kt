@@ -331,6 +331,8 @@ fun RemBrowseScreen(
             onReset = browserViewModel::clearSitePermissions
         )
     }
+    // The replacement, LocalClipboard, is suspend-only; moving to it is a change of its own
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     val findActions = remember(browserViewModel) {
         FindInPageActions(

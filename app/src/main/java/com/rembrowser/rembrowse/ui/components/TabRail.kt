@@ -42,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -458,7 +459,8 @@ private fun RailTile(
     )
     val shape: Shape = if (style == RailTileStyle.Pinned) CircleShape else MaterialTheme.shapes.medium
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        // Beside the rail, as on desktop, so it never covers the tile above
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.End),
         tooltip = { PlainTooltip { Text(tooltip) } },
         state = rememberTooltipState(),
         focusable = false

@@ -619,6 +619,8 @@ private fun ImportKeyDialog(
 /** A key's public half, to copy onto servers. */
 @Composable
 private fun PublicKeyDialog(key: SshKeyInfo, onDismiss: () -> Unit) {
+    // The replacement, LocalClipboard, is suspend-only; moving to it is a change of its own
+    @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
     AlertDialog(

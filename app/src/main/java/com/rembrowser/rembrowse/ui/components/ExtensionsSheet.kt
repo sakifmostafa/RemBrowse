@@ -41,13 +41,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -123,13 +122,13 @@ fun ExtensionsPanel(
             ExtensionsTab.INSTALL_XPI to "From file"
         )
         val selectedIndex = tabs.indexOfFirst { it.first == uiState.selectedTab }.coerceAtLeast(0)
-        TabRow(
+        SecondaryTabRow(
             selectedTabIndex = selectedIndex,
             containerColor = Color.Transparent,
             contentColor = colors.primary,
-            indicator = { positions ->
+            indicator = {
                 TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(positions[selectedIndex]),
+                    modifier = Modifier.tabIndicatorOffset(selectedIndex),
                     color = colors.primary
                 )
             },
