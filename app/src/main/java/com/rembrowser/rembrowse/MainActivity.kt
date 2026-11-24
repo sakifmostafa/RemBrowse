@@ -25,6 +25,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -637,8 +638,19 @@ class MainActivity : ComponentActivity() {
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
         WindowTouchpadInput.dispatchGenericMotionEvent(event) { super.dispatchGenericMotionEvent(it) }
 
-    /** The browser's shortcuts and the keys it takes before a page or the keyboard app (see [BrowserKeys]). */
-    private val keys by lazy { BrowserKeys(holder.browser, chrome) }
+    /**
+     * The browser's shortcuts and the keys it takes before a page or the keyboard app (see
+     * [BrowserKeys]), made from the session on first use. MainActivityInputTest gives its own
+     * ([useKeys]) to run the activity's dispatchKeyEvent without the engine.
+     */
+    private var browserKeys: BrowserKeys? = null
+    private val keys: BrowserKeys
+        get() = browserKeys ?: BrowserKeys(holder.browser, chrome).also { browserKeys = it }
+
+    @VisibleForTesting
+    internal fun useKeys(keys: BrowserKeys) {
+        browserKeys = keys
+    }
 
     // Shortcuts are read here, before the focused view, so they also work while a web page has
     // focus. Lint flags the override as a restricted API although it is a public Activity hook.

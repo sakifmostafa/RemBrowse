@@ -54,6 +54,9 @@ import org.robolectric.shadows.ShadowLooper
  * then the activity's dispatchKeyEvent ([BrowserKeys.dispatchKeyEvent]) before the focused view,
  * the terminal's own [TerminalScreenView]. The shell keeps Esc, Ctrl+C and Ctrl+L; the browser's
  * Ctrl+Shift keys, Ctrl+Shift+T among them, reach the browser.
+ *
+ * The test sets both hooks up itself; MainActivityInputTest checks that the activity's
+ * dispatchKeyEvent hands keys to BrowserKeys.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")

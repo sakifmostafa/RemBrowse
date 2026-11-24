@@ -47,6 +47,8 @@ import org.robolectric.annotation.Config
  * own dispatch, the window, Compose, and on to the web view embedded in a pane. The page's view
  * must get the events as they came, each once and in order (Gecko scrolls and zooms from them),
  * and the pane they land on becomes the active one.
+ *
+ * The test hands events to the filter itself; MainActivityInputTest checks that the activity does.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
