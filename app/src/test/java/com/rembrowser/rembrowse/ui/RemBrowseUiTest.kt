@@ -424,8 +424,11 @@ class RemBrowseUiTest {
         val section = composeRule.onNodeWithTag("rail_extensions").getUnclippedBoundsInRoot()
         assertTrue(newTab.bottom - newTab.top >= 40.dp)
         assertTrue(newTab.bottom <= section.top)
-        val firstTab = browserVm.uiState.value.tabs.first().id
-        composeRule.onNodeWithTag("tab_bar_item_$firstTab").assertIsDisplayed()
+        // The list keeps room for a tab, and the active one is scrolled into it
+        val list = composeRule.onNodeWithTag("tab_rail_list").getUnclippedBoundsInRoot()
+        val activeTab = browserVm.uiState.value.activeTabId
+        val tile = composeRule.onNodeWithTag("tab_bar_item_$activeTab").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue(tile.top >= list.top && tile.bottom <= list.bottom)
 
         // Extensions without a button of their own are in the overflow menu
         val onRail = (1..4).filter { i ->

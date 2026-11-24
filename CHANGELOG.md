@@ -5,6 +5,7 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 ## Unreleased
 
 ### Fixed
+* **The active tab is always in sight on the rail.** On a short window, such as a phone held sideways, five pinned sites could fill the rail on their own, so no open tab showed until you scrolled. The rail now scrolls to the active tab when you open the window, and again whenever the window or the rail's extension buttons leave it out of sight. It also follows you to another tab: one you choose with `Ctrl+Tab`, the tab switcher or the command palette, and a new tab at the end of a long list. It moves no further than it has to, so the pinned sites stay in view when there is room for them. A list you scroll by hand stays where you leave it.
 * **No stray dot at the end of the loading line.** While a page loaded on a phone (or any page with square corners), a small accent-coloured dot sat at the top right of the window, Material 3's "end of the track" mark. The loading line is a plain line again.
 
 ### Changed

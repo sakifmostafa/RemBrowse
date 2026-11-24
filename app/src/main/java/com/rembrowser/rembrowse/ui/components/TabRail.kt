@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -11,6 +12,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,7 +26,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -44,15 +49,20 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -69,6 +79,8 @@ import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.PageAddress
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.ui.theme.RemMotion
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 
 /** How many bookmarks are pinned to the rail; the rest live in the bookmarks list. */
 private const val MAX_PINNED_SITES = 6
@@ -123,8 +135,11 @@ internal fun openBookmarkIds(bookmarks: List<BookmarkItem>, tabs: List<BrowserTa
  */
 internal const val MAX_RAIL_EXTENSIONS = 4
 
-/** One rail button (its 48dp touch target) and the 2dp gap that follows it. */
-private val RailSlot = 50.dp
+/** A rail button's or tab's height: its 48dp touch target. */
+private val RailTileHeight = 48.dp
+
+/** One rail button and the 2dp gap that follows it. */
+private val RailSlot = RailTileHeight + 2.dp
 
 /** The extension section's divider (13dp) and its bottom margin (6dp). */
 private val RailExtensionsChrome = 19.dp
@@ -179,6 +194,17 @@ fun TabRail(
     val pinned = uiState.bookmarks.take(MAX_PINNED_SITES)
     val openPins = remember(pinned, uiState.tabs) { openBookmarkIds(pinned, uiState.tabs) }
     val reduceMotion = rememberReduceMotion()
+    val listState = rememberLazyListState()
+    // The list's first item is the shelf, when there is one
+    val activeIndex = uiState.tabs.indexOfFirst { it.id == uiState.activeTabId }
+        .let { if (it < 0 || pinned.isEmpty()) it else it + 1 }
+    KeepActiveTabInView(
+        state = listState,
+        activeTabId = uiState.activeTabId,
+        activeIndex = activeIndex,
+        pinnedCount = pinned.size,
+        reduceMotion = reduceMotion
+    )
 
     BoxWithConstraints(
         modifier = modifier
@@ -212,7 +238,10 @@ fun TabRail(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 LazyColumn(
-                    modifier = Modifier.weight(1f, fill = false),
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .testTag("tab_rail_list"),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
@@ -265,6 +294,88 @@ fun TabRail(
                 )
             }
         }
+    }
+}
+
+/**
+ * Keeps the active tab's tile in view on the rail. When another tab becomes the active one (a
+ * click, Ctrl+Tab, a new tab, a tab chosen in the switcher) the list glides to it, or jumps with
+ * Android's animations off. When the room the list has changes under it (the window is resized,
+ * extension buttons come or go, a site is pinned or unpinned), it jumps to it if it was left out
+ * of sight: on a phone held sideways, five pinned sites can fill the rail on their own.
+ *
+ * Scrolling the rail by hand changes none of these, so a list being looked through is never
+ * pulled back to the active tab.
+ */
+@Composable
+private fun KeepActiveTabInView(
+    state: LazyListState,
+    activeTabId: String?,
+    activeIndex: Int,
+    pinnedCount: Int,
+    reduceMotion: Boolean
+) {
+    val spec = RemMotion.defaultSpatial<Float>()
+    val tileHeight = with(LocalDensity.current) { RailTileHeight.roundToPx() }
+    val index by rememberUpdatedState(activeIndex)
+    val glide by rememberUpdatedState(if (reduceMotion) null else spec)
+    val pins by rememberUpdatedState(pinnedCount)
+    // The first time is the rail being laid out, which shows it in place rather than gliding there
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(state, activeTabId) {
+        // A new tab is laid out after this starts
+        snapshotFlow { state.layoutInfo.visibleItemsInfo.isNotEmpty() && index < state.layoutInfo.totalItemsCount }
+            .first { it }
+        // Scrolled on the next frame, not in the middle of the layout that was just noticed
+        withFrameNanos { }
+        state.revealItem(index, tileHeight, if (shown) glide else null)
+        shown = true
+    }
+    LaunchedEffect(state) {
+        snapshotFlow { state.layoutInfo.viewportSize.height to pins }
+            .distinctUntilChanged()
+            .collect {
+                withFrameNanos { }
+                state.revealItem(index, tileHeight, null)
+            }
+    }
+}
+
+/**
+ * Scrolls the item at [index] into full view, or as much of it as fits from its top, moving the
+ * list as little as possible: an item above comes to the top edge, one below to the bottom edge.
+ * With a [spec] it glides there, otherwise it jumps.
+ */
+private suspend fun LazyListState.revealItem(index: Int, tileHeight: Int, spec: AnimationSpec<Float>?) {
+    // An item off screen below is reached by estimate (the tiles there are [tileHeight] tall),
+    // then put exactly in place
+    repeat(3) { attempt ->
+        val layout = layoutInfo
+        val visible = layout.visibleItemsInfo
+        if (index !in 0 until layout.totalItemsCount || visible.isEmpty()) return
+        val start = layout.viewportStartOffset
+        val end = layout.viewportEndOffset
+        val item = visible.firstOrNull { it.index == index }
+        val (top, bottom) = when {
+            item != null -> item.offset to item.offset + item.size
+            index < visible.first().index -> {
+                if (spec == null || attempt > 0) scrollToItem(index) else animateScrollToItem(index)
+                return
+            }
+            else -> {
+                val last = visible.last()
+                val bottom = last.offset + last.size + (index - last.index) * (tileHeight + layout.mainAxisItemSpacing)
+                bottom - tileHeight to bottom
+            }
+        }
+        val delta = when {
+            top < start -> top - start
+            bottom > end -> minOf(bottom - end, top - start)
+            else -> 0
+        }
+        if (delta == 0) return
+        if (spec == null || attempt > 0) scrollBy(delta.toFloat()) else animateScrollBy(delta.toFloat(), spec)
+        if (item != null) return
     }
 }
 
