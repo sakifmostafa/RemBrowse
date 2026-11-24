@@ -2,20 +2,20 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.14.0`)
+# RemBrowse (`v0.15.0`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a private, native browser made for Googlebook, where SSH is just another tab. It runs on Android laptops (Googlebook OS) and any Android device. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.14.0** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
+**Version 0.15.0** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
 | Your device | Download |
 | :--- | :--- |
-| Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](https://rembrowse.com/RemBrowse-x86_64.apk)** · 89 MB |
-| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](https://rembrowse.com/RemBrowse-arm64-v8a.apk)** · 84 MB |
+| Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](https://rembrowse.com/RemBrowse-x86_64.apk)** · 90 MB |
+| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](https://rembrowse.com/RemBrowse-arm64-v8a.apk)** · 85 MB |
 
 Requires Android 8.0 or newer. If Android refuses to install over an existing copy, uninstall the old one first: builds signed with different keys cannot update each other (see the [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md#5-signing--versioning-rules)).
 
