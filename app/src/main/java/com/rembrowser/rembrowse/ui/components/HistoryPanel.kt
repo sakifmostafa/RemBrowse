@@ -170,6 +170,7 @@ private fun HistoryRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
+            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .clickable(onClickLabel = "Open", onClick = onOpen)
             .padding(start = 4.dp)
             .testTag("history_entry_${entry.url}"),

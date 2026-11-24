@@ -491,6 +491,7 @@ private fun RadioRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
+            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .testTag(testTag)
             .padding(vertical = 4.dp),
@@ -523,6 +524,7 @@ private fun SectionNavItem(
     Row(
         modifier = modifier
             .heightIn(min = 48.dp)
+            .keyboardFocusRing(MaterialTheme.shapes.small)
             .clip(MaterialTheme.shapes.small)
             .background(if (selected) colors.primaryContainer else Color.Transparent)
             .border(1.dp, if (selected) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
@@ -564,6 +566,7 @@ private fun AppearanceSection(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .size(40.dp)
+                    .keyboardFocusRing(CircleShape)
                     .clip(CircleShape)
                     .selectable(
                         selected = selected,
@@ -801,6 +804,7 @@ private fun SwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
+            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
             .testTag(testTag)
             .padding(vertical = 8.dp),

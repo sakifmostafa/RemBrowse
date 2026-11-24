@@ -175,7 +175,8 @@ fun TabSwitcher(
                 columns = GridCells.Adaptive(minSize = 200.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp),
+                // Room for a card's keyboard focus ring, which the grid would otherwise cut
+                contentPadding = PaddingValues(start = 4.dp, top = 4.dp, end = 4.dp, bottom = 16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(tabs, key = { it.id }) { tab ->
@@ -267,6 +268,7 @@ private fun TabCard(
     val shape = MaterialTheme.shapes.medium
     Column(
         modifier = Modifier
+            .keyboardFocusRing(shape)
             .clip(shape)
             .background(colors.surface)
             .border(

@@ -77,23 +77,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -104,7 +96,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -899,33 +890,6 @@ private fun DelayedLoading(spinnerColor: Color, textColor: Color, reduceMotion: 
         reduceMotion -> Text(text = "Loading…", style = MaterialTheme.typography.labelMedium, color = textColor)
         else -> CircularProgressIndicator(color = spinnerColor, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
     }
-}
-
-/**
- * A ring around the element while it has keyboard focus (Tab, arrows), in the accent colour,
- * outside its edge unless [inside]. Touch and pointer use show none, as on the web's
- * :focus-visible.
- */
-@Composable
-private fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): Modifier {
-    var focused by remember { mutableStateOf(false) }
-    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
-    val color = MaterialTheme.colorScheme.primary
-    return this
-        .onFocusChanged { focused = it.isFocused }
-        .drawWithContent {
-            drawContent()
-            if (focused && keyboard) {
-                val stroke = 2.dp.toPx()
-                // Where the ring's centre line runs, from the element's edge
-                val offset = if (inside) -stroke / 2 else 2.dp.toPx() + stroke / 2
-                val ring = Size(size.width + offset * 2, size.height + offset * 2)
-                val outline = shape.createOutline(ring, layoutDirection, this)
-                translate(left = -offset, top = -offset) {
-                    drawOutline(outline = outline, color = color, style = Stroke(width = stroke))
-                }
-            }
-        }
 }
 
 /** The keyboard shrinks the screen rather than covering the name field and the actions. */

@@ -44,16 +44,23 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -118,6 +125,7 @@ fun RemIconButton(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .size(size)
+                    .keyboardFocusRing(MaterialTheme.shapes.medium)
                     .clip(MaterialTheme.shapes.medium)
                     .background(if (selected) colors.surfaceContainerHighest else Color.Transparent)
                     .then(
@@ -140,6 +148,37 @@ fun RemIconButton(
             }
         }
     }
+}
+
+/**
+ * A ring around the element while it has keyboard focus (Tab, arrows), in the accent colour,
+ * outside its edge unless [inside]. Touch and pointer use show none, as on the web's
+ * :focus-visible. It is drawn, not laid out, so it never moves anything.
+ *
+ * Put it before the element's `clip` (a ring after the clip would be cut off) and before its
+ * `clickable` or `focusable`, whose focus it follows. Use [inside] for rows in a scrolling list,
+ * whose edge would cut an outside ring.
+ */
+@Composable
+internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    val color = MaterialTheme.colorScheme.primary
+    return this
+        .onFocusChanged { focused = it.isFocused }
+        .drawWithContent {
+            drawContent()
+            if (focused && keyboard) {
+                val stroke = 2.dp.toPx()
+                // Where the ring's centre line runs, from the element's edge
+                val offset = if (inside) -stroke / 2 else 2.dp.toPx() + stroke / 2
+                val ring = Size(size.width + offset * 2, size.height + offset * 2)
+                val outline = shape.createOutline(ring, layoutDirection, this)
+                translate(left = -offset, top = -offset) {
+                    drawOutline(outline = outline, color = color, style = Stroke(width = stroke))
+                }
+            }
+        }
 }
 
 /**

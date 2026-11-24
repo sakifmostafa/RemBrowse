@@ -472,6 +472,7 @@ private fun RailTile(
                     .padding(horizontal = if (style == RailTileStyle.Pinned) 0.dp else 4.dp)
                     .minimumInteractiveComponentSize()
                     .size(RemDimens.ControlSize)
+                    .keyboardFocusRing(shape)
                     .clip(shape)
                     .background(fill)
                     .then(

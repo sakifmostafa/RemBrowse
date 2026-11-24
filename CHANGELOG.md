@@ -8,6 +8,9 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **A new About line:** "A private, native browser made for Googlebook, where SSH is just another tab." (Settings → About, the README, the site and the GitHub description.)
 * **Built on current Material 3** (Material 3 1.4, Compose 1.11). Menus, switches and loading spinners move the way current Android apps do. Outlined buttons such as **Open folder** and **Cancel** now have neutral text, as in current Material 3, instead of the accent colour. Tooltips on the tab rail open beside the rail, so they no longer cover the tab above.
 
+### Added
+* **A focus ring for the keyboard.** `Tab` and `Shift+Tab` move through the toolbar, the tabs in the rail, the tab switcher, Settings, history, bookmarks, the terminal's pages and dialog choices, and the one with the focus gets a ring in the accent colour, as on the web's `:focus-visible`. It shows only while you are using the keyboard (touching the screen hides it), and nothing moves when it appears.
+
 ## v0.14.0 (2026-11-23) — Pasting pictures into Telegram
 
 ### Fixed

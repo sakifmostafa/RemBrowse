@@ -300,6 +300,7 @@ private fun MatchCaseToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .size(32.dp)
+            .keyboardFocusRing(MaterialTheme.shapes.medium)
             .clip(MaterialTheme.shapes.medium)
             .background(background)
             .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)

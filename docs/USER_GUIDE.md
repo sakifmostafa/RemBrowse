@@ -373,6 +373,8 @@ Some requests are answered without asking: sites may keep their data on the devi
 
 These work anywhere in the window, also while you are typing in a web page's text box.
 
+**Moving around with the keyboard.** `Tab` and `Shift + Tab` move between the toolbar's buttons, the tabs in the rail, the cards in the tab switcher, the rows in Settings, History and Bookmarks, and the choices in dialogs; `Enter` presses the one with the focus. It is marked with a ring in the accent colour. The ring shows only while you are using the keyboard; touching the screen hides it.
+
 **In a terminal**, the shell keeps `Ctrl` and `Alt`, so the browser's other shortcuts take `Ctrl+Shift` instead. `Ctrl + T` (new tab), `Ctrl + W` (close the tab) and `Ctrl + Tab` work as everywhere else, so to delete the previous word in the shell use `Alt + Backspace`:
 
 | Shortcut | Action |

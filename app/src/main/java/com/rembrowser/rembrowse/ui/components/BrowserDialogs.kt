@@ -92,6 +92,7 @@ fun BookmarksDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 56.dp)
+                            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
                             .clickable(role = Role.Button) {
                                 onOpenBookmark(bookmark.url)
                                 onDismiss()
@@ -328,6 +329,7 @@ private fun ChoiceRow(option: PromptOption, multiple: Boolean, selected: Boolean
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
+            .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
             .then(interaction)
             .padding(start = if (option.indented) 36.dp else 20.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically

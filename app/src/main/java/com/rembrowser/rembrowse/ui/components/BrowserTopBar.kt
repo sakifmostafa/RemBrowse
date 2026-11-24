@@ -286,6 +286,7 @@ private fun SplitButton(isSplit: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .height(36.dp)
+            .keyboardFocusRing(shape)
             .clip(shape)
             .background(if (isSplit) colors.primaryContainer else colors.surface)
             .border(1.dp, if (isSplit) colors.primary else colors.outlineVariant, shape)
@@ -639,6 +640,7 @@ private fun TabCountButton(count: Int, onClick: () -> Unit) {
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .size(RemDimens.ControlSize)
+            .keyboardFocusRing(MaterialTheme.shapes.medium)
             .clip(MaterialTheme.shapes.medium)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label }

@@ -15,6 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.InputModeManager
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -93,6 +99,7 @@ class UiSnapshotTest {
     private lateinit var browserVm: BrowserViewModel
     private lateinit var extVm: ExtensionsViewModel
     private lateinit var downloadsVm: DownloadsViewModel
+    private lateinit var inputModes: InputModeManager
 
     @Before
     fun setUp() {
@@ -189,6 +196,7 @@ class UiSnapshotTest {
         engine.sessions.values.forEach { it.simulateSecurityChange(true) }
 
         composeRule.setContent {
+            inputModes = LocalInputModeManager.current
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
                 RemBrowseTheme(darkTheme = settings.useDarkTheme, accent = settings.accent) {
                     RemBrowseScreen(
@@ -511,6 +519,25 @@ class UiSnapshotTest {
     fun compactPhoneBrowsing() {
         launch()
         save("13-compact-browsing")
+    }
+
+    /** Keyboard focus rings: on the toolbar's More button, then on a rail tab, in light theme. */
+    @Test
+    fun keyboardFocusRings() {
+        launch()
+        composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
+        composeRule.onNode(hasContentDescription("More") and hasClickAction()).requestFocus()
+        save("22-keyboard-focus-toolbar")
+        composeRule.onNodeWithTag("tab_bar_item_github").requestFocus()
+        save("22b-keyboard-focus-rail")
+    }
+
+    @Test
+    fun keyboardFocusRingsLight() {
+        launch(settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE))
+        composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
+        composeRule.onNodeWithTag("split_button").requestFocus()
+        save("22c-keyboard-focus-split-light")
     }
 }
 

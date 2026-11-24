@@ -405,6 +405,7 @@ private fun HostCard(host: SshHost, onClick: () -> Unit, modifier: Modifier = Mo
         border = BorderStroke(1.dp, if (hovered) colors.primary else colors.outlineVariant),
         modifier = modifier
             .hoverable(interaction)
+            .keyboardFocusRing(MaterialTheme.shapes.large)
             .clip(MaterialTheme.shapes.large)
             .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
             .testTag("terminal_pick_${host.id}")
@@ -543,6 +544,7 @@ private fun BoxScope.PasswordCard(status: TerminalStatus.NeedsPassword, username
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 6.dp)
+                    .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
                     .toggleable(value = remember, role = Role.Checkbox, onValueChange = { remember = it })
                     .testTag("terminal_password_remember")
             ) {
