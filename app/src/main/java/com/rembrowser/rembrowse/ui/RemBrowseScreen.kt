@@ -1,7 +1,12 @@
 package com.rembrowser.rembrowse.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.os.Build
+import android.os.SystemClock
+import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
@@ -63,6 +68,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.DownloadItem
@@ -247,7 +254,7 @@ class BrowserChromeState {
     }
 }
 
-// isImeVisible, for the Back handlers
+// isImeVisible, for the keyboard's Back
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RemBrowseScreen(
@@ -301,23 +308,16 @@ fun RemBrowseScreen(
     // make by accident. Phones keep Android's own Back. Composed first, so every handler below,
     // which only acts when it has something to do, comes before it.
     //
-    // While the on-screen keyboard is up, every other handler here stands aside on Android 13 and
-    // later, so Back puts the keyboard away first, as it always did. With predictive back on,
-    // Android gives Back to the last callback registered, and one that becomes enabled while the
-    // keyboard is up (a page that gains history as you type) would otherwise come before the
-    // keyboard's own. Up to Android 12L they never stand aside (see backHandlersYieldToKeyboard).
-    //
-    // This one never stands aside: if the keyboard inset kept reading "up" with no keyboard on
-    // screen (Gboard's floating toolbar is a suspect), every handler would be off and Back would
-    // leave RemBrowse from a laptop. It is on from the first frame and stays on, so it never
-    // becomes enabled while the keyboard is up, and the keyboard's own Back, which comes later,
-    // still goes first.
+    // While the on-screen keyboard is up (Android 13 and later), Back first puts it away: see
+    // KeyboardFirstBackHandler, composed after every other handler here. The handlers below stay
+    // on meanwhile, so a keyboard inset that reads "up" with nothing on screen never leaves Back
+    // with nothing to do.
     val context = LocalContext.current
     val composeView = LocalView.current
     val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
-    val keyboardUp = backHandlersYieldToKeyboard(imeVisible = WindowInsets.isImeVisible)
+    val keyboardUp = backHidesKeyboardFirst(imeVisible = WindowInsets.isImeVisible)
     BackHandler(enabled = backAtRootStays) { }
-    BackHandler(enabled = !keyboardUp && !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)) {
+    BackHandler(enabled = !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)) {
         browserViewModel.goBack()
     }
     val closeTabSwitcher = {
@@ -327,7 +327,7 @@ fun RemBrowseScreen(
     // The system's Back gesture previews closing the switcher (it shrinks as the finger moves)
     // and closes it when let go; a cancelled gesture leaves it open. A Back key or button closes
     // it at once. Same place in the order as a plain BackHandler.
-    PredictiveBackHandler(enabled = chrome.showTabSwitcher && !keyboardUp) { progress ->
+    PredictiveBackHandler(enabled = chrome.showTabSwitcher) { progress ->
         try {
             progress.collect { chrome.tabSwitcherBack = it.progress }
             closeTabSwitcher()
@@ -338,7 +338,7 @@ fun RemBrowseScreen(
     // A fullscreen page (a video) has the whole window: no rail, no toolbar, no other panes.
     // Back leaves it before doing anything else.
     val fullscreen = browserState.fullscreenTabId != null
-    BackHandler(enabled = fullscreen && !keyboardUp, onBack = browserViewModel::exitFullscreen)
+    BackHandler(enabled = fullscreen, onBack = browserViewModel::exitFullscreen)
     val tabDrag = remember { TabDragState() }
 
     val openNewTab = {
@@ -435,16 +435,16 @@ fun RemBrowseScreen(
     // page is in front, whose own Back comes first. (Esc is read before the keyboard app, in
     // MainActivity.)
     BackHandler(
-        enabled = findInPage != null && !fullscreen && !chrome.showTabSwitcher && !keyboardUp,
+        enabled = findInPage != null && !fullscreen && !chrome.showTabSwitcher,
         onBack = findActions.onClose
     )
     // The expanded rail open over the page is in front of the tab switcher and the find bar, so
     // its Back, which closes it, is composed after theirs and comes first. Only the screenshot
-    // overlay's (below) comes before it.
+    // overlay's and the keyboard's (below) come before it.
     val closeTabRailOverlay = { chrome.closeTabRailOverlay() }
     // For a choice in the rail that puts the keyboard somewhere itself
     val closeTabRailOverlayForChoice = { chrome.closeTabRailOverlay(giveFocusBack = false) }
-    BackHandler(enabled = chrome.tabRailOverlayOpen && !keyboardUp, onBack = closeTabRailOverlay)
+    BackHandler(enabled = chrome.tabRailOverlayOpen, onBack = closeTabRailOverlay)
     // What has the keyboard, noted before an overlay takes it (the screenshot overlay, the rail over
     // the page) and given back once it has gone (giveFocusBack)
     fun noteFocus(): FocusBeforeCapture {
@@ -951,8 +951,9 @@ fun RemBrowseScreen(
         }
         ScreenCaptureState.Phase.IDLE -> Unit
     }
-    // Composed after every other Back handler, so it comes first while the overlay is up
-    BackHandler(enabled = screenCapture.isSelecting && !keyboardUp, onBack = screenCapture::cancel)
+    // Composed after every other Back handler but the keyboard's, so it comes next while the
+    // overlay is up
+    BackHandler(enabled = screenCapture.isSelecting, onBack = screenCapture::cancel)
     // The keyboard goes back to whatever had it when the overlay came up: noted before the overlay
     // takes the focus (a frame later), given back once it has gone, however it went
     val focusBeforeCapture = remember { arrayOfNulls<FocusBeforeCapture>(1) }
@@ -967,6 +968,8 @@ fun RemBrowseScreen(
         withFrameNanos { }
         giveFocusBack(before)
     }
+    // Last of the Back handlers, so it comes before all of them while the keyboard is up
+    KeyboardFirstBackHandler(keyboardUp)
 
     // The commands of the palette (Ctrl+K) and Go to address (Ctrl+G), and the saved SSH hosts
     // both connect to: built here only, when one of them is open
@@ -1167,11 +1170,69 @@ internal const val TAB_SWITCHER_BACK_SHRINK = 0.1f
 internal const val TAB_SWITCHER_BACK_FADE = 0.3f
 
 /**
- * Whether the Back handlers stand aside because the on-screen keyboard is up ([imeVisible]):
- * only from Android 13 ([sdkInt]), where predictive back hands Back to the newest callback,
- * which can be newer than the keyboard's. Up to Android 12L Back is a key, which the keyboard
- * app gets before the window, so it already goes first; the handlers act as they always did
- * there, and an inset that reads "up" with no keyboard on screen can't turn them all off.
+ * Whether Back puts the on-screen keyboard away before anything else ([imeVisible]: the keyboard
+ * reads as up): only from Android 13 ([sdkInt]), where predictive back hands Back to the newest
+ * callback, which can be newer than the keyboard's own. Up to Android 12L Back is a key, which the
+ * keyboard app gets before the window, so it already goes first there.
  */
-internal fun backHandlersYieldToKeyboard(imeVisible: Boolean, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+internal fun backHidesKeyboardFirst(imeVisible: Boolean, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
     imeVisible && sdkInt >= Build.VERSION_CODES.TIRAMISU
+
+/**
+ * A keyboard that comes back up this soon after Back put it away is taken for one that hiding
+ * didn't put away (an editor that asks for it again at once), so Back doesn't keep hiding it.
+ */
+internal const val KEYBOARD_BACK_AGAIN_MILLIS = 1_000L
+
+/**
+ * Back while the on-screen keyboard is up ([keyboardUp], see [backHidesKeyboardFirst]) puts it away
+ * and does nothing else, as the keyboard's own Back would; the next Back goes on to the other
+ * handlers, in their usual order.
+ *
+ * With predictive back on, Android gives Back to the newest callback, and the window's (Compose's
+ * handlers, as one) can be newer than the keyboard's: a page that gains history as you type, or a
+ * handler that is turned on meanwhile, took Back before the keyboard went. This one comes before
+ * every other handler of the window instead: it is composed after them, and it only enters the
+ * composition when the keyboard comes up, so it is always the newest one then (the dispatcher hands
+ * Back to the newest enabled handler, and after the window was in the background it adds the
+ * handlers back in the order they first came).
+ *
+ * Its one press is used up whether or not the keyboard went: a keyboard inset that reads "up" with
+ * no keyboard on screen, which hiding can't clear (Gboard's toolbar for a physical keyboard is a
+ * suspect), must not leave Back hiding nothing for ever. It is ready again once the keyboard has
+ * gone and comes back, unless that is straight away ([KEYBOARD_BACK_AGAIN_MILLIS]).
+ */
+@Composable
+private fun KeyboardFirstBackHandler(keyboardUp: Boolean) {
+    val view = LocalView.current
+    // This keyboard has had its Back
+    var used by remember { mutableStateOf(false) }
+    // When it last put the keyboard away, or -1
+    val hiddenAt = remember { longArrayOf(-1L) }
+    LaunchedEffect(keyboardUp) {
+        val backAgainAtOnce = hiddenAt[0] >= 0 && SystemClock.uptimeMillis() - hiddenAt[0] < KEYBOARD_BACK_AGAIN_MILLIS
+        used = keyboardUp && (used || backAgainAtOnce)
+    }
+    if (keyboardUp && !used) {
+        BackHandler {
+            used = true
+            hiddenAt[0] = SystemClock.uptimeMillis()
+            view.hideSoftKeyboard()
+        }
+    }
+}
+
+/** Asks Android to put the on-screen keyboard (or a keyboard app's toolbar) away from [this]'s window. */
+private fun View.hideSoftKeyboard() {
+    val window = context.findActivity()?.window ?: return
+    WindowCompat.getInsetsController(window, this).hide(WindowInsetsCompat.Type.ime())
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}

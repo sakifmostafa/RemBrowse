@@ -2,26 +2,35 @@ package com.rembrowser.rembrowse.ui
 
 import android.app.Application
 import android.hardware.input.InputManager
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.InputDevice
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.BackEventCompat
+import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.unit.width
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.engine.PointerDevices
@@ -50,6 +59,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
@@ -66,8 +76,9 @@ import org.robolectric.util.ReflectionHelpers
 @Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class BackNavigationUiTest {
 
+    // An activity of its own, so it can go to the background and come back
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val engine = FakeBrowserEngine()
@@ -86,6 +97,9 @@ class BackNavigationUiTest {
     /** What the screen reads for "the on-screen keyboard is up" */
     private var imeVisible = false
 
+    /** How many times the keyboard was asked to go away */
+    private var hideRequests = 0
+
     @After
     fun tearDown() {
         uiScope.cancel()
@@ -93,6 +107,8 @@ class BackNavigationUiTest {
 
     @OptIn(ExperimentalLayoutApi::class)
     private fun launch() {
+        val imm = ApplicationProvider.getApplicationContext<Application>().getSystemService(InputMethodManager::class.java)
+        shadowOf(imm).setSoftInputVisibilityHandler { visible -> if (!visible) hideRequests++ }
         composeRule.setContent {
             backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
             composeView = LocalView.current
@@ -106,12 +122,30 @@ class BackNavigationUiTest {
                         chrome = chrome,
                         versionName = "test",
                         onPickLocalXpi = {},
-                        paneViewport = { _, modifier -> Box(modifier) },
+                        // A text field in the page, which takes the on-screen keyboard
+                        paneViewport = { _, modifier ->
+                            Box(modifier) {
+                                BasicTextField(rememberTextFieldState(), Modifier.testTag("page_text_field"))
+                            }
+                        },
                         extensionPopupContent = { Box(it) }
                     )
                 }
             }
         }
+    }
+
+    /** A page with nowhere to go back to; returns its tab. */
+    private fun launchOnAPageWithoutHistory(): String {
+        launch()
+        val tab = browserVm.uiState.value.activeTabId!!
+        composeRule.runOnUiThread {
+            browserVm.navigatePane(0, "https://example.com/")
+            engine.sessions.getValue(tab).simulatePageLoad("https://example.com/", "First", canGoBack = false)
+        }
+        composeRule.waitForIdle()
+        assertFalse(browserVm.uiState.value.canNavigateBack(browserVm.uiState.value.activeTab))
+        return tab
     }
 
     /** A page that has somewhere to go back to; returns its tab. */
@@ -254,68 +288,220 @@ class BackNavigationUiTest {
         assertTrue(browserVm.uiState.value.activeTab!!.isTerminal)
     }
 
+    // --- With the on-screen keyboard up (Android 13+): Back puts it away first ---
+
+    /**
+     * A text field takes the keyboard ([field], the page's by default): Compose asks Android to
+     * show it, and its inset comes up.
+     */
+    private fun keyboardUpFor(field: String = "page_text_field") {
+        composeRule.onNodeWithTag(field).requestFocus()
+        composeRule.waitForIdle()
+        setKeyboard(up = true)
+        assertTrue(imeVisible)
+    }
+
+    /**
+     * With the keyboard up, Back's first press asks Android to put it away ([hideRequests] counts
+     * the asks) and does nothing else; Android then takes the keyboard's inset away
+     * ([keyboardGoes]), and the next press does what Back does without a keyboard.
+     */
+    private fun assertBackPutsTheKeyboardAwayFirst(untouched: () -> Unit, actedOn: () -> Unit) {
+        assertTrue(backDispatcher!!.hasEnabledCallbacks())
+        val asked = hideRequests
+
+        pressBack()
+        assertEquals("Back asked for the keyboard to go", asked + 1, hideRequests)
+        untouched()
+
+        keyboardGoes()
+        pressBack()
+        actedOn()
+    }
+
     @Test
-    fun onScreenKeyboardUp_everyHandlerStandsAside_soBackPutsTheKeyboardAwayFirst() {
-        // Android gives Back to the newest callback; one enabled while the keyboard is up (here
-        // the page gains history as you type) must not come before the keyboard's own
+    fun keyboardUp_backPutsItAway_thenClosesTheFindBar() {
         val tab = launchOnAPageWithHistory()
         composeRule.runOnUiThread { browserVm.openFindInPage() }
         composeRule.waitForIdle()
-        assertTrue(backDispatcher!!.hasEnabledCallbacks())
+        keyboardUpFor("find_input")
 
-        setKeyboard(up = true)
-        assertTrue(imeVisible)
-        assertFalse(backDispatcher!!.hasEnabledCallbacks())
+        assertBackPutsTheKeyboardAwayFirst(
+            untouched = { assertNotNull(browserVm.findInPage.value) },
+            actedOn = {
+                assertNull(browserVm.findInPage.value)
+                assertEquals(0, goBackCount(tab))
+            }
+        )
+    }
+
+    @Test
+    fun keyboardUp_backPutsItAway_thenClosesTheTabSwitcher() {
+        val tab = launchOnAPageWithHistory()
         composeRule.runOnUiThread { chrome.showTabSwitcher = true }
         composeRule.waitForIdle()
-        assertFalse(backDispatcher!!.hasEnabledCallbacks())
+        keyboardUpFor("switcher_search")
 
-        // Once it is down, Back closes things again, in the usual order
-        setKeyboard(up = false)
-        assertTrue(backDispatcher!!.hasEnabledCallbacks())
+        assertBackPutsTheKeyboardAwayFirst(
+            untouched = { composeRule.onNodeWithTag("tab_switcher").assertIsDisplayed() },
+            actedOn = {
+                composeRule.onNodeWithTag("tab_switcher").assertDoesNotExist()
+                assertEquals(0, goBackCount(tab))
+            }
+        )
+    }
+
+    @Test
+    fun keyboardUp_backPutsItAway_thenLeavesFullscreen() {
+        val tab = launchOnAPageWithHistory()
+        composeRule.runOnUiThread { engine.sessions.getValue(tab).simulateFullScreen(true) }
+        composeRule.waitForIdle()
+        keyboardUpFor()
+
+        assertBackPutsTheKeyboardAwayFirst(
+            untouched = { assertEquals(0, engine.sessions.getValue(tab).exitFullScreenCount) },
+            actedOn = {
+                assertEquals(1, engine.sessions.getValue(tab).exitFullScreenCount)
+                assertEquals(0, goBackCount(tab))
+            }
+        )
+    }
+
+    @Test
+    fun keyboardUp_backPutsItAway_thenGoesBackInThePage_evenWhenThePageGainedItsHistoryMeanwhile() {
+        // Seen on an Android 16 emulator: a page that gained history as you typed took the first
+        // Back, before the keyboard went. Its handler is turned on after the keyboard came up.
+        val tab = launchOnAPageWithoutHistory()
+        keyboardUpFor()
+        composeRule.runOnUiThread {
+            browserVm.navigatePane(0, "https://example.com/second")
+            engine.sessions.getValue(tab).simulatePageLoad("https://example.com/second", "Second", canGoBack = true)
+        }
+        composeRule.waitForIdle()
+
+        assertBackPutsTheKeyboardAwayFirst(
+            untouched = { assertEquals(0, goBackCount(tab)) },
+            actedOn = { assertEquals(1, goBackCount(tab)) }
+        )
+    }
+
+    @Test
+    fun keyboardUp_theWindowBackFromTheBackground_andAHandlerTurnedOnAfter_stillComeAfterTheKeyboard() {
+        val tab = launchOnAPageWithHistory()
+        keyboardUpFor()
+        // The window goes to the background and comes back: every handler is added again
+        val scenario = composeRule.activityRule.scenario
+        scenario.moveToState(Lifecycle.State.CREATED)
+        scenario.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitForIdle()
+        assertTrue("Still up", imeVisible)
+        // The screenshot overlay's handler, the newest of the others, turned on now
+        composeRule.runOnUiThread { chrome.screenCapture.start() }
+        composeRule.waitForIdle()
+
         pressBack()
-        assertFalse(chrome.showTabSwitcher)
-        assertNotNull(browserVm.findInPage.value)
+        assertTrue("The keyboard's Back came first: the overlay waits", chrome.screenCapture.isSelecting)
+        assertEquals(0, goBackCount(tab))
+        keyboardGoes()
+        pressBack()
+        assertFalse(chrome.screenCapture.isSelecting)
         assertEquals(0, goBackCount(tab))
     }
 
     @Test
     @Config(shadows = [ShadowInputManagerWithTouchpad::class])
-    fun onALaptop_aKeyboardInsetStuckUp_stillNeverLetsBackLeaveTheApp() {
-        // The inset reads "up" with no keyboard on screen (Gboard's floating toolbar is a
-        // suspect): the other handlers stand aside, the laptop's root handler stays on
+    fun onALaptop_atTheRoot_keyboardUp_backPutsItAway_thenStaysInRemBrowse() {
         val context = ApplicationProvider.getApplicationContext<Application>()
         assertTrue("A touchpad is connected", PointerDevices.hasMouseOrTouchpad(context))
+        val tab = launchOnAPageWithoutHistory()
+        keyboardUpFor()
+
+        assertBackPutsTheKeyboardAwayFirst(
+            untouched = { },
+            actedOn = {
+                assertTrue("Back stays in RemBrowse", backDispatcher!!.hasEnabledCallbacks())
+                assertEquals(0, goBackCount(tab))
+                assertFalse(composeRule.activity.isFinishing)
+            }
+        )
+    }
+
+    @Test
+    fun aKeyboardInsetHidingDoesntClear_theSecondBackStillCloses_andTheOneAfterGoesBack() {
+        // The inset still reads "up" after Android was asked to put the keyboard away (a keyboard
+        // app's toolbar that stays, or nothing on screen at all): Back must not keep asking
         val tab = launchOnAPageWithHistory()
         composeRule.runOnUiThread { browserVm.openFindInPage() }
         composeRule.waitForIdle()
+        keyboardUpFor("find_input")
+        val asked = hideRequests
 
-        setKeyboard(up = true)
-        assertTrue(imeVisible)
-        assertTrue("Back stays in RemBrowse", backDispatcher!!.hasEnabledCallbacks())
         pressBack()
-        assertNotNull("The find bar's handler stood aside", browserVm.findInPage.value)
-        assertEquals("So did the page's", 0, goBackCount(tab))
+        assertEquals(asked + 1, hideRequests)
+        assertNotNull(browserVm.findInPage.value)
 
-        // Down again, Back closes things in the usual order, and at the root still does nothing
-        setKeyboard(up = false)
+        assertTrue("Still reads up", imeVisible)
         pressBack()
         assertNull(browserVm.findInPage.value)
         pressBack()
         assertEquals(1, goBackCount(tab))
+    }
+
+    @Test
+    @Config(shadows = [ShadowInputManagerWithTouchpad::class])
+    fun onALaptop_aKeyboardInsetStuckUp_stillNeverLetsBackLeaveTheApp() {
+        // An inset that reads "up" with no keyboard on screen and nothing to put away
+        val tab = launchOnAPageWithHistory()
+        setKeyboard(up = true)
+
+        pressBack()
+        pressBack()
+        assertEquals("The second Back went back in the page", 1, goBackCount(tab))
         composeRule.runOnUiThread {
             engine.sessions.getValue(tab).simulatePageLoad("https://example.com/", "First", canGoBack = false)
         }
         composeRule.waitForIdle()
         assertTrue("Nothing to go back to, still kept", backDispatcher!!.hasEnabledCallbacks())
+        pressBack()
+        assertEquals(1, goBackCount(tab))
+        assertFalse(composeRule.activity.isFinishing)
+    }
+
+    @Test
+    fun aKeyboardThatComesStraightBack_isNotPutAwayAgain_butOneThatComesLaterIs() {
+        val tab = launchOnAPageWithHistory()
+        composeRule.runOnUiThread { browserVm.openFindInPage() }
+        composeRule.waitForIdle()
+        keyboardUpFor("find_input")
+        var asked = hideRequests
+        pressBack()
+        assertEquals(asked + 1, hideRequests)
+
+        // Gone, and at once back: the next Back goes on to the find bar
+        keyboardGoes()
+        keyboardUpFor()
+        pressBack()
+        assertNull(browserVm.findInPage.value)
+
+        // Gone, and back a while later: the keyboard goes first again
+        keyboardGoes()
+        SystemClock.sleep(KEYBOARD_BACK_AGAIN_MILLIS)
+        keyboardUpFor()
+        asked = hideRequests
+        pressBack()
+        assertEquals(asked + 1, hideRequests)
+        assertEquals(0, goBackCount(tab))
+        keyboardGoes()
+        pressBack()
+        assertEquals(1, goBackCount(tab))
     }
 
     @Test
     @Config(sdk = [32])
     fun onScreenKeyboardUp_beforeAndroid13_theHandlersActAsTheyAlwaysDid() {
         // Up to Android 12L Back is a key, and the keyboard app gets it before the window: it goes
-        // first without the handlers standing aside, and a keyboard inset that reads "up" must not
-        // leave Back with nothing to close (the activity would finish)
+        // first without RemBrowse asking, and a keyboard inset that reads "up" must not leave Back
+        // with nothing to close (the activity would finish)
         val tab = launchOnAPageWithHistory()
         composeRule.runOnUiThread { browserVm.openFindInPage() }
         composeRule.waitForIdle()
@@ -328,18 +514,22 @@ class BackNavigationUiTest {
         assertEquals(0, goBackCount(tab))
         pressBack()
         assertEquals(1, goBackCount(tab))
+        assertEquals("Never asked for the keyboard to go", 0, hideRequests)
     }
 
     @Test
-    fun theKeyboardGate_isForAndroid13AndLater() {
+    fun backHidesTheKeyboardFirst_fromAndroid13() {
         for (sdk in listOf(26, 30, 31, 32)) {
-            assertFalse("SDK $sdk, keyboard up", backHandlersYieldToKeyboard(imeVisible = true, sdkInt = sdk))
+            assertFalse("SDK $sdk, keyboard up", backHidesKeyboardFirst(imeVisible = true, sdkInt = sdk))
         }
         for (sdk in listOf(33, 34, 35, 36)) {
-            assertTrue("SDK $sdk, keyboard up", backHandlersYieldToKeyboard(imeVisible = true, sdkInt = sdk))
-            assertFalse("SDK $sdk, keyboard down", backHandlersYieldToKeyboard(imeVisible = false, sdkInt = sdk))
+            assertTrue("SDK $sdk, keyboard up", backHidesKeyboardFirst(imeVisible = true, sdkInt = sdk))
+            assertFalse("SDK $sdk, keyboard down", backHidesKeyboardFirst(imeVisible = false, sdkInt = sdk))
         }
     }
+
+    /** Android puts the keyboard away, as asked: its inset goes. */
+    private fun keyboardGoes() = setKeyboard(up = false)
 
     private fun setKeyboard(up: Boolean) {
         val insets = WindowInsetsCompat.Builder()
