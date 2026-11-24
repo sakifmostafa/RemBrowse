@@ -20,10 +20,12 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **Reload** (becomes **Stop** while a page loads).
 * **Address bar** — type an address (`github.com`, `localhost:3000`, `about:config`) or a search and press Enter. Searches use Google unless you choose another engine in Settings. Clicking into the bar selects the whole address, ready to replace; click again to place the cursor, double-click a word to select it (it stops at dots, slashes and hyphens, so double-clicking `example` in `www.example.com` selects just `example`), drag to select part of the address, or triple-click to select all of it. Right-click the bar for **Cut**, **Copy**, **Paste**, **Paste and go** and **Select all**. All of this works the same with a mouse and with the touchpad. Esc cancels the edit. After Enter or Esc, keyboard focus moves to the page. A lock means the connection is verified secure; an open red lock means it is not.
 * **Star** — bookmarks the current page.
-* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, take screenshot, bookmarks, history, downloads, extensions, desktop site, settings.
+* **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, take screenshot, bookmarks, history, downloads, extensions, desktop site, keyboard shortcuts (with a keyboard attached), settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
 On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
+
+**In a desktop window** (a Googlebook, or Android's desktop windowing on a tablet), the window's header, with its minimise, maximise and close buttons, takes the toolbar's colour, so the window reads as one piece; the buttons are dark in the light theme and light in the dark theme.
 
 **Start page** — a new tab shows a clock and the date instead of loading a website. Just start typing in the address bar.
 

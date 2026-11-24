@@ -21,6 +21,7 @@ import android.widget.FrameLayout
 import android.content.Context
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import android.view.WindowInsetsController
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -374,6 +375,7 @@ class MainActivity : ComponentActivity() {
                         SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
                     }
                     enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                    blendCaptionBar(darkTheme)
                     onDispose { }
                 }
                 // A fullscreen page gets the screen to itself: the status and navigation bars go,
@@ -508,6 +510,24 @@ class MainActivity : ComponentActivity() {
         // The window's content sits in a layout that reads the browser's shortcuts before the
         // keyboard app (input method) sees them: see ShortcutKeysLayout
         setContentView(ShortcutKeysLayout(this, ::interceptShortcutBeforeIme).apply { addView(content) })
+    }
+
+    /**
+     * In a desktop window (a Googlebook), the window's header (the caption bar with its close,
+     * maximise and minimise buttons) is drawn over the window rather than in a colour of its own,
+     * so the chrome's colour runs up through it and the window reads as one surface, as Chrome's
+     * does; its buttons are tinted for a light or a dark theme. The content already stays below
+     * it (safeDrawingPadding includes the caption bar), and the system still drags and resizes
+     * the window from the header.
+     */
+    private fun blendCaptionBar(darkTheme: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
+        val transparent = WindowInsetsController.APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND
+        val lightCaption = WindowInsetsController.APPEARANCE_LIGHT_CAPTION_BARS
+        window.insetsController?.setSystemBarsAppearance(
+            transparent or (if (darkTheme) 0 else lightCaption),
+            transparent or lightCaption
+        )
     }
 
     /**
