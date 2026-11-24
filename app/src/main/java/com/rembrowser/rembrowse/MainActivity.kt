@@ -17,11 +17,8 @@ import android.view.KeyEvent
 import android.view.KeyboardShortcutGroup
 import android.view.Menu
 import androidx.compose.ui.platform.ComposeView
-import android.widget.FrameLayout
-import android.content.Context
 import android.content.res.Configuration
 import android.view.MotionEvent
-import android.view.ViewConfiguration
 import android.view.WindowInsetsController
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -64,7 +61,7 @@ import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
 import com.rembrowser.rembrowse.engine.PaneGeckoView
-import com.rembrowser.rembrowse.engine.TouchpadInputFilter
+import com.rembrowser.rembrowse.engine.WindowTouchpadInput
 import com.rembrowser.rembrowse.engine.WindowScreenshot
 import com.rembrowser.rembrowse.engine.asPageLayer
 import com.rembrowser.rembrowse.engine.usePageRendering
@@ -509,8 +506,8 @@ class MainActivity : ComponentActivity() {
             }
         }
         // The window's content sits in a layout that reads the browser's shortcuts before the
-        // keyboard app (input method) sees them: see ShortcutKeysLayout
-        setContentView(ShortcutKeysLayout(this) { keys.beforeIme(it, currentFocus) }.apply { addView(content) })
+        // keyboard app (input method) sees them: see BrowserKeys.windowContent
+        setContentView(keys.windowContent(content) { currentFocus })
     }
 
     /**
@@ -622,18 +619,8 @@ class MainActivity : ComponentActivity() {
     }
 
     // Touchpad clicks reach the whole window as mouse clicks, and resting fingers mid-scroll are
-    // never a press (see TouchpadInputFilter). A scroll or pinch Android 14+ classifies goes on as
-    // it comes: Compose reads it as a pan or a zoom, and each move scrolls. Created on first use:
-    // it needs the display.
-    private val touchpad by lazy {
-        TouchpadInputFilter(
-            TouchpadInputFilter.scrollSlopPx(
-                dpi = resources.displayMetrics.let { maxOf(it.densityDpi.toFloat(), it.xdpi, it.ydpi) },
-                touchSlopPx = ViewConfiguration.get(this).scaledTouchSlop
-            ),
-            passesClassifiedGestures = true
-        )
-    }
+    // never a press (see WindowTouchpadInput). Created on first use: it needs the display.
+    private val touchpad by lazy { WindowTouchpadInput(this) }
 
     /** The browser's shortcuts in the system's Keyboard Shortcuts sheet (Meta+/). */
     override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>?, menu: Menu?, deviceId: Int) {
@@ -644,18 +631,11 @@ class MainActivity : ComponentActivity() {
         data?.addAll(keyboardShortcutGroups(inTerminal = keys.terminalHasKeyboard(currentFocus)))
     }
 
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        // A touchpad scroll held back is still the window's gesture
-        var handled = true
-        touchpad.filter(event) { handled = super.dispatchTouchEvent(it) }
-        return handled
-    }
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
+        touchpad.dispatchTouchEvent(event) { super.dispatchTouchEvent(it) }
 
-    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        var handled = false
-        TouchpadInputFilter.filterGeneric(event) { handled = super.dispatchGenericMotionEvent(it) }
-        return handled
-    }
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
+        WindowTouchpadInput.dispatchGenericMotionEvent(event) { super.dispatchGenericMotionEvent(it) }
 
     /** The browser's shortcuts and the keys it takes before a page or the keyboard app (see [BrowserKeys]). */
     private val keys by lazy { BrowserKeys(holder.browser, chrome) }
@@ -664,7 +644,7 @@ class MainActivity : ComponentActivity() {
     // focus. Lint flags the override as a restricted API although it is a public Activity hook.
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
-        keys.dispatch(event, currentFocus) || super.dispatchKeyEvent(event)
+        keys.dispatchKeyEvent(event, currentFocus) { super.dispatchKeyEvent(it) }
 
     /**
      * Copies [area] of the window (the screenshot overlay already gone) to the clipboard as a PNG,
@@ -792,18 +772,4 @@ class MainActivity : ComponentActivity() {
                 .onFailure { Log.w(TAG, "Couldn't pass a notification's click to its page", it) }
         }
     }
-}
-
-/**
- * The root of the window's content. Before a key reaches the keyboard app (input method), Android
- * passes it down the focused views' ancestors (`dispatchKeyEventPreIme`); this layout offers it to
- * [interceptBeforeIme] first, so browser shortcuts work in any text box, a web page's included.
- */
-@SuppressLint("ViewConstructor")
-private class ShortcutKeysLayout(
-    context: Context,
-    private val interceptBeforeIme: (KeyEvent) -> Boolean
-) : FrameLayout(context) {
-    override fun dispatchKeyEventPreIme(event: KeyEvent): Boolean =
-        interceptBeforeIme(event) || super.dispatchKeyEventPreIme(event)
 }

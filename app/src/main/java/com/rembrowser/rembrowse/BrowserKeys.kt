@@ -1,8 +1,12 @@
 package com.rembrowser.rembrowse
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import com.rembrowser.rembrowse.engine.PaneGeckoView
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.SettingsSection
@@ -21,8 +25,9 @@ import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
  * the tab rail over the page and for the find bar, the screenshot overlay's keys, and Enter for
  * a focused page. MainActivity hands it every key twice: before the keyboard app (input method)
  * sees it ([beforeIme], from the window's root layout) and from its own dispatchKeyEvent
- * ([dispatch]), with the view that has the focus. Kept apart from the activity, which needs the
- * engine, so tests drive the same keys through the screen they compose.
+ * ([dispatch]), with the view that has the focus: [windowContent] and [dispatchKeyEvent] are
+ * those two hooks. Kept apart from the activity, which needs the engine, so tests drive the same
+ * keys through the screen they compose.
  */
 internal class BrowserKeys(
     private val browser: BrowserViewModel,
@@ -43,6 +48,20 @@ internal class BrowserKeys(
 
     /** A physical keyboard's Enter, sent to the focused web page before the keyboard app sees it. */
     private val keyRouter = PhysicalKeyRouter()
+
+    /**
+     * The window's content: [content] in a layout that offers every key to [beforeIme], with the
+     * view [focus] gives, before the keyboard app sees it (see [ShortcutKeysLayout]).
+     */
+    fun windowContent(content: View, focus: () -> View?): ViewGroup =
+        ShortcutKeysLayout(content.context) { beforeIme(it, focus()) }.apply { addView(content) }
+
+    /**
+     * The activity's dispatchKeyEvent: [dispatch] first, with the view that has the [focus], and
+     * what it leaves to [toViews], the activity's own dispatch to the focused view.
+     */
+    fun dispatchKeyEvent(event: KeyEvent, focus: View?, toViews: (KeyEvent) -> Boolean): Boolean =
+        dispatch(event, focus) || toViews(event)
 
     /** A terminal has the keyboard: the shortcuts, Esc and the shortcut sheet all ask this. */
     fun terminalHasKeyboard(focus: View?): Boolean = focus is TerminalScreenView
@@ -294,4 +313,18 @@ internal class BrowserKeys(
 private fun KeyEvent.isFromPhysicalKeyboard(): Boolean {
     val device = device
     return device != null && !device.isVirtual && isFromSource(InputDevice.SOURCE_KEYBOARD)
+}
+
+/**
+ * The root of the window's content. Before a key reaches the keyboard app (input method), Android
+ * passes it down the focused views' ancestors (`dispatchKeyEventPreIme`); this layout offers it to
+ * [interceptBeforeIme] first, so browser shortcuts work in any text box, a web page's included.
+ */
+@SuppressLint("ViewConstructor")
+private class ShortcutKeysLayout(
+    context: Context,
+    private val interceptBeforeIme: (KeyEvent) -> Boolean
+) : FrameLayout(context) {
+    override fun dispatchKeyEventPreIme(event: KeyEvent): Boolean =
+        interceptBeforeIme(event) || super.dispatchKeyEventPreIme(event)
 }

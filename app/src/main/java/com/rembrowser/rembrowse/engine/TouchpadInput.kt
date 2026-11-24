@@ -1,8 +1,10 @@
 package com.rembrowser.rembrowse.engine
 
+import android.content.Context
 import android.os.Build
 import android.view.InputDevice
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import kotlin.math.hypot
 
 /**
@@ -222,6 +224,42 @@ class TouchpadInputFilter(
             } finally {
                 mouse.recycle()
             }
+        }
+    }
+}
+
+/**
+ * A whole window's touchpad input, as the activity hands it on (MainActivity's dispatchTouchEvent
+ * and dispatchGenericMotionEvent): touchpad clicks reach the window as mouse clicks, and resting
+ * fingers mid-scroll are never a press ([TouchpadInputFilter]). A two-finger scroll or pinch that
+ * Android 14+ classifies goes on as it comes ([TouchpadInputFilter.passesClassifiedGestures]):
+ * Compose reads it as a pan or a zoom, and each move scrolls. Kept apart from the activity, which
+ * needs the engine, so tests send events through the same filter to the screen they compose.
+ */
+class WindowTouchpadInput(context: Context) {
+
+    private val filter = TouchpadInputFilter(
+        TouchpadInputFilter.scrollSlopPx(
+            dpi = context.resources.displayMetrics.let { maxOf(it.densityDpi.toFloat(), it.xdpi, it.ydpi) },
+            touchSlopPx = ViewConfiguration.get(context).scaledTouchSlop
+        ),
+        passesClassifiedGestures = true
+    )
+
+    /** The activity's dispatchTouchEvent: [event] filtered, and what comes of it handed [toWindow]. */
+    fun dispatchTouchEvent(event: MotionEvent, toWindow: (MotionEvent) -> Boolean): Boolean {
+        // A touchpad scroll held back is still the window's gesture
+        var handled = true
+        filter.filter(event) { handled = toWindow(it) }
+        return handled
+    }
+
+    companion object {
+        /** The activity's dispatchGenericMotionEvent: a touchpad's hover as a mouse's ([TouchpadInputFilter.filterGeneric]). */
+        fun dispatchGenericMotionEvent(event: MotionEvent, toWindow: (MotionEvent) -> Boolean): Boolean {
+            var handled = false
+            TouchpadInputFilter.filterGeneric(event) { handled = toWindow(it) }
+            return handled
         }
     }
 }
