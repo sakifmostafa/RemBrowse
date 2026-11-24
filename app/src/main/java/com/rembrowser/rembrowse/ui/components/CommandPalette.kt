@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tab
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,8 +73,31 @@ data class PaletteCommand(
     val label: String,
     val icon: ImageVector,
     val shortcut: String? = null,
+    /** Other words it is found by ("pdf" for Print…), besides the words of its label. */
+    val keywords: List<String> = emptyList(),
+    /**
+     * False for commands that close or rearrange things (Close tab, split view): listed where the
+     * text matches them, but never put first, so Enter on a typed word can't run them.
+     */
+    val promotable: Boolean = true,
+    /** False for commands Go to address leaves out: they would open it again or drop what was typed. */
+    val inGoToAddress: Boolean = true,
     val action: () -> Unit
 )
+
+/** A server saved in Settings → Terminal, offered by the palette and Go to address. */
+data class PaletteHost(
+    val id: String,
+    /** The name it was given, or "" when it has none. */
+    val name: String,
+    /** `user@host`, with `:port` when it is not 22. */
+    val address: String,
+    /** Opens a terminal tab connected to the host. */
+    val connect: () -> Unit
+)
+
+/** The id of the row that opens or searches for the typed text. */
+internal const val GO_ROW_ID = "go"
 
 private const val MAX_TAB_RESULTS = 6
 
@@ -86,6 +110,7 @@ fun CommandPalette(
     commands: List<PaletteCommand>,
     tabs: List<BrowserTab>,
     history: List<HistoryEntry> = emptyList(),
+    hosts: List<PaletteHost> = emptyList(),
     onNavigate: (String) -> Unit,
     onSelectTab: (String) -> Unit,
     onDismiss: () -> Unit
@@ -96,8 +121,8 @@ fun CommandPalette(
     val inputFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
-    val results = remember(query, commands, tabs, history) {
-        buildPaletteResults(query, commands, tabs, onNavigate, onSelectTab, history)
+    val results = remember(query, commands, tabs, history, hosts) {
+        buildPaletteResults(query, commands, tabs, onNavigate, onSelectTab, history, hosts)
     }
     LaunchedEffect(results.size) {
         highlighted = highlighted.coerceIn(0, (results.size - 1).coerceAtLeast(0))
@@ -275,9 +300,24 @@ internal fun PaletteRow(command: PaletteCommand, isHighlighted: Boolean, onClick
 }
 
 /**
- * Typed text first offers to open or search for itself, then matching commands, then matching
- * open tabs, then matching pages from the history that are not open. With nothing typed, the
- * full command list is shown.
+ * The rows for typed text, shared by the palette (Ctrl+K) and Go to address (Ctrl+G); the first
+ * row is what Enter runs.
+ *
+ * Text looks like an address when it would be opened rather than searched for ("localhost",
+ * "news.com") or has a ".", ":" or "/" in it; then nothing goes above the open row.
+ *
+ * - Commands the text names come first, above the row that opens or searches for the text (see
+ *   [promotionRank]): "ter" → New terminal, "pdf" → Print…, "new ter" → New terminal. Best first:
+ *   a whole word before the start of one, the label before a keyword, then the shorter label.
+ *   Commands that close or rearrange things are never put first.
+ * - Then saved SSH hosts the text names: 3 letters or more starting a word of the host's name
+ *   ("serv" → my-server), or "ssh" before the start of a word of its name or address ("ssh" alone
+ *   lists them all).
+ * - Then the row that opens or searches for the text, hosts with the text (3 letters or more)
+ *   starting a word of their address ("root" → root@nas), other commands whose label contains the
+ *   text, matching open tabs, and matching pages from the history that are not open.
+ *
+ * With nothing typed, every command is listed, then every host.
  */
 internal fun buildPaletteResults(
     query: String,
@@ -285,21 +325,49 @@ internal fun buildPaletteResults(
     tabs: List<BrowserTab>,
     onNavigate: (String) -> Unit,
     onSelectTab: (String) -> Unit,
-    history: List<HistoryEntry> = emptyList()
+    history: List<HistoryEntry> = emptyList(),
+    hosts: List<PaletteHost> = emptyList()
 ): List<PaletteCommand> {
     val needle = query.trim()
-    if (needle.isEmpty()) return commands
+    if (needle.isEmpty()) return commands + hosts.map(::hostRow)
+
+    val isSearch = UrlResolver.resolveInput(needle).startsWith(UrlResolver.DEFAULT_SEARCH_ENGINE_PREFIX)
+    val looksLikeAddress = !isSearch || needle.any { it == '.' || it == ':' || it == '/' }
+    val promoted = if (looksLikeAddress) {
+        emptyList()
+    } else {
+        commands
+            .filter { it.promotable }
+            .mapNotNull { command -> promotionRank(command, needle)?.let { rank -> command to rank } }
+            .sortedWith(compareBy({ it.second }, { it.first.label.length }))
+            .map { it.first }
+    }
+    val sshTyped = SSH_PREFIX.matchEntire(needle)
+    val namedHosts = when {
+        sshTyped != null -> sshTyped.groupValues[1].let { part ->
+            hosts.filter { startsAWord(part, it.name) || startsAWord(part, it.address) }
+        }
+        looksLikeAddress || needle.length < MIN_PREFIX_LENGTH -> emptyList()
+        else -> hosts.filter { startsAWord(needle, it.name) }
+    }
+    val hostsByAddress = if (sshTyped != null || needle.length < MIN_PREFIX_LENGTH) {
+        emptyList()
+    } else {
+        hosts.filter { it !in namedHosts && startsAWord(needle, it.address) }
+    }
 
     val results = mutableListOf<PaletteCommand>()
-    val resolved = UrlResolver.resolveInput(needle)
-    val isSearch = resolved.startsWith(UrlResolver.DEFAULT_SEARCH_ENGINE_PREFIX)
+    results += promoted
+    results += namedHosts.map(::hostRow)
     results += PaletteCommand(
-        id = "go",
+        id = GO_ROW_ID,
         label = if (isSearch) "Search the web for “$needle”" else "Open $needle",
         icon = if (isSearch) Icons.Outlined.Search else Icons.Outlined.Language,
         action = { onNavigate(needle) }
     )
-    results += commands.filter { it.label.contains(needle, ignoreCase = true) }
+    results += hostsByAddress.map(::hostRow)
+    val promotedIds = promoted.mapTo(HashSet()) { it.id }
+    results += commands.filter { it.id !in promotedIds && it.label.contains(needle, ignoreCase = true) }
     results += tabs
         .filter {
             !it.isNewTabPage &&
@@ -328,6 +396,85 @@ internal fun buildPaletteResults(
         }
     return results
 }
+
+/**
+ * How well [needle] names [command], lower is better, or null when it doesn't: 0 a whole word of
+ * the label, 1 a whole keyword word, 2 the start of a label word (3 letters or more), 3 the start
+ * of a keyword word (4 letters or more, so "con" and "she" don't find console and shell). Text with
+ * spaces counts only as the start of the label (0 when it is the whole label). Fewer than three
+ * letters never name a command.
+ */
+private fun promotionRank(command: PaletteCommand, needle: String): Int? {
+    val typed = needle.lowercase()
+    val labelWords = words(command.label)
+    if (typed.any { it.isWhitespace() }) {
+        val typedWords = words(typed).joinToString(" ")
+        val label = labelWords.joinToString(" ")
+        return when {
+            label == typedWords -> 0
+            typedWords.length >= MIN_PREFIX_LENGTH && label.startsWith(typedWords) -> 2
+            else -> null
+        }
+    }
+    // Two letters are too little to mean a command: "to" and "in" are words of "Switch to tab…" and
+    // "Find in page", but someone typing them is searching
+    if (typed.length < MIN_PREFIX_LENGTH) return null
+    val keywordWords = command.keywords.flatMap(::words)
+    return when {
+        typed in labelWords -> 0
+        typed in keywordWords -> 1
+        labelWords.any { it.startsWith(typed) } -> 2
+        typed.length >= MIN_KEYWORD_PREFIX_LENGTH && keywordWords.any { it.startsWith(typed) } -> 3
+        else -> null
+    }
+}
+
+/** The lower-case words of [text]: runs of letters and digits ("Print…" → "print"). */
+private fun words(text: String): List<String> = text.lowercase().split(NON_WORD).filter { it.isNotEmpty() }
+
+/**
+ * Whether [part] starts a word of [text], ignoring case: at its start or after a character that is
+ * not a letter or digit ("nas" in "root@nas", "10.0" in "pi@10.0.0.5", not "ter" in "master").
+ * An empty [part] starts every text.
+ */
+private fun startsAWord(part: String, text: String): Boolean {
+    if (part.isEmpty()) return true
+    var at = text.indexOf(part, ignoreCase = true)
+    while (at >= 0) {
+        if (at == 0 || !text[at - 1].isLetterOrDigit()) return true
+        at = text.indexOf(part, startIndex = at + 1, ignoreCase = true)
+    }
+    return false
+}
+
+private fun hostRow(host: PaletteHost) = PaletteCommand(
+    id = "ssh_${host.id}",
+    label = if (host.name.isBlank() || host.name == host.address) "Connect to ${host.address}" else "Connect to ${host.name} (${host.address})",
+    icon = Icons.Outlined.Terminal,
+    action = host.connect
+)
+
+/**
+ * The first [limit] of [rows], keeping the open-or-search row among them (in place of the last)
+ * when commands and hosts above it would push it out, so it stays reachable with the arrow keys.
+ */
+internal fun limitKeepingGoRow(rows: List<PaletteCommand>, limit: Int): List<PaletteCommand> {
+    val shown = rows.take(limit)
+    if (shown.any { it.id == GO_ROW_ID }) return shown
+    val goRow = rows.firstOrNull { it.id == GO_ROW_ID } ?: return shown
+    return shown.dropLast(1) + goRow
+}
+
+/** Fewest letters that name a command or host by the start of a word. */
+private const val MIN_PREFIX_LENGTH = 3
+
+/** Fewest letters that name a command by the start of one of its keywords. */
+private const val MIN_KEYWORD_PREFIX_LENGTH = 4
+
+/** "ssh", alone or before what to connect to. */
+private val SSH_PREFIX = Regex("ssh(?:\\s+(.*))?", RegexOption.IGNORE_CASE)
+
+private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 
 /** Pages from the history offered for a typed query. */
 private const val MAX_HISTORY_RESULTS = 5

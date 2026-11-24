@@ -77,6 +77,7 @@ import com.rembrowser.rembrowse.ui.components.PermissionPromptOverlay
 import com.rembrowser.rembrowse.ui.components.SitePermissionActions
 import com.rembrowser.rembrowse.ui.components.PagePromptDialog
 import com.rembrowser.rembrowse.ui.components.PaletteCommand
+import com.rembrowser.rembrowse.ui.components.PaletteHost
 import com.rembrowser.rembrowse.ui.components.PrintScreen
 import com.rembrowser.rembrowse.ui.components.CaptureRegionLifetime
 import com.rembrowser.rembrowse.ui.components.CaptureRegionMarker
@@ -734,16 +735,23 @@ fun RemBrowseScreen(
         }
     }
 
-    if (chrome.showCommandPalette) {
+    // The commands of the palette (Ctrl+K) and Go to address (Ctrl+G), and the saved SSH hosts
+    // both connect to: built here only, when one of them is open
+    fun paletteCommands(): List<PaletteCommand> {
         val isSplit = browserState.isSplit
-        val commands = listOf(
-            PaletteCommand("search", "Search the web", Icons.Outlined.Search, "Ctrl+L") {
+        return listOf(
+            // Neither is offered by Go to address: one would drop what was typed there, the other
+            // would only open it again
+            PaletteCommand("search", "Search the web", Icons.Outlined.Search, "Ctrl+L", inGoToAddress = false) {
                 chrome.focusAddressBar()
             },
-            PaletteCommand("go_to_address", "Go to address…", Icons.Outlined.Language, "Ctrl+G") {
+            PaletteCommand(
+                "go_to_address", "Go to address…", Icons.Outlined.Language, "Ctrl+G",
+                keywords = listOf("url"), inGoToAddress = false
+            ) {
                 chrome.toggleGoToAddress()
             },
-            PaletteCommand("switch_tab", "Switch to tab…", Icons.Outlined.Tab) {
+            PaletteCommand("switch_tab", "Switch to tab…", Icons.Outlined.Tab, keywords = listOf("tabs")) {
                 chrome.showTabSwitcher = true
             },
             PaletteCommand(
@@ -751,35 +759,47 @@ fun RemBrowseScreen(
                 label = if (isSplit) "Exit split view" else "Split view",
                 icon = Icons.AutoMirrored.Outlined.ViewSidebar,
                 shortcut = "Ctrl+\\",
+                promotable = false,
                 action = toggleSplitView
             ),
-            PaletteCommand("new_tab", "New tab", Icons.Outlined.Add, "Ctrl+T", openNewTab),
-            PaletteCommand("new_terminal", "New terminal", Icons.Outlined.Terminal, "Ctrl+Shift+T") {
+            PaletteCommand("new_tab", "New tab", Icons.Outlined.Add, "Ctrl+T", action = openNewTab),
+            PaletteCommand(
+                "new_terminal", "New terminal", Icons.Outlined.Terminal, "Ctrl+Shift+T",
+                keywords = listOf("terminal", "ssh", "shell", "console")
+            ) {
                 openTerminal(TerminalTarget.Picker)
             },
-            PaletteCommand("close_tab", "Close tab", Icons.Outlined.Close, "Ctrl+W", closeActiveTab),
-            PaletteCommand("bookmarks", "Bookmarks", Icons.Outlined.StarBorder) {
+            PaletteCommand("close_tab", "Close tab", Icons.Outlined.Close, "Ctrl+W", promotable = false, action = closeActiveTab),
+            PaletteCommand("bookmarks", "Bookmarks", Icons.Outlined.StarBorder, keywords = listOf("favourites", "favorites")) {
                 chrome.showBookmarks = true
             },
-            PaletteCommand("find_in_page", "Find in page", Icons.Outlined.FindInPage, "Ctrl+F", openFindInPage),
-            PaletteCommand("print", "Print…", Icons.Outlined.Print, "Ctrl+P", printPage),
-            PaletteCommand("screenshot", "Take screenshot", Icons.Outlined.ScreenshotMonitor, "Ctrl+Alt+S", takeScreenshot),
-            PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", openHistory),
-            PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", openDownloads),
-            PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, action = openExtensions),
+            PaletteCommand("find_in_page", "Find in page", Icons.Outlined.FindInPage, "Ctrl+F", action = openFindInPage),
+            PaletteCommand("print", "Print…", Icons.Outlined.Print, "Ctrl+P", keywords = listOf("pdf"), action = printPage),
+            PaletteCommand(
+                "screenshot", "Take screenshot", Icons.Outlined.ScreenshotMonitor, "Ctrl+Alt+S",
+                keywords = listOf("screenshot", "capture", "snip"), action = takeScreenshot
+            ),
+            PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", keywords = listOf("recent"), action = openHistory),
+            PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", keywords = listOf("files"), action = openDownloads),
+            PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, keywords = listOf("addons"), action = openExtensions),
             PaletteCommand("site_permissions", "Site permissions", Icons.Outlined.Tune, action = openSitePermissions),
-            PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,") {
+            PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,", keywords = listOf("preferences", "options")) {
                 openSettings(null)
             }
-        ) + terminalState?.hosts.orEmpty().map { host ->
-            PaletteCommand("ssh_${host.id}", "SSH: ${host.displayName}", Icons.Outlined.Terminal) {
-                openTerminal(TerminalTarget.SavedHost(host.id))
-            }
+        )
+    }
+    fun paletteHosts(): List<PaletteHost> = terminalState?.hosts.orEmpty().map { host ->
+        PaletteHost(id = host.id, name = host.label, address = host.address) {
+            openTerminal(TerminalTarget.SavedHost(host.id))
         }
+    }
+
+    if (chrome.showCommandPalette) {
         CommandPalette(
-            commands = commands,
+            commands = paletteCommands(),
             tabs = browserState.tabs,
             history = history,
+            hosts = paletteHosts(),
             onNavigate = { input ->
                 browserViewModel.navigatePane(browserState.activePaneIndex, input)
                 closeTabSwitcher()
@@ -801,6 +821,8 @@ fun RemBrowseScreen(
             tabs = browserState.tabs,
             history = history,
             compact = windowIsCompact,
+            commands = paletteCommands(),
+            hosts = paletteHosts(),
             onNavigate = { input ->
                 browserViewModel.navigatePane(browserState.activePaneIndex, input)
                 closeTabSwitcher()

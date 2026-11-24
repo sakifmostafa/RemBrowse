@@ -5,10 +5,12 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
@@ -18,9 +20,11 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.data.InMemorySecretStore
 import com.rembrowser.rembrowse.data.InMemoryTerminalStore
@@ -32,6 +36,7 @@ import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.fakes.FakeSshConnector
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.SshHost
 import com.rembrowser.rembrowse.model.TerminalThemePreset
 import com.rembrowser.rembrowse.model.TerminalFont
 import com.rembrowser.rembrowse.model.TerminalCursorStyle
@@ -75,6 +80,7 @@ class TerminalUiTest {
         scope = uiScope,
         ioDispatcher = Dispatchers.Unconfined
     )
+    private val chrome = BrowserChromeState()
     private val connector = FakeSshConnector()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val terminalVm = TerminalViewModel(
@@ -100,6 +106,7 @@ class TerminalUiTest {
                         browserViewModel = browserVm,
                         extensionsViewModel = extVm,
                         downloadsViewModel = downloadsVm,
+                        chrome = chrome,
                         versionName = "test",
                         onPickLocalXpi = {},
                         terminalViewModel = terminalVm,
@@ -163,6 +170,27 @@ class TerminalUiTest {
         waitForTag("terminal_disconnected")
         composeRule.onNodeWithTag("terminal_reconnect").performClick()
         waitForTag("terminal_password")
+    }
+
+    @Test
+    fun goToAddress_connectsToASavedHost_byPartOfItsName() {
+        val host = terminalVm.saveHost(SshHost(id = "", label = "Home server", hostname = "home.example", username = "sakif"))
+        launch()
+        composeRule.runOnUiThread { chrome.toggleGoToAddress() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("go_to_address_input").performTextInput("home")
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("palette_ssh_${host.id}").assertIsDisplayed().assertIsSelected()
+        composeRule.onNode(
+            hasText("Connect to Home server (sakif@home.example)") and hasAnyAncestor(hasTestTag("palette_ssh_${host.id}")),
+            useUnmergedTree = true
+        ).assertIsDisplayed()
+        composeRule.onNodeWithTag("go_to_address_input").performKeyInput { pressKey(Key.Enter) }
+
+        waitFor { connector.requests.isNotEmpty() }
+        assertEquals("rem://terminal/host/${host.id}", browserVm.uiState.value.activeTab!!.url)
+        assertEquals("home.example", connector.requests.single().hostname)
     }
 
     @Test

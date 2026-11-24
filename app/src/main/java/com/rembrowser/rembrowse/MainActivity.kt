@@ -82,6 +82,7 @@ import com.rembrowser.rembrowse.util.BrowserShortcut
 import com.rembrowser.rembrowse.util.KeyboardShortcuts
 import com.rembrowser.rembrowse.util.ScreenCaptureKey
 import com.rembrowser.rembrowse.util.PhysicalKeyRouter
+import com.rembrowser.rembrowse.util.PhysicalTyping
 import com.rembrowser.rembrowse.util.TakenKeys
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
@@ -606,6 +607,7 @@ class MainActivity : ComponentActivity() {
     // focus. Lint flags the override as a restricted API although it is a public Activity hook.
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        forgetMissedEnterRelease(event)
         if (takenKeys.takesFollowUp(event.action, event.keyCode, event.repeatCount)) return true
         if (interceptKeyForScreenCapture(event)) return true
         if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
@@ -716,6 +718,7 @@ class MainActivity : ComponentActivity() {
      * this layout.
      */
     private fun interceptShortcutBeforeIme(event: KeyEvent): Boolean {
+        forgetMissedEnterRelease(event)
         // The repeats and release of a shortcut's key, or of a key the screenshot overlay took
         if (takenKeys.takesFollowUp(event.action, event.keyCode, event.repeatCount)) return true
         if (interceptKeyForScreenCapture(event)) return true
@@ -726,6 +729,18 @@ class MainActivity : ComponentActivity() {
         takenKeys.take(event.keyCode)
         performShortcut(shortcut)
         return true
+    }
+
+    /**
+     * A popup that ran its row on Enter ([BrowserChromeState.swallowNextEnterUp]) waits for that
+     * press's release here. When the row opened a dialog, the release went to the dialog instead;
+     * a fresh press of Enter in this window shows it is not coming, so it is forgotten and this
+     * press's release reaches the page.
+     */
+    private fun forgetMissedEnterRelease(event: KeyEvent) {
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 && PhysicalTyping.isEnter(event.keyCode)) {
+            chrome.swallowNextEnterUp = false
+        }
     }
 
     /** A physical keyboard's Enter, sent to the focused web page before the keyboard app sees it. */

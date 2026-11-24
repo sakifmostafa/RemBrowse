@@ -1,4 +1,4 @@
-# RemBrowse User Guide (`v0.13.18`)
+# RemBrowse User Guide (`v0.13.19`)
 
 RemBrowse is a minimal, tiled web browser with Firefox extension support, built for Android laptops (Googlebook OS) and Android devices.
 
@@ -29,7 +29,7 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 ### Go to address (`Ctrl+G`)
 
-`Ctrl+G` opens the address in the middle of the window, over a blur of everything behind it (a darkened window where the device has blur turned off, as in battery saver). It starts with the current page's address selected, so you can type over it. As you type, it offers the address or search, open tabs and pages from your history; Up and Down choose, **Enter** goes there in the focused pane, **Alt+Enter** opens it in a new tab, and Esc, a click outside or `Ctrl+G` again closes it. It is also in the command palette as **Go to address…**. In a terminal, use `Ctrl+Shift+G`.
+`Ctrl+G` opens the address in the middle of the window, over a blur of everything behind it (a darkened window where the device has blur turned off, as in battery saver). It starts with the current page's address selected, so you can type over it. As you type, it offers the address or search, browser commands, your saved SSH hosts, open tabs and pages from your history. When what you type is the start of a word in a command's name (three letters or more), or one of its keywords, and not an address, that command comes first and Enter runs it: `ter` or `terminal` opens a new terminal, `pri` or `pdf` prints, `screenshot` takes one, `set` opens Settings. Commands that close or rearrange things (Close tab, split view) are listed but never come first. The start of a saved host's name, or `ssh`, puts **Connect to** that host first; other matches with its address are listed below the search. Searching the web for the same word is one row down. Up and Down choose, **Enter** goes there in the focused pane, **Alt+Enter** opens it in a new tab, and Esc, a click outside or `Ctrl+G` again closes it. It is also in the command palette as **Go to address…**. In a terminal, use `Ctrl+Shift+G`.
 
 ### Screenshots (`Ctrl+Alt+S`)
 
@@ -158,7 +158,7 @@ To leave, press **Back** or **Esc**, or the page's own button. The split comes b
 
 Press `Ctrl+K` (or **More → Command palette**), then type:
 
-* words to **search the web**, or an address to **open it**;
+* words to **search the web**, or an address to **open it** (a command whose name or keyword starts with what you type, three letters or more, comes first, as in Go to address: `ter` + Enter opens a terminal);
 * part of a tab's title to **switch to that tab**;
 * part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
 * a command name: new tab, close tab, find in page, print, take screenshot, split view, bookmarks, history, downloads, extensions, settings.

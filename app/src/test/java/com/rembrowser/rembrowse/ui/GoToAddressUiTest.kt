@@ -6,7 +6,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -34,6 +38,7 @@ import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -173,5 +178,60 @@ class GoToAddressUiTest {
         composeRule.onNodeWithTag("go_to_address").assertDoesNotExist()
         assertEquals(before + 1, browserVm.uiState.value.tabs.size)
         assertEquals("https://rust-lang.org", browserVm.uiState.value.activeTab!!.url.trimEnd('/'))
+    }
+
+    private fun assertAbove(upper: String, lower: String) {
+        fun top(tag: String) = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.top
+        assertTrue("$upper should be above $lower", top(upper) < top(lower))
+    }
+
+    @Test
+    fun typingTer_offersNewTerminalFirst_withItsShortcut_andEnterOpensIt() {
+        launchOnAWebPage()
+        val before = browserVm.uiState.value.tabs.size
+        open()
+        composeRule.onNodeWithTag("go_to_address_input").performTextClearance()
+        // Its own command would only open it again, so it is not offered here
+        composeRule.onNodeWithTag("go_to_address_input").performTextInput("address")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("palette_go").assertIsDisplayed()
+        composeRule.onNodeWithTag("palette_go_to_address").assertDoesNotExist()
+        // Nor Search the web, which would drop what was typed for the toolbar's address bar
+        composeRule.onNodeWithTag("go_to_address_input").performTextClearance()
+        composeRule.onNodeWithTag("go_to_address_input").performTextInput("search")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("palette_go").assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithTag("palette_search").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("go_to_address_input").performTextClearance()
+        composeRule.onNodeWithTag("go_to_address_input").performTextInput("ter")
+        composeRule.waitForIdle()
+
+        // First and highlighted, drawn as in the palette, with the web search just below
+        composeRule.onNodeWithTag("palette_new_terminal").assertIsDisplayed().assertIsSelected()
+        listOf("Ctrl", "Shift", "T").forEach { key ->
+            composeRule.onNode(hasText(key) and hasAnyAncestor(hasTestTag("palette_new_terminal")), useUnmergedTree = true)
+                .assertIsDisplayed()
+        }
+        assertAbove("palette_new_terminal", "palette_go")
+
+        composeRule.onNodeWithTag("go_to_address_input").performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("go_to_address").assertDoesNotExist()
+        assertEquals(before + 1, browserVm.uiState.value.tabs.size)
+        assertTrue(browserVm.uiState.value.activeTab!!.isTerminal)
+    }
+
+    @Test
+    fun thePalette_ranksTypedTextTheSameWay() {
+        launchOnAWebPage()
+        composeRule.runOnUiThread { chrome.showCommandPalette = true }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("command_palette_input").performTextInput("ter")
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("palette_new_terminal").assertIsDisplayed().assertIsSelected()
+        assertAbove("palette_new_terminal", "palette_go")
     }
 }

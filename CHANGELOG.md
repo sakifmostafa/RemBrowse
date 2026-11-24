@@ -2,6 +2,18 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.13.19 (2026-11-23) — Commands and servers from Go to address
+
+### Added
+* **Go to address (Ctrl+G) runs commands too.** Type `ter` or `terminal` and Enter opens a new terminal; `pri` or `pdf` prints, `screenshot` takes one, `set` opens Settings, and so on. When what you type is the start of a word in a command's name (three letters or more) or one of its keywords, and not an address, that command comes first; searching the web for the word is one row down. Two-letter words stay searches, and commands that close or rearrange things (Close tab, split view) are never put first, so typing "close" can't close your tab.
+* **Connect to a saved server by name.** Typing the start of a saved SSH host's name (or `ssh`) puts **Connect to** it first, from Go to address or the command palette; a match with its user or address is listed below the search. An address such as 192.168.1.1 or localhost still opens the web page first.
+
+### Changed
+* **The command palette (Ctrl+K) ranks the same way**, so `ter` + Enter opens a terminal there too instead of searching the web.
+
+### Testing
+1050 automated tests (72 of them screenshot renders that run only on request), including the ranking against the real command list (close, split, web, search, ter, pdf, to, in…), keywords, text with spaces, addresses and localhost, and saved hosts (root, home, master, ssh), Ctrl+G and the palette showing the same order, and Enter on a host connecting. On an Android tablet emulator: Ctrl+G, `ter` showed New terminal first and highlighted, and Enter opened a terminal. Checked by an independent review; its findings were fixed.
+
 ## v0.13.18 (2026-11-23) — Screenshots to the clipboard
 
 ### Added

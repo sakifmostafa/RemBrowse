@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.13.18`)
+# RemBrowse (`v0.13.19`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.13.18** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
+**Version 0.13.19** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
@@ -32,7 +32,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Find in page** (`Ctrl+F`): a floating bar on the page you are searching, with every match highlighted, a running count, next and previous, and match case.
 * **Screenshots** (`Ctrl+Alt+S`, or Take screenshot in the menu): drag around part of the window, or click a page, and the picture is on the clipboard, ready to paste into a chat.
 * **Print** (`Ctrl+P`, or Print… in the menu): RemBrowse's print screen shows the pages as they will print, then saves them as a PDF straight to Downloads or sends them to a printer. A page's own Print button opens it too, and a filled-in PDF form prints as filled in.
-* **Go to address** (`Ctrl+G`): the address pops up over a blur of the page, ready to type over, with suggestions from your tabs and history.
+* **Go to address** (`Ctrl+G`): the address pops up over a blur of the page, ready to type over, with suggestions from your tabs and history, and browser commands too: type `ter` and Enter opens a terminal, or part of a saved server's name to connect to it.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
 * **Native start page**: an instant, offline new tab with a clock, instead of loading a website.
 * **Its own settings page**: Settings open in a tab at `rem://settings`, with sections for appearance, search engine, tabs, privacy, history, downloads, extensions and about.
