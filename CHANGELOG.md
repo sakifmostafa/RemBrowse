@@ -2,6 +2,20 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## v0.14.0 (2026-11-23) — Pasting pictures into Telegram
+
+### Fixed
+* **A screenshot or copied picture pasted into Telegram is attached.** With a picture on the clipboard, `Ctrl+V` in Telegram Web's message box did nothing. Telegram reads pasted files with `webkitGetAsEntry()`, which the engine leaves out on Android (Chrome and desktop Firefox have it), so its paste code stopped with an error after cancelling the normal paste. RemBrowse now turns it on, and the picture is attached as in Chrome. Other sites that read pasted files the same way work too.
+
+### Changed
+* **RemBrowse has its own address: [rembrowse.com](https://rembrowse.com/),** with the download page, and **updates come from [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases)**, where every release's APKs and `update.json` are attached. browse.example.com is gone. Copies of 0.13.19 and older still look for updates there, so install 0.14.0 once by hand; after that, updates arrive as before. The APKs are no longer committed to the repository.
+
+### Added
+* **Every release is scanned by VirusTotal.** Both APKs are checked by about 60 antivirus engines before they go out; the result and a link to the full report are shown under each download on [rembrowse.com](https://rembrowse.com/) and in the GitHub release. 0.14.0: 0 of 63 engines flagged either file.
+
+### Testing
+1051 automated tests (72 of them screenshot renders that run only on request), including the engine setting on phones and large screens, with and without a mouse. On an Android tablet emulator, with a copy of Telegram's paste code: before, a screenshot pasted with `Ctrl+V` failed with `item.webkitGetAsEntry is not a function`; after, the PNG was attached (1218×686). Checked by an independent review against Firefox's source: only this paste API and `webkitEntries` on file inputs are added, no local paths are exposed, and folder upload stays off.
+
 ## v0.13.19 (2026-11-23) — Commands and servers from Go to address
 
 ### Added

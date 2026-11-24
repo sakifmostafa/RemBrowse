@@ -2,20 +2,20 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.13.19`)
+# RemBrowse (`v0.14.0`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.13.19** — pick the file that matches your device's processor, open it on the device and confirm the install. Downloads and in-app updates come from [browse.example.com](https://browse.example.com/).
+**Version 0.14.0** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
 | Your device | Download |
 | :--- | :--- |
-| Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](https://browse.example.com/RemBrowse-x86_64.apk)** · 89 MB |
-| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](https://browse.example.com/RemBrowse-arm64-v8a.apk)** · 84 MB |
+| Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](https://rembrowse.com/RemBrowse-x86_64.apk)** · 89 MB |
+| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](https://rembrowse.com/RemBrowse-arm64-v8a.apk)** · 84 MB |
 
 Requires Android 8.0 or newer. If Android refuses to install over an existing copy, uninstall the old one first: builds signed with different keys cannot update each other (see the [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md#5-signing--versioning-rules)).
 
@@ -30,7 +30,7 @@ Requires Android 8.0 or newer. If Android refuses to install over an existing co
 * **Right-click menus**: right-click a link, picture or the page itself, with a mouse or the touchpad, to open a link in a new tab or beside the page, copy a picture or an address, go back, reload, bookmark or find. Sites with their own menus keep them. Ctrl+click or middle-click a link to open it in a background tab (add Shift to open it in front).
 * **SSH terminal tabs**: open a terminal like a tab (`Ctrl+Shift+T` or **More → New terminal**), connect to a saved host or any `user@host`, and keep it beside your pages in a split. Hosts, keys (generate or import) and trusted servers live in Settings → Terminal, with passwords and private keys encrypted by the device's keystore. Seven themes (including a green-on-navy Midnight Green), two bundled coding fonts, cursor styles, and fish-style suggestions from your own commands and common ones, taken with Tab.
 * **Find in page** (`Ctrl+F`): a floating bar on the page you are searching, with every match highlighted, a running count, next and previous, and match case.
-* **Screenshots** (`Ctrl+Alt+S`, or Take screenshot in the menu): drag around part of the window, or click a page, and the picture is on the clipboard, ready to paste into a chat.
+* **Screenshots** (`Ctrl+Alt+S`, or Take screenshot in the menu): drag around part of the window, or click a page, and the picture is on the clipboard, ready to paste into a chat (Telegram included: `Ctrl+V` in its message box attaches the picture).
 * **Print** (`Ctrl+P`, or Print… in the menu): RemBrowse's print screen shows the pages as they will print, then saves them as a PDF straight to Downloads or sends them to a printer. A page's own Print button opens it too, and a filled-in PDF form prints as filled in.
 * **Go to address** (`Ctrl+G`): the address pops up over a blur of the page, ready to type over, with suggestions from your tabs and history, and browser commands too: type `ter` and Enter opens a terminal, or part of a saved server's name to connect to it.
 * **Command palette** (`Ctrl+K`): search the web, open an address, jump to a tab or run a browser command from the keyboard.
@@ -77,7 +77,7 @@ RemBrowse/
 │       └── test/               # JVM unit, Robolectric and headless Compose UI tests
 ├── signing/                    # Signing keystore and its passwords (never committed)
 ├── scripts/                    # Build-server setup, keystore password, publishing to the site
-├── site/                       # The download page at browse.example.com
+├── site/                       # The download page at rembrowse.com
 ├── deploy/site-host/           # The site's server: nginx + Cloudflare Tunnel (Docker)
 ├── gradle/                     # Gradle 8.11.1 wrapper
 ├── build.gradle.kts

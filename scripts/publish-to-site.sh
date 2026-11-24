@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # Publishes RemBrowse to the download site's web root (default ~/RemBrowse/www, served at
-# https://browse.example.com/ by deploy/site-host): the page from site/, and the release that
+# https://rembrowse.com/ by deploy/site-host): the page from site/, and the release that
 # ./gradlew publishApk wrote to build/ (both APKs and update.json).
 #
 #   bash scripts/publish-to-site.sh               # the page and the release
 #   bash scripts/publish-to-site.sh --site-only   # only the page (index.html, assets, icons)
 #   bash scripts/publish-to-site.sh --allow-older # publish even if the site has a newer version
+#   bash scripts/publish-to-site.sh --skip-virustotal # publish without build/virustotal.json
 #
 # Before the site changes, the release is copied next to it and checked: update.json lists exactly
 # RemBrowse-arm64-v8a.apk and RemBrowse-x86_64.apk with their sizes and SHA-256, each APK is this
 # app at update.json's version with only its own processor's engine, and each is signed with the
 # RemBrowse key only. Then the page goes up, and the release goes live as three renames: the APKs,
-# then update.json. A phone never sees a version before its APK is fully there, and never
+# then virustotal.json (the scan from scripts/virustotal-scan.sh, which must be for this version and
+# these SHA-256s), then update.json. A phone never sees a version before its APK is fully there, and never
 # downloads a half-written file.
 set -euo pipefail
 
@@ -24,11 +26,13 @@ ABIS=(arm64-v8a x86_64)
 
 SITE_ONLY=0
 ALLOW_OLDER=0
+SKIP_VT=0
 for arg in "$@"; do
   case "$arg" in
     --site-only) SITE_ONLY=1 ;;
     --allow-older) ALLOW_OLDER=1 ;;
-    *) echo "Unknown option: $arg (options: --site-only, --allow-older)" >&2; exit 1 ;;
+    --skip-virustotal) SKIP_VT=1 ;;
+    *) echo "Unknown option: $arg (options: --site-only, --allow-older, --skip-virustotal)" >&2; exit 1 ;;
   esac
 done
 
@@ -123,6 +127,23 @@ PY
     [ "$signers" = 1 ] && [ "$digest" = "$CERT_SHA256" ] || fail "$file is not signed with the RemBrowse key only"
     echo "    $file: $(stat -c %s "$apk") bytes, $abi, signed with the RemBrowse key"
   done
+  if [ "$SKIP_VT" = 0 ]; then
+    [ -f build/virustotal.json ] || fail "build/virustotal.json not found: run scripts/virustotal-scan.sh (or pass --skip-virustotal)"
+    cp build/virustotal.json "$STAGE/virustotal.json"
+    python3 -I - "$STAGE/update.json" "$STAGE/virustotal.json" <<'PY' || fail "build/virustotal.json doesn't match this release: run scripts/virustotal-scan.sh again"
+import json, sys
+rel, vt = (json.load(open(p)) for p in sys.argv[1:3])
+def need(ok, why):
+    if not ok:
+        sys.exit("  " + why)
+need(not vt.get("dryRun"), "it is a dry-run fixture, not a real scan")
+need(vt.get("versionName") == rel["versionName"], "versionName differs from update.json")
+files = vt.get("files")
+need(isinstance(files, dict) and sorted(files) == sorted(a["file"] for a in rel["apks"].values()), "files differ from update.json")
+for a in rel["apks"].values():
+    need(files[a["file"]].get("sha256") == a["sha256"], a["file"] + ": sha256 differs from update.json")
+PY
+  fi
   chmod 755 "$STAGE"
   chmod 644 "$STAGE"/*
 
@@ -139,7 +160,7 @@ echo "==> Publishing the page to $WWW"
 # files that are gone from site/ only after that; the release files and the staging folder are
 # never touched here
 rsync -a --delay-updates --delete-delay --chmod=D755,F644 \
-  --exclude '/RemBrowse-*.apk' --exclude '/update.json' --exclude '/.publish-*' \
+  --exclude '/RemBrowse-*.apk' --exclude '/update.json' --exclude '/virustotal.json' --exclude '/.publish-*' \
   site/ "$WWW/"
 
 if [ "$SITE_ONLY" = 0 ]; then
@@ -148,6 +169,12 @@ if [ "$SITE_ONLY" = 0 ]; then
   for abi in "${ABIS[@]}"; do
     mv -f "$STAGE/RemBrowse-$abi.apk" "$WWW/RemBrowse-$abi.apk"
   done
+  if [ "$SKIP_VT" = 0 ]; then
+    mv -f "$STAGE/virustotal.json" "$WWW/virustotal.json"
+  else
+    # No scan for this version: a stale one must not stay up (the page ignores a mismatch anyway)
+    rm -f -- "$WWW/virustotal.json"
+  fi
   mv -f "$STAGE/update.json" "$WWW/update.json"
   rmdir "$STAGE"
   STAGE=""
@@ -159,6 +186,10 @@ if command -v curl > /dev/null && curl -fsS -o /dev/null --max-time 5 "${CHECK_U
   if [ "$SITE_ONLY" = 0 ]; then
     served="$(curl -fsS --max-time 10 "${CHECK_URL}update.json?t=$(date +%s)")" || fail "update.json isn't served"
     [ "$served" = "$(cat "$WWW/update.json")" ] || fail "the served update.json differs from the published one"
+    if [ "$SKIP_VT" = 0 ]; then
+      served="$(curl -fsS --max-time 10 "${CHECK_URL}virustotal.json?t=$(date +%s)")" || fail "virustotal.json isn't served"
+      [ "$served" = "$(cat "$WWW/virustotal.json")" ] || fail "the served virustotal.json differs from the published one"
+    fi
   fi
   echo "==> Served correctly at ${CHECK_URL}"
 else

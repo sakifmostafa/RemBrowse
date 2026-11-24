@@ -51,15 +51,17 @@ android {
         applicationId = "com.rembrowser.rembrowse"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "0.13.19"
+        versionCode = 35
+        versionName = "0.14.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Where installed copies look for updates: update.json and the APKs published beside it
-        // (./gradlew publishApk writes them to build/). The repository is private, so they are
-        // served from RemBrowse's own site. -Prembrowse.updateUrl=... builds one that looks elsewhere.
-        val updateUrl = (project.findProperty("rembrowse.updateUrl") as String?) ?: "https://browse.example.com/"
+        // (./gradlew publishApk writes them to build/), attached to the latest GitHub release.
+        // GitHub's releases/latest/download/<file> redirects to that release's copy, so the address
+        // never changes. -Prembrowse.updateUrl=... builds one that looks elsewhere.
+        val updateUrl = (project.findProperty("rembrowse.updateUrl") as String?)
+            ?: "https://github.com/sakifmostafa/RemBrowse/releases/latest/download/"
         buildConfigField("String", "UPDATE_URL", "\"${updateUrl.trimEnd('/')}/\"")
     }
 

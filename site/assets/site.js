@@ -358,7 +358,7 @@
       const res = await fetch("update.json?t=" + Date.now(), { cache: "no-store" });
       if (res.status === 404) {
         if (statusLine) statusLine.textContent = "No version is published here yet. Check back soon.";
-        return;
+        return null;
       }
       if (!res.ok) throw new Error("HTTP " + res.status);
       release = readRelease(await res.json());
@@ -370,7 +370,42 @@
       if (statusLine) statusLine.textContent = "The version details didn't load. The buttons still download the newest version.";
     }
     recommend(await guessAbi(), release);
+    return release;
   }
 
-  if (cards.length) load();
+  // The VirusTotal result for this release (virustotal.json, written by scripts/virustotal-scan.sh).
+  // Shown only if it is for the same version and the same SHA-256s as update.json; otherwise
+  // nothing is shown. The report address is built here from the hash, not taken from the file.
+  async function showScan(release) {
+    if (!release) return;
+    try {
+      const res = await fetch("virustotal.json?t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) return;
+      const scan = await res.json();
+      if (!scan || scan.dryRun || scan.versionName !== release.versionName || !scan.files || typeof scan.files !== "object") return;
+      const lines = [];
+      for (const card of cards) {
+        const apk = release.apks[card.dataset.abi];
+        if (!apk) continue;
+        const f = scan.files[apk.file];
+        const counts = f && [f.malicious, f.suspicious, f.engines];
+        if (!f || f.sha256 !== apk.sha256 || !counts.every((n) => Number.isInteger(n) && n >= 0) || f.engines < 1) return;
+        lines.push([card, apk, f]);
+      }
+      for (const [card, apk, f] of lines) {
+        const p = document.createElement("p");
+        p.className = "vt";
+        const a = document.createElement("a");
+        a.href = "https://www.virustotal.com/gui/file/" + apk.sha256;
+        a.textContent = "View report";
+        a.setAttribute("aria-label", "View the VirusTotal report for this download");
+        p.append("Scanned by VirusTotal: " + (f.malicious + f.suspicious) + " of " + f.engines + " engines flagged it \u00b7 ", a);
+        card.append(p);
+      }
+    } catch (_) {
+      /* no scan result: show nothing */
+    }
+  }
+
+  if (cards.length) load().then(showScan);
 })();

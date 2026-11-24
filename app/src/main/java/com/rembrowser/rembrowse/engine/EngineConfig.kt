@@ -9,7 +9,7 @@ import java.io.File
  * configuration file GeckoView reads (`GeckoRuntimeSettings.Builder.configFilePath`), whose
  * `prefs` become default preference values before the engine starts.
  *
- * Five preferences:
+ * Six preferences:
  *
  * **Translations off** ([TRANSLATIONS_PREF]), on every device. RemBrowse offers no page
  * translation, but GeckoView turns the machinery on, and it runs a language-detection worker
@@ -35,6 +35,19 @@ import java.io.File
  * minimised, its pages keep running the same way while it is the last app used; once other apps
  * are used Android caches it and freezes all its processes (seen on the emulator: Android 16,
  * `use_freezer=true`).
+ *
+ * **Pasted files can be read as entries** ([FILE_ENTRIES_PREF] on), on every device. Gecko on
+ * Android hides `DataTransferItem.webkitGetAsEntry()` and `HTMLInputElement.webkitEntries`
+ * (desktop Firefox and Chrome have them), and chat sites call the first on every file in a
+ * paste without checking it exists:
+ * Telegram Web A reads a pasted picture with `item.webkitGetAsEntry() || item.getAsFile()`
+ * after cancelling the paste, so a screenshot pasted into its message box threw
+ * `item.webkitGetAsEntry is not a function` and nothing was attached. On, the picture is
+ * returned as a file entry wrapping the same `File` (`DataTransferItem::GetAsEntry`) and is
+ * attached. It also applies to drags within a page; files from other apps can't be dropped on
+ * Android. Paths stay hidden (an entry's `fullPath` is `/` and its name). Folder upload
+ * (`webkitdirectory`) is a separate preference, `dom.webkitBlink.dirPicker.enabled`, which stays
+ * off, and RemBrowse dismisses folder prompts.
  *
  * **Desktop viewport width** ([DESKTOP_WIDTH_PREF]), on large screens only. A tab that asks
  * for desktop sites gets Gecko's "desktop mode" viewport, whose width is
@@ -84,6 +97,12 @@ internal object EngineConfig {
     /** Gecko on Android suspends every background tab outright (on by default; see above). */
     const val SUSPEND_INACTIVE_PREF = "dom.suspend_inactive.enabled"
 
+    /**
+     * Exposes `webkitGetAsEntry()` on pasted items (and `webkitEntries` on file inputs), which
+     * Gecko hides on Android (off by default there only; see above).
+     */
+    const val FILE_ENTRIES_PREF = "dom.webkitBlink.filesystem.enabled"
+
     /** Gecko's own default: a desktop layout, shrunk to fit whatever is narrower. */
     const val GECKO_DESKTOP_WIDTH = 980
 
@@ -114,6 +133,7 @@ internal object EngineConfig {
         put(TRANSLATIONS_PREF, false)
         put(REQUIRE_INTERACTION_PREF, false)
         put(SUSPEND_INACTIVE_PREF, false)
+        put(FILE_ENTRIES_PREF, true)
         val width = desktopViewportWidth(smallestScreenWidthDp)
         if (width != GECKO_DESKTOP_WIDTH) put(DESKTOP_WIDTH_PREF, width)
         if (hasMouseOrTouchpad) put(POINTER_PREF, FINE_POINTER_WITH_HOVER)

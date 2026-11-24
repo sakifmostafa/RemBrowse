@@ -1,4 +1,4 @@
-# RemBrowse download site (https://browse.example.com/): nginx serving the web root that
+# RemBrowse download site (https://rembrowse.com/): nginx serving the web root that
 # scripts/publish-to-site.sh fills, reachable from the internet only through this stack's own
 # Cloudflare Tunnel, which also provides HTTPS.
 #

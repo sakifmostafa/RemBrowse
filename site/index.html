@@ -3,23 +3,90 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RemBrowse · the tiled browser for Googlebook and Android</title>
-<meta name="description" content="RemBrowse puts up to four web pages side by side. Firefox's engine, real Firefox add-ons and an SSH terminal in a tab. Made for Googlebook, at home on any Android device.">
+<title>RemBrowse: Android browser with split screen and add-ons</title>
+<meta name="description" content="RemBrowse is a free Android browser with up to four pages side by side, real Firefox add-ons and SSH in a tab. Made for Googlebook, at home on any Android device.">
+<meta name="robots" content="index, follow">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="color-scheme" content="dark light">
-<link rel="canonical" href="https://browse.example.com/">
+<link rel="canonical" href="https://rembrowse.com/">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicon-96.png" sizes="96x96" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://browse.example.com/">
+<meta property="og:site_name" content="RemBrowse">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://rembrowse.com/">
 <meta property="og:title" content="RemBrowse · the web, tiled">
 <meta property="og:description" content="Up to four pages side by side, real Firefox add-ons and an SSH terminal in a tab. Made for Googlebook.">
-<meta property="og:image" content="https://browse.example.com/assets/img/og.jpg">
+<meta property="og:image" content="https://rembrowse.com/assets/img/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="RemBrowse showing several web pages side by side in one window.">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="RemBrowse · the web, tiled">
+<meta name="twitter:description" content="Up to four pages side by side, real Firefox add-ons and an SSH terminal in a tab. Made for Googlebook.">
+<meta name="twitter:image" content="https://rembrowse.com/assets/img/og.jpg">
 <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/site.css?v=3">
-<script src="assets/site.js?v=3" defer></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "RemBrowse",
+  "url": "https://rembrowse.com/"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is RemBrowse?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "RemBrowse is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is built on Mozilla GeckoView, Firefox's engine, and shows up to four pages side by side in one window."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is RemBrowse free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. RemBrowse is free to download. There is no RemBrowse account, sync, analytics or crash reporting, and nothing you browse is sent to us."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which devices does RemBrowse run on?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Any Android device running Android 8.0 or later: phones, tablets and laptops. It is made for Googlebook, where the split view and keyboard shortcuts shine. Pick the Intel or AMD (x86_64) download for most Android laptops, or ARM (arm64-v8a) for phones, tablets and ARM laptops."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use Firefox add-ons in RemBrowse?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. RemBrowse runs real Firefox add-ons. Browse and install them from Firefox Add-ons in Settings, such as Bitwarden, SponsorBlock and Dark Reader. uBlock Origin is set up on first launch to block ads, and you can switch it off or remove it in Settings."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I install the APK safely, and how do updates work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Download the file for your processor on the device itself and open it. If Android asks, let your browser install apps. Each download shows its SHA-256, and every release since 0.09 is signed with the same key, so you can check the file against the fingerprint under Check a download. After that RemBrowse keeps itself up to date: it checks a new version's size and SHA-256, then hands it to Android's installer, and your tabs stay put."
+      }
+    }
+  ]
+}
+</script>
+<link rel="stylesheet" href="assets/site.css?v=5">
+<script src="assets/site.js?v=4" defer></script>
 </head>
 <body>
 <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
@@ -345,6 +412,33 @@ Already up to date.
       </details>
     </div>
   </section>
+  <section class="faq" id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <h2 id="faq-title" class="section-title center reveal">Questions.</h2>
+      <div class="faq-list">
+      <details class="verify faq-item">
+        <summary>What is RemBrowse?</summary>
+        <div class="verify-body"><p>RemBrowse is a minimal, tiled web browser for Android laptops (Googlebook OS) and Android devices. It is built on Mozilla GeckoView, Firefox's engine, and shows up to four pages side by side in one window.</p></div>
+      </details>
+      <details class="verify faq-item">
+        <summary>Is RemBrowse free?</summary>
+        <div class="verify-body"><p>Yes. RemBrowse is free to download. There is no RemBrowse account, sync, analytics or crash reporting, and nothing you browse is sent to us.</p></div>
+      </details>
+      <details class="verify faq-item">
+        <summary>Which devices does RemBrowse run on?</summary>
+        <div class="verify-body"><p>Any Android device running Android 8.0 or later: phones, tablets and laptops. It is made for Googlebook, where the split view and keyboard shortcuts shine. Pick the Intel or AMD (x86_64) download for most Android laptops, or ARM (arm64-v8a) for phones, tablets and ARM laptops.</p></div>
+      </details>
+      <details class="verify faq-item">
+        <summary>Can I use Firefox add-ons in RemBrowse?</summary>
+        <div class="verify-body"><p>Yes. RemBrowse runs real Firefox add-ons. Browse and install them from Firefox Add-ons in Settings, such as Bitwarden, SponsorBlock and Dark Reader. uBlock Origin is set up on first launch to block ads, and you can switch it off or remove it in Settings.</p></div>
+      </details>
+      <details class="verify faq-item">
+        <summary>How do I install the APK safely, and how do updates work?</summary>
+        <div class="verify-body"><p>Download the file for your processor on the device itself and open it. If Android asks, let your browser install apps. Each download shows its SHA-256, and every release since 0.09 is signed with the same key, so you can check the file against the fingerprint under Check a download. After that RemBrowse keeps itself up to date: it checks a new version's size and SHA-256, then hands it to Android's installer, and your tabs stay put.</p></div>
+      </details>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer class="footer">
@@ -359,6 +453,7 @@ Already up to date.
         <a href="#highlights">Highlights</a>
         <a href="#download">Download</a>
         <a href="update.json">update.json</a>
+        <a href="https://github.com/sakifmostafa/RemBrowse">GitHub</a>
       </nav>
     </div>
   </div>

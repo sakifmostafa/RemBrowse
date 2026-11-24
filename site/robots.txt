@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rembrowse.com/sitemap.xml

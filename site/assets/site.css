@@ -1418,6 +1418,23 @@ kbd {
   /* A hash is one long token: wrap it anywhere rather than hide part of it */
   overflow-wrap: anywhere;
 }
+.vt {
+  margin: var(--s-3) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  text-align: left;
+}
+.vt a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -12px 0; /* a 44 px tap area that doesn't push the line apart */
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .copy-btn {
   display: inline-flex;
   align-items: center;
@@ -1542,6 +1559,32 @@ details.verify[open] summary::after {
   font-size: var(--fs-xs);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ---------- FAQ (reuses the details.verify look) ---------- */
+
+.faq {
+  padding: 0 0 clamp(80px, 11vw, 140px);
+}
+.faq-list {
+  display: grid;
+  gap: var(--s-3);
+  max-width: 680px;
+  margin: clamp(32px, 5vw, 48px) auto 0;
+}
+.faq-item {
+  margin: 0;
+}
+details.faq-item summary {
+  justify-content: space-between;
+  min-height: 56px;
+  padding: var(--s-3) var(--s-5);
+  color: var(--text);
+  text-align: left;
+}
+details.faq-item summary::after {
+  flex: none;
+  color: var(--accent);
 }
 
 /* ---------- Footer ---------- */

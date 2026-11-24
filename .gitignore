@@ -8,12 +8,14 @@ captures/
 *.ap_
 *.dex
 
-# The repo-root build/ folder holds the published APKs (./gradlew publishApk).
-# Everything else Gradle drops in there is scratch output.
+# The repo-root build/ folder holds the published APKs (./gradlew publishApk). Since 0.14.0 the APKs
+# are attached to GitHub releases instead of committed; VERSION.txt, update.json and the VirusTotal result are kept as the
+# record. Everything else Gradle drops in there is scratch output.
 /build/*
-!/build/*.apk
 !/build/VERSION.txt
 !/build/update.json
+!/build/virustotal.json
+!/build/virustotal.md
 
 # Local machine configuration
 local.properties
@@ -34,3 +36,6 @@ signing/.keystore.properties.*
 
 # The download site's tunnel token
 deploy/site-host/.env
+
+# Local secrets (VirusTotal API key for scripts/virustotal-scan.sh). Never commit.
+/.env

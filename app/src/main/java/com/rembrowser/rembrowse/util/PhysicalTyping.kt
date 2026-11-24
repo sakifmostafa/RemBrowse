@@ -8,7 +8,7 @@ import android.view.KeyEvent
  * method): Enter, with any modifiers (Ctrl+Enter sends in many web apps; no browser shortcut uses
  * Enter). Through the keyboard app it arrived as a typed line break,
  * which a chat box that sends on Enter can't tell from text; straight to the page it is a real
- * Enter keydown the page can cancel (measured with browse.example.com/keys.html, 0.13.9).
+ * Enter keydown the page can cancel (measured with rembrowse.com/keys.html, 0.13.9).
  *
  * Only Enter: inside a text box, GeckoView passes just Enter, Tab, Backspace and Delete on as real
  * keys (`GeckoEditable.sendKeyEvent`); any other key becomes inserted text with a made-up keydown
