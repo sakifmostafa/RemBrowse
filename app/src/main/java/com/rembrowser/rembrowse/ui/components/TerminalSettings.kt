@@ -764,7 +764,7 @@ private fun ToggleRow(title: String, description: String, checked: Boolean, onCh
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .hapticToggleable(value = checked, role = Role.Switch, onValueChange = onChange)
             .testTag(testTag)
             .padding(vertical = 8.dp)
     ) {

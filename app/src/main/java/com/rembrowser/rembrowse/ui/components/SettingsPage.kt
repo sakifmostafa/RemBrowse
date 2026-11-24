@@ -25,7 +25,6 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -846,7 +845,7 @@ private fun SwitchRow(
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
+            .hapticToggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
             .testTag(testTag)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically

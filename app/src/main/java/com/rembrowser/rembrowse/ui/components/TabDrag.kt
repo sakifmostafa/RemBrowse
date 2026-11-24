@@ -26,6 +26,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isPrimaryPressed
@@ -33,6 +34,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,6 +106,7 @@ fun Modifier.tabDragSource(
     var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val latestOnDragStart by rememberUpdatedState(onDragStart)
     val latestOnDrop by rememberUpdatedState(onDrop)
+    val haptics = LocalHapticFeedback.current
 
     onGloballyPositioned { coordinates = it }
         .pointerInput(tabId, dragState) {
@@ -115,6 +118,8 @@ fun Modifier.tabDragSource(
                 // Only the primary button drags; a touchpad's right click comes as a finger
                 val buttons = currentEvent.buttons
                 if (!buttons.isPrimaryPressed && (isMouse || buttons.hasOtherThanPrimary())) return@awaitEachGesture
+                // Haptics only for a finger on the screen
+                val byFinger = isFingerPress(down.type, buttons)
 
                 fun toRoot(local: Offset): Offset =
                     coordinates?.takeIf { it.isAttached }?.localToRoot(local) ?: local
@@ -129,7 +134,10 @@ fun Modifier.tabDragSource(
                                 change.consume()
                                 dragging = false
                                 dragState.moveTo(toRoot(change.position))
-                                dragState.finish()?.let { latestOnDrop(it) }
+                                dragState.finish()?.let { target ->
+                                    if (byFinger) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    latestOnDrop(target)
+                                }
                             }
                             break
                         }
@@ -139,6 +147,8 @@ fun Modifier.tabDragSource(
                             if (!isMouse && heldMillis < viewConfiguration.longPressTimeoutMillis) break
                             dragging = true
                             dragState.start(tabId, toRoot(change.position))
+                            // The long press already buzzed (the tile's menu); this marks the lift-off
+                            if (byFinger) haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                             latestOnDragStart()
                         }
                         if (dragging) {

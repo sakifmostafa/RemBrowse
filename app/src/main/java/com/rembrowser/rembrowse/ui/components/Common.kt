@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -50,6 +51,7 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -73,11 +75,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerButtons
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.areAnyPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -416,6 +421,74 @@ fun Modifier.middleClickTrigger(onClick: () -> Unit): Modifier {
 }
 
 /**
+ * Whether a press is a finger on the screen: not a mouse, not a stylus, and not the touchpad,
+ * whose clicks can arrive as a finger with a button down. Haptics answer only these.
+ */
+internal fun isFingerPress(type: PointerType, buttons: PointerButtons): Boolean =
+    type == PointerType.Touch && !buttons.areAnyPressed
+
+/**
+ * Haptics for touch only. [perform] plays a haptic when the press now being let go on an element
+ * carrying [touchPressFor] is a finger's ([isFingerPress]), and nothing for a mouse, the
+ * touchpad, the keyboard or a screen reader. Devices without a vibrator ignore it.
+ */
+@Stable
+class TouchHaptics internal constructor(private val haptics: HapticFeedback) {
+    internal var fingerPress = false
+
+    fun perform(type: HapticFeedbackType) {
+        if (fingerPress) haptics.performHapticFeedback(type)
+    }
+}
+
+@Composable
+fun rememberTouchHaptics(): TouchHaptics {
+    val haptics = LocalHapticFeedback.current
+    return remember(haptics) { TouchHaptics(haptics) }
+}
+
+/**
+ * Tells [haptics] whether the press on this element is a finger's. Put it before the element's
+ * `clickable` or `toggleable`: those act on the release in the Main pass, and this only lets go
+ * of the press in the Final pass after it, so a keyboard or screen reader action later never
+ * counts as touch.
+ */
+fun Modifier.touchPressFor(haptics: TouchHaptics): Modifier = pointerInput(haptics) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        haptics.fingerPress = isFingerPress(down.type, currentEvent.buttons)
+        try {
+            do {
+                val event = awaitPointerEvent(PointerEventPass.Final)
+            } while (event.changes.any { it.id == down.id && it.pressed })
+        } finally {
+            haptics.fingerPress = false
+        }
+    }
+}
+
+/**
+ * [toggleable] for a switch row, with Android's switch haptics (ToggleOn, ToggleOff) when a
+ * finger flips it. A mouse, the touchpad, the keyboard and screen readers flip it silently.
+ */
+@Composable
+fun Modifier.hapticToggleable(
+    value: Boolean,
+    role: Role,
+    enabled: Boolean = true,
+    onValueChange: (Boolean) -> Unit
+): Modifier {
+    val haptics = rememberTouchHaptics()
+    val latest by rememberUpdatedState(onValueChange)
+    return this
+        .touchPressFor(haptics)
+        .toggleable(value = value, enabled = enabled, role = role) { checked ->
+            haptics.perform(if (checked) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
+            latest(checked)
+        }
+}
+
+/**
  * Calls [onLongPress] when a finger (or a stylus) rests on the element for the long-press time
  * without moving, with the long-press haptic, and keeps the lift from also counting as a tap: a
  * touch screen's way to the menu a right-click opens. A mouse and the touchpad are left alone,
@@ -436,7 +509,9 @@ fun Modifier.touchLongPress(label: String, onLongPress: () -> Unit): Modifier {
         .pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                if (down.type != PointerType.Touch && down.type != PointerType.Stylus) return@awaitEachGesture
+                val onScreen = down.type == PointerType.Touch || down.type == PointerType.Stylus
+                // A touchpad's right click can arrive as a finger with a button down
+                if (!onScreen || currentEvent.buttons.areAnyPressed) return@awaitEachGesture
                 // Null when the time ran out with the finger still down and still
                 val endedEarly = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
                     while (true) {

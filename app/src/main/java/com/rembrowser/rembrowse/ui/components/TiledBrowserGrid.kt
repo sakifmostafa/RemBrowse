@@ -51,6 +51,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerButtons
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -69,6 +70,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -479,6 +481,7 @@ private fun SplitDivider(
     val latestOnDrag by rememberUpdatedState(onDragPx)
     val latestOnDragEnd by rememberUpdatedState(onDragEnd)
     val latestOnReset by rememberUpdatedState(onReset)
+    val haptics = LocalHapticFeedback.current
     val latestOnHeldChange by rememberUpdatedState(onHeldChange)
 
     val handleColor by animateColorAsState(
@@ -539,7 +542,10 @@ private fun SplitDivider(
                     onDragStart = { latestOnDragStart() },
                     onDrag = { latestOnDrag(it) },
                     onDragEnd = { latestOnDragEnd() },
-                    onDoubleClick = { latestOnReset() }
+                    onDoubleClick = { byFinger ->
+                        if (byFinger) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                        latestOnReset()
+                    }
                 )
             }
             .testTag(if (vertical) "split_divider_vertical" else "split_divider_horizontal"),
@@ -568,7 +574,8 @@ private suspend fun PointerInputScope.detectDividerGestures(
     onDragStart: () -> Unit,
     onDrag: (travelPx: Float) -> Unit,
     onDragEnd: () -> Unit,
-    onDoubleClick: () -> Unit
+    /** A double click or double tap; true when it was a finger's (for its haptic). */
+    onDoubleClick: (byFinger: Boolean) -> Unit
 ) {
     val clickSlop = viewConfiguration.touchSlop
     val doubleClickMillis = viewConfiguration.doubleTapTimeoutMillis
@@ -594,6 +601,7 @@ private suspend fun PointerInputScope.detectDividerGestures(
                 // The other mouse buttons are not for dragging, nor a touchpad's right click,
                 // which Android reports as a finger with the secondary button down
                 if (!event.buttons.isPrimaryPressed && (isMouse || event.buttons.hasOtherThanPrimary())) continue
+                val byFinger = isFingerPress(down.type, event.buttons)
                 down.consume()
                 onPointerOver(hovered, true)
 
@@ -632,7 +640,7 @@ private suspend fun PointerInputScope.detectDividerGestures(
                     onPointerOver(hovered, false)
                     if (dragging) onDragEnd()
                 }
-                if (clickedAt != null && secondClick) onDoubleClick() else lastClickAt = clickedAt
+                if (clickedAt != null && secondClick) onDoubleClick(byFinger) else lastClickAt = clickedAt
             }
         }
     } finally {

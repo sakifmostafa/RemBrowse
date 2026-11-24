@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.NotificationsOff
@@ -191,7 +190,7 @@ private fun SitePermissionRow(entry: SitePermissionEntry, actions: SitePermissio
                 .weight(1f)
                 .heightIn(min = 56.dp)
                 .keyboardFocusRing(MaterialTheme.shapes.small, inside = true)
-                .toggleable(
+                .hapticToggleable(
                     value = allowed,
                     role = Role.Switch,
                     onValueChange = { allow ->
