@@ -8,6 +8,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
@@ -326,5 +327,15 @@ class MouseAffordancesUiTest {
 
         composeRule.onNodeWithTag("history_menu_open_https://news.example/").performClick()
         assertEquals(before + 1, tabIds.size)
+
+        // Back in History, a quick tap opens the page, with no menu
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.HISTORY) }
+        composeRule.waitForIdle()
+        val beforeTap = tabIds.size
+        composeRule.onNodeWithTag("history_entry_https://news.example/").performTouchInput { click(center) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("history_menu_remove_https://news.example/").assertDoesNotExist()
+        assertEquals(beforeTap + 1, tabIds.size)
+        assertEquals("https://news.example/", browserVm.uiState.value.activeTab!!.url)
     }
 }

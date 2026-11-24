@@ -425,7 +425,8 @@ fun Modifier.middleClickTrigger(onClick: () -> Unit): Modifier {
 
 /**
  * Whether a press is a finger on the screen: not a mouse, not a stylus, and not the touchpad,
- * whose clicks can arrive as a finger with a button down. Haptics answer only these.
+ * whose clicks can arrive as a finger with a button down. [TouchHaptics] answers only these
+ * ([touchLongPress] also takes a stylus, and the rail's combinedClickable any pointer).
  */
 internal fun isFingerPress(type: PointerType, buttons: PointerButtons): Boolean =
     type == PointerType.Touch && !buttons.areAnyPressed

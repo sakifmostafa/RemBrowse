@@ -1,5 +1,9 @@
 package com.rembrowser.rembrowse.ui
 
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
+import android.view.View
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -7,8 +11,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.click
@@ -48,9 +54,11 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * Haptics answer a finger on the screen only: switches, the tab switcher's long press, a tab
- * picked up and dropped, a divider double-tapped. The same things done with a mouse (the
- * touchpad is one) or a screen reader play nothing.
+ * Haptics answer a finger on the screen: switches, the tab switcher's long press, a tab picked up
+ * and dropped, a divider double-tapped. The same things done with a mouse (the touchpad is one),
+ * a touchpad click that arrives as a finger with a button down, or a screen reader play nothing.
+ * The one exception: a click held on a rail tab opens its menu with the long-press haptic
+ * (combinedClickable's own), whatever the pointer.
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -64,6 +72,7 @@ class TouchHapticsUiTest {
     private val engine = FakeBrowserEngine()
     private lateinit var browserVm: BrowserViewModel
     private val chrome = BrowserChromeState()
+    private lateinit var rootView: View
 
     private val played = mutableListOf<HapticFeedbackType>()
     private val recorder = object : HapticFeedback {
@@ -100,6 +109,7 @@ class TouchHapticsUiTest {
             ioDispatcher = Dispatchers.Unconfined
         )
         composeRule.setContent {
+            rootView = LocalView.current
             CompositionLocalProvider(LocalSiteIconsEnabled provides false, LocalHapticFeedback provides recorder) {
                 RemBrowseTheme {
                     RemBrowseScreen(
@@ -166,6 +176,62 @@ class TouchHapticsUiTest {
         composeRule.runOnUiThread { chrome.showTabSwitcher = true }
         composeRule.onNodeWithTag("switcher_tab_news").performTouchInput { longClick(center) }
         composeRule.waitForIdle()
+        assertEquals(listOf(HapticFeedbackType.LongPress), played)
+    }
+
+    /**
+     * A touchpad click as it can reach Compose: a finger (TOOL_TYPE_FINGER) from a mouse source
+     * with the primary button down, on the middle of the element tagged [tag], held for
+     * [holdMillis] before it is let go.
+     */
+    private fun touchpadClickAsAFinger(tag: String, holdMillis: Long = 0) {
+        val at = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.center
+        val downTime = SystemClock.uptimeMillis()
+        fun event(action: Int, eventTime: Long, buttons: Int) = MotionEvent.obtain(
+            downTime, eventTime, action, 1,
+            arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER }),
+            arrayOf(MotionEvent.PointerCoords().apply { x = at.x; y = at.y; pressure = 1f; size = 1f }),
+            0, buttons, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0
+        )
+        composeRule.runOnUiThread { rootView.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, downTime, MotionEvent.BUTTON_PRIMARY)) }
+        composeRule.mainClock.advanceTimeBy(holdMillis)
+        composeRule.runOnUiThread { rootView.dispatchTouchEvent(event(MotionEvent.ACTION_UP, downTime + holdMillis, 0)) }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun aTouchpadClickArrivingAsAFingerWithAButton_isNotTakenForTouch() {
+        launch()
+        // A switch flips silently (isFingerPress)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.DOWNLOADS) }
+        composeRule.waitForIdle()
+        touchpadClickAsAFinger("setting_ask_before_download")
+        composeRule.onNodeWithTag("setting_ask_before_download").assertIsOff()
+        assertEquals(emptyList<HapticFeedbackType>(), played)
+
+        // Held on a switcher card well past the long-press time, it is a click, not the menu
+        // a finger's long press opens (touchLongPress)
+        composeRule.runOnUiThread { chrome.showTabSwitcher = true }
+        composeRule.waitForIdle()
+        touchpadClickAsAFinger("switcher_tab_news", holdMillis = 1_500)
+        composeRule.onNodeWithTag("switcher_menu_close_news").assertDoesNotExist()
+        assertEquals("news", browserVm.uiState.value.activeTabId)
+        assertEquals(emptyList<HapticFeedbackType>(), played)
+    }
+
+    @Test
+    fun aRailTab_heldWithTheMouse_opensItsMenuWithTheLongPressHaptic() {
+        // The rail's tiles keep combinedClickable, which takes any pointer held still as a long
+        // press, with its haptic; only the tab switcher, bookmarks and History are touch-only
+        launch()
+        composeRule.onNodeWithTag("tab_bar_item_news").performMouseInput {
+            moveTo(center)
+            press()
+        }
+        composeRule.mainClock.advanceTimeBy(1_500)
+        composeRule.onNodeWithTag("tab_bar_item_news").performMouseInput { release() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("tab_bar_close_news").assertIsDisplayed()
         assertEquals(listOf(HapticFeedbackType.LongPress), played)
     }
 
