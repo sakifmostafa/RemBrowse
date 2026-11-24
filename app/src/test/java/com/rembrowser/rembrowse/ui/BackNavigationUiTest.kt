@@ -7,6 +7,9 @@ import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.assertIsDisplayed
@@ -72,15 +75,20 @@ class BackNavigationUiTest {
     private var backDispatcher: OnBackPressedDispatcher? = null
     private var composeView: View? = null
 
+    /** What the screen reads for "the on-screen keyboard is up" */
+    private var imeVisible = false
+
     @After
     fun tearDown() {
         uiScope.cancel()
     }
 
+    @OptIn(ExperimentalLayoutApi::class)
     private fun launch() {
         composeRule.setContent {
             backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
             composeView = LocalView.current
+            imeVisible = WindowInsets.isImeVisible
             CompositionLocalProvider(LocalSiteIconsEnabled provides false) {
                 RemBrowseTheme {
                     RemBrowseScreen(
@@ -248,6 +256,7 @@ class BackNavigationUiTest {
         assertTrue(backDispatcher!!.hasEnabledCallbacks())
 
         setKeyboard(up = true)
+        assertTrue(imeVisible)
         assertFalse(backDispatcher!!.hasEnabledCallbacks())
         composeRule.runOnUiThread { chrome.showTabSwitcher = true }
         composeRule.waitForIdle()
@@ -260,6 +269,37 @@ class BackNavigationUiTest {
         assertFalse(chrome.showTabSwitcher)
         assertNotNull(browserVm.findInPage.value)
         assertEquals(0, goBackCount(tab))
+    }
+
+    @Test
+    @Config(sdk = [32])
+    fun onScreenKeyboardUp_beforeAndroid13_theHandlersActAsTheyAlwaysDid() {
+        // Up to Android 12L Back is a key, and the keyboard app gets it before the window: it goes
+        // first without the handlers standing aside, and a keyboard inset that reads "up" must not
+        // leave Back with nothing to close (the activity would finish)
+        val tab = launchOnAPageWithHistory()
+        composeRule.runOnUiThread { browserVm.openFindInPage() }
+        composeRule.waitForIdle()
+
+        setKeyboard(up = true)
+        assertTrue("The screen sees the keyboard up", imeVisible)
+        assertTrue(backDispatcher!!.hasEnabledCallbacks())
+        pressBack()
+        assertNull(browserVm.findInPage.value)
+        assertEquals(0, goBackCount(tab))
+        pressBack()
+        assertEquals(1, goBackCount(tab))
+    }
+
+    @Test
+    fun theKeyboardGate_isForAndroid13AndLater() {
+        for (sdk in listOf(26, 30, 31, 32)) {
+            assertFalse("SDK $sdk, keyboard up", backHandlersYieldToKeyboard(imeVisible = true, sdkInt = sdk))
+        }
+        for (sdk in listOf(33, 34, 35, 36)) {
+            assertTrue("SDK $sdk, keyboard up", backHandlersYieldToKeyboard(imeVisible = true, sdkInt = sdk))
+            assertFalse("SDK $sdk, keyboard down", backHandlersYieldToKeyboard(imeVisible = false, sdkInt = sdk))
+        }
     }
 
     private fun setKeyboard(up: Boolean) {

@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.ui
 
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
@@ -261,13 +262,14 @@ fun RemBrowseScreen(
     // make by accident. Phones keep Android's own Back. Composed first, so every handler below,
     // which only acts when it has something to do, comes before it.
     //
-    // While the on-screen keyboard is up, every handler here stands aside, so Back puts the
-    // keyboard away first, as it always did. With predictive back on, Android gives Back to the
-    // last callback registered, and one that becomes enabled while the keyboard is up (a page
-    // that gains history as you type) would otherwise come before the keyboard's own.
+    // While the on-screen keyboard is up, every handler here stands aside on Android 13 and later,
+    // so Back puts the keyboard away first, as it always did. With predictive back on, Android
+    // gives Back to the last callback registered, and one that becomes enabled while the keyboard
+    // is up (a page that gains history as you type) would otherwise come before the keyboard's
+    // own. Up to Android 12L they never stand aside (see backHandlersYieldToKeyboard).
     val context = LocalContext.current
     val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
-    val keyboardUp = WindowInsets.isImeVisible
+    val keyboardUp = backHandlersYieldToKeyboard(imeVisible = WindowInsets.isImeVisible)
     BackHandler(enabled = backAtRootStays && !keyboardUp) { }
     BackHandler(enabled = !keyboardUp && !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)) {
         browserViewModel.goBack()
@@ -977,3 +979,13 @@ private fun systemAnimationsOff(context: Context): Boolean =
 /** How much the tab switcher shrinks and fades at the end of a Back gesture (to 90%, 70% opaque). */
 internal const val TAB_SWITCHER_BACK_SHRINK = 0.1f
 internal const val TAB_SWITCHER_BACK_FADE = 0.3f
+
+/**
+ * Whether the Back handlers stand aside because the on-screen keyboard is up ([imeVisible]):
+ * only from Android 13 ([sdkInt]), where predictive back hands Back to the newest callback,
+ * which can be newer than the keyboard's. Up to Android 12L Back is a key, which the keyboard
+ * app gets before the window, so it already goes first; the handlers act as they always did
+ * there, and an inset that reads "up" with no keyboard on screen can't turn them all off.
+ */
+internal fun backHandlersYieldToKeyboard(imeVisible: Boolean, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+    imeVisible && sdkInt >= Build.VERSION_CODES.TIRAMISU
