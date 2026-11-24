@@ -52,7 +52,6 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -877,8 +876,8 @@ private fun PreviewPage(
 }
 
 /**
- * A small spinner, only once a wait has gone on long enough to notice, so quick loads don't
- * flash; with Android's animations off, still words instead.
+ * Material's loading indicator, only once a wait has gone on long enough to notice, so quick
+ * loads don't flash; with Android's animations off, still words instead.
  */
 @Composable
 private fun DelayedLoading(spinnerColor: Color, textColor: Color, reduceMotion: Boolean, delayMillis: Long = 400) {
@@ -890,7 +889,7 @@ private fun DelayedLoading(spinnerColor: Color, textColor: Color, reduceMotion: 
     when {
         !visible -> Unit
         reduceMotion -> Text(text = "Loading…", style = MaterialTheme.typography.labelMedium, color = textColor)
-        else -> CircularProgressIndicator(color = spinnerColor, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+        else -> RemLoadingIndicator(color = spinnerColor)
     }
 }
 

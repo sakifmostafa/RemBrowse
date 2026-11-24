@@ -29,7 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Tab
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -556,11 +555,8 @@ private fun RailTabItem(
                 )
         ) {
             if (tab.isLoading && !tab.isNewTabPage) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                // In place of the site's icon, about its size
+                RemLoadingIndicator(modifier = Modifier.size(24.dp))
             } else {
                 SiteIcon(
                     url = tab.url,

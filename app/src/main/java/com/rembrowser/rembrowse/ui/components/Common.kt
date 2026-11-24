@@ -44,7 +44,9 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
@@ -743,6 +745,22 @@ fun <T> ConnectedChoiceGroup(
             }
         }
     }
+}
+
+/**
+ * Material 3 Expressive's loading indicator, shapes morphing into one another in the accent
+ * colour, for a wait of unknown length that is usually short: a tab loading in the rail, the
+ * add-on catalogue, the print preview. It fills [modifier]'s size (48dp by default, the shapes a
+ * little smaller). Long, measurable waits (a download) use LinearWavyProgressIndicator instead,
+ * and the page's own loading line stays a plain 2dp line.
+ *
+ * material3 1.5.0 still marks LoadingIndicator experimental (ExperimentalMaterial3ExpressiveApi),
+ * so this is the one place it is called: if it changes, only this wrapper does.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun RemLoadingIndicator(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
+    LoadingIndicator(modifier = modifier, color = color)
 }
 
 /**

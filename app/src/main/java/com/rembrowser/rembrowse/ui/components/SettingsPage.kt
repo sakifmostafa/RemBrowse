@@ -41,7 +41,7 @@ import androidx.compose.material.icons.outlined.Tab
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -821,7 +821,8 @@ private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
             .testTag("update_status")
     )
     if (status is UpdateStatus.Downloading) {
-        LinearProgressIndicator(
+        // Material 3 Expressive's wavy line, as for downloads
+        LinearWavyProgressIndicator(
             progress = { status.fraction },
             modifier = Modifier
                 .fillMaxWidth()

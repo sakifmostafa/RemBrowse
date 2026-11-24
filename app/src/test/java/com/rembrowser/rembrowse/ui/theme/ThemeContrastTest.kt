@@ -168,6 +168,23 @@ open class ThemeContrastTest {
     }
 
     @Test
+    fun progressAndLoading_standOutFromTheirTrackAndTile() = forEveryTheme { name, c ->
+        // The wavy download and update lines: primary on their surfaceContainerHighest track, on
+        // a download card (surfaceContainerLow) and on the settings page
+        assertContrast("$name progress on its track", c.primary, c.surfaceContainerHighest, 3.0)
+        assertContrast("$name progress on a download card", c.primary, c.surfaceContainerLow, 3.0)
+        assertContrast("$name progress on the settings page", c.primary, c.surfaceContainerLowest, 3.0)
+        // The loading indicator in a rail tile (tab tile, highlighted or active)
+        for ((tileName, tile) in listOf(
+            "surfaceContainerLow" to c.surfaceContainerLow,
+            "surfaceContainerHigh" to c.surfaceContainerHigh,
+            "surfaceContainerHighest" to c.surfaceContainerHighest
+        )) {
+            assertContrast("$name loading indicator on a $tileName rail tile", c.primary, tile, 3.0)
+        }
+    }
+
+    @Test
     fun outlinedButtons_textAndBorderStandOutWhereTheButtonsSit() = forEveryTheme { name, c ->
         // RemOutlinedButton sits on Settings (surfaceContainerLowest), the print panel and the
         // terminal page's cards (surface) and dialogs (surfaceContainerHigh)

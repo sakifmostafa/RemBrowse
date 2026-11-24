@@ -406,10 +406,7 @@ private fun DiscoverAmoTab(
                     .height(160.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(
-                    color = colors.primary,
-                    modifier = Modifier.semantics { contentDescription = "Loading add-ons" }
-                )
+                RemLoadingIndicator(modifier = Modifier.semantics { contentDescription = "Loading add-ons" })
             }
 
             uiState.catalogError != null -> EmptyState(

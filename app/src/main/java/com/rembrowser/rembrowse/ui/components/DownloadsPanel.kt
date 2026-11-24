@@ -20,7 +20,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -176,8 +176,10 @@ private fun DownloadRow(item: DownloadItem, actions: DownloadsPanelActions) {
                     val barModifier = Modifier
                         .fillMaxWidth()
                         .semantics { contentDescription = "Downloading ${item.fileName}" }
+                    // Material 3 Expressive's wavy line: it ripples while the file comes in and
+                    // flattens as it nears the end
                     if (progress != null) {
-                        LinearProgressIndicator(
+                        LinearWavyProgressIndicator(
                             progress = { progress },
                             color = colors.primary,
                             trackColor = colors.surfaceContainerHighest,
@@ -185,7 +187,7 @@ private fun DownloadRow(item: DownloadItem, actions: DownloadsPanelActions) {
                         )
                     } else {
                         // The server did not say how big the file is
-                        LinearProgressIndicator(
+                        LinearWavyProgressIndicator(
                             color = colors.primary,
                             trackColor = colors.surfaceContainerHighest,
                             modifier = barModifier
