@@ -1,7 +1,9 @@
 package com.rembrowser.rembrowse
 
+import android.app.Activity
 import android.app.UiModeManager
 import android.content.Context
+import android.os.Build
 import androidx.annotation.StyleRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
@@ -64,3 +66,26 @@ val ThemeMode.applicationNightMode: Int
 @StyleRes
 fun windowThemeBeforeAndroid12(dark: Boolean): Int =
     if (dark) R.style.Theme_RemBrowse else R.style.Theme_RemBrowse_Light
+
+/**
+ * Brings the activity's window to the theme on screen, light or dark ([dark]), at start and on
+ * every change while it runs.
+ *
+ * The window's background, which shows where nothing is drawn yet (a desktop window being made
+ * larger, the moment before the first frame), is set on every Android version. MainActivity
+ * handles uiMode changes itself, so on Android 12+ its window would otherwise keep the colour it
+ * was made with until the next start.
+ *
+ * Android 8-11 only: the activity's theme. There Android can't be told the app's mode before it
+ * starts (Android 12+ is, by UiModeManager.setApplicationNightMode, and picks the theme from the
+ * resources), so the launch screen and the manifest's window theme are dark, as in 0.14.0 and
+ * earlier. For the light theme the activity's theme is set here: at start, before the window is
+ * made, so the window and the pieces Android draws over it (the text selection toolbar over a
+ * page) are light; and again on every change, for the pieces made from then on. The launch
+ * screen itself stays dark. The theme is applied over the current one, and does nothing when it
+ * is already the one set.
+ */
+fun Activity.applyWindowTheme(dark: Boolean) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) setTheme(windowThemeBeforeAndroid12(dark))
+    window.setBackgroundDrawableResource(if (dark) R.color.rem_chrome_dark else R.color.rem_chrome_light)
+}

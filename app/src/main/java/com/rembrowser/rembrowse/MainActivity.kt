@@ -356,11 +356,10 @@ class MainActivity : ComponentActivity() {
         // as it draws; nothing holds it on screen
         installSplashScreen()
         super.onCreate(savedInstanceState)
-        // Before the window is made (enableEdgeToEdge makes it)
+        // Android 8-11: the light theme before the window is made (enableEdgeToEdge makes it).
+        // Android 12+ already starts in the mode set last time (applyNightModeToWindow).
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            applyWindowThemeBeforeAndroid12(
-                dark = holder.browser.uiState.value.settings.themeMode.isDark(systemIsDark = deviceIsDark())
-            )
+            applyWindowTheme(dark = holder.browser.uiState.value.settings.themeMode.isDark(systemIsDark = deviceIsDark()))
         }
         enableEdgeToEdge()
 
@@ -385,7 +384,7 @@ class MainActivity : ComponentActivity() {
                 val theme = resolveTheme(this@MainActivity, settings, systemIsDark = isSystemInDarkTheme())
                 val darkTheme = theme.dark
                 LaunchedEffect(settings.themeMode) { applyNightModeToWindow(settings.themeMode) }
-                LaunchedEffect(darkTheme) { applyWindowThemeBeforeAndroid12(darkTheme) }
+                LaunchedEffect(darkTheme) { applyWindowTheme(darkTheme) }
 
                 // Keep system bar icons legible against the chrome, and let pages that honour
                 // prefers-color-scheme match the browser.
@@ -540,21 +539,6 @@ class MainActivity : ComponentActivity() {
             .onFailure { Log.w(TAG, "Couldn't set the app's night mode", it) }
     }
 
-    /**
-     * Android 8-11: the window's theme, light or dark. There Android can't be told the app's mode
-     * before it starts (Android 12+ is, by [applyNightModeToWindow], and picks the theme from the
-     * resources), so the launch screen and the manifest's window theme are dark, as in 0.14.0 and
-     * earlier. For the light theme the activity's theme is set here: at start, before the window
-     * is made, so the window and the pieces Android draws over it (the text selection toolbar
-     * over a page) are light; and again on every change, for the pieces made from then on. The
-     * launch screen itself stays dark.
-     */
-    private fun applyWindowThemeBeforeAndroid12(dark: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) return
-        // Applied over the current theme; does nothing when it is already the one set
-        setTheme(windowThemeBeforeAndroid12(dark))
-        window.setBackgroundDrawableResource(if (dark) R.color.rem_chrome_dark else R.color.rem_chrome_light)
-    }
 
     /** Android's own dark theme is on (always off on Android 8 and 9, which have none). */
     private fun deviceIsDark(): Boolean =
