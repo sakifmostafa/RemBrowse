@@ -367,7 +367,7 @@ class MainActivity : ComponentActivity() {
                 val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
                 // The activity handles uiMode changes itself, so the device switching between
                 // light and dark recomposes here instead of restarting the activity
-                val theme = resolveTheme(this@MainActivity, settings, systemIsDark = isSystemInDarkTheme())
+                val theme = resolveTheme(this@MainActivity, settings, systemIsDark = deviceThemeIsDark(isSystemInDarkTheme()))
                 val darkTheme = theme.dark
                 LaunchedEffect(settings.themeMode) { applyNightModeToWindow(settings.themeMode) }
                 LaunchedEffect(darkTheme) { applyWindowTheme(darkTheme) }
@@ -526,9 +526,9 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    /** Android's own dark theme is on (always off on Android 8 and 9, which have none). */
+    /** The device counts as dark for the System theme (always on Android 8 and 9: [deviceThemeIsDark]). */
     private fun deviceIsDark(): Boolean =
-        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        deviceThemeIsDark((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
 
     /**
      * In a desktop window (a Googlebook), the window's header (the caption bar with its close,

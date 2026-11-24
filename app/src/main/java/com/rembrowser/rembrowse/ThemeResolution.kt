@@ -34,7 +34,16 @@ class ResolvedTheme(
 }
 
 /**
- * [mode] resolved against the device ([systemIsDark]: Android's dark theme is on), with the
+ * Whether the device counts as dark for the System theme, from Android's night mode
+ * ([nightModeOn]: its dark theme is on). Android 10 brought the dark theme; Android 8 and 9
+ * ([sdkInt] below 29) have none and always read light, so there System is dark: RemBrowse's look
+ * up to 0.14.0, and the colour its launch screen and window start in on those versions.
+ */
+fun deviceThemeIsDark(nightModeOn: Boolean, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+    nightModeOn || sdkInt < Build.VERSION_CODES.Q
+
+/**
+ * [mode] resolved against the device ([systemIsDark]: see [deviceThemeIsDark]), with the
  * colours [schemeFor] gives for that (light or dark).
  */
 fun resolveTheme(mode: ThemeMode, systemIsDark: Boolean, schemeFor: (dark: Boolean) -> ColorScheme): ResolvedTheme {
