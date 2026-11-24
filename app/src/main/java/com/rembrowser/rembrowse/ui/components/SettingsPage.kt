@@ -670,8 +670,7 @@ private fun AboutSection(versionName: String, updates: UpdatesUiState?, updateAc
     Text(text = "RemBrowse $versionName", style = MaterialTheme.typography.titleSmall)
     Spacer(modifier = Modifier.height(4.dp))
     Text(
-        text = "A tiled browser for Android laptops, built on Mozilla GeckoView with native " +
-            "WebExtension support.",
+        text = "A private, native browser made for Googlebook, where SSH is just another tab.",
         style = MaterialTheme.typography.bodyMedium,
         color = colors.onSurfaceVariant
     )

@@ -2,6 +2,11 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Changed
+* **A new About line:** "A private, native browser made for Googlebook, where SSH is just another tab." (Settings → About, the README, the site and the GitHub description.)
+
 ## v0.14.0 (2026-11-23) — Pasting pictures into Telegram
 
 ### Fixed
