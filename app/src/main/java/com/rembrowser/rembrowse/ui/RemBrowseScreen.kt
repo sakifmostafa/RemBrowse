@@ -56,6 +56,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -157,6 +158,24 @@ class BrowserChromeState {
      * Wider windows keep the rail expanded or not by the setting instead (tabRailExpanded).
      */
     var tabRailOverlayOpen by mutableStateOf(false)
+
+    /**
+     * What had the keyboard when the rail opened over the page (the address bar, a page...),
+     * given back when it closes, however it closes; noted by RemBrowseScreen. Null while the
+     * rail had it already (opened with the keyboard from its menu button), which then keeps it,
+     * and when a close puts the focus somewhere itself ([closeTabRailOverlay]).
+     */
+    internal var focusBeforeTabRail: FocusBeforeCapture? = null
+
+    /**
+     * Closes the expanded tab rail open over the page. The keyboard goes back to where it was
+     * before it opened, unless [giveFocusBack] is false: the caller then puts it somewhere itself
+     * (a tab chosen in the rail, the address bar of a new tab, the find bar...).
+     */
+    fun closeTabRailOverlay(giveFocusBack: Boolean = true) {
+        if (!giveFocusBack) focusBeforeTabRail = null
+        tabRailOverlayOpen = false
+    }
 
     /** The Go to address popup (Ctrl+G). */
     var showGoToAddress by mutableStateOf(false)
@@ -294,6 +313,7 @@ fun RemBrowseScreen(
     // becomes enabled while the keyboard is up, and the keyboard's own Back, which comes later,
     // still goes first.
     val context = LocalContext.current
+    val composeView = LocalView.current
     val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
     val keyboardUp = backHandlersYieldToKeyboard(imeVisible = WindowInsets.isImeVisible)
     BackHandler(enabled = backAtRootStays) { }
@@ -421,12 +441,47 @@ fun RemBrowseScreen(
     // The expanded rail open over the page is in front of the tab switcher and the find bar, so
     // its Back, which closes it, is composed after theirs and comes first. Only the screenshot
     // overlay's (below) comes before it.
-    val closeTabRailOverlay = { chrome.tabRailOverlayOpen = false }
+    val closeTabRailOverlay = { chrome.closeTabRailOverlay() }
+    // For a choice in the rail that puts the keyboard somewhere itself
+    val closeTabRailOverlayForChoice = { chrome.closeTabRailOverlay(giveFocusBack = false) }
     BackHandler(enabled = chrome.tabRailOverlayOpen && !keyboardUp, onBack = closeTabRailOverlay)
+    // What has the keyboard, noted before an overlay takes it (the screenshot overlay, the rail over
+    // the page) and given back once it has gone (giveFocusBack)
+    fun noteFocus(): FocusBeforeCapture {
+        val state = browserViewModel.uiState.value
+        val focusedView = composeView.rootView.findFocus()
+        return when {
+            chrome.showTabSwitcher && chrome.isTabSearchFocused -> FocusBeforeCapture.TabSearch
+            state.isAddressBarFocused -> FocusBeforeCapture.AddressBar(state.addressBarInput)
+            focusedView != null && focusedView !== composeView -> FocusBeforeCapture.View(WeakReference(focusedView))
+            chrome.showTabSwitcher -> FocusBeforeCapture.Nothing
+            else -> FocusBeforeCapture.Page
+        }
+    }
+    fun giveFocusBack(before: FocusBeforeCapture) {
+        when (before) {
+            is FocusBeforeCapture.AddressBar -> {
+                // Losing the focus put the page's address back in place of what was being typed
+                browserViewModel.onAddressBarChange(before.typed)
+                chrome.refocusAddressBar()
+            }
+            FocusBeforeCapture.TabSearch -> chrome.focusTabSearch()
+            is FocusBeforeCapture.View -> {
+                // A page or terminal no longer shown (another tab came to its pane): the focused pane
+                val view = before.view.get()?.takeIf { it.isAttachedToWindow && it.isShown }
+                if (view == null || !(view.isFocused || view.requestFocus())) chrome.focusContent()
+            }
+            FocusBeforeCapture.Page -> chrome.focusContent()
+            FocusBeforeCapture.Nothing -> Unit
+        }
+    }
+    // Whether the keyboard's focus is in the tab rail, read when the rail opens over the page
+    val railHasFocus = remember { booleanArrayOf(false) }
+
     // A tab picked up from the rail over the page: the rail steps back to its icons, so every pane
     // shows for the drop. The tile under the pointer stays, and so does the drag.
     LaunchedEffect(tabDrag.draggedTabId) {
-        if (tabDrag.draggedTabId != null) chrome.tabRailOverlayOpen = false
+        if (tabDrag.draggedTabId != null) chrome.closeTabRailOverlay()
     }
     val openFindInPage = {
         chrome.showTabSwitcher = false
@@ -547,9 +602,28 @@ fun RemBrowseScreen(
         }
         // The rail is only ever over the page on a window narrower than 840dp that shows it
         LaunchedEffect(showRail, besidePage) {
-            if (!showRail || besidePage) chrome.tabRailOverlayOpen = false
+            if (!showRail || besidePage) chrome.closeTabRailOverlay()
         }
         val railOverlay = showRail && !besidePage && chrome.tabRailOverlayOpen
+        // Opened over the page, the rail takes the keyboard as a dialog would (TabRail), so what had
+        // it is noted first: this runs before the rail's own effects move the focus. The rail
+        // itself having it (its menu button, pressed from the keyboard) keeps it instead.
+        val railOverlayShown = remember { booleanArrayOf(false) }
+        SideEffect {
+            if (railOverlay && !railOverlayShown[0]) {
+                chrome.focusBeforeTabRail = if (railHasFocus[0]) null else noteFocus()
+            }
+            railOverlayShown[0] = railOverlay
+        }
+        // Closed, however it closed: the keyboard goes back where it was, once the rail has let go
+        // of it, unless the close put it somewhere itself
+        LaunchedEffect(railOverlay) {
+            if (railOverlay) return@LaunchedEffect
+            val before = chrome.focusBeforeTabRail ?: return@LaunchedEffect
+            chrome.focusBeforeTabRail = null
+            withFrameNanos { }
+            giveFocusBack(before)
+        }
         val railExpanded = showRail && if (besidePage) browserState.settings.tabRailExpanded else railOverlay
         // The room the page leaves the rail
         val railRoom = if (railExpanded && besidePage) RemDimens.RailExpandedWidth else RemDimens.RailWidth
@@ -569,11 +643,12 @@ fun RemBrowseScreen(
                     floating = !besidePage,
                     onDismiss = closeTabRailOverlay,
                     onOpenTabSwitcher = {
-                        closeTabRailOverlay()
+                        // Opening, the switcher takes the keyboard (its search field)
+                        chrome.closeTabRailOverlay(giveFocusBack = chrome.showTabSwitcher)
                         chrome.showTabSwitcher = !chrome.showTabSwitcher
                     },
                     onSelectTab = { tabId ->
-                        closeTabRailOverlay()
+                        closeTabRailOverlayForChoice()
                         browserViewModel.selectTab(tabId)
                         closeTabSwitcher()
                     },
@@ -590,16 +665,16 @@ fun RemBrowseScreen(
                     dragState = tabDrag,
                     onDropTab = browserViewModel::dropTabOnPane,
                     onNewTab = {
-                        closeTabRailOverlay()
+                        closeTabRailOverlayForChoice()
                         openNewTab()
                     },
                     onOpenBookmark = { url ->
-                        closeTabRailOverlay()
+                        closeTabRailOverlayForChoice()
                         browserViewModel.openBookmark(url)
                         closeTabSwitcher()
                     },
                     onOpenBookmarkInNewTab = { url ->
-                        closeTabRailOverlay()
+                        closeTabRailOverlayForChoice()
                         browserViewModel.openBookmarkInNewTab(url)
                         closeTabSwitcher()
                     },
@@ -614,7 +689,9 @@ fun RemBrowseScreen(
                         closeTabRailOverlay()
                         openExtensions()
                     },
-                    modifier = Modifier.zIndex(1f)
+                    modifier = Modifier
+                        .zIndex(1f)
+                        .onFocusChanged { railHasFocus[0] = it.hasFocus }
                 )
             }
 
@@ -878,39 +955,17 @@ fun RemBrowseScreen(
     BackHandler(enabled = screenCapture.isSelecting && !keyboardUp, onBack = screenCapture::cancel)
     // The keyboard goes back to whatever had it when the overlay came up: noted before the overlay
     // takes the focus (a frame later), given back once it has gone, however it went
-    val composeView = LocalView.current
     val focusBeforeCapture = remember { arrayOfNulls<FocusBeforeCapture>(1) }
     LaunchedEffect(screenCapture.isSelecting) {
         if (screenCapture.isSelecting) {
-            val state = browserViewModel.uiState.value
-            val focusedView = composeView.rootView.findFocus()
-            focusBeforeCapture[0] = when {
-                chrome.showTabSwitcher && chrome.isTabSearchFocused -> FocusBeforeCapture.TabSearch
-                state.isAddressBarFocused -> FocusBeforeCapture.AddressBar(state.addressBarInput)
-                focusedView != null && focusedView !== composeView -> FocusBeforeCapture.View(WeakReference(focusedView))
-                chrome.showTabSwitcher -> FocusBeforeCapture.Nothing
-                else -> FocusBeforeCapture.Page
-            }
+            focusBeforeCapture[0] = noteFocus()
             return@LaunchedEffect
         }
         val before = focusBeforeCapture[0] ?: return@LaunchedEffect
         focusBeforeCapture[0] = null
         // The overlay has left the screen, and its focus with it
         withFrameNanos { }
-        when (before) {
-            is FocusBeforeCapture.AddressBar -> {
-                // Losing the focus put the page's address back in place of what was being typed
-                browserViewModel.onAddressBarChange(before.typed)
-                chrome.refocusAddressBar()
-            }
-            FocusBeforeCapture.TabSearch -> chrome.focusTabSearch()
-            is FocusBeforeCapture.View -> {
-                val view = before.view.get()?.takeIf { it.isAttachedToWindow && it.isShown }
-                if (view == null || !(view.isFocused || view.requestFocus())) chrome.focusContent()
-            }
-            FocusBeforeCapture.Page -> chrome.focusContent()
-            FocusBeforeCapture.Nothing -> Unit
-        }
+        giveFocusBack(before)
     }
 
     // The commands of the palette (Ctrl+K) and Go to address (Ctrl+G), and the saved SSH hosts

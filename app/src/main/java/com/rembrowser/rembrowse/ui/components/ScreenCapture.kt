@@ -240,7 +240,8 @@ fun BoxScope.CaptureRegionMarker(state: ScreenCaptureState, key: String, layer: 
 
 /**
  * What had the keyboard when the screenshot overlay took it, to be given it back when the overlay
- * goes, whether it was cancelled or took something.
+ * goes, whether it was cancelled or took something. The expanded tab rail over the page notes
+ * and gives it back the same way (BrowserChromeState.focusBeforeTabRail).
  */
 sealed interface FocusBeforeCapture {
     /** The address bar, with what was typed in it: losing the focus put the page's address back. */

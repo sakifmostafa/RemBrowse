@@ -202,6 +202,21 @@ class KeyboardShortcutsTest {
     }
 
     @Test
+    fun shortcutsThatPutTheKeyboardSomewhere_keepTheFocusTheRailWouldGiveBack() {
+        // These take the keyboard themselves: the rail they close leaves it to them
+        listOf(
+            BrowserShortcut.NEW_TAB, BrowserShortcut.NEW_TERMINAL, BrowserShortcut.FOCUS_ADDRESS_BAR,
+            BrowserShortcut.COMMAND_PALETTE, BrowserShortcut.GO_TO_ADDRESS, BrowserShortcut.FIND_IN_PAGE,
+            BrowserShortcut.FIND_NEXT, BrowserShortcut.FIND_PREVIOUS, BrowserShortcut.PRINT
+        ).forEach { assertTrue(it.name, KeyboardShortcuts.placesFocus(it)) }
+        // These don't: the keyboard goes back to where it was before the rail opened
+        listOf(
+            BrowserShortcut.NEXT_TAB, BrowserShortcut.PREVIOUS_TAB, BrowserShortcut.BACK, BrowserShortcut.FORWARD,
+            BrowserShortcut.RELOAD, BrowserShortcut.TOGGLE_SPLIT_VIEW, BrowserShortcut.LAYOUT_GRID, BrowserShortcut.OPEN_SETTINGS
+        ).forEach { assertFalse(it.name, KeyboardShortcuts.placesFocus(it)) }
+    }
+
+    @Test
     fun escape_closesTheOpenFindBar_wheneverTheFocusIs_butNotInATerminal() {
         val esc = KeyEvent.KEYCODE_ESCAPE
         assertTrue(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true))

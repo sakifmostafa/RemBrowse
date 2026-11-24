@@ -4,10 +4,14 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -37,6 +41,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -155,7 +160,10 @@ class WideTabRailUiTest {
         uiScope.cancel()
     }
 
-    private fun launch(settings: BrowserSettings = BrowserSettings()) {
+    /** Each tab's page, an Android view as a web page is, when launched [withPageViews][launch]. */
+    private val pageViews = mutableMapOf<String, View>()
+
+    private fun launch(settings: BrowserSettings = BrowserSettings(), withPageViews: Boolean = false) {
         repository = FakeBrowserStateRepository(
             PersistedBrowserState(tabs = tabs, paneTabIds = listOf("github"), bookmarks = listOf(gmail), settings = settings)
         )
@@ -187,6 +195,8 @@ class WideTabRailUiTest {
                         chrome = chrome,
                         versionName = "test",
                         onPickLocalXpi = {},
+                        // As MainActivity hands the focus to a page's web view
+                        onFocusWebContent = { tabId -> pageViews[tabId]?.requestFocus() },
                         paneViewport = { tab, modifier ->
                             Box(
                                 modifier
@@ -201,6 +211,18 @@ class WideTabRailUiTest {
                                     }
                             ) {
                                 Text("Viewport:${tab.url}")
+                                if (withPageViews) {
+                                    AndroidView(
+                                        factory = { context ->
+                                            View(context).apply {
+                                                isFocusable = true
+                                                isFocusableInTouchMode = true
+                                            }
+                                        },
+                                        update = { pageViews[tab.id] = it },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
                         },
                         extensionPopupContent = { Box(it) }
@@ -594,10 +616,11 @@ class WideTabRailUiTest {
     @Config(qualifiers = "w800dp-h600dp-land-mdpi")
     fun narrowWindow_escClosesTheRailOverThePage() {
         launch()
-        // Opened from the keyboard, the rail takes the keyboard focus, as a dialog would
+        // Opened from the keyboard with its menu button, which keeps the focus, as a dialog would
         composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
-        composeRule.runOnUiThread { chrome.tabRailOverlayOpen = true }
-        composeRule.waitForIdle()
+        node("tab_rail_toggle").requestFocus()
+        pressOnTheFocused(Key.Enter)
+        assertTrue(chrome.tabRailOverlayOpen)
         node("tab_rail_toggle").assertIsFocused()
 
         node("tab_rail_toggle").performKeyInput { pressKey(Key.Escape) }
@@ -930,5 +953,148 @@ class WideTabRailUiTest {
         assertEquals("The press and its release, kept from the page", listOf(true, true), taken)
         // The next Esc, with the rail closed, is the page's again
         assertEquals(listOf(false, false), pressThroughTheWindow(KeyEvent.KEYCODE_ESCAPE))
+    }
+
+    // --- Where the keyboard's focus goes when what had it goes ---
+
+    /** The node with the keyboard's focus is [tag]'s row or button, unmerged (a close button's node). */
+    private fun assertFocusOn(tag: String) {
+        composeRule.onNode(isFocused() and (hasTestTag(tag) or hasAnyAncestor(hasTestTag(tag))), useUnmergedTree = true)
+            .assertExists("The focus on $tag")
+    }
+
+    @Test
+    fun expandedRail_closingTheFocusedRow_movesTheFocusToTheRowThatTakesItsPlace() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
+
+        // Enter on a row's close button: the next row takes the focus
+        node("tab_bar_item_news").requestFocus()
+        pressOnTheFocused(Key.Tab)
+        assertFocusOn("rail_tab_close_news")
+        pressOnTheFocused(Key.Enter)
+        assertEquals(listOf("github", "chat"), openTabIds())
+        node("tab_bar_item_chat").assertIsFocused()
+
+        // The last row: the one before it
+        pressOnTheFocused(Key.Tab)
+        assertFocusOn("rail_tab_close_chat")
+        pressOnTheFocused(Key.Enter)
+        assertEquals(listOf("github"), openTabIds())
+        node("tab_bar_item_github").assertIsFocused()
+    }
+
+    @Test
+    fun expandedRail_ctrlW_onTheFocusedActiveRow_movesTheFocusToTheNextRow() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
+        node("tab_bar_item_github").requestFocus()
+
+        pressThroughTheWindow(KeyEvent.KEYCODE_W, ctrl)
+
+        assertEquals(listOf("news", "chat"), openTabIds())
+        node("tab_bar_item_news").assertIsFocused()
+    }
+
+    @Test
+    fun expandedRail_shiftTab_stopsOnEachRowsCloseButton_asTabDoes() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
+        node("tab_bar_item_chat").requestFocus()
+
+        // Back from a row: the row before's close button, then that row
+        pressOnTheFocused(Key.Tab, shift = true)
+        assertFocusOn("rail_tab_close_news")
+        pressOnTheFocused(Key.Tab, shift = true)
+        node("tab_bar_item_news").assertIsFocused()
+        pressOnTheFocused(Key.Tab, shift = true)
+        assertFocusOn("rail_tab_close_github")
+        pressOnTheFocused(Key.Tab, shift = true)
+        node("tab_bar_item_github").assertIsFocused()
+        // And forward again through the same places
+        pressOnTheFocused(Key.Tab)
+        assertFocusOn("rail_tab_close_github")
+        pressOnTheFocused(Key.Tab)
+        node("tab_bar_item_news").assertIsFocused()
+        // From New tab, after the list, back to the last row's button
+        node("new_tab_button").requestFocus()
+        pressOnTheFocused(Key.Tab, shift = true)
+        assertFocusOn("rail_tab_close_chat")
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_escFromARowsCloseButton_leavesTheFocusOnItsRow() {
+        launch()
+        composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
+        node("tab_rail_toggle").requestFocus()
+        pressOnTheFocused(Key.Enter)
+        assertTrue(chrome.tabRailOverlayOpen)
+        node("tab_bar_item_news").requestFocus()
+        pressOnTheFocused(Key.Tab)
+        assertFocusOn("rail_tab_close_news")
+
+        // Esc as the window reads it, before the rail sees it
+        pressThroughTheWindow(KeyEvent.KEYCODE_ESCAPE)
+
+        assertFalse(chrome.tabRailOverlayOpen)
+        assertCollapsed()
+        closeButton("news").assertDoesNotExist()
+        node("tab_bar_item_news").assertIsFocused()
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_openedWithAClickWhileTypingAnAddress_givesTheAddressBarBack_howeverItCloses() {
+        launch()
+        val closings = listOf<Pair<String, () -> Unit>>(
+            "a click outside it" to { node("tab_rail_scrim").performClick() },
+            "Esc" to { pressThroughTheWindow(KeyEvent.KEYCODE_ESCAPE) },
+            "Back" to { composeRule.runOnUiThread { backDispatcher!!.onBackPressed() } }
+        )
+        closings.forEach { (how, close) ->
+            composeRule.runOnIdle { shownInputMode.value = InputMode.Touch }
+            addressBar.performClick()
+            addressBar.performTextReplacement("gith")
+            addressBar.assertIsFocused()
+            toggle()
+            assertTrue(chrome.tabRailOverlayOpen)
+            composeRule.onNode(isFocused() and hasSetTextAction(), useUnmergedTree = true).assertDoesNotExist()
+
+            close()
+            composeRule.waitForIdle()
+
+            assertFalse(how, chrome.tabRailOverlayOpen)
+            addressBar.assertIsFocused()
+            assertEquals("$how: what was typed is still there", "gith", browserVm.uiState.value.addressBarInput)
+            // Typing goes to it (the bar selects all of its text when it takes the focus, as ever)
+            composeRule.runOnIdle { shownInputMode.value = null }
+            pressThroughTheWindow(KeyEvent.KEYCODE_U)
+            assertTrue(how, browserVm.uiState.value.addressBarInput.endsWith("u"))
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_openedWithAClickWhileAPageHadTheFocus_givesItBack_orToTheShownPageWhenItIsGone() {
+        launch(withPageViews = true)
+        composeRule.runOnIdle { shownInputMode.value = InputMode.Touch }
+        composeRule.runOnUiThread { assertTrue(pageViews.getValue("github").requestFocus()) }
+        composeRule.waitForIdle()
+
+        toggle()
+        composeRule.runOnIdle { assertFalse("Out of the page while it is open", pageViews.getValue("github").isFocused) }
+        node("tab_rail_scrim").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.runOnIdle { assertTrue("Back in the page", pageViews.getValue("github").isFocused) }
+
+        // Opened again, and closed by Ctrl+Tab, which shows another tab in its pane: its page
+        toggle()
+        composeRule.runOnIdle { shownInputMode.value = null }
+        pressThroughTheWindow(KeyEvent.KEYCODE_TAB, ctrl)
+        assertFalse(chrome.tabRailOverlayOpen)
+        assertEquals("news", browserVm.uiState.value.activeTabId)
+        composeRule.runOnIdle { assertTrue("The page shown now", pageViews.getValue("news").isFocused) }
     }
 }

@@ -57,6 +57,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,6 +98,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -339,6 +341,31 @@ fun TabRail(
     // Whether the rail was last used with a finger: the expanded rail's close buttons then stay
     // in sight, as there is no pointer to hover with (RailTile's trailing)
     var touchUsed by remember { mutableStateOf(false) }
+    // Whether the last key pressed in the rail was Shift+Tab, and on which tab's row (or its close
+    // button): another tab's row it lands on hands the focus on to its close button, the row's
+    // last place, as Tab from the row reaches the button first
+    val shiftTabbed = remember { booleanArrayOf(false) }
+    val shiftTabbedFrom = remember { arrayOfNulls<String>(1) }
+
+    // The keyboard's place among the tabs: the tab whose row (or its close button) has the focus,
+    // kept while that tab closes, so the focus goes on to the row that takes its place, or the one
+    // before it, or the menu button, rather than nowhere
+    val rowFocus = remember { HashMap<String, FocusRequester>() }
+    val focusedRow = remember { arrayOfNulls<String>(1) }
+    val tabIds = uiState.tabs.map { it.id }
+    val openTabIds by rememberUpdatedState(tabIds)
+    val shownTabIds = remember { arrayOf(tabIds) }
+    LaunchedEffect(tabIds) {
+        val before = shownTabIds[0]
+        shownTabIds[0] = tabIds
+        val closed = focusedRow[0]?.takeIf { it !in tabIds } ?: return@LaunchedEffect
+        focusedRow[0] = null
+        val at = before.indexOf(closed)
+        val moved = listOfNotNull(tabIds.getOrNull(at), tabIds.getOrNull(at - 1)).any { id ->
+            rowFocus[id]?.let { runCatching { it.requestFocus() }.getOrDefault(false) } == true
+        }
+        if (!moved) runCatching { toggleFocus.requestFocus() }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -434,7 +461,10 @@ fun TabRail(
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             val change = event.changes.firstOrNull() ?: continue
                             when (event.type) {
-                                PointerEventType.Press -> touchUsed = isFingerPress(change.type, event.buttons)
+                                PointerEventType.Press -> {
+                                    touchUsed = isFingerPress(change.type, event.buttons)
+                                    shiftTabbed[0] = false
+                                }
                                 PointerEventType.Enter, PointerEventType.Move ->
                                     if (change.type == PointerType.Mouse && !change.pressed) touchUsed = false
                             }
@@ -442,6 +472,10 @@ fun TabRail(
                     }
                 }
                 .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        shiftTabbed[0] = event.key == Key.Tab && event.isShiftPressed
+                        shiftTabbedFrom[0] = focusedRow[0]
+                    }
                     if (floatingOpen && event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                         dismiss()
                         true
@@ -513,6 +547,11 @@ fun TabRail(
                     }
                     items(uiState.tabs, key = { it.id }) { tab ->
                         val paneIndex = uiState.paneIndexOf(tab.id)
+                        val focus = remember { FocusRequester() }
+                        DisposableEffect(tab.id) {
+                            rowFocus[tab.id] = focus
+                            onDispose { if (rowFocus[tab.id] === focus) rowFocus.remove(tab.id) }
+                        }
                         RailTabItem(
                             tab = tab,
                             isActive = tab.id == uiState.activeTabId,
@@ -526,7 +565,22 @@ fun TabRail(
                             onShowInPane = { pane -> onAssignTabToPane(pane, tab.id) },
                             onClosePane = { onClosePane(paneIndex) },
                             dragState = dragState,
-                            onDrop = { target -> onDropTab(tab.id, target.paneIndex, target.zone) }
+                            onDrop = { target -> onDropTab(tab.id, target.paneIndex, target.zone) },
+                            arrivedByShiftTab = {
+                                val fromElsewhere = shiftTabbed[0] && shiftTabbedFrom[0] != tab.id
+                                shiftTabbed[0] = false
+                                fromElsewhere
+                            },
+                            modifier = Modifier
+                                .focusRequester(focus)
+                                .onFocusChanged {
+                                    if (it.hasFocus) {
+                                        focusedRow[0] = tab.id
+                                    } else if (focusedRow[0] == tab.id && tab.id in openTabIds) {
+                                        // Left for somewhere else; a tab closing keeps its place
+                                        focusedRow[0] = null
+                                    }
+                                }
                         )
                     }
                 }
@@ -922,6 +976,12 @@ private fun RailTile(
      */
     trailing: (@Composable () -> Unit)? = null,
     trailingAlways: Boolean = false,
+    /**
+     * Asked when the keyboard's focus lands on the tile itself: true when Shift+Tab brought it
+     * from outside the tile, and it then goes on to [trailing], the tile's last place, so
+     * Shift+Tab stops at the same places as Tab, the other way round.
+     */
+    arrivedByShiftTab: () -> Boolean = { false },
     icon: @Composable BoxScope.() -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -943,7 +1003,22 @@ private fun RailTile(
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
     var focusInside by remember { mutableStateOf(false) }
-    val showTrailing = trailing != null && showTitle && (trailingAlways || hovered || focusInside)
+    // The trailing button stays while it has the keyboard's focus, the rail collapsing included, so
+    // the focus never leaves with it: the tile takes it first (below), and then it goes
+    var trailingFocused by remember { mutableStateOf(false) }
+    val tileFocus = remember { FocusRequester() }
+    val trailingFocus = remember { FocusRequester() }
+    var focusTrailing by remember { mutableStateOf(false) }
+    val showTrailing = trailing != null && (showTitle || trailingFocused) && (trailingAlways || hovered || focusInside)
+    LaunchedEffect(showTitle, trailingFocused) {
+        if (!showTitle && trailingFocused) runCatching { tileFocus.requestFocus() }
+    }
+    LaunchedEffect(focusTrailing) {
+        if (focusTrailing) {
+            focusTrailing = false
+            runCatching { trailingFocus.requestFocus() }
+        }
+    }
     TooltipBox(
         // Beside the rail, as on desktop, so it never covers the tile above
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.End),
@@ -977,7 +1052,11 @@ private fun RailTile(
                         if (trailing != null) {
                             Modifier
                                 .hoverable(hover)
-                                .onFocusChanged { focusInside = it.hasFocus }
+                                .focusRequester(tileFocus)
+                                .onFocusChanged {
+                                    focusInside = it.hasFocus
+                                    if (it.isFocused && showTitle && arrivedByShiftTab()) focusTrailing = true
+                                }
                         } else {
                             Modifier
                         }
@@ -1025,7 +1104,15 @@ private fun RailTile(
                             )
                         }
                     }
-                    if (showTrailing) trailing?.invoke()
+                    if (showTrailing) {
+                        Box(
+                            modifier = Modifier
+                                .focusRequester(trailingFocus)
+                                .onFocusChanged { trailingFocused = it.hasFocus }
+                        ) {
+                            trailing?.invoke()
+                        }
+                    }
                 }
             }
             if (selected) {
@@ -1056,7 +1143,9 @@ private fun RailTabItem(
     onShowInPane: (Int) -> Unit,
     onClosePane: () -> Unit,
     dragState: TabDragState?,
-    onDrop: (PaneDropTarget) -> Unit
+    onDrop: (PaneDropTarget) -> Unit,
+    arrivedByShiftTab: () -> Boolean,
+    modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box {
@@ -1092,7 +1181,8 @@ private fun RailTabItem(
                 )
             },
             trailingAlways = touchUsed,
-            modifier = Modifier
+            arrivedByShiftTab = arrivedByShiftTab,
+            modifier = modifier
                 .testTag("tab_bar_item_${tab.id}")
                 .then(
                     if (dragState != null) {

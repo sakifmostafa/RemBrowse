@@ -212,6 +212,21 @@ object KeyboardShortcuts {
         else -> true
     }
 
+    /**
+     * Whether [shortcut] puts the keyboard somewhere itself: a new tab's address bar, the address
+     * bar, find, the palette, Go to address, a new terminal, the print screen, the screenshot
+     * overlay. The tab rail it closes ([closesTabRail]) then leaves the focus to it, rather than
+     * giving it back to where it was before the rail opened, as it does for the rest (another
+     * tab, Back, Reload, a layout...).
+     */
+    fun placesFocus(shortcut: BrowserShortcut): Boolean = when (shortcut) {
+        BrowserShortcut.NEW_TAB, BrowserShortcut.NEW_TERMINAL, BrowserShortcut.FOCUS_ADDRESS_BAR,
+        BrowserShortcut.COMMAND_PALETTE, BrowserShortcut.GO_TO_ADDRESS, BrowserShortcut.FIND_IN_PAGE,
+        BrowserShortcut.FIND_NEXT, BrowserShortcut.FIND_PREVIOUS, BrowserShortcut.PRINT,
+        BrowserShortcut.SCREENSHOT -> true
+        else -> false
+    }
+
     fun resolve(
         keyCode: Int,
         ctrl: Boolean,

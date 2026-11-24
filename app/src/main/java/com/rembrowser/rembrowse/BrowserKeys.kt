@@ -103,8 +103,8 @@ internal class BrowserKeys(
     /**
      * Esc closes the expanded tab rail open over the page (see
      * [KeyboardShortcuts.escapeClosesTabRail]), wherever the focus is: a page or a terminal under
-     * it never sees the key. Its release and repeats are taken too ([takenKeys]). The focus stays
-     * where it was.
+     * it never sees the key. Its release and repeats are taken too ([takenKeys]). The keyboard
+     * goes back to where it was before the rail opened ([BrowserChromeState.closeTabRailOverlay]).
      */
     private fun interceptEscapeForTabRail(event: KeyEvent): Boolean {
         if (event.action != KeyEvent.ACTION_DOWN || !chrome.tabRailOverlayOpen) return false
@@ -117,7 +117,7 @@ internal class BrowserKeys(
         )
         if (!closes) return false
         takenKeys.take(event.keyCode)
-        chrome.tabRailOverlayOpen = false
+        chrome.closeTabRailOverlay()
         return true
     }
 
@@ -224,8 +224,11 @@ internal class BrowserKeys(
     )
 
     private fun performShortcut(shortcut: BrowserShortcut) {
-        // The rail over the page steps aside first, so the shortcut lands where it would without it
-        if (KeyboardShortcuts.closesTabRail(shortcut)) chrome.tabRailOverlayOpen = false
+        // The rail over the page steps aside first, so the shortcut lands where it would without it;
+        // the keyboard goes back where it was, unless the shortcut puts it somewhere itself
+        if (KeyboardShortcuts.closesTabRail(shortcut)) {
+            chrome.closeTabRailOverlay(giveFocusBack = !KeyboardShortcuts.placesFocus(shortcut))
+        }
         when (shortcut) {
             BrowserShortcut.NEW_TAB -> {
                 browser.openNewTab()
