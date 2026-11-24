@@ -204,7 +204,7 @@ class PaneGeckoView(
  * Keyboard apps (Gboard included, with a physical keyboard) type into a page as a word being
  * composed. Started over a selection, as after Ctrl+A, Android's replaceText collapses the caret
  * to the selection's end and Gecko then starts the composition over the selected text, which
- * rich-text editors (claude.ai's, Telegram's) answer by rewriting the box: one character appeared
+ * rich-text editors (Telegram's, for one) answer by rewriting the box: one character appeared
  * and the caret landed before it. Deleting the selection first, in the same batch, starts the
  * word at a plain caret, exactly like typing into an empty box. (GeckoView already reorders
  * commitText this way; setComposingText it leaves alone.)
@@ -212,8 +212,8 @@ class PaneGeckoView(
  * Text committed over a selection ([replaceSelection]) is put in without naming a caret position
  * afterwards. GeckoView's own commitText replaces the selection and then sets the caret to
  * "selection start + text length", counted in the text as it was before. Gecko counts a line
- * break before every block element, so in an editor that keeps its text in a `<p>` (ProseMirror:
- * claude.ai, Telegram) the box reads "\naaa", Ctrl+A selects 0-4, typing "a" leaves "\na", and
+ * break before every block element, so in an editor that keeps its text in a `<p>` (ProseMirror
+ * editors such as Telegram's) the box reads "\naaa", Ctrl+A selects 0-4, typing "a" leaves "\na", and
  * caret position 0 + 1 is in front of the "a". Gboard commits every letter of a physical keyboard
  * this way.
  */

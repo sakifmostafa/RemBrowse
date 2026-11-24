@@ -45,14 +45,14 @@ import kotlin.math.hypot
  *   than Gecko's own touch start tolerance (`apz.touch_start_tolerance`, 0.06 inch).
  * @param passesClassifiedGestures true for a whole window, whose events reach Compose before any
  *   page: a two-finger scroll or pinch that Android 14 and later mark as one
- *   ([isClassifiedGesture]) is then passed on as it comes. Compose 1.13 reads such a gesture by
- *   its classification as a pan or a zoom with nothing pressed, never as a press that could be
- *   held long, and scrolls its lists by each event's own distance
+ *   ([isClassifiedGesture]) is then passed on as it comes. Compose 1.13 reads a two-finger
+ *   scroll by its classification as a pan whose pointer is never pressed, so resting fingers
+ *   can't long-press anything in Compose, and scrolls its lists by each event's own distance
  *   (`AXIS_GESTURE_SCROLL_X_DISTANCE` and `_Y_DISTANCE`), so the moves held back here and dropped
  *   were scrolling lost: up to [scrollSlopPx] at the start of every two-finger scroll in the tab
- *   rail, Settings and dialogs. A page's web view keeps holding them back (false, the default),
- *   since GeckoView still takes them for a finger. Unclassified gestures (older Android) are held
- *   back either way.
+ *   rail, Settings and dialogs. A pinch was never held for long: its second finger released it at
+ *   once. A page's web view keeps holding them back (false, the default), since GeckoView still
+ *   takes them for a finger. Unclassified gestures (older Android) are held back either way.
  */
 class TouchpadInputFilter(
     private val scrollSlopPx: Float,

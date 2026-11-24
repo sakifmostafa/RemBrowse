@@ -70,7 +70,7 @@
     if (active === ce || active === ta || active === pm) add(where(active) + " selectionchange caret=" + caret(active));
   });
 
-  // Box 1 behaves like a chat box: Enter without Shift sends (and is cancelled), as claude.ai does on desktop
+  // Box 1 behaves like a chat box: Enter without Shift sends (and is cancelled), as web chat boxes do on desktop
   ce.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -80,7 +80,7 @@
     }
   });
 
-  // Box 3 keeps its text in one <p>, as ProseMirror editors do (claude.ai, Telegram). Ctrl+A selects
+  // Box 3 keeps its text in one <p>, as ProseMirror editors such as Telegram's do. Ctrl+A selects
   // the box's children, so the selection starts before the <p>; every edit is cancelled and the
   // paragraph is drawn again from the new text, with the caret put after what was typed.
   function render(value, at) {
