@@ -311,8 +311,14 @@ fun RemBrowseTheme(
     systemColors: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    RemBrowseTheme(remColorScheme(LocalContext.current, darkTheme, accent, systemColors), content)
+}
+
+/** The browser's type and shapes over [colorScheme], worked out already (see resolveTheme). */
+@Composable
+fun RemBrowseTheme(colorScheme: ColorScheme, content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = remColorScheme(LocalContext.current, darkTheme, accent, systemColors),
+        colorScheme = colorScheme,
         typography = RemTypography,
         shapes = RemShapes,
         content = content

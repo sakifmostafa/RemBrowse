@@ -29,7 +29,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -98,7 +97,6 @@ import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
 import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
 import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
-import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.GeckoView
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -377,7 +375,8 @@ class MainActivity : ComponentActivity() {
                 val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
                 // The activity handles uiMode changes itself, so the device switching between
                 // light and dark recomposes here instead of restarting the activity
-                val darkTheme = settings.themeMode.isDark(systemIsDark = isSystemInDarkTheme())
+                val theme = resolveTheme(this@MainActivity, settings, systemIsDark = isSystemInDarkTheme())
+                val darkTheme = theme.dark
                 LaunchedEffect(settings.themeMode) { applyNightModeToWindow(settings.themeMode) }
 
                 // Keep system bar icons legible against the chrome, and let pages that honour
@@ -408,18 +407,12 @@ class MainActivity : ComponentActivity() {
                         requestDesktopFullscreen(enter = false)
                     }
                 )
-                LaunchedEffect(darkTheme) {
-                    engine.runtime.settings.setPreferredColorScheme(
-                        if (darkTheme) {
-                            GeckoRuntimeSettings.COLOR_SCHEME_DARK
-                        } else {
-                            GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
-                        }
-                    )
+                LaunchedEffect(theme.pageColorScheme) {
+                    engine.runtime.settings.setPreferredColorScheme(theme.pageColorScheme)
                 }
 
-                RemBrowseTheme(darkTheme = darkTheme, accent = settings.accent, systemColors = settings.useSystemColors) {
-                    val pageBackground = MaterialTheme.colorScheme.surfaceContainerLowest.toArgb()
+                RemBrowseTheme(theme.colorScheme) {
+                    val pageBackground = theme.pageBackground.toArgb()
                     SideEffect { pageBackgroundArgb = pageBackground }
                     CompositionLocalProvider(LocalChromePointerIconClaim provides chromePointerIcon) {
                         RemBrowseScreen(
@@ -535,12 +528,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun applyNightModeToWindow(mode: ThemeMode) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val nightMode = when (mode) {
-            ThemeMode.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
-            ThemeMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
-            ThemeMode.DARK -> UiModeManager.MODE_NIGHT_YES
-        }
-        runCatching { getSystemService(UiModeManager::class.java)?.setApplicationNightMode(nightMode) }
+        runCatching { getSystemService(UiModeManager::class.java)?.setApplicationNightMode(mode.applicationNightMode) }
             .onFailure { Log.w(TAG, "Couldn't set the app's night mode", it) }
     }
 
