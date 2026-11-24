@@ -21,7 +21,9 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -36,6 +38,8 @@ import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.semantics.SemanticsActions
@@ -134,6 +138,9 @@ class WideTabRailUiTest {
      */
     private val viewportLeft = mutableMapOf<String, Float>()
 
+    /** Presses that reached a page. */
+    private var pagePresses = 0
+
     private val gmail = BookmarkItem(id = "mail", title = "Gmail", url = "https://mail.google.com/", createdAtMillis = 0L)
     private val tabs = listOf(
         BrowserTab(id = "github", url = "https://github.com/rembrowse/rembrowse", title = "GitHub"),
@@ -179,7 +186,18 @@ class WideTabRailUiTest {
                         versionName = "test",
                         onPickLocalXpi = {},
                         paneViewport = { tab, modifier ->
-                            Box(modifier.onGloballyPositioned { viewportLeft[tab.id] = it.positionInRoot().x }) {
+                            Box(
+                                modifier
+                                    .onGloballyPositioned { viewportLeft[tab.id] = it.positionInRoot().x }
+                                    // Notes the presses that reach the page, taking none of them
+                                    .pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                if (awaitPointerEvent().type == PointerEventType.Press) pagePresses++
+                                            }
+                                        }
+                                    }
+                            ) {
                                 Text("Viewport:${tab.url}")
                             }
                         },
@@ -479,6 +497,34 @@ class WideTabRailUiTest {
         node("tab_rail_scrim").assertDoesNotExist()
         assertFalse(chrome.tabRailOverlayOpen)
         assertEquals("github", browserVm.uiState.value.activeTabId)
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_aTapOnThePageJustAfterTheRailCloses_reachesThePage() {
+        launch()
+        toggle()
+        node("tab_rail_scrim").performTouchInput { click() }
+        composeRule.waitForIdle()
+        assertEquals("The scrim took the tap that closed the rail", 0, pagePresses)
+
+        toggle()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnUiThread { chrome.tabRailOverlayOpen = false }
+        // Frame by frame, until the rail has started to close
+        var frames = 0
+        while (runCatching { node("tab_rail_toggle").assertContentDescriptionEquals("Expand tab rail") }.isFailure) {
+            assertTrue("The rail closes", ++frames < 30)
+            composeRule.mainClock.advanceTimeByFrame()
+        }
+        // Still fading out, but no longer a button for screen readers
+        node("tab_rail_scrim").assertExists().assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
+        composeRule.onNodeWithTag("browser_pane_0", useUnmergedTree = true).performTouchInput { click() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+
+        assertEquals("The tap reached the page", 1, pagePresses)
+        node("tab_rail_scrim").assertDoesNotExist()
     }
 
     @Test

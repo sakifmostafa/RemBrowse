@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
@@ -568,7 +569,8 @@ fun TabRail(
  * The page dimmed behind the expanded rail drawn over it, Material's scrim (stronger in the dark
  * theme, [railScrimAlpha]). A click or tap on it closes the rail ([onDismiss]), as does a screen
  * reader's "Close the tab rail" on it: the page under it is hidden from screen readers meanwhile
- * (RemBrowseScreen), so this is what they find beside the rail.
+ * (RemBrowseScreen), so this is what they find beside the rail. Once the rail is closing it only
+ * fades: a click or tap straight after reaches the page under it.
  */
 @Composable
 fun TabRailScrim(visible: Boolean, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
@@ -579,19 +581,28 @@ fun TabRailScrim(visible: Boolean, onDismiss: () -> Unit, modifier: Modifier = M
         exit = fadeOut(RemMotion.fastEffects()),
         modifier = modifier
     ) {
+        // Not while it fades out: the rail is already closed
+        val open = transition.targetState == EnterExitState.Visible
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.scrim.copy(alpha = railScrimAlpha(MaterialTheme.colorScheme)))
-                // Taken here, so nothing under it (a page, the toolbar) is clicked through it
-                .pointerInput(Unit) { detectTapGestures { dismiss() } }
-                .semantics {
-                    contentDescription = "Close the tab rail"
-                    onClick {
-                        dismiss()
-                        true
+                .then(
+                    if (open) {
+                        Modifier
+                            // Taken here, so nothing under it (a page, the toolbar) is clicked through it
+                            .pointerInput(Unit) { detectTapGestures { dismiss() } }
+                            .semantics {
+                                contentDescription = "Close the tab rail"
+                                onClick {
+                                    dismiss()
+                                    true
+                                }
+                            }
+                    } else {
+                        Modifier
                     }
-                }
+                )
                 .testTag("tab_rail_scrim")
         )
     }
