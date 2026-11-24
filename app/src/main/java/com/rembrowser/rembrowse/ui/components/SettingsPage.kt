@@ -43,7 +43,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -778,7 +777,7 @@ private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
                 onClick = actions.onDownload,
                 modifier = Modifier.testTag("update_action")
             )
-            is UpdateStatus.Downloading -> OutlinedButton(
+            is UpdateStatus.Downloading -> RemOutlinedButton(
                 onClick = actions.onCancel,
                 modifier = Modifier.testTag("update_cancel")
             ) { Text("Cancel") }

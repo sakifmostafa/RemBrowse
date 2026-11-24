@@ -32,7 +32,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -486,7 +485,7 @@ private fun HostEditorDialog(
                     }
                 } else if (keys.isEmpty()) {
                     Text("No keys yet.", style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = onGenerateKey) { Text("Generate a key") }
+                    RemOutlinedButton(onClick = onGenerateKey) { Text("Generate a key") }
                 } else {
                     Column(modifier = Modifier.selectableGroup()) {
                         keys.forEach { key ->

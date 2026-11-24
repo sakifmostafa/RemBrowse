@@ -9,7 +9,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -22,10 +24,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -347,6 +352,41 @@ fun RemDropdownMenu(
         content = content
     )
 }
+
+/**
+ * An outlined button as RemBrowse draws it: text and icon in the accent colour (primary) and a
+ * border in the outline colour, as Material 3 1.3 drew them. Material 3 1.4 changed the default
+ * to neutral text (onSurfaceVariant) on a fainter outlineVariant border. Disabled, it looks as
+ * Material 3 1.4 draws it.
+ */
+@Composable
+fun RemOutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: Shape = ButtonDefaults.outlinedShape,
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    content: @Composable RowScope.() -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val defaultBorder = ButtonDefaults.outlinedButtonBorder(enabled)
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = outlinedButtonContentColor(colors)),
+        border = if (enabled) BorderStroke(defaultBorder.width, outlinedButtonBorderColor(colors)) else defaultBorder,
+        contentPadding = contentPadding,
+        content = content
+    )
+}
+
+/** [RemOutlinedButton]'s text and icon colour while enabled (checked for contrast in ThemeContrastTest). */
+internal fun outlinedButtonContentColor(colors: ColorScheme): Color = colors.primary
+
+/** [RemOutlinedButton]'s border colour while enabled (checked for contrast in ThemeContrastTest). */
+internal fun outlinedButtonBorderColor(colors: ColorScheme): Color = colors.outline
 
 /** Keyboard shortcut hint shown at the trailing edge of menu and palette rows. */
 @Composable

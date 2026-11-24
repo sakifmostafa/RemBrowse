@@ -60,7 +60,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -654,11 +653,10 @@ private fun ActionTile(
     if (primary) {
         Button(onClick = onClick, modifier = tileModifier, shape = shape, contentPadding = padding, content = content)
     } else {
-        OutlinedButton(
+        RemOutlinedButton(
             onClick = onClick,
             modifier = tileModifier,
             shape = shape,
-            border = BorderStroke(1.dp, colors.outline),
             contentPadding = padding,
             content = content
         )

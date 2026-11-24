@@ -39,7 +39,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
@@ -594,7 +593,7 @@ private fun InstallXpiTab(
             style = MaterialTheme.typography.bodyMedium,
             color = colors.onSurfaceVariant
         )
-        OutlinedButton(onClick = onPickLocalXpi, enabled = !isInstalling) {
+        RemOutlinedButton(onClick = onPickLocalXpi, enabled = !isInstalling) {
             Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text("Choose file")

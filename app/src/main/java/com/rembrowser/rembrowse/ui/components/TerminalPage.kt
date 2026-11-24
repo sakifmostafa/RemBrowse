@@ -56,7 +56,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -235,7 +234,7 @@ fun TerminalPage(
                     Spacer(Modifier.height(16.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (savedHost != null || target is TerminalTarget.SavedHost) {
-                            OutlinedButton(onClick = onOpenSettings) { Text("Edit host") }
+                            RemOutlinedButton(onClick = onOpenSettings) { Text("Edit host") }
                         }
                         PrimaryDialogButton("Try again", modifier = Modifier.testTag("terminal_retry")) {
                             terminal.connect(tab.id, target)
@@ -457,7 +456,7 @@ private fun EmptyHosts(onOpenSettings: () -> Unit) {
                 modifier = Modifier.padding(top = 4.dp)
             )
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onOpenSettings) { Text("Add a host") }
+            RemOutlinedButton(onClick = onOpenSettings) { Text("Add a host") }
         }
     }
 }
@@ -485,7 +484,7 @@ private fun BoxScope.HostKeyCard(check: HostKeyCheck, onAnswer: (Boolean) -> Uni
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onAnswer(false) }, modifier = Modifier.testTag("host_key_cancel")) { Text("Cancel") }
+            RemOutlinedButton(onClick = { onAnswer(false) }, modifier = Modifier.testTag("host_key_cancel")) { Text("Cancel") }
             PrimaryDialogButton(
                 if (check.changed) "Connect anyway" else "Trust and connect",
                 modifier = Modifier.testTag("host_key_accept")
@@ -555,7 +554,7 @@ private fun BoxScope.PasswordCard(status: TerminalStatus.NeedsPassword, username
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onAnswer(null, false) }) { Text("Cancel") }
+            RemOutlinedButton(onClick = { onAnswer(null, false) }) { Text("Cancel") }
             PrimaryDialogButton("Connect", enabled = password.isNotEmpty(), modifier = Modifier.testTag("terminal_password_go")) {
                 onAnswer(password, remember)
             }

@@ -7,6 +7,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.ui.components.CaptureScrimAlpha
+import com.rembrowser.rembrowse.ui.components.outlinedButtonBorderColor
+import com.rembrowser.rembrowse.ui.components.outlinedButtonContentColor
 import com.rembrowser.rembrowse.ui.components.pinnedShelfColors
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -94,6 +96,22 @@ open class ThemeContrastTest {
                 "$name selection on $surfaceName is ${"%.2f".format(strongest)}:1, needs 3.0:1",
                 strongest >= 3.0
             )
+        }
+    }
+
+    @Test
+    fun outlinedButtons_textAndBorderStandOutWhereTheButtonsSit() = forEveryTheme { name, c ->
+        // RemOutlinedButton sits on Settings (surfaceContainerLowest), the print panel and the
+        // terminal page's cards (surface) and dialogs (surfaceContainerHigh)
+        val surfaces = mapOf(
+            "background" to c.background,
+            "surface" to c.surface,
+            "surfaceContainerLowest" to c.surfaceContainerLowest,
+            "surfaceContainerHigh" to c.surfaceContainerHigh
+        )
+        surfaces.forEach { (surfaceName, surface) ->
+            assertContrast("$name outlined button border on $surfaceName", outlinedButtonBorderColor(c), surface, 3.0)
+            assertContrast("$name outlined button text on $surfaceName", outlinedButtonContentColor(c), surface, 4.5)
         }
     }
 

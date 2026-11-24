@@ -24,7 +24,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -81,7 +80,7 @@ fun DownloadsPanel(
             }
             if (showOpenFolder) {
                 Spacer(modifier = Modifier.width(16.dp))
-                OutlinedButton(onClick = actions.onOpenFolder, modifier = Modifier.testTag("downloads_open_folder")) {
+                RemOutlinedButton(onClick = actions.onOpenFolder, modifier = Modifier.testTag("downloads_open_folder")) {
                     Text("Open folder")
                 }
             }
