@@ -5,6 +5,8 @@ import android.view.InputDevice
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
+import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -23,6 +25,9 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.SemanticsMatcher
@@ -101,6 +106,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
@@ -129,6 +135,7 @@ class WideTabRailUiTest {
     private lateinit var browserVm: BrowserViewModel
     private var backDispatcher: OnBackPressedDispatcher? = null
     private var inputModes: InputModeManager? = null
+    private var composeView: View? = null
 
     /**
      * The input mode the screen's composables see, when set; otherwise the window's. Robolectric's
@@ -177,6 +184,7 @@ class WideTabRailUiTest {
         )
         composeRule.setContent {
             backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+            composeView = LocalView.current
             val window = LocalInputModeManager.current
             inputModes = window
             val shown = remember {
@@ -355,6 +363,63 @@ class WideTabRailUiTest {
 
         node("rail_extension_ublock@example").assertIsDisplayed().assertContentDescriptionEquals("uBlock Origin (12)")
         title("rail_extension_title_ublock@example").assertIsDisplayed().assertTextEquals("uBlock Origin")
+    }
+
+    /**
+     * What a screen reader is given for [tag]'s node: the window's accessibility node, as Android
+     * builds it from the semantics (with a screen reader on, as Compose only builds it then).
+     */
+    private fun accessibilityNode(tag: String): AccessibilityNodeInfo {
+        val id = node(tag).fetchSemanticsNode().id
+        var info: AccessibilityNodeInfo? = null
+        composeRule.runOnUiThread { info = composeView!!.accessibilityNodeProvider!!.createAccessibilityNodeInfo(id) }
+        return checkNotNull(info) { "No accessibility node for $tag" }
+    }
+
+    @Test
+    fun railButtons_arePlainButtons_andOnlyTabsPinnedSitesAndExtensionsSaySelected() {
+        val accessibility = InstrumentationRegistry.getInstrumentation().targetContext
+            .getSystemService(AccessibilityManager::class.java)
+        shadowOf(accessibility).setEnabled(true)
+        shadowOf(accessibility).setTouchExplorationEnabled(true)
+        extensionManager.installedExtensions.value = listOf(
+            InstalledExtension(
+                id = "ublock@example", name = "uBlock Origin", version = "1.0", description = "",
+                enabled = true, hasBrowserAction = true
+            )
+        )
+        for (expanded in listOf(false, true)) {
+            if (expanded) toggle() else launch()
+            val state = if (expanded) "Expanded" else "Collapsed"
+
+            // The menu button, Tab switcher and New tab: buttons, nothing checkable, no "Not
+            // selected"; the menu button says whether the rail is expanded
+            for (tag in listOf("tab_rail_toggle", "tab_switcher_button", "new_tab_button")) {
+                node(tag)
+                    .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Selected))
+                    .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+                val info = accessibilityNode(tag)
+                assertFalse("$tag, $state rail: not checkable", info.isCheckable)
+                assertFalse("$tag, $state rail: not selected", info.isSelected)
+                // A button's class, where the tile has no title beside its icon (Compose gives a
+                // node its role's class only when nothing is under it)
+                if (!expanded) assertEquals("$tag, $state rail", "android.widget.Button", info.className)
+                assertEquals(
+                    "$tag, $state rail: its state",
+                    if (tag == "tab_rail_toggle") state else null,
+                    info.stateDescription?.toString()
+                )
+            }
+
+            // A tab says whether it is the one shown; a pinned site and an extension's button
+            // (selected while its popup is open) keep their state, as in 0.14.0
+            node("tab_bar_item_github").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+            node("tab_bar_item_news").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
+            assertTrue(accessibilityNode("tab_bar_item_github").isSelected)
+            assertFalse(accessibilityNode("tab_bar_item_news").isSelected)
+            node("pinned_site_mail").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
+            node("rail_extension_ublock@example").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
+        }
     }
 
     @Test

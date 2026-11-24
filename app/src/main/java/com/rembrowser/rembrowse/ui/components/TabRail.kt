@@ -835,6 +835,7 @@ private fun RailExtensionItem(
             selected = popupOpen,
             highlighted = false,
             role = Role.Button,
+            selectable = true,
             onClick = onClick,
             onOpenMenu = { showMenu = true },
             title = extension.name,
@@ -895,6 +896,7 @@ private fun RailExtensionsOverflow(
             selected = popupOpen,
             highlighted = showMenu,
             role = Role.Button,
+            selectable = true,
             onClick = { showMenu = true },
             onOpenMenu = { showMenu = true },
             title = label,
@@ -948,6 +950,7 @@ private enum class RailTileStyle {
 @Composable
 private fun RailTile(
     label: String,
+    /** Filled and marked as the one shown; to screen readers too only when [selectable]. */
     selected: Boolean,
     highlighted: Boolean,
     role: Role,
@@ -969,6 +972,13 @@ private fun RailTile(
     titleTag: String? = null,
     /** Said after the name by a screen reader, such as whether the rail is expanded. */
     stateDescription: String? = null,
+    /**
+     * Whether screen readers hear if it is [selected]: a tab, a pinned site, and an extension's
+     * button (selected while its popup is open), as in 0.14.0. A plain button (the menu button,
+     * Tab switcher, New tab) has no such state, which Android would otherwise announce ("Not
+     * selected") as a checkable one's.
+     */
+    selectable: Boolean = false,
     /**
      * At the end of the expanded tile, such as a tab's close button: shown while the pointer is
      * over the tile or the keyboard's focus is in it, and always while [trailingAlways] (the
@@ -1071,7 +1081,7 @@ private fun RailTile(
                     )
                     .semantics {
                         contentDescription = label
-                        this.selected = selected
+                        if (selectable) this.selected = selected
                         if (stateDescription != null) this.stateDescription = stateDescription
                     },
                 contentAlignment = Alignment.CenterStart
@@ -1154,6 +1164,7 @@ private fun RailTabItem(
             selected = isActive,
             highlighted = isVisibleInPane || dragState?.draggedTabId == tab.id,
             role = Role.Tab,
+            selectable = true,
             onClick = onSelect,
             onOpenMenu = { showMenu = true },
             onMiddleClick = onClose,
@@ -1325,6 +1336,7 @@ private fun PinnedSiteItem(
             selected = false,
             highlighted = false,
             role = Role.Button,
+            selectable = true,
             onClick = onOpen,
             onOpenMenu = { showMenu = true },
             onMiddleClick = onOpenInNewTab,
