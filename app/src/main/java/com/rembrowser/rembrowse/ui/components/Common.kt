@@ -1,5 +1,10 @@
 package com.rembrowser.rembrowse.ui.components
 
+import android.content.Context
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -44,6 +49,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,6 +76,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
@@ -195,6 +202,43 @@ internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): 
             }
         }
 }
+
+/**
+ * Whether Android's animations are off (Settings → Accessibility → Remove animations, or the
+ * animator duration scale at 0 in the developer options): the one place RemBrowse asks. Motion
+ * is then left out and things appear and leave at once. It follows the setting while shown, so
+ * turning animations off takes effect without reopening anything.
+ */
+@Composable
+fun rememberReduceMotion(): Boolean {
+    val context = LocalContext.current
+    var off by remember(context) { mutableStateOf(systemAnimationsOff(context)) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                off = systemAnimationsOff(context)
+            }
+        }
+        val registered = runCatching {
+            context.contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+                false,
+                observer
+            )
+        }.isSuccess
+        // Changed between the first read and the observer
+        off = systemAnimationsOff(context)
+        onDispose {
+            if (registered) runCatching { context.contentResolver.unregisterContentObserver(observer) }
+        }
+    }
+    return off
+}
+
+private fun systemAnimationsOff(context: Context): Boolean =
+    runCatching {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }.getOrDefault(false)
 
 /**
  * The colour of [keyboardFocusRing] where the accent would not stand out, such as on a notice's

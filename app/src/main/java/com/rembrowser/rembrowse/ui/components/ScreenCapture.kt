@@ -5,7 +5,6 @@ import android.view.InputDevice
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -95,6 +94,7 @@ import com.rembrowser.rembrowse.engine.PointerDevices
 import com.rembrowser.rembrowse.model.CaptureGeometry
 import com.rembrowser.rembrowse.model.CaptureRegion
 import com.rembrowser.rembrowse.model.PxRect
+import com.rembrowser.rembrowse.ui.theme.RemMotion
 import com.rembrowser.rembrowse.util.KeyboardShortcuts
 import com.rembrowser.rembrowse.util.ScreenCaptureKey
 import java.lang.ref.WeakReference
@@ -303,7 +303,7 @@ fun ScreenCaptureOverlay(
     val colors = MaterialTheme.colorScheme
     val context = LocalContext.current
     val density = LocalDensity.current
-    val reduceMotion = remember(context) { systemAnimationsOff(context) }
+    val reduceMotion = rememberReduceMotion()
     val hasKeyboard = LocalConfiguration.current.keyboard == Configuration.KEYBOARD_QWERTY
     val clicks = remember(context) { hasKeyboard || PointerDevices.hasMouseOrTouchpad(context) }
     val hint = screenCaptureHint(clicks = clicks, hasKeyboard = hasKeyboard)
@@ -341,7 +341,7 @@ fun ScreenCaptureOverlay(
     }
 
     val appear = remember { Animatable(if (reduceMotion) 1f else 0f) }
-    LaunchedEffect(Unit) { appear.animateTo(1f, tween(durationMillis = 150)) }
+    LaunchedEffect(Unit) { appear.animateTo(1f, RemMotion.defaultEffects()) }
 
     val scrim = colors.scrim.copy(alpha = CaptureScrimAlpha)
     val accent = colors.primary
@@ -513,7 +513,7 @@ fun ScreenCaptureOverlay(
         val hintCovered = selection?.let { chosen -> frame.hint?.let { chosen.intersect(it) != null } } == true
         val hintAlpha by animateFloatAsState(
             targetValue = if (hintCovered) 0f else 1f,
-            animationSpec = if (reduceMotion) snap() else tween(durationMillis = 120),
+            animationSpec = if (reduceMotion) snap() else RemMotion.fastEffects(),
             label = "captureHintAlpha"
         )
         CaptureHint(

@@ -1,10 +1,10 @@
 package com.rembrowser.rembrowse.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -69,6 +69,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.engine.FindResult
 import com.rembrowser.rembrowse.model.FindInPageState
+import com.rembrowser.rembrowse.ui.theme.RemMotion
 
 /** Where the find bar sits in its pane, which other overlays there (the permission card) keep clear of. */
 internal val FindBarInset = 10.dp
@@ -100,12 +101,19 @@ fun BoxScope.FindInPageOverlay(
     var shown by remember { mutableStateOf<FindInPageState?>(null) }
     if (visible) shown = find
 
+    val reduceMotion = rememberReduceMotion()
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically(tween(220, easing = FastOutSlowInEasing)) { -it } +
-            fadeIn(tween(180)),
-        exit = slideOutVertically(tween(160, easing = FastOutSlowInEasing)) { -it / 2 } +
-            fadeOut(tween(120)),
+        enter = if (reduceMotion) {
+            EnterTransition.None
+        } else {
+            slideInVertically(RemMotion.defaultSpatial()) { -it } + fadeIn(RemMotion.defaultEffects())
+        },
+        exit = if (reduceMotion) {
+            ExitTransition.None
+        } else {
+            slideOutVertically(RemMotion.fastSpatial()) { -it / 2 } + fadeOut(RemMotion.fastEffects())
+        },
         modifier = Modifier
             .align(Alignment.TopEnd)
             .padding(FindBarInset)
@@ -132,12 +140,12 @@ fun FindInPageBar(
 
     val outline by animateColorAsState(
         targetValue = if (noMatches) colors.error.copy(alpha = 0.6f) else colors.outlineVariant,
-        animationSpec = tween(180),
+        animationSpec = RemMotion.defaultEffects(),
         label = "findOutline"
     )
     val countColor by animateColorAsState(
         targetValue = if (noMatches) colors.error else colors.onSurfaceVariant,
-        animationSpec = tween(180),
+        animationSpec = RemMotion.defaultEffects(),
         label = "findCount"
     )
 
@@ -247,7 +255,7 @@ fun FindInPageBar(
                 color = countColor,
                 maxLines = 1,
                 modifier = Modifier
-                    .animateContentSize(tween(160))
+                    .animateContentSize(RemMotion.fastSpatial())
                     .padding(horizontal = if (count.isEmpty()) 0.dp else 8.dp)
                     .semantics { liveRegion = LiveRegionMode.Polite }
                     .testTag("find_status")
@@ -293,12 +301,12 @@ private fun MatchCaseToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit
     val colors = MaterialTheme.colorScheme
     val background by animateColorAsState(
         targetValue = if (checked) colors.primaryContainer else colors.surfaceContainerHigh,
-        animationSpec = tween(160),
+        animationSpec = RemMotion.defaultEffects(),
         label = "matchCaseBackground"
     )
     val content by animateColorAsState(
         targetValue = if (checked) colors.onPrimaryContainer else colors.onSurfaceVariant,
-        animationSpec = tween(160),
+        animationSpec = RemMotion.defaultEffects(),
         label = "matchCaseContent"
     )
     Box(

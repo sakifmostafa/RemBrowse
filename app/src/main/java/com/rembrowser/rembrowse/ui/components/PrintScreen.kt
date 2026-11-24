@@ -8,13 +8,11 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.print.PrintJob
 import android.print.PrintManager
-import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -93,7 +91,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -117,6 +114,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import com.rembrowser.rembrowse.engine.GeckoPagePrinter
 import com.rembrowser.rembrowse.engine.PdfFilePrintAdapter
 import com.rembrowser.rembrowse.model.PrintPreview
+import com.rembrowser.rembrowse.ui.theme.RemMotion
 import com.rembrowser.rembrowse.util.UrlResolver
 import java.io.File
 import java.text.DecimalFormat
@@ -202,8 +200,7 @@ internal fun PrintScreen(
     /** Opens the PDF for the previews; tests hand in pages of their own. */
     openDocument: (File) -> PdfPreviewDocument = ::PdfPreviewDocument
 ) {
-    val context = LocalContext.current
-    val reduceMotion = remember(context) { systemAnimationsOff(context) }
+    val reduceMotion = rememberReduceMotion()
 
     val document = remember(preview.pdfPath) { openDocument(File(preview.pdfPath)) }
     var load by remember(document) { mutableStateOf<PreviewLoad>(PreviewLoad.Opening) }
@@ -818,7 +815,7 @@ private fun PreviewPage(
     val shown = bitmap
     val imageAlpha by animateFloatAsState(
         targetValue = if (shown != null) 1f else 0f,
-        animationSpec = if (reduceMotion) snap() else tween(durationMillis = 180),
+        animationSpec = if (reduceMotion) snap() else RemMotion.defaultEffects(),
         label = "page fade"
     )
     val aspect = shown?.let { it.width.toFloat() / it.height } ?: defaultAspect
@@ -901,12 +898,6 @@ private fun ResizeForKeyboard() {
         onDispose { }
     }
 }
-
-/** Android's animations are turned off (Settings → Accessibility → Remove animations). */
-internal fun systemAnimationsOff(context: Context): Boolean =
-    runCatching {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }.getOrDefault(false)
 
 /**
  * Hands the print screen's PDF to Android's print dialog, for a printer. [preview] is the one

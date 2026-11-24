@@ -1,12 +1,9 @@
 package com.rembrowser.rembrowse.ui.components
 
-import android.content.Context
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -57,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -73,6 +69,7 @@ import com.rembrowser.rembrowse.model.PaneDropTarget
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.PageAddress
 import com.rembrowser.rembrowse.ui.theme.RemDimens
+import com.rembrowser.rembrowse.ui.theme.RemMotion
 
 /** How many bookmarks are pinned to the rail; the rest live in the bookmarks list. */
 private const val MAX_PINNED_SITES = 6
@@ -182,8 +179,7 @@ fun TabRail(
 ) {
     val pinned = uiState.bookmarks.take(MAX_PINNED_SITES)
     val openPins = remember(pinned, uiState.tabs) { openBookmarkIds(pinned, uiState.tabs) }
-    val context = LocalContext.current
-    val reduceMotion = remember(context) { animationsOff(context) }
+    val reduceMotion = rememberReduceMotion()
 
     BoxWithConstraints(
         modifier = modifier
@@ -737,8 +733,8 @@ private fun OpenSiteDot(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = if (reduceMotion) EnterTransition.None else fadeIn(tween(180)),
-        exit = if (reduceMotion) ExitTransition.None else fadeOut(tween(120)),
+        enter = if (reduceMotion) EnterTransition.None else fadeIn(RemMotion.defaultEffects()),
+        exit = if (reduceMotion) ExitTransition.None else fadeOut(RemMotion.fastEffects()),
         modifier = modifier
     ) {
         Box(
@@ -750,9 +746,3 @@ private fun OpenSiteDot(
         )
     }
 }
-
-/** Android's animations are turned off (Settings → Accessibility → Remove animations). */
-private fun animationsOff(context: Context): Boolean =
-    runCatching {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }.getOrDefault(false)

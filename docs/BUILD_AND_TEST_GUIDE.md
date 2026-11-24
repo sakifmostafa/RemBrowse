@@ -86,6 +86,7 @@ Test suites included:
 * `UpdatesViewModelTest` / `UpdatesUiTest` — the daily check and its notice, checking on request, download progress and cancel, retrying, the install permission round trip, refused updates, and the controls in Settings → About.
 * `CommandPaletteResultsTest` — what the command palette offers for a typed query.
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.
+* `MotionTest` — the motion springs against Material 3's standard scheme, Android's Remove animations setting followed while shown, and the find bar sliding in, or in place at once with animations off.
 * `BrowserStorageRobolectricTest` — real Android `SharedPreferences` round trip, including data from v0.01, and the saved downloads list.
 * `PopupContentSizeTest` — reading the popup helper's size reports, and ignoring anything else.
 * `UploadCacheTest` — copying files picked for an upload button: names kept, same names apart, unreadable files left out, old copies removed, the MIME types offered to the picker.

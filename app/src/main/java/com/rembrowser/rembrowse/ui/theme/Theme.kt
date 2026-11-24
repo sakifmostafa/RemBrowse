@@ -2,6 +2,8 @@ package com.rembrowser.rembrowse.ui.theme
 
 import android.content.Context
 import android.os.Build
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -284,6 +286,29 @@ val RemShapes = Shapes(
     large = RoundedCornerShape(16.dp),
     extraLarge = RoundedCornerShape(24.dp)
 )
+
+/**
+ * Motion: Material 3's standard motion scheme, as springs. The values are material3's own
+ * (StandardMotionTokens, the same in 1.4.0 and 1.5.0); `MaterialTheme.motionScheme` only becomes
+ * public in 1.5.0. A spring has no fixed duration and can be interrupted midway without a jump.
+ *
+ * - **Spatial** specs move and resize things (a slide, a size change, a pop); damped at 0.9, they
+ *   overshoot by less than a pixel.
+ * - **Effects** specs fade and recolour; critically damped, they never overshoot.
+ * - **Fast** for small things and for leaving (exits are quicker than entrances), **default** for
+ *   most, **slow** for large areas.
+ *
+ * With Android's animations off ([com.rembrowser.rembrowse.ui.components.rememberReduceMotion])
+ * callers show the end state at once instead.
+ */
+object RemMotion {
+    fun <T> fastSpatial(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.9f, stiffness = 1400f)
+    fun <T> defaultSpatial(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.9f, stiffness = 700f)
+    fun <T> slowSpatial(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.9f, stiffness = 300f)
+    fun <T> fastEffects(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 3800f)
+    fun <T> defaultEffects(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 1600f)
+    fun <T> slowEffects(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 800f)
+}
 
 /** Sizes shared by the browser chrome. Spacing elsewhere follows a 4/8dp rhythm. */
 object RemDimens {

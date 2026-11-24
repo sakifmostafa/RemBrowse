@@ -1,11 +1,7 @@
 package com.rembrowser.rembrowse.ui.components
 
-import android.content.Context
-import android.provider.Settings
-import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -23,7 +19,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,7 +26,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -39,6 +33,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.rembrowser.rembrowse.engine.SwipeDirection
 import com.rembrowser.rembrowse.engine.SwipeFeedback
+import com.rembrowser.rembrowse.ui.theme.RemMotion
 
 /**
  * The state of the arrow a two-finger swipe shows over a page; the swipe reports to it
@@ -94,12 +89,11 @@ private val ArrowInset = 16.dp
 @Composable
 fun SwipeNavigationIndicator(state: SwipeIndicatorState, modifier: Modifier = Modifier) {
     val direction = state.direction ?: return
-    val context = LocalContext.current
-    val stillMotion = remember(context) { animationsOff(context) }
+    val stillMotion = rememberReduceMotion()
     val shown by animateFloatAsState(
         targetValue = if (state.active) state.progress.coerceIn(0f, 1f) else 0f,
         // Follows the fingers while they are down; leaves on its own, quickly, once they lift
-        animationSpec = if (state.active) snap() else tween(if (state.navigated) 120 else 180, easing = FastOutLinearInEasing),
+        animationSpec = if (state.active) snap() else if (state.navigated) RemMotion.fastEffects() else RemMotion.defaultEffects(),
         label = "swipe arrow"
     )
     if (!state.active && shown == 0f) return
@@ -109,7 +103,7 @@ fun SwipeNavigationIndicator(state: SwipeIndicatorState, modifier: Modifier = Mo
     val armed = state.armed
     val pop by animateFloatAsState(
         targetValue = if (armed && !stillMotion) 1.1f else 1f,
-        animationSpec = tween(100),
+        animationSpec = RemMotion.fastSpatial(),
         label = "swipe arrow armed"
     )
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -160,8 +154,3 @@ fun SwipeNavigationIndicator(state: SwipeIndicatorState, modifier: Modifier = Mo
     }
 }
 
-/** Android's animations are turned off (Settings → Accessibility → Remove animations). */
-private fun animationsOff(context: Context): Boolean =
-    runCatching {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }.getOrDefault(false)

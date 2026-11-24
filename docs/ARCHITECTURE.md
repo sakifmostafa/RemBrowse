@@ -325,6 +325,8 @@ All colours, type and shapes come from `ui/theme/Theme.kt`; components read `Mat
 
 `AccentColor` offers six accents; each defines tones for both themes. `ThemeContrastTest` asserts WCAG contrast (4.5:1 text, 3:1 non-text) for every theme and accent combination.
 
+**Motion** comes from `RemMotion`: Material 3's standard motion scheme as springs, with material3's own values (`StandardMotionTokens`; `MaterialTheme.motionScheme` is public only from material3 1.5). Spatial specs (damping 0.9; stiffness 1400 fast, 700 default, 300 slow) move and resize things, effects specs (damping 1; 3800, 1600, 800) fade and recolour; exits use the fast ones. `MotionTest` checks them against material3's scheme. Whether Android's animations are off (Remove animations, or an animator duration scale of 0) is asked in one place, `rememberReduceMotion()` in `Common.kt`, which follows the setting while shown; the find bar, the permission card, the pinned sites' open dot, the swipe arrow, the print preview, the screenshot overlay and the tab switcher's Back preview then show their end state at once. The permission card's half-second ramp before its buttons take a tap stays a linear `tween`: it is a timer, not motion.
+
 Sizes shared by the chrome are in `RemDimens`. Interactive elements have a 48dp touch target even where the visual is 40dp, and windows narrower than 600dp switch to the compact layout.
 
 ---

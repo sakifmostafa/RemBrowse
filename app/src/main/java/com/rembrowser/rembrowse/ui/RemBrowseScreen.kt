@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui
 
-import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -96,6 +95,7 @@ import com.rembrowser.rembrowse.ui.components.ScreenCaptureOverlay
 import com.rembrowser.rembrowse.ui.components.ScreenCaptureState
 import com.rembrowser.rembrowse.ui.components.ScreenshotNoticeBar
 import com.rembrowser.rembrowse.ui.components.ScreenshotResult
+import com.rembrowser.rembrowse.ui.components.rememberReduceMotion
 import com.rembrowser.rembrowse.ui.components.reportCaptureRegion
 import com.rembrowser.rembrowse.ui.components.sendPdfToPrinter
 import com.rembrowser.rembrowse.ui.components.SettingsActions
@@ -649,8 +649,7 @@ fun RemBrowseScreen(
 
                     if (chrome.showTabSwitcher && !fullscreen) {
                         CaptureRegionLifetime(chrome.screenCapture, CaptureRegions.TAB_SWITCHER)
-                        // Read again each time the switcher opens
-                        val stillBackPreview = remember(context) { systemAnimationsOff(context) }
+                        val stillBackPreview = rememberReduceMotion()
                         TabSwitcher(
                             uiState = browserState,
                             framed = !compact,
@@ -966,15 +965,6 @@ fun RemBrowseScreen(
 /** A screenshot that hasn't come back by then (the engine never answered) is given up. */
 private const val SCREENSHOT_TIMEOUT_MILLIS = 10_000L
 
-/** Android's animations are turned off (Settings → Accessibility → Remove animations). */
-private fun systemAnimationsOff(context: Context): Boolean =
-    runCatching {
-        android.provider.Settings.Global.getFloat(
-            context.contentResolver,
-            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f
-        ) == 0f
-    }.getOrDefault(false)
 
 /** How much the tab switcher shrinks and fades at the end of a Back gesture (to 90%, 70% opaque). */
 internal const val TAB_SWITCHER_BACK_SHRINK = 0.1f

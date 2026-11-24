@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui.components
 
-import android.content.Context
 import android.provider.Settings
 import android.view.ViewTreeObserver
 import androidx.compose.animation.AnimatedContent
@@ -10,7 +9,6 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
@@ -76,7 +74,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -94,6 +91,7 @@ import androidx.compose.ui.unit.min
 import com.rembrowser.rembrowse.model.PermissionAnswer
 import com.rembrowser.rembrowse.model.PermissionRequest
 import com.rembrowser.rembrowse.model.SitePermissionKind
+import com.rembrowser.rembrowse.ui.theme.RemMotion
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -148,8 +146,7 @@ fun BoxScope.PermissionPromptOverlay(
     // What was last shown here, so the card can still be drawn while it animates away
     var shown by remember { mutableStateOf<PermissionRequest?>(null) }
     if (request != null) shown = request
-    val context = LocalContext.current
-    val reduceMotion = remember(context) { animationsOff(context) }
+    val reduceMotion = rememberReduceMotion()
 
     BoxWithConstraints(modifier = Modifier.matchParentSize()) {
         // Beside the find bar only if both fit at full width; the card never changes width
@@ -157,7 +154,7 @@ fun BoxScope.PermissionPromptOverlay(
             maxWidth >= FindBarInset * 2 + PromptMaxWidth + PromptGap + FindBarMaxWidth
         val top by animateDpAsState(
             targetValue = if (besideFindBar) FindBarInset else FindBarInset + FindBarHeight + PromptGap,
-            animationSpec = if (reduceMotion) snap() else tween(220, easing = FastOutSlowInEasing),
+            animationSpec = if (reduceMotion) snap() else RemMotion.defaultSpatial(),
             label = "permissionPromptTop"
         )
         AnimatedVisibility(
@@ -165,12 +162,12 @@ fun BoxScope.PermissionPromptOverlay(
             enter = if (reduceMotion) {
                 EnterTransition.None
             } else {
-                slideInVertically(tween(220, easing = FastOutSlowInEasing)) { -it / 4 } + fadeIn(tween(180))
+                slideInVertically(RemMotion.defaultSpatial()) { -it / 4 } + fadeIn(RemMotion.defaultEffects())
             },
             exit = if (reduceMotion) {
                 ExitTransition.None
             } else {
-                slideOutVertically(tween(160, easing = FastOutSlowInEasing)) { -it / 4 } + fadeOut(tween(120))
+                slideOutVertically(RemMotion.fastSpatial()) { -it / 4 } + fadeOut(RemMotion.fastEffects())
             },
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -239,7 +236,8 @@ fun PermissionPromptCard(
                 if (reduceMotion) {
                     EnterTransition.None togetherWith ExitTransition.None
                 } else {
-                    fadeIn(tween(180, delayMillis = 60)) togetherWith fadeOut(tween(120))
+                    // The old request leaves quicker than the new one arrives
+                    fadeIn(RemMotion.defaultEffects()) togetherWith fadeOut(RemMotion.fastEffects())
                 }.using(SizeTransform(clip = false))
             },
             label = "permissionPromptContent"
@@ -460,7 +458,7 @@ private class ActionGuard(
             }
             delay(PermissionActionDelayMillis)
             armed = true
-            if (reduceMotion) alpha.snapTo(1f) else alpha.animateTo(1f, tween(100))
+            if (reduceMotion) alpha.snapTo(1f) else alpha.animateTo(1f, RemMotion.fastEffects())
         }
     }
 }
@@ -546,8 +544,3 @@ internal fun sitePermissionLabel(kind: SitePermissionKind, embeddedHost: String?
     SitePermissionKind.STORAGE_ACCESS -> if (embeddedHost != null) "Cookies for $embeddedHost" else "Cookies for embedded sites"
 }
 
-/** Android's animations are turned off (Settings → Accessibility → Remove animations). */
-private fun animationsOff(context: Context): Boolean =
-    runCatching {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }.getOrDefault(false)
