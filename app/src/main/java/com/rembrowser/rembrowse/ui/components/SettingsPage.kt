@@ -87,6 +87,7 @@ import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.viewmodel.TerminalUiState
 import com.rembrowser.rembrowse.model.UpdateStatus
 import com.rembrowser.rembrowse.model.UpdatesUiState
+import com.rembrowser.rembrowse.systemThemeDescription
 import com.rembrowser.rembrowse.ui.theme.systemColorsAvailable
 import com.rembrowser.rembrowse.ui.theme.tones
 import com.rembrowser.rembrowse.util.ByteSizes
@@ -649,14 +650,13 @@ private fun AppearanceSection(
         testTag = { "theme_${it.name.lowercase()}" },
         modifier = Modifier.testTag("setting_dark_theme")
     )
-    ThemeMode.SYSTEM.description?.let { systemMeans ->
-        Text(
-            text = systemMeans,
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-    }
+    // What System means here: dark on Android 8 and 9, which have no light or dark setting
+    Text(
+        text = systemThemeDescription(),
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.onSurfaceVariant,
+        modifier = Modifier.padding(top = 8.dp)
+    )
     Spacer(modifier = Modifier.height(24.dp))
 
     GroupTitle("Theme color")

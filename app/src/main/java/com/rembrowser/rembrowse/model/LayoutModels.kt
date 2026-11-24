@@ -41,11 +41,14 @@ enum class AccentColor(val label: String) {
     }
 }
 
-/** Light or dark. New installs follow the device; [label] and [description] are shown in Settings. */
-enum class ThemeMode(val label: String, val description: String?) {
-    SYSTEM("System", "System is light or dark, as your device is set."),
-    LIGHT("Light", null),
-    DARK("Dark", null);
+/**
+ * Light or dark. New installs follow the device; [label] is shown in Settings, with what System
+ * means on this device (systemThemeDescription in ThemeResolution.kt).
+ */
+enum class ThemeMode(val label: String) {
+    SYSTEM("System"),
+    LIGHT("Light"),
+    DARK("Dark");
 
     /** Whether the browser is dark in this mode, when the device's own setting is [systemIsDark]. */
     fun isDark(systemIsDark: Boolean): Boolean = when (this) {

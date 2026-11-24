@@ -614,6 +614,20 @@ class RemBrowseUiTest {
     }
 
     @Test
+    @Config(sdk = [28])
+    fun settings_onAndroid9_sayThatSystemIsDark() {
+        // Android 8 and 9 have no light or dark setting, and System is dark there
+        launch()
+        composeRule.onNodeWithTag("more_button").performClick()
+        composeRule.onNodeWithTag("menu_settings").performScrollTo().performClick()
+
+        composeRule.onNodeWithTag("theme_system").assertIsOn()
+        composeRule.onNodeWithText("System is dark: this version of Android has no light or dark setting to follow.")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("System is light or dark, as your device is set.").assertDoesNotExist()
+    }
+
+    @Test
     fun settings_changeThemeAccentAndPrivacy() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()
@@ -622,6 +636,7 @@ class RemBrowseUiTest {
         // Light, dark, or as the device is set (the default), one at a time: a connected button
         // group, whose toggle buttons are radio buttons, on or off
         composeRule.onNodeWithTag("setting_dark_theme").assertIsDisplayed()
+        composeRule.onNodeWithText("System is light or dark, as your device is set.").assertIsDisplayed()
         composeRule.onNodeWithTag("theme_system").assertIsOn()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
         composeRule.onNodeWithTag("theme_light").performClick()

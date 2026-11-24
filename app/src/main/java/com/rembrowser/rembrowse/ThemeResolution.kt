@@ -43,6 +43,18 @@ fun deviceThemeIsDark(nightModeOn: Boolean, sdkInt: Int = Build.VERSION.SDK_INT)
     nightModeOn || sdkInt < Build.VERSION_CODES.Q
 
 /**
+ * What Settings says the System theme is on this device ([sdkInt]): light or dark as the device
+ * is set from Android 10, and dark on Android 8 and 9, which have no setting for it to follow
+ * ([deviceThemeIsDark]).
+ */
+fun systemThemeDescription(sdkInt: Int = Build.VERSION.SDK_INT): String =
+    if (deviceThemeIsDark(nightModeOn = false, sdkInt = sdkInt)) {
+        "System is dark: this version of Android has no light or dark setting to follow."
+    } else {
+        "System is light or dark, as your device is set."
+    }
+
+/**
  * [mode] resolved against the device ([systemIsDark]: see [deviceThemeIsDark]), with the
  * colours [schemeFor] gives for that (light or dark).
  */

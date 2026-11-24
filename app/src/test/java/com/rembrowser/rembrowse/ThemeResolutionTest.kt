@@ -54,6 +54,20 @@ class ThemeResolutionTest {
     }
 
     @Test
+    fun settingsSaysWhatSystemIs_darkOnAndroid8And9_asTheDeviceIsSetFromAndroid10() {
+        for (sdk in listOf(26, 27, 28)) {
+            assertEquals(
+                "SDK $sdk",
+                "System is dark: this version of Android has no light or dark setting to follow.",
+                systemThemeDescription(sdkInt = sdk)
+            )
+        }
+        for (sdk in listOf(29, 30, 34, 36)) {
+            assertEquals("SDK $sdk", "System is light or dark, as your device is set.", systemThemeDescription(sdkInt = sdk))
+        }
+    }
+
+    @Test
     fun colours_areThoseOfTheResolvedSide() {
         for (mode in ThemeMode.entries) {
             for (systemIsDark in listOf(false, true)) {
