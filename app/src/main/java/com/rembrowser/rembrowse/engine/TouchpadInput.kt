@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.engine
 
+import android.os.Build
 import android.view.InputDevice
 import android.view.MotionEvent
 import kotlin.math.hypot
@@ -35,14 +36,28 @@ import kotlin.math.hypot
  * so double-click, drag and triple-click selected nothing in its text fields, and resting fingers
  * long-pressed the tab rail), and by every page's web view, which also covers the ones shown in
  * windows of their own (extension popups). Filtering twice is harmless: what the first filter
- * hands on passes the second unchanged or, for a scroll, released at once.
+ * hands on passes the second unchanged or, for a scroll, released at once; a scroll the window's
+ * filter passes on as it comes ([passesClassifiedGestures]) is held back by the page's alone.
  *
  * Main thread only, as views are.
  *
  * @param scrollSlopPx how far a touchpad scroll travels before the page sees it; it must be more
  *   than Gecko's own touch start tolerance (`apz.touch_start_tolerance`, 0.06 inch).
+ * @param passesClassifiedGestures true for a whole window, whose events reach Compose before any
+ *   page: a two-finger scroll or pinch that Android 14 and later mark as one
+ *   ([isClassifiedGesture]) is then passed on as it comes. Compose 1.13 reads such a gesture by
+ *   its classification as a pan or a zoom with nothing pressed, never as a press that could be
+ *   held long, and scrolls its lists by each event's own distance
+ *   (`AXIS_GESTURE_SCROLL_X_DISTANCE` and `_Y_DISTANCE`), so the moves held back here and dropped
+ *   were scrolling lost: up to [scrollSlopPx] at the start of every two-finger scroll in the tab
+ *   rail, Settings and dialogs. A page's web view keeps holding them back (false, the default),
+ *   since GeckoView still takes them for a finger. Unclassified gestures (older Android) are held
+ *   back either way.
  */
-class TouchpadInputFilter(private val scrollSlopPx: Float) {
+class TouchpadInputFilter(
+    private val scrollSlopPx: Float,
+    private val passesClassifiedGestures: Boolean = false
+) {
 
     private enum class Stream {
         /** Passed on unchanged: a touchscreen, a stylus, a real mouse, or no gesture at all. */
@@ -71,7 +86,7 @@ class TouchpadInputFilter(private val scrollSlopPx: Float) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 dropHeldDown()
-                stream = streamFor(event)
+                stream = if (passesClassifiedGestures && isClassifiedGesture(event)) Stream.AS_IS else streamFor(event)
                 when (stream) {
                     Stream.AS_IS -> forward(event)
                     Stream.CLICK -> forwardAsMouse(event, forward)
@@ -148,6 +163,16 @@ class TouchpadInputFilter(private val scrollSlopPx: Float) {
             }
             if (hover && isTouchpadFinger(event)) forwardAsMouse(event, forward) else forward(event)
         }
+
+        /**
+         * A touchpad's two-finger scroll or pinch as Android 14 and later mark it
+         * (`CLASSIFICATION_TWO_FINGER_SWIPE`, `CLASSIFICATION_PINCH`): what Compose 1.13 reads as
+         * a pan or a zoom instead of a finger.
+         */
+        fun isClassifiedGesture(event: MotionEvent): Boolean =
+            Build.VERSION.SDK_INT >= 34 &&
+                (event.classification == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE ||
+                    event.classification == MotionEvent.CLASSIFICATION_PINCH)
 
         /** A touchpad reported the Android way: a mouse source whose pointer is not a mouse. */
         fun isTouchpadFinger(event: MotionEvent): Boolean =

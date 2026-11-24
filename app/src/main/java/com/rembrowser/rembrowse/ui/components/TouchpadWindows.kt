@@ -29,7 +29,9 @@ fun TouchpadAsMouseInDialog() {
                     TouchpadInputFilter.scrollSlopPx(
                         dpi = maxOf(metrics.densityDpi.toFloat(), metrics.xdpi, metrics.ydpi),
                         touchSlopPx = ViewConfiguration.get(view.context).scaledTouchSlop
-                    )
+                    ),
+                    // As the main window's: a classified scroll scrolls the dialog's lists from its first move
+                    passesClassifiedGestures = true
                 )
             )
         }
