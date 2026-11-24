@@ -321,6 +321,7 @@ All colours, type and shapes come from `ui/theme/Theme.kt`; components read `Mat
 | `primaryContainer` | Deep accent fill for selected and active items |
 | `tertiaryContainer` | Soft accent tint for the start page backdrop |
 | `outline` / `outlineVariant` | Control boundaries / decorative hairlines |
+| `inverseSurface` / `inverseOnSurface` / `inversePrimary` | Notices (`NoticeSnackbar`): their fill, text and icons, and their action button and focus ring |
 
 `AccentColor` offers six accents; each defines tones for both themes. `ThemeContrastTest` asserts WCAG contrast (4.5:1 text, 3:1 non-text) for every theme and accent combination.
 

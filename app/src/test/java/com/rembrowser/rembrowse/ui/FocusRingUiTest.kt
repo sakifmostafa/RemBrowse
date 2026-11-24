@@ -2,11 +2,15 @@ package com.rembrowser.rembrowse.ui
 
 import android.app.Application
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
@@ -16,8 +20,10 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
@@ -34,6 +40,9 @@ import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
 import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
+import com.rembrowser.rembrowse.ui.components.ScreenshotNotice
+import com.rembrowser.rembrowse.ui.components.ScreenshotNoticeBar
+import com.rembrowser.rembrowse.ui.components.ScreenshotResult
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
@@ -176,6 +185,28 @@ class FocusRingUiTest {
         shownInputMode.value = InputMode.Touch
         composeRule.waitForIdle()
         assertEquals(unfocused, pixelOnTheRing(more))
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun onANotice_theRingTakesTheInverseAccent() {
+        var colors: ColorScheme? = null
+        composeRule.setContent {
+            inputModes = LocalInputModeManager.current
+            RemBrowseTheme(darkTheme = true) {
+                colors = MaterialTheme.colorScheme
+                Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxSize()) {
+                    ScreenshotNoticeBar(notice = ScreenshotNotice(ScreenshotResult.Failed, serial = 1), onDismiss = {})
+                }
+            }
+        }
+        composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
+        val dismiss = composeRule.onNode(hasClickAction() and hasAnyAncestor(hasTestTag("screenshot_notice_dismiss")))
+        dismiss.requestFocus().assertIsFocused()
+        // The dark theme's accent is pale, like the notice there; its inverse is the light theme's
+        val ring = pixelOnTheRing(dismiss)
+        assertTrue("The ring, in inversePrimary: $ring", ring.isCloseTo(colors!!.inversePrimary))
+        assertFalse("Not in the accent, which would not show on the notice", ring.isCloseTo(colors!!.primary))
     }
 
     @Test

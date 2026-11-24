@@ -85,6 +85,19 @@ open class ThemeContrastTest {
     }
 
     @Test
+    fun notices_textActionAndFocusRingReadOnTheInverseSurface() = forEveryTheme { name, c ->
+        // NoticeSnackbar: text, icons and the close button in inverseOnSurface, the action and the
+        // keyboard focus ring in inversePrimary, all on inverseSurface. An error is told by its
+        // icon and words, so no error colour is needed there.
+        assertContrast("$name notice text on inverseSurface", c.inverseOnSurface, c.inverseSurface, 4.5)
+        assertContrast("$name notice action on inverseSurface", c.inversePrimary, c.inverseSurface, 4.5)
+        // A notice sits over any page; its edge must show against the chrome and page colours
+        for ((surfaceName, surface) in listOf("background" to c.background, "surfaceContainerLowest" to c.surfaceContainerLowest)) {
+            assertContrast("$name notice on $surfaceName", c.inverseSurface, surface, 3.0)
+        }
+    }
+
+    @Test
     fun controlOutlinesAndFocusIndicators_meetNonTextContrast() = forEveryTheme { name, c ->
         assertContrast("$name outline on background", c.outline, c.background, 3.0)
         assertContrast("$name outline on surface", c.outline, c.surface, 3.0)

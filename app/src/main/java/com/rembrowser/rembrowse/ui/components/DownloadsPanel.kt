@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
@@ -24,7 +22,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,9 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -287,7 +282,8 @@ fun DownloadPromptDialog(request: DownloadRequest, onDecision: (Boolean) -> Unit
 /**
  * A short-lived line over the bottom of the window: a download started, finished or failed, or
  * a file could not be opened. It leaves by itself, so it never has to be dismissed to get at
- * the page underneath.
+ * the page underneath. A failure says so in words and with the error icon (named "Error"), not
+ * by colour alone.
  */
 @Composable
 fun DownloadNoticeBar(
@@ -299,7 +295,6 @@ fun DownloadNoticeBar(
     modifier: Modifier = Modifier
 ) {
     if (notice == null && message == null) return
-    val colors = MaterialTheme.colorScheme
 
     LaunchedEffect(notice, message) {
         delay(NOTICE_VISIBLE_MILLIS)
@@ -314,61 +309,35 @@ fun DownloadNoticeBar(
     }
     val canOpen = message == null && notice?.status == DownloadStatus.COMPLETED
 
-    Surface(
-        modifier = modifier
-            .padding(16.dp)
-            .widthIn(max = 520.dp)
-            .testTag("download_notice"),
-        shape = MaterialTheme.shapes.medium,
-        color = colors.surfaceContainerHighest,
-        contentColor = colors.onSurface,
-        border = BorderStroke(1.dp, colors.outlineVariant),
-        shadowElevation = 8.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .semantics { liveRegion = LiveRegionMode.Polite }
-                .padding(start = 16.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = when {
-                    isError -> Icons.Outlined.ErrorOutline
-                    canOpen -> Icons.Outlined.CheckCircle
-                    else -> Icons.Outlined.FileDownload
-                },
-                contentDescription = if (isError) "Error" else null,
-                tint = if (isError) colors.error else colors.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .padding(vertical = 12.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(
-                onClick = {
-                    val id = notice?.itemId
-                    if (canOpen && id != null) onOpen(id) else onShowDownloads()
-                    onDismiss()
-                },
-                modifier = Modifier.testTag("download_notice_action")
-            ) {
-                Text(if (canOpen) "Open" else "Show")
-            }
-            RemIconButton(
-                icon = Icons.Outlined.Close,
-                label = "Dismiss",
-                onClick = onDismiss,
-                iconSize = 18.dp
-            )
+    NoticeSnackbar(
+        testTag = "download_notice",
+        dismissLabel = "Dismiss",
+        onDismiss = onDismiss,
+        modifier = modifier,
+        actionLabel = if (canOpen) "Open" else "Show",
+        actionTestTag = "download_notice_action",
+        onAction = {
+            val id = notice?.itemId
+            if (canOpen && id != null) onOpen(id) else onShowDownloads()
+            onDismiss()
         }
+    ) {
+        Icon(
+            imageVector = when {
+                isError -> Icons.Outlined.ErrorOutline
+                canOpen -> Icons.Outlined.CheckCircle
+                else -> Icons.Outlined.FileDownload
+            },
+            contentDescription = if (isError) "Error" else null,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

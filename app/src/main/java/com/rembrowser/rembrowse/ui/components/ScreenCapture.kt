@@ -82,12 +82,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.dismiss
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -632,7 +630,8 @@ private fun SelectionSizeLabel(selection: PxRect) {
 
 /**
  * "Screenshot copied", with a small picture of it, over the bottom of the window like the download
- * notice; or a plain message when it failed. It leaves by itself after a few seconds.
+ * notice; or a plain message when it failed, with the error icon (named "Error"). It leaves by
+ * itself after a few seconds.
  */
 @Composable
 fun ScreenshotNoticeBar(
@@ -641,7 +640,6 @@ fun ScreenshotNoticeBar(
     modifier: Modifier = Modifier
 ) {
     if (notice == null) return
-    val colors = MaterialTheme.colorScheme
     val latestOnDismiss by rememberUpdatedState(onDismiss)
     LaunchedEffect(notice.serial) {
         delay(SCREENSHOT_NOTICE_MILLIS)
@@ -649,60 +647,35 @@ fun ScreenshotNoticeBar(
     }
     val copied = notice.result as? ScreenshotResult.Copied
 
-    Surface(
-        modifier = modifier
-            .padding(16.dp)
-            .widthIn(max = 520.dp)
-            .testTag("screenshot_notice"),
-        shape = MaterialTheme.shapes.medium,
-        color = colors.surfaceContainerHighest,
-        contentColor = colors.onSurface,
-        border = BorderStroke(1.dp, colors.outlineVariant),
-        shadowElevation = 8.dp
+    NoticeSnackbar(
+        testTag = "screenshot_notice",
+        dismissLabel = "Dismiss",
+        onDismiss = onDismiss,
+        modifier = modifier,
+        dismissTestTag = "screenshot_notice_dismiss"
     ) {
-        Row(
-            modifier = Modifier
-                .semantics { liveRegion = LiveRegionMode.Polite }
-                .padding(start = if (copied != null) 8.dp else 16.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (copied != null) {
-                ScreenshotThumbnail(copied)
-            } else {
-                Icon(
-                    imageVector = Icons.Outlined.ErrorOutline,
-                    contentDescription = "Error",
-                    tint = colors.error,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .padding(vertical = 10.dp)
-            ) {
-                Text(
-                    text = if (copied != null) "Screenshot copied" else "Couldn't take the screenshot",
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = if (copied != null) "${copied.width} × ${copied.height} px" else "Try again with Ctrl+Alt+S",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            RemIconButton(
-                icon = Icons.Outlined.Close,
-                label = "Dismiss",
-                onClick = onDismiss,
-                iconSize = 18.dp,
-                modifier = Modifier.testTag("screenshot_notice_dismiss")
+        if (copied != null) {
+            ScreenshotThumbnail(copied)
+        } else {
+            Icon(
+                imageVector = Icons.Outlined.ErrorOutline,
+                contentDescription = "Error",
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = if (copied != null) "Screenshot copied" else "Couldn't take the screenshot",
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (copied != null) "${copied.width} × ${copied.height} px" else "Try again with Ctrl+Alt+S",
+                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

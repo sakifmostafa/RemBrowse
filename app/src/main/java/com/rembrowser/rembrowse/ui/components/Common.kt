@@ -29,17 +29,21 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +63,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -69,8 +74,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -171,7 +178,7 @@ fun RemIconButton(
 internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): Modifier {
     var focused by remember { mutableStateOf(false) }
     val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
-    val color = MaterialTheme.colorScheme.primary
+    val color = LocalFocusRingColor.current.takeOrElse { MaterialTheme.colorScheme.primary }
     return this
         .onFocusChanged { focused = it.isFocused }
         .drawWithContent {
@@ -188,6 +195,12 @@ internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): 
             }
         }
 }
+
+/**
+ * The colour of [keyboardFocusRing] where the accent would not stand out, such as on a notice's
+ * inverse surface. Unspecified means the accent (primary).
+ */
+internal val LocalFocusRingColor = staticCompositionLocalOf { Color.Unspecified }
 
 /**
  * [style] at the size it has with the system's font size at 100%, for letters that are part of
@@ -387,6 +400,74 @@ internal fun outlinedButtonContentColor(colors: ColorScheme): Color = colors.pri
 
 /** [RemOutlinedButton]'s border colour while enabled (checked for contrast in ThemeContrastTest). */
 internal fun outlinedButtonBorderColor(colors: ColorScheme): Color = colors.outline
+
+/**
+ * A notice over the bottom of the window (a download, an update, a screenshot): a Material 3
+ * snackbar in the inverse colours, dark in the light theme and light in the dark one, so it
+ * stands out from any page under it. Each notice keeps its own state and timing (when it leaves
+ * by itself, or that it waits for an answer); this only draws it. [content] (an icon or picture
+ * and the text) is announced politely when it changes. [actionLabel] adds a text button before
+ * the close button.
+ */
+@Composable
+internal fun NoticeSnackbar(
+    testTag: String,
+    dismissLabel: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    dismissTestTag: String? = null,
+    actionLabel: String? = null,
+    actionTestTag: String? = null,
+    onAction: () -> Unit = {},
+    content: @Composable RowScope.() -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    // The accent is meant for the normal surfaces; on the inverse one the ring takes the inverse accent
+    CompositionLocalProvider(LocalFocusRingColor provides colors.inversePrimary) {
+        Snackbar(
+            modifier = modifier
+                .padding(16.dp)
+                .widthIn(max = 520.dp)
+                .testTag(testTag),
+            action = actionLabel?.let { label ->
+                {
+                    TextButton(
+                        onClick = onAction,
+                        colors = ButtonDefaults.textButtonColors(contentColor = colors.inversePrimary),
+                        modifier = Modifier
+                            .keyboardFocusRing(ButtonDefaults.textShape)
+                            .then(if (actionTestTag != null) Modifier.testTag(actionTestTag) else Modifier)
+                    ) {
+                        Text(label)
+                    }
+                }
+            },
+            dismissAction = {
+                RemIconButton(
+                    icon = Icons.Outlined.Close,
+                    label = dismissLabel,
+                    onClick = onDismiss,
+                    // The snackbar's colour for it, inverseOnSurface
+                    tint = LocalContentColor.current,
+                    iconSize = 18.dp,
+                    modifier = if (dismissTestTag != null) Modifier.testTag(dismissTestTag) else Modifier
+                )
+            },
+            // Rounded like the menus and panes, rather than Material's 4dp
+            shape = MaterialTheme.shapes.medium,
+            containerColor = colors.inverseSurface,
+            contentColor = colors.inverseOnSurface,
+            actionContentColor = colors.inversePrimary,
+            dismissActionContentColor = colors.inverseOnSurface
+        ) {
+            Row(
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                verticalAlignment = Alignment.CenterVertically,
+                content = content
+            )
+        }
+    }
+}
 
 /** Keyboard shortcut hint shown at the trailing edge of menu and palette rows. */
 @Composable

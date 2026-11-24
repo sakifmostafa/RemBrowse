@@ -117,6 +117,8 @@ Test suites included:
 ./gradlew testDebugUnitTest --tests "*TerminalSnapshotTest*" -Prembrowse.screenshots=build/terminal-shots
 ```
 
+`NoticeSnapshotTest` renders the notices over the bottom of the window (an update, a download finished and failed, a screenshot that failed) in both themes and on a phone, and `ScreenCaptureSnapshotTest` the screenshot overlay and its notice; both take the same `-Prembrowse.screenshots=<dir>`.
+
 The images land in `app/build/ui-screenshots/` (or `terminal-shots/`). Web content is a placeholder, because the real engine cannot run on the JVM, and dialogs are drawn at the top-left corner without the dimmed backdrop a device shows.
 
 ---
