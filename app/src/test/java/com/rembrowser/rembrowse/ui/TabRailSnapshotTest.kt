@@ -20,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.performMouseInput
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -231,6 +234,15 @@ class TabRailSnapshotTest {
         launch(dark = true)
         composeRule.runOnUiThread { chrome.tabRailOverlayOpen = true }
         save("rail-10-over-the-page-compact-height-dark")
+    }
+
+    /** The mouse over a tab's row on the expanded rail: its close button at the end of the row. */
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun railExpandedCloseButton() {
+        launch(dark = true, railExpanded = true)
+        composeRule.onNodeWithTag("tab_bar_item_news").performMouseInput { moveTo(center) }
+        save("rail-13-expanded-close-button-dark-closeup", width = 420.dp, height = 560.dp)
     }
 
     /** With Android's animations off the loading tab's indicator holds still: an hourglass. */

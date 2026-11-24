@@ -65,6 +65,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.hoverable
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.luminance
@@ -327,6 +335,9 @@ fun TabRail(
     }
     val trapsFocus by rememberUpdatedState(floatingOpen)
     val dismiss by rememberUpdatedState(onDismiss)
+    // Whether the rail was last used with a finger: the expanded rail's close buttons then stay
+    // in sight, as there is no pointer to hover with (RailTile's trailing)
+    var touchUsed by remember { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = modifier
@@ -415,6 +426,20 @@ fun TabRail(
                     }
                 }
                 .focusGroup()
+                // Only looks, before anything on the rail sees the events, and takes nothing
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull() ?: continue
+                            when (event.type) {
+                                PointerEventType.Press -> touchUsed = isFingerPress(change.type, event.buttons)
+                                PointerEventType.Enter, PointerEventType.Move ->
+                                    if (change.type == PointerType.Mouse && !change.pressed) touchUsed = false
+                            }
+                        }
+                    }
+                }
                 .onPreviewKeyEvent { event ->
                     if (floatingOpen && event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                         dismiss()
@@ -493,6 +518,7 @@ fun TabRail(
                             isVisibleInPane = paneIndex >= 0,
                             paneCount = uiState.paneCount,
                             showTitle = expanded,
+                            touchUsed = touchUsed,
                             onSelect = { onSelectTab(tab.id) },
                             onClose = { onCloseTab(tab.id) },
                             onCloseOthers = { onCloseOtherTabs(tab.id) },
@@ -878,6 +904,13 @@ private fun RailTile(
     titleTag: String? = null,
     /** Said after the name by a screen reader, such as whether the rail is expanded. */
     stateDescription: String? = null,
+    /**
+     * At the end of the expanded tile, such as a tab's close button: shown while the pointer is
+     * over the tile or the keyboard's focus is in it, and always while [trailingAlways] (the
+     * rail used with a finger, which has no pointer to hover with).
+     */
+    trailing: (@Composable () -> Unit)? = null,
+    trailingAlways: Boolean = false,
     icon: @Composable BoxScope.() -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -896,6 +929,10 @@ private fun RailTile(
     // cut such a ring, keeps Material's inset ring: it has no border of its own.
     val ringOutside = style != RailTileStyle.Pinned
     var titleCut by remember { mutableStateOf(false) }
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    var focusInside by remember { mutableStateOf(false) }
+    val showTrailing = trailing != null && showTitle && (trailingAlways || hovered || focusInside)
     TooltipBox(
         // Beside the rail, as on desktop, so it never covers the tile above
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.End),
@@ -925,6 +962,15 @@ private fun RailTile(
                     )
                     .then(if (onOpenMenu != null) Modifier.contextMenuTrigger(onOpenMenu) else Modifier)
                     .then(if (onMiddleClick != null) Modifier.middleClickTrigger(onMiddleClick) else Modifier)
+                    .then(
+                        if (trailing != null) {
+                            Modifier
+                                .hoverable(hover)
+                                .onFocusChanged { focusInside = it.hasFocus }
+                        } else {
+                            Modifier
+                        }
+                    )
                     .combinedClickable(
                         interactionSource = null,
                         indication = if (ringOutside) ringOutsideRipple() else ripple(focusRingShape = shape),
@@ -963,11 +1009,12 @@ private fun RailTile(
                                 overflow = TextOverflow.Ellipsis,
                                 onTextLayout = { titleCut = it.hasVisualOverflow },
                                 modifier = Modifier
-                                    .padding(end = 12.dp)
+                                    .padding(end = if (showTrailing) 0.dp else 12.dp)
                                     .then(if (titleTag != null) Modifier.testTag(titleTag) else Modifier)
                             )
                         }
                     }
+                    if (showTrailing) trailing?.invoke()
                 }
             }
             if (selected) {
@@ -991,6 +1038,7 @@ private fun RailTabItem(
     isVisibleInPane: Boolean,
     paneCount: Int,
     showTitle: Boolean,
+    touchUsed: Boolean,
     onSelect: () -> Unit,
     onClose: () -> Unit,
     onCloseOthers: () -> Unit,
@@ -1013,6 +1061,20 @@ private fun RailTabItem(
             title = tab.displayTitle,
             showTitle = showTitle,
             titleTag = "rail_tab_title_${tab.id}",
+            // A desktop browser's vertical tabs' close button, at the end of the expanded row
+            trailing = {
+                RemIconButton(
+                    icon = Icons.Outlined.Close,
+                    label = "Close tab",
+                    onClick = onClose,
+                    size = 32.dp,
+                    iconSize = 18.dp,
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .testTag("rail_tab_close_${tab.id}")
+                )
+            },
+            trailingAlways = touchUsed,
             modifier = Modifier
                 .testTag("tab_bar_item_${tab.id}")
                 .then(

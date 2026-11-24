@@ -46,6 +46,9 @@ import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
@@ -324,6 +327,89 @@ class WideTabRailUiTest {
         assertEquals(listOf("github"), browserVm.uiState.value.tabs.map { it.id })
         // Still expanded: closing tabs keeps the rail as it was
         assertEquals(RemDimens.RailExpandedWidth, railWidth())
+    }
+
+    // --- The expanded rail's close buttons ---
+
+    /** A row's close button: its own node to a screen reader, its tag merged into the row's. */
+    private fun closeButton(tabId: String) = composeRule.onNodeWithTag("rail_tab_close_$tabId", useUnmergedTree = true)
+    private fun openTabIds() = browserVm.uiState.value.tabs.map { it.id }
+
+    @Test
+    fun expandedRail_aRowsCloseButton_showsUnderTheMouse_andClosesTheTab() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        closeButton("news").assertDoesNotExist()
+
+        node("tab_bar_item_news").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("news").assertIsDisplayed()
+        // Its own node to a screen reader, named "Close tab"
+        composeRule.onNode(hasContentDescription("Close tab") and hasClickAction()).assertIsDisplayed()
+        closeButton("github").assertDoesNotExist()
+
+        // Over another row, the first one's goes
+        node("tab_bar_item_github").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("news").assertDoesNotExist()
+        closeButton("github").assertIsDisplayed()
+
+        node("tab_bar_item_news").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("news").mouseClick()
+
+        assertEquals(listOf("github", "chat"), openTabIds())
+        assertEquals("Closing a tab beside it doesn't change the one shown", "github", browserVm.uiState.value.activeTabId)
+    }
+
+    @Test
+    fun expandedRail_aRowsCloseButton_showsWithTheKeyboardFocus_andEnterCloses() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
+
+        node("tab_bar_item_chat").requestFocus()
+        composeRule.waitForIdle()
+        closeButton("chat").assertIsDisplayed()
+        pressOnTheFocused(Key.Tab)
+        composeRule.onNode(hasClickAction() and hasAnyAncestor(hasTestTag("rail_tab_close_chat")), useUnmergedTree = true)
+            .assertIsFocused()
+        pressOnTheFocused(Key.Enter)
+
+        assertEquals(listOf("github", "news"), openTabIds())
+    }
+
+    @Test
+    fun expandedRail_usedWithAFinger_everyRowsCloseButtonStaysInSight() {
+        launch(BrowserSettings(tabRailExpanded = true))
+        closeButton("github").assertDoesNotExist()
+
+        node("tab_bar_item_news").performTouchInput { click() }
+        composeRule.waitForIdle()
+
+        assertEquals("news", browserVm.uiState.value.activeTabId)
+        listOf("github", "news", "chat").forEach { closeButton(it).assertIsDisplayed() }
+        // A mouse over the rail again: back to showing them under the pointer only
+        node("tab_bar_item_github").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("chat").assertDoesNotExist()
+    }
+
+    @Test
+    fun collapsedRail_hasNoCloseButtons_andTheExpandedRowsMenuAndMiddleClickStillWork() {
+        launch()
+        node("tab_bar_item_news").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("news").assertDoesNotExist()
+
+        toggle()
+        node("tab_bar_item_news").performMouseInput { moveTo(center) }
+        composeRule.waitForIdle()
+        closeButton("news").assertIsDisplayed()
+        // The row's right-click menu and middle click, with the close button showing
+        node("tab_bar_item_news").mouseClick(MouseButton.Secondary)
+        node("tab_bar_close_news").assertIsDisplayed()
+        composeRule.runOnIdle { }
+        node("tab_bar_item_chat").mouseClick(MouseButton.Tertiary)
+        assertFalse("Middle click closed it", "chat" in openTabIds())
     }
 
     /** A point of pane [paneIndex], in the coordinates of the rail tile of [tabId]. */
