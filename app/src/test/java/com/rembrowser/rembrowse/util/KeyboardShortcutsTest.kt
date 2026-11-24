@@ -243,4 +243,28 @@ class KeyboardShortcutsTest {
         listOf(KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_DPAD_DOWN)
             .forEach { assertEquals("Key $it", ScreenCaptureKey.SWALLOW, key(it)) }
     }
+
+    @Test
+    fun everyShortcutInTheSystemSheet_pressesWhatItSays() {
+        val all = KeyboardShortcuts.HELP_GROUPS.flatMap { it.second }
+        all.forEach { help ->
+            assertEquals(
+                help.label,
+                help.shortcut,
+                KeyboardShortcuts.resolve(help.keyCode, help.ctrl, help.shift, help.alt, meta = false, repeatCount = 0)
+            )
+        }
+        assertEquals(listOf("Tabs", "Navigation", "Page", "Split view", "RemBrowse"), KeyboardShortcuts.HELP_GROUPS.map { it.first })
+        assertEquals("Each row is listed once", all.size, all.map { it.label }.toSet().size)
+        assertEquals("Each command is listed once", all.size, all.map { it.shortcut }.toSet().size)
+    }
+
+    @Test
+    fun aMouseForwardButton_goesForward_inAPageAndInATerminal() {
+        assertEquals(BrowserShortcut.FORWARD, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_FORWARD, ctrl = false))
+        assertEquals(BrowserShortcut.FORWARD, KeyboardShortcuts.resolve(KeyEvent.KEYCODE_FORWARD, ctrl = false, inTerminal = true))
+        // Held down, it goes forward once
+        assertNull(KeyboardShortcuts.resolve(KeyEvent.KEYCODE_FORWARD, ctrl = false, repeatCount = 1))
+        assertNull(KeyboardShortcuts.resolve(KeyEvent.KEYCODE_FORWARD, ctrl = true))
+    }
 }

@@ -14,6 +14,8 @@ import android.os.Looper
 import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.KeyboardShortcutGroup
+import android.view.Menu
 import androidx.compose.ui.platform.ComposeView
 import android.widget.FrameLayout
 import android.content.Context
@@ -85,6 +87,7 @@ import com.rembrowser.rembrowse.util.PhysicalKeyRouter
 import com.rembrowser.rembrowse.util.PhysicalTyping
 import com.rembrowser.rembrowse.util.TakenKeys
 import com.rembrowser.rembrowse.util.UrlResolver
+import com.rembrowser.rembrowse.util.keyboardShortcutGroups
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
@@ -415,6 +418,7 @@ class MainActivity : ComponentActivity() {
                             onOpenDownloadsFolder = ::openDownloadsFolder,
                             onCopyImage = holder.imageClipboard::copyImage,
                             onCaptureScreen = { area -> captureScreen(area) },
+                            onShowKeyboardShortcuts = ::requestShowKeyboardShortcuts,
                             onPickFiles = ::pickFilesFor,
                             updatesViewModel = holder.updates,
                             terminalViewModel = holder.terminal,
@@ -588,6 +592,12 @@ class MainActivity : ComponentActivity() {
                 touchSlopPx = ViewConfiguration.get(this).scaledTouchSlop
             )
         )
+    }
+
+    /** The browser's shortcuts in the system's Keyboard Shortcuts sheet (Meta+/). */
+    override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>?, menu: Menu?, deviceId: Int) {
+        super.onProvideKeyboardShortcuts(data, menu, deviceId)
+        data?.addAll(keyboardShortcutGroups())
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {

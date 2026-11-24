@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.ui.components
 
+import android.content.res.Configuration
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,6 +68,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
@@ -135,6 +137,8 @@ fun BrowserTopBar(
     /** Puts the screenshot overlay up (Ctrl+Alt+S). */
     onTakeScreenshot: () -> Unit = {},
     onNewTerminal: () -> Unit = {},
+    /** Opens the system's Keyboard Shortcuts sheet; offered in More only with a keyboard attached. */
+    onShowKeyboardShortcuts: () -> Unit = {},
     /** What the unfocused address bar shows instead of the address (a terminal's `ssh user@host`). */
     addressDisplay: String? = null
 ) {
@@ -239,7 +243,8 @@ fun BrowserTopBar(
                 onOpenSettings = onOpenSettings,
                 onOpenSplitView = { showLayoutMenu = true },
                 onToggleDesktopMode = onToggleDesktopMode,
-                onTriggerExtensionAction = onTriggerExtensionAction
+                onTriggerExtensionAction = onTriggerExtensionAction,
+                onShowKeyboardShortcuts = onShowKeyboardShortcuts
             )
             if (compact) {
                 SplitMenu(
@@ -688,8 +693,11 @@ private fun MoreMenu(
     onOpenSettings: () -> Unit,
     onOpenSplitView: () -> Unit,
     onToggleDesktopMode: () -> Unit,
-    onTriggerExtensionAction: (String) -> Unit
+    onTriggerExtensionAction: (String) -> Unit,
+    onShowKeyboardShortcuts: () -> Unit
 ) {
+    // Only worth offering when there is a keyboard to press the shortcuts on
+    val hasKeyboard = LocalConfiguration.current.keyboard == Configuration.KEYBOARD_QWERTY
     val divider = @Composable { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
     fun run(action: () -> Unit): () -> Unit = {
         onDismiss()
@@ -811,6 +819,13 @@ private fun MoreMenu(
             },
             onClick = run(onToggleDesktopMode)
         )
+        if (hasKeyboard) {
+            DropdownMenuItem(
+                text = { Text("Keyboard shortcuts") },
+                onClick = run(onShowKeyboardShortcuts),
+                modifier = Modifier.testTag("menu_keyboard_shortcuts")
+            )
+        }
         DropdownMenuItem(
             text = { Text("Settings") },
             trailingIcon = { ShortcutHint("Ctrl+,") },

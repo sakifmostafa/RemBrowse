@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.FindInPage
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.ScreenshotMonitor
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -221,6 +222,8 @@ fun RemBrowseScreen(
      * which it must leave the clipboard alone. Without one, a screenshot fails.
      */
     onCaptureScreen: suspend (area: PxRect) -> ScreenshotResult = { ScreenshotResult.Failed },
+    /** Opens the system's Keyboard Shortcuts sheet, which lists the browser's shortcuts. */
+    onShowKeyboardShortcuts: () -> Unit = {},
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
     extensionPopupContent: @Composable (Modifier) -> Unit
 ) {
@@ -517,6 +520,7 @@ fun RemBrowseScreen(
                     onOpenSettings = { openSettings(null) },
                     onTriggerExtensionAction = extensionsViewModel::triggerBrowserAction,
                     onNewTerminal = { openTerminal(TerminalTarget.Picker) },
+                    onShowKeyboardShortcuts = onShowKeyboardShortcuts,
                     addressDisplay = terminalAddress
                 )
 
@@ -785,6 +789,10 @@ fun RemBrowseScreen(
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", keywords = listOf("files"), action = openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, keywords = listOf("addons"), action = openExtensions),
             PaletteCommand("site_permissions", "Site permissions", Icons.Outlined.Tune, action = openSitePermissions),
+            PaletteCommand(
+                "keyboard_shortcuts", "Keyboard shortcuts", Icons.Outlined.Keyboard,
+                keywords = listOf("keys", "help"), action = onShowKeyboardShortcuts
+            ),
             PaletteCommand("settings", "Open settings", Icons.Outlined.Settings, "Ctrl+,", keywords = listOf("preferences", "options")) {
                 openSettings(null)
             }

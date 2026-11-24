@@ -106,6 +106,7 @@ class CommandPaletteResultsTest {
         PaletteCommand("downloads", "Downloads", icon, "Ctrl+J", keywords = listOf("files")) {},
         PaletteCommand("extensions", "Extensions", icon, keywords = listOf("addons")) {},
         PaletteCommand("site_permissions", "Site permissions", icon) {},
+        PaletteCommand("keyboard_shortcuts", "Keyboard shortcuts", icon, keywords = listOf("keys", "help")) {},
         PaletteCommand("settings", "Open settings", icon, "Ctrl+,", keywords = listOf("preferences", "options")) {}
     )
 
@@ -125,6 +126,13 @@ class CommandPaletteResultsTest {
         assertEquals(listOf("print", "go"), ranked("pri").take(2))
         assertEquals(listOf("bookmarks", "go"), ranked("book").take(2))
         assertEquals(listOf("settings", "go"), ranked("set").take(2))
+    }
+
+    @Test
+    fun keyboardShortcuts_isFoundByItsNameOrByHelp() {
+        assertEquals(listOf("keyboard_shortcuts", "go"), ranked("keyb").take(2))
+        assertEquals(listOf("keyboard_shortcuts", "go"), ranked("shortcuts").take(2))
+        assertEquals(listOf("keyboard_shortcuts", "go"), ranked("help").take(2))
     }
 
     @Test

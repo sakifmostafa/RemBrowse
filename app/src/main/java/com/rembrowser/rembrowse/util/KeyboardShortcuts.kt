@@ -56,8 +56,63 @@ enum class ScreenCaptureKey {
     PASS
 }
 
+/**
+ * One row of the system's Keyboard Shortcuts sheet (Meta+/): its [label], the key and modifiers
+ * that press it, and the [shortcut] those keys resolve to, so the sheet can never list keys that
+ * do something else.
+ */
+data class ShortcutHelp(
+    val label: String,
+    val keyCode: Int,
+    val ctrl: Boolean = true,
+    val shift: Boolean = false,
+    val alt: Boolean = false,
+    val shortcut: BrowserShortcut
+)
+
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
 object KeyboardShortcuts {
+
+    /**
+     * What the system's Keyboard Shortcuts sheet lists, by group, in the More menu's words. Only
+     * shortcuts that work outside a terminal are listed; the terminal's own are in the user guide.
+     */
+    val HELP_GROUPS: List<Pair<String, List<ShortcutHelp>>> = listOf(
+        "Tabs" to listOf(
+            ShortcutHelp("New tab", KeyEvent.KEYCODE_T, shortcut = BrowserShortcut.NEW_TAB),
+            ShortcutHelp("New terminal", KeyEvent.KEYCODE_T, shift = true, shortcut = BrowserShortcut.NEW_TERMINAL),
+            ShortcutHelp("Close tab", KeyEvent.KEYCODE_W, shortcut = BrowserShortcut.CLOSE_TAB),
+            ShortcutHelp("Next tab", KeyEvent.KEYCODE_TAB, shortcut = BrowserShortcut.NEXT_TAB),
+            ShortcutHelp("Previous tab", KeyEvent.KEYCODE_TAB, shift = true, shortcut = BrowserShortcut.PREVIOUS_TAB)
+        ),
+        "Navigation" to listOf(
+            ShortcutHelp("Back", KeyEvent.KEYCODE_DPAD_LEFT, ctrl = false, alt = true, shortcut = BrowserShortcut.BACK),
+            ShortcutHelp("Forward", KeyEvent.KEYCODE_DPAD_RIGHT, ctrl = false, alt = true, shortcut = BrowserShortcut.FORWARD),
+            ShortcutHelp("Reload", KeyEvent.KEYCODE_R, shortcut = BrowserShortcut.RELOAD),
+            ShortcutHelp("Address bar", KeyEvent.KEYCODE_L, shortcut = BrowserShortcut.FOCUS_ADDRESS_BAR),
+            ShortcutHelp("Go to address", KeyEvent.KEYCODE_G, shortcut = BrowserShortcut.GO_TO_ADDRESS)
+        ),
+        "Page" to listOf(
+            ShortcutHelp("Find in page", KeyEvent.KEYCODE_F, shortcut = BrowserShortcut.FIND_IN_PAGE),
+            ShortcutHelp("Print", KeyEvent.KEYCODE_P, shortcut = BrowserShortcut.PRINT),
+            ShortcutHelp("Bookmark this page", KeyEvent.KEYCODE_D, shortcut = BrowserShortcut.TOGGLE_BOOKMARK),
+            ShortcutHelp("Take screenshot", KeyEvent.KEYCODE_S, alt = true, shortcut = BrowserShortcut.SCREENSHOT)
+        ),
+        "Split view" to listOf(
+            ShortcutHelp("Split view on or off", KeyEvent.KEYCODE_BACKSLASH, shortcut = BrowserShortcut.TOGGLE_SPLIT_VIEW),
+            ShortcutHelp("Single pane", KeyEvent.KEYCODE_1, shortcut = BrowserShortcut.LAYOUT_SINGLE),
+            ShortcutHelp("Side by side", KeyEvent.KEYCODE_2, shortcut = BrowserShortcut.LAYOUT_SIDE_BY_SIDE),
+            ShortcutHelp("Stacked", KeyEvent.KEYCODE_3, shortcut = BrowserShortcut.LAYOUT_STACKED),
+            ShortcutHelp("Grid", KeyEvent.KEYCODE_4, shortcut = BrowserShortcut.LAYOUT_GRID),
+            ShortcutHelp("One left, two right", KeyEvent.KEYCODE_5, shortcut = BrowserShortcut.LAYOUT_ONE_AND_TWO)
+        ),
+        "RemBrowse" to listOf(
+            ShortcutHelp("Command palette", KeyEvent.KEYCODE_K, shortcut = BrowserShortcut.COMMAND_PALETTE),
+            ShortcutHelp("History", KeyEvent.KEYCODE_H, shortcut = BrowserShortcut.OPEN_HISTORY),
+            ShortcutHelp("Downloads", KeyEvent.KEYCODE_J, shortcut = BrowserShortcut.OPEN_DOWNLOADS),
+            ShortcutHelp("Settings", KeyEvent.KEYCODE_COMMA, shortcut = BrowserShortcut.OPEN_SETTINGS)
+        )
+    )
 
     /**
      * Whether a press of [keyCode] closes the find bar: a plain Esc while the bar is open
@@ -106,6 +161,8 @@ object KeyboardShortcuts {
     ): BrowserShortcut? {
         // A held key must not open a tab (or close one) per auto-repeat tick.
         if (repeatCount > 0 || meta) return null
+        // A mouse's Forward button arrives as this key (its Back button as the system's Back)
+        if (keyCode == KeyEvent.KEYCODE_FORWARD && !ctrl && !shift && !alt) return BrowserShortcut.FORWARD
         // The same keys everywhere, a terminal included: a shell has no use for Ctrl+Alt+S
         if (isScreenshot(keyCode, ctrl, shift, alt)) return BrowserShortcut.SCREENSHOT
         if (inTerminal) return resolveInTerminal(keyCode, ctrl, shift, alt)

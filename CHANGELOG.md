@@ -10,6 +10,8 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 
 ### Added
 * **A focus ring for the keyboard.** `Tab` and `Shift+Tab` move through the toolbar, the tabs in the rail, the tab switcher, Settings, history, bookmarks, the terminal's pages and dialog choices, and the one with the focus gets a ring in the accent colour, as on the web's `:focus-visible`. It shows only while you are using the keyboard (touching the screen hides it), and nothing moves when it appears.
+* **RemBrowse's shortcuts in Android's Keyboard Shortcuts sheet** (`Meta+/`), in five groups: Tabs, Navigation, Page, Split view and RemBrowse. It also opens from **More → Keyboard shortcuts** when a keyboard is attached, and from **Keyboard shortcuts** in the command palette (`keys` or `help` find it too).
+* **A mouse's Forward button goes forward**, as `Alt+→` does.
 
 ## v0.14.0 (2026-11-23) — Pasting pictures into Telegram
 

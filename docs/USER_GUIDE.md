@@ -161,7 +161,7 @@ Press `Ctrl+K` (or **More → Command palette**), then type:
 * words to **search the web**, or an address to **open it** (a command whose name or keyword starts with what you type, three letters or more, comes first, as in Go to address: `ter` + Enter opens a terminal);
 * part of a tab's title to **switch to that tab**;
 * part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
-* a command name: new tab, close tab, find in page, print, take screenshot, split view, bookmarks, history, downloads, extensions, settings.
+* a command name: new tab, close tab, find in page, print, take screenshot, split view, bookmarks, history, downloads, extensions, keyboard shortcuts, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
@@ -363,7 +363,7 @@ Some requests are answered without asking: sites may keep their data on the devi
 | `Ctrl + click` / middle click | Open a link in a background tab (`Ctrl + Shift + click`: in front) |
 | `F3` / `Shift + F3` | Next / previous match |
 | `Ctrl + R` or `F5` | Reload / stop |
-| `Alt + ←` / `Alt + →` | Back / forward |
+| `Alt + ←` / `Alt + →` | Back / forward (a mouse's Forward button goes forward too) |
 | `Ctrl + D` | Bookmark this page |
 | `Ctrl + ,` | Settings |
 | `Ctrl + H` | History |
@@ -372,6 +372,8 @@ Some requests are answered without asking: sites may keep their data on the devi
 | `Ctrl + 1` … `Ctrl + 5` | Single pane, side by side, stacked, grid, one left and two right |
 
 These work anywhere in the window, also while you are typing in a web page's text box.
+
+**The list on screen.** Android's Keyboard Shortcuts sheet (`Meta + /` on most keyboards) lists RemBrowse's shortcuts in five groups: Tabs, Navigation, Page, Split view and RemBrowse. It also opens from **More → Keyboard shortcuts** (shown when a keyboard is attached) and from **Keyboard shortcuts** in the command palette.
 
 **Moving around with the keyboard.** `Tab` and `Shift + Tab` move between the toolbar's buttons, the tabs in the rail, the cards in the tab switcher, the rows in Settings, History and Bookmarks, and the choices in dialogs; `Enter` presses the one with the focus. It is marked with a ring in the accent colour. The ring shows only while you are using the keyboard; touching the screen hides it.
 
