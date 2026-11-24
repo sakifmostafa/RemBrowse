@@ -226,7 +226,7 @@ class GeckoExtensionManager(
         prompt = ExtensionInstallPrompt(
             extensionId = extension.id,
             extensionName = meta.name?.takeIf { it.isNotBlank() } ?: extension.id,
-            version = meta.version?.takeIf { it.isNotBlank() } ?: "1.0",
+            version = meta.version.orEmpty().ifBlank { "1.0" },
             permissions = (permissions.toList() + origins.toList()).distinct(),
             kind = kind,
             onDecision = { allow ->
@@ -587,7 +587,7 @@ class GeckoExtensionManager(
         return InstalledExtension(
             id = ext.id,
             name = meta.name?.takeIf { it.isNotBlank() } ?: ext.id,
-            version = meta.version?.takeIf { it.isNotBlank() } ?: "1.0",
+            version = meta.version.orEmpty().ifBlank { "1.0" },
             description = meta.description ?: "",
             enabled = meta.enabled,
             hasBrowserAction = hasAction,

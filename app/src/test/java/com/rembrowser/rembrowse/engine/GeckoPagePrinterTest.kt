@@ -127,7 +127,7 @@ class GeckoPagePrinterTest {
             null
         )
         assertEquals("My Page", info!!.name)
-        assertEquals(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT, info!!.contentType)
+        assertEquals(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT, info.contentType)
         assertEquals(true, changed)
     }
 

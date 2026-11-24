@@ -81,10 +81,10 @@ fun TabSwitcher(
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
     onNewTab: () -> Unit,
-    /** "Close other tabs" in a card's menu. */
-    onCloseOtherTabs: (String) -> Unit = {},
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    /** "Close other tabs" in a card's menu. */
+    onCloseOtherTabs: (String) -> Unit = {},
     onSearchFocusChange: (Boolean) -> Unit = {},
     /** Raised to put the keyboard back in the search field (after the screenshot overlay took it). */
     searchFocusRequests: Int = 0

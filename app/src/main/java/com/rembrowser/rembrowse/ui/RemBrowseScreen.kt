@@ -119,6 +119,7 @@ import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
 import androidx.compose.ui.platform.LocalContext
 import com.rembrowser.rembrowse.engine.PointerDevices
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import java.lang.ref.WeakReference
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -888,7 +889,7 @@ fun RemBrowseScreen(
     if (chrome.showGoToAddress) {
         val tab = browserState.activeTab
         // The window's own width, as the layout measures it (a freeform window included)
-        val windowIsCompact = WindowWidthClass.of(LocalConfiguration.current.screenWidthDp.dp) == WindowWidthClass.Compact
+        val windowIsCompact = WindowWidthClass.of(LocalWindowInfo.current.containerDpSize.width) == WindowWidthClass.Compact
         GoToAddressDialog(
             currentAddress = tab?.takeUnless { it.isNewTabPage || it.isInternalPage }?.url.orEmpty(),
             tabs = browserState.tabs,

@@ -51,9 +51,9 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -138,7 +138,7 @@ fun GoToAddressDialog(
     val listState = rememberLazyListState()
     val text = value.text.trim()
     val density = LocalDensity.current
-    val windowHeight = LocalConfiguration.current.screenHeightDp.dp
+    val windowHeight = LocalWindowInfo.current.containerDpSize.height
     val keyboardHeight = with(density) { WindowInsets.ime.getBottom(density).toDp() }
     val rowLimit = goToAddressRowLimit(compact, windowHeight, keyboardHeight)
 

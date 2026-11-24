@@ -271,7 +271,7 @@ class BrowserViewModel(
                 tabId = tabId,
                 pdfPath = pdfPath,
                 documentName = documentName,
-                pageUrl = tab?.url,
+                pageUrl = tab.url,
                 serial = ++printPreviewSerial
             )
         }

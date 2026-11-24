@@ -30,6 +30,10 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 * **A light tap you can feel on a touchscreen** when you flip a switch in Settings (and Match case in the find bar), long-press a card in the tab switcher, a bookmark or a page in History, pick up a tab to drag it and drop it on a page, or double-tap a divider to even out a split. It is meant for fingers: a mouse, the touchpad and the keyboard stay silent, except that a click held on a tab in the rail until its menu opens plays the same tap as a long press, and a pen held on a card, a bookmark or a page in History gets it like a finger. Devices without a vibration motor feel nothing.
 * **Icons in the More menu**, the same ones the command palette shows for each command, so the two read alike.
 
+### Build
+* **Current Android build tools.** Android Gradle Plugin 9.5.1 (was 8.7.3), which now compiles the Kotlin code itself, Gradle 9.9.1 (was 8.11.1), Kotlin 2.4.21 (was 2.1.20), compiled against Android SDK 37 (was 35). A build machine needs SDK platform 37 and build tools 36.0.0; see the Build & Test Guide. Release builds are still shrink-only: unused code is removed, nothing is renamed, optimised or made public. AGP 9 offers its standard keep rules only together with a setting that lets R8 make private code public, so the build carries its own copy of them without it (`app/proguard-defaults.pro`).
+* **Lint runs every Compose check again.** The eight checks that had to be off because the old lint crashed on them are back, among them the ones that catch state created without `remember` and coroutines started during composition, and Compose UI's own checks, which the old lint skipped, run too. What they found is fixed: the print preview takes the language from the configuration, so it follows a change of device language, and Go to address measures the window itself instead of reading the configuration's screen size.
+
 ## v0.14.0 (2026-11-23) — Pasting pictures into Telegram
 
 ### Fixed

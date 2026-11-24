@@ -91,6 +91,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -243,7 +244,8 @@ internal fun PrintScreen(
     )
     val form = PrintForm(
         preview = preview,
-        details = printDetails(preview, load, Locale.getDefault()),
+        // The configuration's locale, which recomposes when the device language changes
+        details = printDetails(preview, load, LocalConfiguration.current.locales[0]),
         fileName = fileName,
         onFileNameChange = {
             fileName = it

@@ -790,7 +790,7 @@ private fun TerminalHeader(
             // The name and address take what the buttons leave, and the address gives way first
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Text(title, color = chrome, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (showAddress && address != null) {
+                if (showAddress) {
                     Spacer(Modifier.width(10.dp))
                     Text(
                         address,

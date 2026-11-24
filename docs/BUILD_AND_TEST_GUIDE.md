@@ -6,7 +6,7 @@ This guide covers building, testing, and signing **RemBrowse** (`com.rembrowser.
 
 ## 1. Prerequisites
 
-On Ubuntu 22.04 or later, one script sets up everything below (a JDK, the Android SDK's command-line tools, platform 35, build tools 35.0.0 and platform tools, and `ANDROID_HOME` in `~/.bashrc`). It is safe to run again:
+On Ubuntu 22.04 or later, one script sets up everything below (a JDK, the Android SDK's command-line tools, platform 37, build tools 36.0.0 and platform tools, and `ANDROID_HOME` in `~/.bashrc`). It is safe to run again:
 
 ```bash
 bash scripts/setup-build-server.sh
@@ -19,11 +19,12 @@ Or by hand:
   sudo apt-get update && sudo apt-get install -y openjdk-21-jdk-headless unzip
   ```
   A Java runtime without the compiler (`javac`) isn't enough: Gradle stops with "does not provide the required capabilities: [JAVA_COMPILER]". Without sudo, unpack a JDK 21 such as [Eclipse Temurin](https://adoptium.net/temurin/releases/?version=21) in your home folder and set `JAVA_HOME` to it, then run the script with `SKIP_APT=1`. The build server does this: its JDK is at `~/android-sdk/jdk-21`, set in `~/.bashrc`.
-* **Android CLI** (`android`) & Android SDK 35:
+* **Android CLI** (`android`) & Android SDK 37:
   ```bash
   curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
-  android sdk install platforms/android-35 build-tools/35.0.0 platform-tools
+  android sdk install platforms/android-37.0 build-tools/36.0.0 platform-tools
   ```
+* **The build tools themselves** are fetched by Gradle; nothing to install: Gradle 9.9.1 (the wrapper) and Android Gradle Plugin 9.5.1, which compiles the Kotlin code itself with Kotlin 2.4.21 (there is no separate Kotlin Android plugin; the version is pinned in the root `build.gradle.kts`). Both need a JDK 17 or newer to run. Gradle 9 writes its problems report (compiler warnings) to `build/reports/problems/` at the repository root; it is scratch output, not a release file, and `.gitignore` leaves it out.
 * Ensure `local.properties` points to your Android SDK directory:
   ```properties
   sdk.dir=/home/droid/Android/Sdk
@@ -150,7 +151,7 @@ build/update.json
 
 To publish a new version: `./gradlew publishApk` (above), then `bash scripts/virustotal-scan.sh`, then `bash scripts/publish-to-site.sh` (see "The download site" below), then commit, push, and create the GitHub release. The scan uploads both APKs to VirusTotal (or reuses an existing analysis of the same SHA-256), waits up to about 20 minutes per file, and writes `build/virustotal.json` (read by the download page) and `build/virustotal.md` (the release-notes block). It exits non-zero if any engine reports malicious or suspicious, because APKs sometimes get false positives: open the report links, and rerun with `--allow-detections` only after looking. `--dry-run` writes fixture output without a key or network (the site refuses that file). **The API key** is read from the `VT_API_KEY` environment variable, else from the `VT_API_KEY=` line in the repo-root `.env` (gitignored, mode 600; read as text, not sourced), else from `~/.config/virustotal/api_key` (mode 600). It is passed to curl from a private temp file and never printed. The free API allows 4 requests a minute and 500 a day, so a scan takes a few minutes.
 
-To publish a new version, then, run `bash scripts/publish-to-site.sh` (`--skip-virustotal` to publish without a scan), commit `VERSION.txt`, `update.json`, `virustotal.json` and `virustotal.md` to keep the record (the APKs are not committed since 0.14.0; `.gitignore` leaves them out), push, and attach all three release files to a GitHub release: `gh release create v$VERSION build/RemBrowse-arm64-v8a.apk build/RemBrowse-x86_64.apk build/update.json --title "RemBrowse $VERSION" --notes-file <(cat <the CHANGELOG entry> ; echo ; cat build/virustotal.md)` (the notes carry `build/virustotal.md`). `update.json` holds the version and each APK's size and SHA-256; copies of RemBrowse already installed read it from the latest GitHub release for **Settings → About → Updates** and the daily check (`https://github.com/sakifmostafa/RemBrowse/releases/latest/download/update.json`, which GitHub redirects to the newest release's copy), and fetch the APKs from the same release, so a release must carry all three files and never be edited to swap one. The download page reads the site's own copy. A build that looks for updates elsewhere: `./gradlew publishApk -Prembrowse.updateUrl=https://example.com/rembrowse/`. Release APKs are about 85–89 MB: the native engine is stored compressed, GeckoView's `omni.ja` is stored uncompressed so the engine can read it in place, Gecko's crash-report analyser is left out, and unused library code and resources are removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`). Each file must stay under GitHub's 100 MB limit.
+To publish a new version, then, run `bash scripts/publish-to-site.sh` (`--skip-virustotal` to publish without a scan), commit `VERSION.txt`, `update.json`, `virustotal.json` and `virustotal.md` to keep the record (the APKs are not committed since 0.14.0; `.gitignore` leaves them out), push, and attach all three release files to a GitHub release: `gh release create v$VERSION build/RemBrowse-arm64-v8a.apk build/RemBrowse-x86_64.apk build/update.json --title "RemBrowse $VERSION" --notes-file <(cat <the CHANGELOG entry> ; echo ; cat build/virustotal.md)` (the notes carry `build/virustotal.md`). `update.json` holds the version and each APK's size and SHA-256; copies of RemBrowse already installed read it from the latest GitHub release for **Settings → About → Updates** and the daily check (`https://github.com/sakifmostafa/RemBrowse/releases/latest/download/update.json`, which GitHub redirects to the newest release's copy), and fetch the APKs from the same release, so a release must carry all three files and never be edited to swap one. The download page reads the site's own copy. A build that looks for updates elsewhere: `./gradlew publishApk -Prembrowse.updateUrl=https://example.com/rembrowse/`. Release APKs are about 85–89 MB: the native engine is stored compressed, GeckoView's `omni.ja` is stored uncompressed so the engine can read it in place, Gecko's crash-report analyser is left out, and unused library code and resources are removed (shrink only; nothing is renamed or optimised, see `app/proguard-rules.pro`; `app/proguard-defaults.pro` is Android Gradle Plugin's standard keep rules, copied because AGP 9 only offers them with `-allowaccessmodification`, which would make private code public). Each file must stay under GitHub's 100 MB limit.
 
 ### The download site
 
@@ -185,8 +186,8 @@ app/build/outputs/apk/debug/RemBrowse-v0.08-x86_64-debug.apk
 
 ```bash
 APK="build/RemBrowse-x86_64.apk"
-"$HOME/Android/Sdk/build-tools/35.0.0/aapt2" dump badging "$APK" | grep -E 'package:|targetSdkVersion:|application-label:|native-code:'
-"$HOME/Android/Sdk/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+"$HOME/Android/Sdk/build-tools/36.0.0/aapt2" dump badging "$APK" | grep -E 'package:|targetSdkVersion:|application-label:|native-code:'
+"$HOME/Android/Sdk/build-tools/36.0.0/apksigner" verify --verbose "$APK"
 ```
 
 ---

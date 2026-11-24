@@ -31,7 +31,7 @@ class TerminalThemeContrastTest {
         fun mix(shift: Int): Long {
             val f = ((foreground shr shift) and 0xFF).toInt()
             val b = ((background shr shift) and 0xFF).toInt()
-            return Math.round((f * alpha + b * (255 - alpha)) / 255.0).toLong()
+            return Math.round((f * alpha + b * (255 - alpha)) / 255.0)
         }
         return 0xFF000000 or (mix(16) shl 16) or (mix(8) shl 8) or mix(0)
     }

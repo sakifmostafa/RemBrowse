@@ -9,7 +9,6 @@ import java.util.zip.ZipOutputStream
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -45,7 +44,7 @@ val releaseSigning = run {
 
 android {
     namespace = "com.rembrowser.rembrowse"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.rembrowser.rembrowse"
@@ -100,8 +99,12 @@ android {
             isMinifyEnabled = true
             // Drops resources nothing uses (about 0.3 MB)
             isShrinkResources = true
+            // No getDefaultProguardFile(): Android Gradle Plugin 9 offers only
+            // proguard-android-optimize.txt, whose -allowaccessmodification makes R8 turn private
+            // members public even with -dontoptimize. proguard-defaults.pro is AGP's
+            // proguard-android.txt (the same keep rules, without that line).
             proguardFiles(
-                getDefaultProguardFile("proguard-android.txt"),
+                "proguard-defaults.pro",
                 "proguard-rules.pro"
             )
             // Only ever signed with the RemBrowse key: without it, packaging a release stops with
@@ -115,10 +118,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     buildFeatures {

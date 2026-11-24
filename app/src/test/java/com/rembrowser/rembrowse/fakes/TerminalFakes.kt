@@ -57,7 +57,7 @@ class FakeSshConnector(
                         ?: throw SshConnectException("Not connected: no password was given.")
                     attempt++
                 }
-                prompts.passwordAccepted(candidate!!)
+                prompts.passwordAccepted(candidate)
             }
         }
         return FakeShell(request, onOutput, onClosed).also {

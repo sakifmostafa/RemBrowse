@@ -75,6 +75,7 @@ object AmoJsonParser {
      */
     private fun extractLocalizedText(obj: JSONObject, key: String): String {
         return when (val value = obj.opt(key)) {
+            null -> ""
             is String -> value
             is JSONObject -> {
                 val defaultLocale = stringOrEmpty(value, "_default")

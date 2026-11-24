@@ -61,7 +61,7 @@ RemBrowse/
 │   ├── BUILD_AND_TEST_GUIDE.md # Toolchain, tests, UI renders, publishing and signing
 │   └── USER_GUIDE.md           # The interface, split view, settings, extensions, downloads, terminal
 ├── app/
-│   ├── build.gradle.kts        # Android app config (compileSdk/targetSdk 35)
+│   ├── build.gradle.kts        # Android app config (compileSdk 37, targetSdk 35)
 │   └── src/
 │       ├── main/java/com/rembrowser/rembrowse/
 │       │   ├── RemBrowseApplication.kt
@@ -79,7 +79,7 @@ RemBrowse/
 ├── scripts/                    # Build-server setup, keystore password, publishing to the site
 ├── site/                       # The download page at rembrowse.com
 ├── deploy/site-host/           # The site's server: nginx + Cloudflare Tunnel (Docker)
-├── gradle/                     # Gradle 8.11.1 wrapper
+├── gradle/                     # Gradle 9.9.1 wrapper
 ├── build.gradle.kts
 ├── settings.gradle.kts
 └── gradle.properties

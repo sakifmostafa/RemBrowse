@@ -170,7 +170,7 @@ class TerminalViewModelTest {
         main.drain()
         val failed = status("tab") as TerminalStatus.Disconnected
         assertTrue(failed.failedToConnect)
-        assertTrue(failed.reason!!, failed.reason!!.contains("key"))
+        assertTrue(failed.reason!!, failed.reason.contains("key"))
         assertEquals("No second attempt was made", 1, connector.requests.size)
     }
 

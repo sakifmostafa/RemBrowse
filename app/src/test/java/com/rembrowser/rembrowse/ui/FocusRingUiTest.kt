@@ -205,7 +205,7 @@ class FocusRingUiTest {
         // The dark theme's accent is pale, like the notice there; its inverse is the light theme's
         val ring = pixelOnTheRing(dismiss)
         assertTrue("The ring, in inversePrimary: $ring", ring.isCloseTo(colors!!.inversePrimary))
-        assertFalse("Not in the accent, which would not show on the notice", ring.isCloseTo(colors!!.primary))
+        assertFalse("Not in the accent, which would not show on the notice", ring.isCloseTo(colors.primary))
     }
 
     @Test
