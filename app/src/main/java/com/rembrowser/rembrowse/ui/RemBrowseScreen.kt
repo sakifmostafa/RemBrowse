@@ -877,39 +877,45 @@ fun RemBrowseScreen(
                     .matchParentSize()
                     .zIndex(0.5f)
             )
+
+            // The notices over the bottom of the window, over the rail too. While the rail is open
+            // over the page they are part of the page under it: under the scrim, so dimmed and out
+            // of a click's reach, and hidden from screen readers as the page is.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(if (railOverlay) 0.25f else 2f)
+                    .then(if (railOverlay) Modifier.clearAndSetSemantics {} else Modifier),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Stays until answered, which is at most once per version; it waits out a fullscreen video
+                UpdateNoticeBar(
+                    update = updatesState?.notice?.takeUnless { fullscreen },
+                    onUpdate = {
+                        updatesViewModel?.acceptNotice()
+                        openSettings(SettingsSection.ABOUT)
+                    },
+                    onDismiss = { updatesViewModel?.dismissNotice() }
+                )
+                // Over the page, never in its way for long: it leaves by itself after a few seconds
+                DownloadNoticeBar(
+                    notice = downloadsState.notice,
+                    message = downloadsState.message,
+                    onOpen = openDownload,
+                    onShowDownloads = openDownloads,
+                    onDismiss = {
+                        downloadsViewModel.dismissNotice()
+                        downloadsViewModel.clearMessage()
+                    }
+                )
+                ScreenshotNoticeBar(
+                    notice = chrome.screenCapture.notice,
+                    onDismiss = chrome.screenCapture::dismissNotice
+                )
+            }
         }
 
         TabDragGhost(dragState = tabDrag, tabs = browserState.tabs)
-
-        Column(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Stays until answered, which is at most once per version; it waits out a fullscreen video
-            UpdateNoticeBar(
-                update = updatesState?.notice?.takeUnless { fullscreen },
-                onUpdate = {
-                    updatesViewModel?.acceptNotice()
-                    openSettings(SettingsSection.ABOUT)
-                },
-                onDismiss = { updatesViewModel?.dismissNotice() }
-            )
-            // Over the page, never in its way for long: it leaves by itself after a few seconds
-            DownloadNoticeBar(
-                notice = downloadsState.notice,
-                message = downloadsState.message,
-                onOpen = openDownload,
-                onShowDownloads = openDownloads,
-                onDismiss = {
-                    downloadsViewModel.dismissNotice()
-                    downloadsViewModel.clearMessage()
-                }
-            )
-            ScreenshotNoticeBar(
-                notice = chrome.screenCapture.notice,
-                onDismiss = chrome.screenCapture::dismissNotice
-            )
-        }
 
         extensionsState.activePopup?.let { popup ->
             ExtensionPopupDialog(
