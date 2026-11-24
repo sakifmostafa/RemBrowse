@@ -398,8 +398,11 @@ fun Modifier.contextMenuTrigger(onClick: () -> Unit): Modifier {
 }
 
 /**
- * Invokes [onClick] for a mouse's middle (tertiary) button, without also triggering a tap. Only
- * a mouse has that button: touch and the touchpad's own clicks are left as they are.
+ * Invokes [onClick] for a middle (tertiary) button press, without also triggering a tap: a
+ * mouse's middle button, and a three-finger tap on a touchpad, which Android's touchpad handling
+ * sends as a middle click (BUTTON_TERTIARY). Kept on purpose: it is the platform's own
+ * middle-click gesture, and ChromeOS's browser takes it the same way. A finger on the screen
+ * never presses it, and the touchpad's one- and two-finger clicks and taps are left as they are.
  */
 fun Modifier.onTertiaryClick(onClick: () -> Unit): Modifier = pointerInput(Unit) {
     awaitPointerEventScope {

@@ -441,7 +441,10 @@ private fun RailTile(
     style: RailTileStyle = RailTileStyle.Button,
     /** What the tooltip shows, when it says less than [label], the accessible name. */
     tooltip: String = label,
-    /** A mouse's middle button: closes a tab, opens a pinned site in a new tab. */
+    /**
+     * A middle click (a mouse's middle button, or a touchpad's three-finger tap): closes a tab,
+     * opens a pinned site in a new tab.
+     */
     onMiddleClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {

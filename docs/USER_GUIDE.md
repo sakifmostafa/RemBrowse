@@ -80,7 +80,7 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 
 **Ctrl+click** or **middle-click** a link to open it in a new tab in the background; **Ctrl+Shift+click** opens it in front. A web app that handles Ctrl+click itself keeps doing so.
 
-**In RemBrowse's own lists**, right-click (or long-press, on a touchscreen) a tab on the rail, a card in the tab switcher, a pinned site, a bookmark or a page in History for its menu. A mouse's middle button closes a tab or a card, and opens a pinned site, a bookmark or a page in History in a new tab. Touchpad clicks and taps do what they did.
+**In RemBrowse's own lists**, right-click (or long-press, on a touchscreen) a tab on the rail, a card in the tab switcher, a pinned site, a bookmark or a page in History for its menu. A middle click closes a tab or a card, and opens a pinned site, a bookmark or a page in History in a new tab: a mouse's middle button, or a three-finger tap on the touchpad, which Android sends as a middle click (as in Chrome on a Chromebook). Other touchpad clicks and taps do what they did.
 
 **The touchpad is a mouse everywhere.** Touchpad clicks work like mouse clicks in pages and in RemBrowse's own fields and buttons: double-click selects a word, click-and-drag selects text, triple-click selects a line, and the pointer shows hover highlights and resize cursors.
 
