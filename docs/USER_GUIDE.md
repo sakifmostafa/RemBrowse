@@ -377,7 +377,7 @@ Some requests are answered without asking: sites may keep their data on the devi
 
 These work anywhere in the window, also while you are typing in a web page's text box.
 
-**The list on screen.** Android's Keyboard Shortcuts sheet (`Meta + /` on most keyboards) lists RemBrowse's shortcuts in five groups: Tabs, Navigation, Page, Split view and RemBrowse. It also opens from **More → Keyboard shortcuts** (shown when a keyboard is attached) and from **Keyboard shortcuts** in the command palette.
+**The list on screen.** Android's Keyboard Shortcuts sheet (`Meta + /` on most keyboards) lists RemBrowse's shortcuts in five groups: Tabs, Navigation, Page, Split view and RemBrowse. It also opens from **More → Keyboard shortcuts** (shown when a keyboard is attached) and from **Keyboard shortcuts** in the command palette. While a terminal has the keyboard, it lists the keys that work there, such as `Ctrl + Shift + L` for the address bar (see below).
 
 **Moving around with the keyboard.** `Tab` and `Shift + Tab` move between the toolbar's buttons, the tabs in the rail, the cards in the tab switcher, the rows in Settings, History and Bookmarks, and the choices in dialogs; `Enter` presses the one with the focus. It is marked with a ring in the accent colour. The ring shows only while you are using the keyboard; touching the screen hides it.
 

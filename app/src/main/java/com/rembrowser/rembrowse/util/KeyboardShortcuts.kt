@@ -76,8 +76,8 @@ object KeyboardShortcuts {
 
     /**
      * What the system's Keyboard Shortcuts sheet lists, by group, in the More menu's words: the
-     * shortcuts as they work outside a terminal. [helpGroups] leaves out the ones a terminal keeps
-     * for itself; the terminal's own keys are in the user guide.
+     * shortcuts as they work outside a terminal. [helpGroups] gives them as they work in a
+     * terminal; the terminal's own keys are in the user guide.
      */
     val HELP_GROUPS: List<Pair<String, List<ShortcutHelp>>> = listOf(
         "Tabs" to listOf(
@@ -117,18 +117,25 @@ object KeyboardShortcuts {
     )
 
     /**
-     * [HELP_GROUPS] as they work where the keyboard is: with a terminal tab active
-     * ([inTerminal]), only the rows whose keys [resolve] still gives the browser there (Ctrl+T,
-     * Ctrl+W, Ctrl+Tab, Ctrl+Shift+T, Ctrl+Alt+S); a group left empty is left out too.
+     * [HELP_GROUPS] as they work where the keyboard is. With a terminal focused ([inTerminal], as
+     * [resolve] is asked), each row is checked against [resolve]: it keeps its keys where they
+     * still reach the browser (Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+Shift+T, Ctrl+Alt+S), takes the
+     * Ctrl+Shift version of its Ctrl keys where that is what reaches it (Address bar, Go to
+     * address, Command palette, Settings, Split view on or off), and is left out otherwise; a
+     * group left empty is left out too. So the sheet can't list keys that do something else.
      */
     fun helpGroups(inTerminal: Boolean): List<Pair<String, List<ShortcutHelp>>> =
         HELP_GROUPS
-            .map { (title, rows) ->
-                title to rows.filter { help ->
-                    resolve(help.keyCode, help.ctrl, help.shift, help.alt, inTerminal = inTerminal) == help.shortcut
-                }
-            }
+            .map { (title, rows) -> title to rows.mapNotNull { it.asWorkingIn(inTerminal) } }
             .filter { (_, rows) -> rows.isNotEmpty() }
+
+    /** This row with the keys that press its shortcut ([helpGroups]), or null if none do. */
+    private fun ShortcutHelp.asWorkingIn(inTerminal: Boolean): ShortcutHelp? {
+        val ctrlShift = if (inTerminal && ctrl && !shift && !alt) copy(shift = true) else null
+        return listOfNotNull(this, ctrlShift).firstOrNull { help ->
+            resolve(help.keyCode, help.ctrl, help.shift, help.alt, inTerminal = inTerminal) == shortcut
+        }
+    }
 
     /**
      * Whether a physical keyboard's Back is read as that keyboard's Esc key by the browser's own

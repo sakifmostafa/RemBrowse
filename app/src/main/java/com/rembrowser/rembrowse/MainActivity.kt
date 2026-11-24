@@ -665,10 +665,10 @@ class MainActivity : ComponentActivity() {
     /** The browser's shortcuts in the system's Keyboard Shortcuts sheet (Meta+/). */
     override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>?, menu: Menu?, deviceId: Int) {
         super.onProvideKeyboardShortcuts(data, menu, deviceId)
-        // In a terminal tab the shell keeps most keys (Ctrl+R, Ctrl+L, Alt+arrows...): the sheet
-        // lists only what still reaches the browser there
-        val inTerminal = currentFocus is TerminalScreenView || holder.browser.uiState.value.activeTab?.isTerminal == true
-        data?.addAll(keyboardShortcutGroups(inTerminal))
+        // With a terminal focused the shell keeps most keys (Ctrl+R, Ctrl+L, Alt+arrows...): the
+        // sheet lists the keys that reach the browser there. Asked the same way as the shortcuts
+        // themselves (resolveShortcut), so the sheet shows the keys that work right now.
+        data?.addAll(keyboardShortcutGroups(inTerminal = terminalHasKeyboard()))
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -740,7 +740,7 @@ class MainActivity : ComponentActivity() {
             findBarOpen = holder.browser.findInPage.value != null,
             noModifiers = event.hasNoModifiers(),
             repeatCount = event.repeatCount,
-            inTerminal = currentFocus is TerminalScreenView,
+            inTerminal = terminalHasKeyboard(),
             fromPhysicalKeyboard = device != null && !device.isVirtual &&
                 event.isFromSource(InputDevice.SOURCE_KEYBOARD),
             escapeTakenInFront = browserState.isAddressBarFocused || chrome.isTabSearchFocused ||
@@ -841,6 +841,9 @@ class MainActivity : ComponentActivity() {
             swallow
         }
 
+    /** A terminal has the keyboard: the shortcuts, Esc and the shortcut sheet all ask this. */
+    private fun terminalHasKeyboard(): Boolean = currentFocus is TerminalScreenView
+
     private fun resolveShortcut(event: KeyEvent): BrowserShortcut? = KeyboardShortcuts.resolve(
         keyCode = event.keyCode,
         ctrl = event.isCtrlPressed,
@@ -848,7 +851,7 @@ class MainActivity : ComponentActivity() {
         alt = event.isAltPressed,
         meta = event.isMetaPressed,
         repeatCount = event.repeatCount,
-        inTerminal = currentFocus is TerminalScreenView
+        inTerminal = terminalHasKeyboard()
     )
 
     private fun performShortcut(shortcut: BrowserShortcut) {

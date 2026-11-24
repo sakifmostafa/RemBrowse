@@ -3,6 +3,7 @@ package com.rembrowser.rembrowse.util
 import android.view.KeyEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -304,16 +305,42 @@ class KeyboardShortcutsTest {
         assertEquals("Each command is listed once", all.size, all.map { it.shortcut }.toSet().size)
     }
 
+    /** A row's keys, the way the sheet draws them ("Ctrl+Shift+L"); on the JVM, so named here */
+    private fun ShortcutHelp.keys(): String = buildString {
+        if (ctrl) append("Ctrl+")
+        if (shift) append("Shift+")
+        if (alt) append("Alt+")
+        append(
+            when (keyCode) {
+                KeyEvent.KEYCODE_TAB -> "Tab"
+                KeyEvent.KEYCODE_BACKSLASH -> "\\"
+                KeyEvent.KEYCODE_COMMA -> ","
+                in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> ('A' + (keyCode - KeyEvent.KEYCODE_A)).toString()
+                else -> "key $keyCode"
+            }
+        )
+    }
+
     @Test
-    fun inATerminal_theSheetLeavesOutWhatTheShellKeeps() {
+    fun inATerminal_theSheetListsTheKeysThatReachTheBrowserThere() {
         assertEquals("Outside a terminal, everything", KeyboardShortcuts.HELP_GROUPS, KeyboardShortcuts.helpGroups(inTerminal = false))
         val groups = KeyboardShortcuts.helpGroups(inTerminal = true)
         assertEquals(
             listOf(
-                "Tabs" to listOf("New tab", "New terminal", "Close tab", "Next tab", "Previous tab"),
-                "Page" to listOf("Take screenshot")
+                "Tabs" to listOf(
+                    "New tab" to "Ctrl+T",
+                    "New terminal" to "Ctrl+Shift+T",
+                    "Close tab" to "Ctrl+W",
+                    "Next tab" to "Ctrl+Tab",
+                    "Previous tab" to "Ctrl+Shift+Tab"
+                ),
+                // The shell keeps Ctrl+L and Ctrl+G; Alt+arrows and Ctrl+R are its too
+                "Navigation" to listOf("Address bar" to "Ctrl+Shift+L", "Go to address" to "Ctrl+Shift+G"),
+                "Page" to listOf("Take screenshot" to "Ctrl+Alt+S"),
+                "Split view" to listOf("Split view on or off" to "Ctrl+Shift+\\"),
+                "RemBrowse" to listOf("Command palette" to "Ctrl+Shift+K", "Settings" to "Ctrl+Shift+,")
             ),
-            groups.map { (title, rows) -> title to rows.map { it.label } }
+            groups.map { (title, rows) -> title to rows.map { it.label to it.keys() } }
         )
         groups.flatMap { it.second }.forEach { help ->
             assertEquals(
@@ -321,6 +348,30 @@ class KeyboardShortcutsTest {
                 help.shortcut,
                 KeyboardShortcuts.resolve(help.keyCode, help.ctrl, help.shift, help.alt, inTerminal = true)
             )
+        }
+    }
+
+    @Test
+    fun inATerminal_aRowLeftOutHasNoCtrlOrCtrlShiftKeysThatWorkThere() {
+        // The rows the sheet leaves out: neither their own keys nor Ctrl+Shift with their key
+        // give their command in a terminal, so nothing that works is missing
+        val listed = KeyboardShortcuts.helpGroups(inTerminal = true).flatMap { it.second }.map { it.shortcut }.toSet()
+        val leftOut = KeyboardShortcuts.HELP_GROUPS.flatMap { it.second }.filter { it.shortcut !in listed }
+        assertEquals(
+            listOf(
+                "Back", "Forward", "Reload", "Find in page", "Print", "Bookmark this page", "Single pane", "Side by side",
+                "Stacked", "Grid", "One left, two right", "History", "Downloads"
+            ),
+            leftOut.map { it.label }
+        )
+        leftOut.forEach { help ->
+            for (ctrl in listOf(false, true)) for (shift in listOf(false, true)) {
+                assertNotEquals(
+                    "${help.label}, ctrl $ctrl shift $shift",
+                    help.shortcut,
+                    KeyboardShortcuts.resolve(help.keyCode, ctrl, shift, help.alt, inTerminal = true)
+                )
+            }
         }
     }
 

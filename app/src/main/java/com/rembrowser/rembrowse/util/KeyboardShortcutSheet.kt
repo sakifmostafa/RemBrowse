@@ -13,8 +13,8 @@ fun ShortcutHelp.modifierState(): Int =
 /**
  * The browser's shortcuts as the system's Keyboard Shortcuts sheet (Meta+/ on a keyboard, or
  * Keyboard shortcuts in the command palette) takes them, one group per entry of
- * [KeyboardShortcuts.helpGroups]: with a terminal tab active ([inTerminal]), without the keys
- * the terminal keeps.
+ * [KeyboardShortcuts.helpGroups]: with a terminal focused ([inTerminal]), the keys that reach the
+ * browser there.
  */
 fun keyboardShortcutGroups(
     inTerminal: Boolean = false,
