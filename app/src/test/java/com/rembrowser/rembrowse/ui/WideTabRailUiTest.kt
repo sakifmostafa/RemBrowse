@@ -381,7 +381,7 @@ class WideTabRailUiTest {
     }
 
     @Test
-    fun railButtons_arePlainButtons_andOnlyTabsPinnedSitesAndExtensionsSaySelected() {
+    fun railButtonsAndPinnedSites_arePlainButtons_andOnlyTabsAndExtensionsSaySelected() {
         val accessibility = InstrumentationRegistry.getInstrumentation().targetContext
             .getSystemService(AccessibilityManager::class.java)
         shadowOf(accessibility).setEnabled(true)
@@ -396,9 +396,9 @@ class WideTabRailUiTest {
             if (expanded) toggle() else launch()
             val state = if (expanded) "Expanded" else "Collapsed"
 
-            // The menu button, Tab switcher and New tab: buttons, nothing checkable, no "Not
-            // selected"; the menu button says whether the rail is expanded
-            for (tag in listOf("tab_rail_toggle", "tab_switcher_button", "new_tab_button")) {
+            // The menu button, Tab switcher, New tab and a pinned site: buttons, nothing
+            // checkable, no "Not selected"; the menu button says whether the rail is expanded
+            for (tag in listOf("tab_rail_toggle", "tab_switcher_button", "new_tab_button", "pinned_site_mail")) {
                 node(tag)
                     .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Selected))
                     .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
@@ -406,8 +406,10 @@ class WideTabRailUiTest {
                 assertFalse("$tag, $state rail: not checkable", info.isCheckable)
                 assertFalse("$tag, $state rail: not selected", info.isSelected)
                 // A button's class, where the tile has no title beside its icon (Compose gives a
-                // node its role's class only when nothing is under it)
-                if (!expanded) assertEquals("$tag, $state rail", "android.widget.Button", info.className)
+                // node its role's class only when nothing is under it, as there always is in a pin)
+                if (!expanded && tag != "pinned_site_mail") {
+                    assertEquals("$tag, $state rail", "android.widget.Button", info.className)
+                }
                 assertEquals(
                     "$tag, $state rail: its state",
                     if (tag == "tab_rail_toggle") state else null,
@@ -415,15 +417,28 @@ class WideTabRailUiTest {
                 )
             }
 
-            // A tab says whether it is the one shown; a pinned site and an extension's button
-            // (selected while its popup is open) keep their state, as in 0.14.0
+            // A tab says whether it is the one shown; an extension's button (selected while its
+            // popup is open) keeps its state, as in 0.14.0
             node("tab_bar_item_github").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
             node("tab_bar_item_news").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
             assertTrue(accessibilityNode("tab_bar_item_github").isSelected)
             assertFalse(accessibilityNode("tab_bar_item_news").isSelected)
-            node("pinned_site_mail").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
             node("rail_extension_ublock@example").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, false))
         }
+
+        // A pinned site with its site open, in the tab shown: still a plain button, its name
+        // saying it is open
+        composeRule.runOnUiThread { browserVm.openNewTab("https://mail.google.com/mail/u/0/") }
+        composeRule.waitForIdle()
+        title("pinned_open_dot_mail").assertIsDisplayed()
+        // (Compose hands a screen reader the name of a tile with a title under it as a node of its
+        // own, read first, rather than on the tile's node)
+        node("pinned_site_mail")
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Selected))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Gmail, pinned, open")))
+        val pin = accessibilityNode("pinned_site_mail")
+        assertFalse("Not checkable", pin.isCheckable)
+        assertFalse("Not selected", pin.isSelected)
     }
 
     @Test

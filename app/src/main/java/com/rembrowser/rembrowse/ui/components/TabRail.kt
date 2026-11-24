@@ -1013,9 +1013,9 @@ private fun RailTile(
     /** Said after the name by a screen reader, such as whether the rail is expanded. */
     stateDescription: String? = null,
     /**
-     * Whether screen readers hear if it is [selected]: a tab, a pinned site, and an extension's
-     * button (selected while its popup is open), as in 0.14.0. A plain button (the menu button,
-     * Tab switcher, New tab) has no such state, which Android would otherwise announce ("Not
+     * Whether screen readers hear if it is [selected]: a tab, and an extension's button (selected
+     * while its popup is open), as in 0.14.0. A plain button (the menu button, Tab switcher, New
+     * tab, a pinned site) has no such state, which Android would otherwise announce ("Not
      * selected") as a checkable one's.
      */
     selectable: Boolean = false,
@@ -1400,8 +1400,9 @@ private fun PinnedSiteItem(
             tooltip = bookmark.title,
             selected = false,
             highlighted = false,
+            // A plain button to screen readers: it is never selected, and whether its site is open
+            // is in its name
             role = Role.Button,
-            selectable = true,
             onClick = onOpen,
             onOpenMenu = { showMenu = true },
             onMiddleClick = onOpenInNewTab,
