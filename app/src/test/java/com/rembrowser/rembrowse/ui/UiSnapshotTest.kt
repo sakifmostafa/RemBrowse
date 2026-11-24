@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.rembrowser.rembrowse.engine.FindResult
+import com.rembrowser.rembrowse.engine.SessionNavigationUpdate
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
@@ -530,6 +531,33 @@ class UiSnapshotTest {
         save("22-keyboard-focus-toolbar")
         composeRule.onNodeWithTag("tab_bar_item_github").requestFocus()
         save("22b-keyboard-focus-rail")
+    }
+
+    /** A page part-way through loading: the 2dp progress line along the top of its pane. */
+    @Test
+    fun pageLoading() {
+        launch()
+        composeRule.runOnUiThread {
+            engine.sessions.getValue("arch").listener.onSessionUpdated(
+                "arch",
+                SessionNavigationUpdate(isLoading = true, progress = 60)
+            )
+        }
+        save("23-page-loading")
+    }
+
+    /** On a phone the single page has square corners, so the line runs to the window's edge. */
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun compactPageLoading() {
+        launch()
+        composeRule.runOnUiThread {
+            engine.sessions.getValue("arch").listener.onSessionUpdated(
+                "arch",
+                SessionNavigationUpdate(isLoading = true, progress = 60)
+            )
+        }
+        save("23b-compact-page-loading")
     }
 
     @Test

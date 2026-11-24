@@ -4,6 +4,9 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 
 ## Unreleased
 
+### Fixed
+* **No stray dot at the end of the loading line.** While a page loaded on a phone (or any page with square corners), a small accent-coloured dot sat at the top right of the window, Material 3's "end of the track" mark. The loading line is a plain line again.
+
 ### Changed
 * **A new About line:** "A private, native browser made for Googlebook, where SSH is just another tab." (Settings → About, the README, the site and the GitHub description.)
 * **Built on current Material 3** (Material 3 1.4, Compose 1.11). Menus, switches and loading spinners move the way current Android apps do. Outlined buttons such as **Open folder** and **Cancel** now have neutral text, as in current Material 3, instead of the accent colour. Tooltips on the tab rail open beside the rail, so they no longer cover the tab above.

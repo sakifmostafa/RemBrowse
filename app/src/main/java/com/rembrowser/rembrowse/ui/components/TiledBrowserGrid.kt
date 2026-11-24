@@ -386,7 +386,11 @@ private fun BrowserPane(
                     .fillMaxWidth()
                     .height(2.dp),
                 color = colors.primary,
-                trackColor = Color.Transparent
+                trackColor = Color.Transparent,
+                // A loading line, not a meter: no gap before the (invisible) track and no stop
+                // dot at its end, which would sit alone at the top right of a square pane
+                gapSize = 0.dp,
+                drawStopIndicator = {}
             )
         }
 
