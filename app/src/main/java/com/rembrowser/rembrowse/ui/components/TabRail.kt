@@ -107,8 +107,10 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -980,6 +982,12 @@ private fun RailTile(
      */
     selectable: Boolean = false,
     /**
+     * Actions a screen reader offers on the tile itself, such as a tab's "Close tab": the
+     * [trailing] button is only there under the pointer or the focus, so a screen reader moving
+     * through the rail may never meet it.
+     */
+    accessibilityActions: List<CustomAccessibilityAction> = emptyList(),
+    /**
      * At the end of the expanded tile, such as a tab's close button: shown while the pointer is
      * over the tile or the keyboard's focus is in it, and always while [trailingAlways] (the
      * rail used with a finger, which has no pointer to hover with).
@@ -1083,6 +1091,7 @@ private fun RailTile(
                         contentDescription = label
                         if (selectable) this.selected = selected
                         if (stateDescription != null) this.stateDescription = stateDescription
+                        if (accessibilityActions.isNotEmpty()) customActions = accessibilityActions
                     },
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -1158,6 +1167,15 @@ private fun RailTabItem(
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val close by rememberUpdatedState(onClose)
+    val closeAction = remember {
+        listOf(
+            CustomAccessibilityAction("Close tab") {
+                close()
+                true
+            }
+        )
+    }
     Box {
         RailTile(
             label = tab.displayTitle,
@@ -1192,6 +1210,8 @@ private fun RailTabItem(
                 )
             },
             trailingAlways = touchUsed,
+            // The close button, for screen readers, which may not meet it, on the collapsed rail too
+            accessibilityActions = closeAction,
             arrivedByShiftTab = arrivedByShiftTab,
             modifier = modifier
                 .testTag("tab_bar_item_${tab.id}")

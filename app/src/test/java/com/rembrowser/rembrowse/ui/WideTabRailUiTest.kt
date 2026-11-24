@@ -507,6 +507,38 @@ class WideTabRailUiTest {
         closeButton("chat").assertDoesNotExist()
     }
 
+    /** Runs the screen reader action called [label] on [tag]'s node. */
+    private fun performAccessibilityAction(tag: String, label: String) {
+        val action = node(tag).fetchSemanticsNode().config[SemanticsActions.CustomActions].single { it.label == label }
+        composeRule.runOnUiThread { action.action() }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun aScreenReader_closesATabFromItsRow_whereTheCloseButtonIsntInSight() {
+        val accessibility = InstrumentationRegistry.getInstrumentation().targetContext
+            .getSystemService(AccessibilityManager::class.java)
+        shadowOf(accessibility).setEnabled(true)
+        shadowOf(accessibility).setTouchExplorationEnabled(true)
+        launch(BrowserSettings(tabRailExpanded = true))
+        // No pointer over the rail and no focus in it: no row shows its button
+        closeButton("news").assertDoesNotExist()
+
+        // The row offers "Close tab" as an action of its own, Android's node included
+        val actions = accessibilityNode("tab_bar_item_news").actionList.map { it.label?.toString() }
+        assertTrue("$actions", "Close tab" in actions)
+        performAccessibilityAction("tab_bar_item_news", "Close tab")
+        assertEquals(listOf("github", "chat"), openTabIds())
+
+        // On the collapsed rail too, where there is no button at all
+        toggle()
+        performAccessibilityAction("tab_bar_item_chat", "Close tab")
+        assertEquals(listOf("github"), openTabIds())
+        // The pointer's and the keyboard's button is as it was
+        node("tab_bar_item_github").assertHasClickAction()
+        node("tab_rail_toggle").assert(SemanticsMatcher.keyNotDefined(SemanticsActions.CustomActions))
+    }
+
     @Test
     fun expandedRail_aFingerHeldOnARowsCloseButton_opensTheRowsMenu_andATapCloses() {
         launch(BrowserSettings(tabRailExpanded = true))
