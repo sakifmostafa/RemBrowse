@@ -23,7 +23,7 @@ RemBrowse is a minimal, tiled web browser with Firefox extension support, built 
 * **More (⋯)** — new tab, new terminal, close tab, command palette, find in page, print, take screenshot, bookmarks, history, downloads, extensions, desktop site, keyboard shortcuts (with a keyboard attached), settings.
 * **Split** — opens the current tab beside another one. While a split is open the button is filled, and its menu holds the split's controls.
 
-On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu.
+On a phone-sized window the rail is replaced by a **tab counter** in the toolbar, and reload, bookmark, split view and the extension buttons move into the **More** menu. The toolbar is a little taller there, so the address bar is a full-size touch target.
 
 **In a desktop window** (a Googlebook, or Android's desktop windowing on a tablet), the window's header, with its minimise, maximise and close buttons, takes the toolbar's colour, so the window reads as one piece; the buttons are dark in the light theme and light in the dark theme.
 

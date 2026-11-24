@@ -131,7 +131,7 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
     SectionDivider()
 
     // --- Appearance ---
-    Text(text = "Appearance", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Appearance")
     Spacer(modifier = Modifier.height(10.dp))
     TerminalThemePreset.entries.chunked(4).forEach { row ->
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -167,7 +167,7 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
     SectionDivider()
 
     // --- Suggestions ---
-    Text(text = "Suggestions", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Suggestions")
     ToggleRow(
         title = "Suggest commands as you type",
         description = "Dimmed text after the cursor shows how a command you ran before, or a common one, might end. " +
@@ -209,7 +209,7 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
     SectionDivider()
 
     // --- Accepted servers ---
-    Text(text = "Trusted servers", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Trusted servers")
     Text(
         text = "Servers whose identity you accepted. If one ever shows a different key, the terminal warns you before connecting.",
         style = MaterialTheme.typography.bodyMedium,
@@ -253,7 +253,7 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
 @Composable
 private fun SubsectionTitle(title: String, actionLabel: String, actionTag: String, onAction: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(text = title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        GroupTitle(title, modifier = Modifier.weight(1f))
         TextButton(onClick = onAction, modifier = Modifier.testTag(actionTag)) {
             Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))

@@ -83,6 +83,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -151,7 +152,8 @@ fun BrowserTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(RemDimens.ToolbarHeight)
+            .height(if (compact) RemDimens.CompactToolbarHeight else RemDimens.ToolbarHeight)
+            .testTag("toolbar")
             .padding(start = if (compact) 4.dp else 0.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -192,6 +194,7 @@ fun BrowserTopBar(
             onSubmit = onSubmitAddressBar,
             onLeave = onLeaveAddressBar,
             displayOverride = addressDisplay,
+            height = if (compact) RemDimens.CompactControlSize else RemDimens.ControlSize,
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 4.dp)
@@ -318,7 +321,8 @@ private fun AddressPill(
     onSubmit: () -> Unit,
     onLeave: () -> Unit,
     modifier: Modifier = Modifier,
-    displayOverride: String? = null
+    displayOverride: String? = null,
+    height: Dp = RemDimens.ControlSize
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -377,7 +381,8 @@ private fun AddressPill(
 
     Row(
         modifier = modifier
-            .height(RemDimens.ControlSize)
+            .height(height)
+            .testTag("address_pill")
             .clip(CircleShape)
             .background(colors.surface)
             .border(if (isFocused) 1.5.dp else 1.dp, borderColor, CircleShape)
@@ -660,7 +665,7 @@ private fun TabCountButton(count: Int, onClick: () -> Unit) {
         ) {
             Text(
                 text = if (count > 99) "99" else count.toString(),
-                style = MaterialTheme.typography.labelSmall,
+                style = glyphStyle(MaterialTheme.typography.labelSmall),
                 color = colors.onSurfaceVariant
             )
         }
@@ -698,6 +703,10 @@ private fun MoreMenu(
 ) {
     // Only worth offering when there is a keyboard to press the shortcuts on
     val hasKeyboard = LocalConfiguration.current.keyboard == Configuration.KEYBOARD_QWERTY
+    // With very large text the hints would squeeze the names until a word breaks in two
+    // ("Take screensho-t"); the names come first, and Keyboard shortcuts still lists the keys
+    val showHints = LocalDensity.current.fontScale < 1.5f
+    fun hint(keys: String): (@Composable () -> Unit)? = if (showHints) { { ShortcutHint(keys) } } else null
     val divider = @Composable { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
     fun run(action: () -> Unit): () -> Unit = {
         onDismiss()
@@ -722,37 +731,37 @@ private fun MoreMenu(
         }
         DropdownMenuItem(
             text = { Text("New tab") },
-            trailingIcon = { ShortcutHint("Ctrl+T") },
+            trailingIcon = hint("Ctrl+T"),
             onClick = run(onNewTab),
             modifier = Modifier.testTag("menu_new_tab")
         )
         DropdownMenuItem(
             text = { Text("New terminal") },
-            trailingIcon = { ShortcutHint("Ctrl+Shift+T") },
+            trailingIcon = hint("Ctrl+Shift+T"),
             onClick = run(onNewTerminal),
             modifier = Modifier.testTag("menu_new_terminal")
         )
         DropdownMenuItem(
             text = { Text("Close tab") },
-            trailingIcon = { ShortcutHint("Ctrl+W") },
+            trailingIcon = hint("Ctrl+W"),
             onClick = run(onCloseActiveTab)
         )
         DropdownMenuItem(
             text = { Text("Command palette") },
-            trailingIcon = { ShortcutHint("Ctrl+K") },
+            trailingIcon = hint("Ctrl+K"),
             onClick = run(onOpenCommandPalette),
             modifier = Modifier.testTag("menu_command_palette")
         )
         DropdownMenuItem(
             text = { Text("Find in page") },
-            trailingIcon = { ShortcutHint("Ctrl+F") },
+            trailingIcon = hint("Ctrl+F"),
             enabled = pageActionsEnabled,
             onClick = run(onFindInPage),
             modifier = Modifier.testTag("menu_find_in_page")
         )
         DropdownMenuItem(
             text = { Text("Print…") },
-            trailingIcon = { ShortcutHint("Ctrl+P") },
+            trailingIcon = hint("Ctrl+P"),
             enabled = pageActionsEnabled,
             onClick = run(onPrint),
             modifier = Modifier.testTag("menu_print")
@@ -760,7 +769,7 @@ private fun MoreMenu(
         // Anything in the window can be taken, so it is never greyed out
         DropdownMenuItem(
             text = { Text("Take screenshot") },
-            trailingIcon = { ShortcutHint("Ctrl+Alt+S") },
+            trailingIcon = hint("Ctrl+Alt+S"),
             onClick = run(onTakeScreenshot),
             modifier = Modifier.testTag("menu_screenshot")
         )
@@ -779,13 +788,13 @@ private fun MoreMenu(
         )
         DropdownMenuItem(
             text = { Text("History") },
-            trailingIcon = { ShortcutHint("Ctrl+H") },
+            trailingIcon = hint("Ctrl+H"),
             onClick = run(onOpenHistory),
             modifier = Modifier.testTag("menu_history")
         )
         DropdownMenuItem(
             text = { Text("Downloads") },
-            trailingIcon = { ShortcutHint("Ctrl+J") },
+            trailingIcon = hint("Ctrl+J"),
             onClick = run(onOpenDownloads),
             modifier = Modifier.testTag("menu_downloads")
         )
@@ -828,7 +837,7 @@ private fun MoreMenu(
         }
         DropdownMenuItem(
             text = { Text("Settings") },
-            trailingIcon = { ShortcutHint("Ctrl+,") },
+            trailingIcon = hint("Ctrl+,"),
             onClick = run(onOpenSettings),
             modifier = Modifier.testTag("menu_settings")
         )

@@ -60,12 +60,15 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
@@ -182,6 +185,24 @@ internal fun Modifier.keyboardFocusRing(shape: Shape, inside: Boolean = false): 
 }
 
 /**
+ * [style] at the size it has with the system's font size at 100%, for letters that are part of
+ * an icon (a site's monogram, the tab count). Like the icon they stand in, they keep their size
+ * when the font size grows, instead of spilling out of their tile; the control around them
+ * carries the name a screen reader reads.
+ */
+@Composable
+internal fun glyphStyle(style: TextStyle): TextStyle {
+    val density = LocalDensity.current
+    if (density.fontScale == 1f) return style
+    return with(density) {
+        style.copy(
+            fontSize = if (style.fontSize.isSp) style.fontSize.value.dp.toSp() else style.fontSize,
+            lineHeight = if (style.lineHeight.isSp) style.lineHeight.value.dp.toSp() else style.lineHeight
+        )
+    }
+}
+
+/**
  * A site's icon: its favicon when one can be loaded, otherwise the first letter of its host.
  * Always decorative; the surrounding control carries the accessible name.
  */
@@ -222,11 +243,9 @@ fun SiteIcon(
         if (!loaded) {
             Text(
                 text = UrlResolver.monogram(url, title),
-                style = if (size >= 28.dp) {
-                    MaterialTheme.typography.titleLarge
-                } else {
-                    MaterialTheme.typography.labelLarge
-                },
+                style = glyphStyle(
+                    if (size >= 28.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.labelLarge
+                ),
                 color = tint,
                 maxLines = 1
             )
@@ -386,7 +405,9 @@ fun RemDialog(
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { heading() }
                     )
                     headerActions()
                     RemIconButton(

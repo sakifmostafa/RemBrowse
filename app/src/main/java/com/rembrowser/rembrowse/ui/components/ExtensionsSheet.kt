@@ -564,7 +564,7 @@ private fun InstallXpiTab(
     var xpiUrlInput by remember { mutableStateOf("") }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = "From a link", style = MaterialTheme.typography.titleSmall)
+        GroupTitle("From a link")
         OutlinedTextField(
             value = xpiUrlInput,
             onValueChange = { xpiUrlInput = it },
@@ -588,7 +588,7 @@ private fun InstallXpiTab(
         HorizontalDivider(color = colors.outlineVariant)
         Spacer(modifier = Modifier.height(8.dp))
 
-        Text(text = "From this device", style = MaterialTheme.typography.titleSmall)
+        GroupTitle("From this device")
         Text(
             text = "Choose a Mozilla-signed .xpi file you have already downloaded.",
             style = MaterialTheme.typography.bodyMedium,

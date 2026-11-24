@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -168,7 +169,9 @@ fun TabSwitcher(
                 },
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier
+                    .padding(bottom = 12.dp)
+                    .semantics { heading() }
             )
 
             LazyVerticalGrid(

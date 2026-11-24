@@ -63,6 +63,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -291,7 +292,9 @@ fun SettingsPage(
                     Text(
                         text = "Settings",
                         style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 16.dp)
+                        modifier = Modifier
+                            .padding(start = 12.dp, top = 8.dp, bottom = 16.dp)
+                            .semantics { heading() }
                     )
                     SettingsSection.entries.forEach { item ->
                         SectionNavItem(
@@ -338,9 +341,15 @@ fun SettingsPage(
     }
 }
 
+/** The title of a group of settings ("Theme color"), marked as a heading for screen readers. */
+@Composable
+internal fun GroupTitle(text: String, modifier: Modifier = Modifier) {
+    Text(text = text, style = MaterialTheme.typography.titleSmall, modifier = modifier.semantics { heading() })
+}
+
 @Composable
 private fun SectionHeader(title: String, subtitle: String?) {
-    Text(text = title, style = MaterialTheme.typography.headlineSmall)
+    Text(text = title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
     if (subtitle != null) {
         Text(
             text = subtitle,
@@ -355,7 +364,7 @@ private fun SectionHeader(title: String, subtitle: String?) {
 @Composable
 private fun SearchSection(selected: SearchEngine, onSelect: (SearchEngine) -> Unit) {
     val colors = MaterialTheme.colorScheme
-    Text(text = "Search engine", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Search engine")
     Text(
         text = "Used when you type words, rather than an address, into the address bar or the command palette.",
         style = MaterialTheme.typography.bodyMedium,
@@ -378,7 +387,7 @@ private fun SearchSection(selected: SearchEngine, onSelect: (SearchEngine) -> Un
 @Composable
 private fun TabsSection(settings: BrowserSettings, actions: SettingsActions) {
     val colors = MaterialTheme.colorScheme
-    Text(text = "When RemBrowse starts", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("When RemBrowse starts")
     Spacer(modifier = Modifier.height(4.dp))
     Column(modifier = Modifier.selectableGroup()) {
         RadioRow(
@@ -400,7 +409,7 @@ private fun TabsSection(settings: BrowserSettings, actions: SettingsActions) {
     HorizontalDivider(color = colors.outlineVariant)
     Spacer(modifier = Modifier.height(16.dp))
 
-    Text(text = "Open new tabs", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Open new tabs")
     Spacer(modifier = Modifier.height(4.dp))
     Column(modifier = Modifier.selectableGroup()) {
         RadioRow(
@@ -552,7 +561,7 @@ private fun AppearanceSection(
     onSetPageRendering: (PageRendering) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    Text(text = "Theme color", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Theme color")
     Spacer(modifier = Modifier.height(8.dp))
     Row(
         modifier = Modifier
@@ -606,7 +615,7 @@ private fun AppearanceSection(
     HorizontalDivider(color = colors.outlineVariant)
     Spacer(modifier = Modifier.height(16.dp))
 
-    Text(text = "Page rendering", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Page rendering")
     Text(
         text = "How web pages are put on the screen. Try another choice if scrolling stutters; " +
             "pages that are open switch at once.",
@@ -670,7 +679,7 @@ private fun AboutSection(versionName: String, updates: UpdatesUiState?, updateAc
         modifier = Modifier.size(72.dp)
     )
     Spacer(modifier = Modifier.height(12.dp))
-    Text(text = "RemBrowse $versionName", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("RemBrowse $versionName")
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = "A private, native browser made for Googlebook, where SSH is just another tab.",
@@ -692,7 +701,7 @@ private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
     val status = state.status
     val lastChecked = state.lastCheckedMillis?.let(::lastCheckedText)
 
-    Text(text = "Updates", style = MaterialTheme.typography.titleSmall)
+    GroupTitle("Updates")
     Text(
         text = when (status) {
             UpdateStatus.Idle -> lastChecked?.let { withFullStop("Last checked $it") } ?: "See whether a newer RemBrowse is out."

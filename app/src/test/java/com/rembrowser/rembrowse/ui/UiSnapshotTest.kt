@@ -560,6 +560,51 @@ class UiSnapshotTest {
         save("23b-compact-page-loading")
     }
 
+    // Larger text (Settings → Display → Font size): nothing in the chrome may be cut off
+
+    @Test
+    @Config(fontScale = 1.3f)
+    fun fontScale130() {
+        launch()
+        save("24-font-130-browsing")
+        composeRule.onNodeWithTag("more_button").performClick()
+        save("24b-font-130-more-menu")
+    }
+
+    @Test
+    @Config(fontScale = 1.3f)
+    fun fontScale130Settings() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings() }
+        save("24c-font-130-settings")
+    }
+
+    @Test
+    @Config(fontScale = 2.0f)
+    fun fontScale200() {
+        launch()
+        save("25-font-200-browsing")
+        composeRule.onNodeWithTag("more_button").performClick()
+        save("25b-font-200-more-menu")
+    }
+
+    @Test
+    @Config(fontScale = 2.0f)
+    fun fontScale200Settings() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings() }
+        save("25c-font-200-settings")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 2.0f)
+    fun fontScale200Compact() {
+        launch()
+        save("25d-font-200-compact-browsing")
+        composeRule.runOnUiThread { browserVm.openSettings() }
+        save("25e-font-200-compact-settings")
+    }
+
     @Test
     fun keyboardFocusRingsLight() {
         launch(settings = BrowserSettings(useDarkTheme = false, accent = AccentColor.BLUE))

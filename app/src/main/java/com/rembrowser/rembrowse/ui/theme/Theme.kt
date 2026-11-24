@@ -218,6 +218,12 @@ object RemDimens {
     val RailWidth = 56.dp
     val ToolbarHeight = 52.dp
     val ControlSize = 40.dp
+
+    /** The toolbar on a phone-sized window: a touch screen, so the address bar is a full 48dp target. */
+    val CompactToolbarHeight = 56.dp
+
+    /** The address bar's height on a phone-sized window (desktop density elsewhere). */
+    val CompactControlSize = 48.dp
     val IconSize = 20.dp
     val PaneGap = 8.dp
     val PaneRadius = 12.dp
