@@ -18,6 +18,7 @@ import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SplitOrientation
 import com.rembrowser.rembrowse.model.SplitRatios
 import com.rembrowser.rembrowse.model.ThemeMode
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -124,12 +125,33 @@ class BrowserStorageRobolectricTest {
         val saved = context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
             .getString("browser_state_json", null)!!
         assertTrue(saved.contains("\"themeMode\":\"DARK\""))
-        assertFalse("The old switch is no longer written", saved.contains("useDarkTheme"))
 
         saveRawSettings("""{"themeMode":"SYSTEM","useDarkTheme":false}""")
         assertEquals(ThemeMode.SYSTEM, repository.loadState().settings.themeMode)
         saveRawSettings("""{"themeMode":"SEPIA","useDarkTheme":false}""")
         assertEquals("An unknown mode falls back to the old switch", ThemeMode.LIGHT, repository.loadState().settings.themeMode)
+    }
+
+    @Test
+    fun theOldSwitchIsStillWritten_soAnOlderBuildInstalledOverThisOneKeepsTheTheme() {
+        // 0.14.0 and older read only "useDarkTheme" (dark when it is missing)
+        fun savedSwitch(mode: ThemeMode): Boolean {
+            repository.saveState(PersistedBrowserState(settings = BrowserSettings(themeMode = mode)))
+            val saved = context.getSharedPreferences("rembrowse_state_v1", Context.MODE_PRIVATE)
+                .getString("browser_state_json", null)!!
+            val settings = JSONObject(saved).getJSONObject("settings")
+            assertTrue("$mode writes the old switch", settings.has("useDarkTheme"))
+            return settings.getBoolean("useDarkTheme")
+        }
+        assertTrue(savedSwitch(ThemeMode.DARK))
+        assertFalse(savedSwitch(ThemeMode.LIGHT))
+        assertTrue("System default: dark, those builds' default", savedSwitch(ThemeMode.SYSTEM))
+
+        // This version still reads its own choice, whatever the switch says
+        for (mode in ThemeMode.entries) {
+            repository.saveState(PersistedBrowserState(settings = BrowserSettings(themeMode = mode)))
+            assertEquals(mode, repository.loadState().settings.themeMode)
+        }
     }
 
     @Test

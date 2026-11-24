@@ -44,8 +44,20 @@ class SharedPrefsBrowserStateRepository(
         private const val KEY_ENHANCED_PRIVACY = "enhancedTrackingProtection"
         private const val KEY_THEME_MODE = "themeMode"
 
-        /** The light/dark switch that came before [KEY_THEME_MODE]. Read only, to carry it over. */
+        /**
+         * The light/dark switch that came before [KEY_THEME_MODE]: read to carry it over, and
+         * still written ([legacyDarkThemeSwitch]) for an older build installed over this one.
+         */
         private const val KEY_LEGACY_DARK_THEME = "useDarkTheme"
+
+        /**
+         * The old switch as 0.14.0 and older read it, should one of them be installed over this
+         * version: Dark and Light as they are, System default as dark, the default those builds
+         * had. Not the side the device was on at the last save: that would leave the older build
+         * light or dark depending on when the state happened to be saved. This version reads
+         * [KEY_THEME_MODE] first, so the switch never changes its own choice.
+         */
+        internal fun legacyDarkThemeSwitch(mode: ThemeMode): Boolean = mode != ThemeMode.LIGHT
 
         internal fun encode(state: PersistedBrowserState): String {
             val root = JSONObject()
@@ -89,6 +101,7 @@ class SharedPrefsBrowserStateRepository(
                 "settings",
                 JSONObject().apply {
                     put(KEY_THEME_MODE, state.settings.themeMode.name)
+                    put(KEY_LEGACY_DARK_THEME, legacyDarkThemeSwitch(state.settings.themeMode))
                     put("accent", state.settings.accent.name)
                     put("systemColors", state.settings.useSystemColors)
                     put("searchEngine", state.settings.searchEngine.name)
