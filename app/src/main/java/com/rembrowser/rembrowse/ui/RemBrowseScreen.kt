@@ -1,14 +1,19 @@
 package com.rembrowser.rembrowse.ui
 
+import android.content.Context
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
@@ -34,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +48,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
@@ -120,6 +127,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Stable
 class BrowserChromeState {
     var showTabSwitcher by mutableStateOf(false)
+
+    /**
+     * How far a Back gesture over the open tab switcher has gone, 0 to 1 (Android 14+ predictive
+     * back): the switcher shrinks with it, and closes when the gesture is let go.
+     */
+    var tabSwitcherBack by mutableFloatStateOf(0f)
+        internal set
     var showCommandPalette by mutableStateOf(false)
     var showBookmarks by mutableStateOf(false)
 
@@ -193,6 +207,8 @@ class BrowserChromeState {
     }
 }
 
+// isImeVisible, for the Back handlers
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RemBrowseScreen(
     browserViewModel: BrowserViewModel,
@@ -244,21 +260,37 @@ fun RemBrowseScreen(
     // send RemBrowse away. A touchpad's three-finger swipe is the system's Back there, and easy to
     // make by accident. Phones keep Android's own Back. Composed first, so every handler below,
     // which only acts when it has something to do, comes before it.
+    //
+    // While the on-screen keyboard is up, every handler here stands aside, so Back puts the
+    // keyboard away first, as it always did. With predictive back on, Android gives Back to the
+    // last callback registered, and one that becomes enabled while the keyboard is up (a page
+    // that gains history as you type) would otherwise come before the keyboard's own.
     val context = LocalContext.current
     val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
-    BackHandler(enabled = backAtRootStays) { }
-    BackHandler(enabled = !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)) {
+    val keyboardUp = WindowInsets.isImeVisible
+    BackHandler(enabled = backAtRootStays && !keyboardUp) { }
+    BackHandler(enabled = !keyboardUp && !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)) {
         browserViewModel.goBack()
     }
     val closeTabSwitcher = {
         chrome.showTabSwitcher = false
         chrome.focusContent()
     }
-    BackHandler(enabled = chrome.showTabSwitcher, onBack = closeTabSwitcher)
+    // The system's Back gesture previews closing the switcher (it shrinks as the finger moves)
+    // and closes it when let go; a cancelled gesture leaves it open. A Back key or button closes
+    // it at once. Same place in the order as a plain BackHandler.
+    PredictiveBackHandler(enabled = chrome.showTabSwitcher && !keyboardUp) { progress ->
+        try {
+            progress.collect { chrome.tabSwitcherBack = it.progress }
+            closeTabSwitcher()
+        } finally {
+            chrome.tabSwitcherBack = 0f
+        }
+    }
     // A fullscreen page (a video) has the whole window: no rail, no toolbar, no other panes.
     // Back leaves it before doing anything else.
     val fullscreen = browserState.fullscreenTabId != null
-    BackHandler(enabled = fullscreen, onBack = browserViewModel::exitFullscreen)
+    BackHandler(enabled = fullscreen && !keyboardUp, onBack = browserViewModel::exitFullscreen)
     val tabDrag = remember { TabDragState() }
 
     val openNewTab = {
@@ -355,7 +387,7 @@ fun RemBrowseScreen(
     // page is in front, whose own Back comes first. (Esc is read before the keyboard app, in
     // MainActivity.)
     BackHandler(
-        enabled = findInPage != null && !fullscreen && !chrome.showTabSwitcher,
+        enabled = findInPage != null && !fullscreen && !chrome.showTabSwitcher && !keyboardUp,
         onBack = findActions.onClose
     )
     val openFindInPage = {
@@ -615,6 +647,8 @@ fun RemBrowseScreen(
 
                     if (chrome.showTabSwitcher && !fullscreen) {
                         CaptureRegionLifetime(chrome.screenCapture, CaptureRegions.TAB_SWITCHER)
+                        // Read again each time the switcher opens
+                        val stillBackPreview = remember(context) { systemAnimationsOff(context) }
                         TabSwitcher(
                             uiState = browserState,
                             framed = !compact,
@@ -630,6 +664,15 @@ fun RemBrowseScreen(
                             modifier = (if (compact) Modifier else Modifier.padding(end = 6.dp, bottom = 6.dp))
                                 // Over the panes: a click on the screenshot overlay there takes the switcher
                                 .reportCaptureRegion(chrome.screenCapture, CaptureRegions.TAB_SWITCHER, layer = 1)
+                                // A Back gesture shrinks it towards 90% and lets the pages show
+                                // through, as Material's predictive back does for a full-screen
+                                // surface. Read while drawing, so the gesture only redraws it.
+                                .graphicsLayer {
+                                    val progress = if (stillBackPreview) 0f else chrome.tabSwitcherBack
+                                    scaleX = 1f - TAB_SWITCHER_BACK_SHRINK * progress
+                                    scaleY = scaleX
+                                    alpha = 1f - TAB_SWITCHER_BACK_FADE * progress
+                                }
                         )
                     }
                 }
@@ -708,7 +751,7 @@ fun RemBrowseScreen(
         ScreenCaptureState.Phase.IDLE -> Unit
     }
     // Composed after every other Back handler, so it comes first while the overlay is up
-    BackHandler(enabled = screenCapture.isSelecting, onBack = screenCapture::cancel)
+    BackHandler(enabled = screenCapture.isSelecting && !keyboardUp, onBack = screenCapture::cancel)
     // The keyboard goes back to whatever had it when the overlay came up: noted before the overlay
     // takes the focus (a frame later), given back once it has gone, however it went
     val composeView = LocalView.current
@@ -915,3 +958,17 @@ fun RemBrowseScreen(
 
 /** A screenshot that hasn't come back by then (the engine never answered) is given up. */
 private const val SCREENSHOT_TIMEOUT_MILLIS = 10_000L
+
+/** Android's animations are turned off (Settings → Accessibility → Remove animations). */
+private fun systemAnimationsOff(context: Context): Boolean =
+    runCatching {
+        android.provider.Settings.Global.getFloat(
+            context.contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f
+        ) == 0f
+    }.getOrDefault(false)
+
+/** How much the tab switcher shrinks and fades at the end of a Back gesture (to 90%, 70% opaque). */
+internal const val TAB_SWITCHER_BACK_SHRINK = 0.1f
+internal const val TAB_SWITCHER_BACK_FADE = 0.3f

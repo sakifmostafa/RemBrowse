@@ -120,7 +120,8 @@ object KeyboardShortcuts {
      * except in a terminal, whose programs use Esc. Read before the keyboard app, which may keep
      * a hardware Esc for itself or turn it into Back. Some laptop keyboards send their Esc key
      * as Back, so a Back from a physical keyboard ([fromPhysicalKeyboard]) counts as Esc too;
-     * the system's Back gesture or button does not.
+     * the system's Back gesture or button does not. Only up to Android 12L: from Android 13 Back
+     * never arrives as a key (predictive back is on), and the find bar's Back handler closes it.
      */
     fun escapeClosesFindBar(
         keyCode: Int,
@@ -228,7 +229,7 @@ object KeyboardShortcuts {
      * What a key press does while the screenshot overlay is up (see [ScreenCaptureKey]). Read
      * before the keyboard app, like the shortcuts. [isSystemKey] is `KeyEvent.isSystem`; a Back
      * from a physical keyboard ([fromPhysicalKeyboard]) is that keyboard's Esc key, as for the
-     * find bar.
+     * find bar (up to Android 12L; from 13 the overlay's Back handler cancels it).
      */
     fun screenCaptureKey(keyCode: Int, isSystemKey: Boolean, fromPhysicalKeyboard: Boolean): ScreenCaptureKey = when {
         keyCode == KeyEvent.KEYCODE_ESCAPE -> ScreenCaptureKey.CANCEL
