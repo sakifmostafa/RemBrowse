@@ -1,5 +1,10 @@
 package com.rembrowser.rembrowse.ui
 
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
+import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
@@ -23,7 +28,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
@@ -55,6 +60,7 @@ import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.rembrowser.rembrowse.BrowserKeys
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
@@ -100,8 +106,9 @@ import kotlin.math.abs
 @Config(sdk = [34], qualifiers = "w1280dp-h800dp-land-mdpi")
 class WideTabRailUiTest {
 
+    // An activity of its own, so keys can go through the window as MainActivity hands them on
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val engine = FakeBrowserEngine()
@@ -690,5 +697,129 @@ class WideTabRailUiTest {
         val list = node("tab_rail_list").getUnclippedBoundsInRoot()
         val active = node("tab_bar_item_github").getUnclippedBoundsInRoot()
         assertTrue(active.top >= list.top && active.bottom <= list.bottom)
+    }
+
+    // --- Keys through the window, with the rail over the page ---
+
+    /** MainActivity's keys, over the screen composed here. */
+    private val keys by lazy { BrowserKeys(browserVm, chrome) }
+
+    private val ctrl = KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
+
+    /**
+     * Presses and lets go of [keyCode] through the window as MainActivity hands keys on:
+     * [BrowserKeys] before the keyboard app, then before the views, then the focused view.
+     * Says which of the press and the release the browser took for itself.
+     */
+    private fun pressThroughTheWindow(keyCode: Int, metaState: Int = 0): List<Boolean> {
+        val taken = mutableListOf<Boolean>()
+        composeRule.runOnUiThread {
+            val activity = composeRule.activity
+            val time = SystemClock.uptimeMillis()
+            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+                val event = KeyEvent(
+                    time, time, action, keyCode, 0, metaState,
+                    KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD
+                )
+                val focus = activity.currentFocus
+                val browserTookIt = keys.beforeIme(event, focus) || keys.dispatch(event, focus)
+                if (!browserTookIt) activity.dispatchKeyEvent(event)
+                taken += browserTookIt
+            }
+        }
+        composeRule.waitForIdle()
+        return taken
+    }
+
+    private val addressBar get() = composeRule.onNode(hasContentDescription("Address and search bar") and hasSetTextAction())
+
+    /** The rail opened over the page with a click on its menu button, the keyboard used after. */
+    private fun openTheRailWithAClick() {
+        composeRule.runOnIdle { shownInputMode.value = InputMode.Touch }
+        toggle()
+        assertTrue(chrome.tabRailOverlayOpen)
+        composeRule.runOnIdle { shownInputMode.value = null }
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_ctrlT_closesTheRailOverThePage_andTheNewTabsAddressBarTakesTheTyping() {
+        launch()
+        openTheRailWithAClick()
+
+        pressThroughTheWindow(KeyEvent.KEYCODE_T, ctrl)
+
+        assertFalse("Closed first", chrome.tabRailOverlayOpen)
+        assertCollapsed()
+        val newTab = browserVm.uiState.value.activeTabId
+        assertFalse("A new tab, shown", newTab in tabs.map { it.id })
+        assertEquals(4, openTabIds().size)
+        addressBar.assertIsFocused()
+        pressThroughTheWindow(KeyEvent.KEYCODE_A)
+        pressThroughTheWindow(KeyEvent.KEYCODE_B)
+        assertEquals("ab", browserVm.uiState.value.addressBarInput)
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_ctrlL_closesTheRailOverThePage_andTheAddressBarTakesTheTyping() {
+        launch()
+        openTheRailWithAClick()
+
+        pressThroughTheWindow(KeyEvent.KEYCODE_L, ctrl)
+
+        assertFalse(chrome.tabRailOverlayOpen)
+        addressBar.assertIsFocused()
+        pressThroughTheWindow(KeyEvent.KEYCODE_X)
+        assertEquals("x", browserVm.uiState.value.addressBarInput)
+        assertEquals("The same tab", "github", browserVm.uiState.value.activeTabId)
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_ctrlF_closesTheRailOverThePage_andTheFindBarTakesTheTyping() {
+        launch()
+        // Opened from the keyboard this time: the rail's menu button has the focus
+        composeRule.runOnIdle { inputModes!!.requestInputMode(InputMode.Keyboard) }
+        composeRule.runOnUiThread { chrome.tabRailOverlayOpen = true }
+        composeRule.waitForIdle()
+        node("tab_rail_toggle").assertIsFocused()
+
+        pressThroughTheWindow(KeyEvent.KEYCODE_F, ctrl)
+
+        assertFalse(chrome.tabRailOverlayOpen)
+        node("find_input").assertIsFocused()
+        pressThroughTheWindow(KeyEvent.KEYCODE_Q)
+        assertEquals("q", browserVm.findInPage.value?.query)
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_closingTheTabOrBookmarkingThePage_leavesTheRailOverThePageOpen() {
+        launch()
+        openTheRailWithAClick()
+
+        pressThroughTheWindow(KeyEvent.KEYCODE_D, ctrl)
+        pressThroughTheWindow(KeyEvent.KEYCODE_W, ctrl)
+
+        assertTrue(chrome.tabRailOverlayOpen)
+        assertEquals(listOf("news", "chat"), openTabIds())
+        assertTrue(browserVm.uiState.value.bookmarks.any { it.url == tabs[0].url })
+    }
+
+    /** Esc read by the window before a page or the keyboard app has it, as when a page has the focus. */
+    @Test
+    @Config(qualifiers = "w800dp-h600dp-land-mdpi")
+    fun narrowWindow_escThroughTheWindow_closesTheRailOverThePage_andItsReleaseReachesNothing() {
+        launch()
+        openTheRailWithAClick()
+
+        val taken = pressThroughTheWindow(KeyEvent.KEYCODE_ESCAPE)
+
+        assertFalse(chrome.tabRailOverlayOpen)
+        assertCollapsed()
+        assertEquals("The press and its release, kept from the page", listOf(true, true), taken)
+        // The next Esc, with the rail closed, is the page's again
+        assertEquals(listOf(false, false), pressThroughTheWindow(KeyEvent.KEYCODE_ESCAPE))
     }
 }

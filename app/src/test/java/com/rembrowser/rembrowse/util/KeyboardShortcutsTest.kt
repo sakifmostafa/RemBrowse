@@ -191,6 +191,17 @@ class KeyboardShortcutsTest {
     }
 
     @Test
+    fun shortcutsThatMoveTheFocusOrOpenSomething_closeTheTabRailOverThePageFirst() {
+        val keepItOpen = setOf(BrowserShortcut.CLOSE_TAB, BrowserShortcut.TOGGLE_BOOKMARK, BrowserShortcut.SCREENSHOT)
+        BrowserShortcut.entries.forEach { shortcut ->
+            assertEquals(shortcut.name, shortcut !in keepItOpen, KeyboardShortcuts.closesTabRail(shortcut))
+        }
+        // Among them, those that used to open a tab, the address bar or find under the rail
+        listOf(BrowserShortcut.NEW_TAB, BrowserShortcut.FOCUS_ADDRESS_BAR, BrowserShortcut.FIND_IN_PAGE, BrowserShortcut.NEXT_TAB)
+            .forEach { assertTrue(it.name, KeyboardShortcuts.closesTabRail(it)) }
+    }
+
+    @Test
     fun escape_closesTheOpenFindBar_wheneverTheFocusIs_butNotInATerminal() {
         val esc = KeyEvent.KEYCODE_ESCAPE
         assertTrue(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true))

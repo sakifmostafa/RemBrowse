@@ -198,6 +198,20 @@ object KeyboardShortcuts {
         return isEscape && railOverlayOpen && noModifiers && repeatCount == 0
     }
 
+    /**
+     * Whether [shortcut] first closes the expanded tab rail open over the page. Every shortcut
+     * that moves the keyboard or opens something in the page's place does (a new tab or terminal,
+     * the address bar, find, Go to address, the palette, Settings, another tab, a layout), so it
+     * lands where it would with the rail closed: left open, the rail would keep the keyboard
+     * while a new tab or the find bar opened under the dimmed page. Closing the tab and
+     * bookmarking the page change what the rail itself shows, and a screenshot takes the window
+     * as it is, so those leave it open, as closing a tab from the rail does.
+     */
+    fun closesTabRail(shortcut: BrowserShortcut): Boolean = when (shortcut) {
+        BrowserShortcut.CLOSE_TAB, BrowserShortcut.TOGGLE_BOOKMARK, BrowserShortcut.SCREENSHOT -> false
+        else -> true
+    }
+
     fun resolve(
         keyCode: Int,
         ctrl: Boolean,
