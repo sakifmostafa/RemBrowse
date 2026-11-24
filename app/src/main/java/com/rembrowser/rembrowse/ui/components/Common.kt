@@ -148,6 +148,11 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.WindowInsets
+import android.view.ViewTreeObserver
+import android.view.View
 
 /**
  * Whether [SiteIcon] may fetch a site's `/favicon.ico`. Tests and previews turn this off so
@@ -677,18 +682,47 @@ private val MenuWindowMargin = 48.dp
 private val MinMenuRoomBelow = 144.dp
 
 /**
- * How tall a menu opened [offsetY] below [anchor] may be and still fit under it, as Material's
- * placement measures it (the window's visible frame, less [MenuWindowMargin]); null when that is
- * unknown yet or less than three rows.
+ * How tall a menu opened [offsetY] below an anchor whose foot is [anchorBottom] down the window may
+ * be and still fit under it, as Material's placement measures it: the window's visible frame
+ * ([frameHeight]) less the anchor's foot, the offset and [MenuWindowMargin]. Null when that is
+ * less than three rows ([MinMenuRoomBelow]), where the menu is left to Material's placement.
  */
+internal fun menuRoomBelow(frameHeight: Dp, anchorBottom: Dp, offsetY: Dp): Dp? =
+    (frameHeight - anchorBottom - offsetY - MenuWindowMargin).takeIf { it >= MinMenuRoomBelow }
+
+/** [menuRoomBelow] for a menu opened [offsetY] below [anchor]; null while the anchor is not laid out. */
 @Composable
 private fun menuRoomBelow(anchor: MenuAnchor, offsetY: Dp): Dp? {
     val bottom = anchor.bottomInWindow
+    val frameHeight = rememberVisibleFrameHeight()
     if (bottom.isNaN()) return null
+    return with(LocalDensity.current) { menuRoomBelow(frameHeight.toDp(), bottom.toDp(), offsetY) }
+}
+
+/** The height of the window's visible frame, in px: the window less the system bars and the keyboard. */
+private fun visibleFrameHeightOf(view: View): Int =
+    android.graphics.Rect().also { view.getWindowVisibleDisplayFrame(it) }.height()
+
+/**
+ * The height of the window's visible frame ([read], the frame Material places a menu in), kept
+ * current: read again whenever the on-screen keyboard's insets change, and whenever the window
+ * is laid out with a frame of another height (a window resized, or a keyboard that sends no
+ * insets). Read once, a menu opened with the keyboard up kept the keyboard's room after it went.
+ */
+@Composable
+internal fun rememberVisibleFrameHeight(read: (View) -> Int = ::visibleFrameHeightOf): Int {
     val view = LocalView.current
-    val frame = android.graphics.Rect().also { view.getWindowVisibleDisplayFrame(it) }
-    val room = with(LocalDensity.current) { (frame.height() - bottom).toDp() } - offsetY - MenuWindowMargin
-    return room.takeIf { it >= MinMenuRoomBelow }
+    val latestRead by rememberUpdatedState(read)
+    // Read here, so the keyboard coming or going reads the frame again
+    val keyboard = WindowInsets.ime.getBottom(LocalDensity.current)
+    // Set by the window's layouts; a state of the same value changes nothing
+    var laidOut by remember(view) { mutableIntStateOf(read(view)) }
+    DisposableEffect(view) {
+        val listener = ViewTreeObserver.OnGlobalLayoutListener { laidOut = latestRead(view) }
+        view.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        onDispose { view.viewTreeObserver.removeOnGlobalLayoutListener(listener) }
+    }
+    return remember(view, keyboard, laidOut) { read(view) }
 }
 
 /**
