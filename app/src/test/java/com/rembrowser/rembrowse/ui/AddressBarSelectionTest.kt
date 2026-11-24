@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -285,6 +286,15 @@ class AddressBarSelectionTest {
 
     // --- Right-click menu ---
 
+    /**
+     * The bar's own menu, and not Compose's text menu as well (Compose 1.11 opens one on a right
+     * click in any text field, in a popup of its own)
+     */
+    private fun assertOnlyTheBarsMenuIsOpen() {
+        rule.onNodeWithTag("address_menu").assertExists()
+        assertEquals(1, rule.onAllNodes(isPopup()).fetchSemanticsNodes().size)
+    }
+
     @Test
     fun rightClick_copiesCutsAndPastes() {
         launch()
@@ -295,6 +305,7 @@ class AddressBarSelectionTest {
         // A two-finger tap: the touchpad's right click
         click(word("example"), Pointer.TOUCHPAD, buttons = MotionEvent.BUTTON_SECONDARY, pauseAfter = 400)
         assertEquals("The selection stays for the menu to act on", "example", selected())
+        assertOnlyTheBarsMenuIsOpen()
         rule.onNodeWithTag("address_menu_copy").performClick()
         assertEquals("example", clipboard.copied?.text)
         rule.onNodeWithTag("address_menu").assertDoesNotExist()
@@ -303,6 +314,7 @@ class AddressBarSelectionTest {
 
         clipboard.copied = AnnotatedString("mozilla\n")
         click(word("example"), Pointer.MOUSE, buttons = MotionEvent.BUTTON_SECONDARY, pauseAfter = 400)
+        assertOnlyTheBarsMenuIsOpen()
         rule.onNodeWithTag("address_menu_paste").performClick()
         rule.waitForIdle()
         assertEquals("https://www.mozilla.com/some-path/page.html", text())
@@ -328,6 +340,7 @@ class AddressBarSelectionTest {
         click(word("some"), Pointer.MOUSE, buttons = MotionEvent.BUTTON_SECONDARY, pauseAfter = 400)
         assertTrue(isFocused())
         assertEquals(url, selected())
+        assertOnlyTheBarsMenuIsOpen()
 
         rule.onNodeWithTag("address_menu_paste_and_go").performClick()
         rule.waitForIdle()

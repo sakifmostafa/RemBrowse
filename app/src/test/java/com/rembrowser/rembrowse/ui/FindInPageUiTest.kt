@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -11,13 +12,19 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.rightClick
 import androidx.compose.ui.test.withKeyDown
+import androidx.compose.ui.text.TextRange
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.engine.FindResult
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
@@ -44,7 +51,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** The find bar on a laptop-sized window: opening it, searching, moving through matches, closing it. */
+/**
+ * The find bar on a laptop-sized window: opening it, searching, moving through matches, closing it,
+ * and its text box's right-click menu.
+ */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], application = Application::class, qualifiers = "w1280dp-h800dp-land-mdpi")
@@ -150,5 +160,30 @@ class FindInPageUiTest {
         composeRule.runOnUiThread { browserVm.openNewTab() }
         composeRule.onNodeWithTag("more_button").performClick()
         composeRule.onNodeWithTag("menu_find_in_page").assertIsNotEnabled()
+    }
+
+    @Test
+    fun aRightClickInTheBox_opensTheTextMenu_andTheBarStaysOpenAndFocused() {
+        launchOnAWebPage()
+        composeRule.runOnUiThread { browserVm.openFindInPage() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("find_input").performTextInput("cats and dogs")
+        fun input() = composeRule.onNodeWithTag("find_input").fetchSemanticsNode().config
+
+        // Compose's own text menu, in a popup of its own
+        composeRule.onNodeWithTag("find_input").performMouseInput { rightClick() }
+        composeRule.waitForIdle()
+        val selectAll = composeRule.onNode(hasText("Select all") and hasAnyAncestor(isPopup()))
+        selectAll.assertExists()
+        composeRule.onNodeWithTag("find_bar").assertIsDisplayed()
+        composeRule.onNodeWithTag("find_input").assertIsFocused()
+        assertEquals("cats and dogs", input()[SemanticsProperties.EditableText].text)
+
+        selectAll.performClick()
+        composeRule.waitForIdle()
+        composeRule.onNode(isPopup()).assertDoesNotExist()
+        composeRule.onNodeWithTag("find_bar").assertIsDisplayed()
+        composeRule.onNodeWithTag("find_input").assertIsFocused()
+        assertEquals(TextRange(0, 13), input()[SemanticsProperties.TextSelectionRange])
     }
 }
