@@ -91,12 +91,40 @@ private class PictureDisplay(session: GeckoSession) : GeckoDisplay(session)
  */
 suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot {
     val session = session ?: return WholePageShot.Failed
-    val size = session.awaitPageContentSize() ?: return WholePageShot.Failed
+    return wholePageShot(
+        maxPixels,
+        askSize = { session.awaitPageContentSize() },
+        take = { width, height -> session.awaitWholePage(width, height) }
+    )
+}
+
+/**
+ * How long the engine has to say how large a page is. It answers at once for a page it is
+ * showing; one it never answers for (nothing loaded in the pane yet, say) is given up on after
+ * this, rather than after the whole screenshot's much longer limit.
+ */
+internal const val PAGE_SIZE_TIMEOUT_MILLIS = 5_000L
+
+/**
+ * [captureWholePage] without the engine: [askSize] says how large the page is (null if it can't
+ * tell), and [take] draws it as a picture of the size planned from that. A size that doesn't
+ * come within [PAGE_SIZE_TIMEOUT_MILLIS] is a failed screenshot, and nothing is drawn.
+ */
+internal suspend fun wholePageShot(
+    maxPixels: Long,
+    askSize: suspend () -> PageContentSize?,
+    take: suspend (width: Int, height: Int) -> WholePageShot
+): WholePageShot {
+    val size = withTimeoutOrNull(PAGE_SIZE_TIMEOUT_MILLIS) { askSize() }
+    if (size == null) {
+        Log.w(TAG, "No size for the page: not captured")
+        return WholePageShot.Failed
+    }
     val plan = CaptureGeometry.wholePagePlan(size.width, size.height, size.devicePixelRatio, maxPixels)
     return when (plan) {
         null -> WholePageShot.Failed
         WholePagePlan.TooLong -> WholePageShot.TooLong
-        is WholePagePlan.Take -> session.awaitWholePage(plan.width, plan.height)
+        is WholePagePlan.Take -> take(plan.width, plan.height)
     }
 }
 
