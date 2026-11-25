@@ -116,8 +116,9 @@ object CaptureGeometry {
      * The memory set aside for each pixel of a whole page while it is taken, in bytes. The
      * picture itself is 4, all of it in the app's main process, which is where the memory was
      * seen to go on a device (a 110-megapixel picture added 460 MB there, and nothing to the
-     * engine's other processes). Twice that again is kept spare for the PNG made from it, the
-     * page's own process and whatever else is running.
+     * engine's other processes). Twice that again is kept spare for the page's own process
+     * and whatever else is running. The PNG made from it is written straight to a file and
+     * needs none.
      */
     const val WHOLE_PAGE_BYTES_PER_PIXEL = 12L
 

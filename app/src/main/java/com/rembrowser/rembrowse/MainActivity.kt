@@ -700,7 +700,10 @@ class MainActivity : ComponentActivity() {
             val taken = WindowScreenshot(window).capture(area, pages, holeColor).also { shot = it }
             val png = withContext(Dispatchers.Default) {
                 thumbnail = thumbnailOf(taken, thumbnailHeight)
-                ByteArrayOutputStream().also { taken.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+                val encoded = ByteArrayOutputStream()
+                // False when the PNG couldn't be made whole: never copied half-made
+                check(taken.compress(Bitmap.CompressFormat.PNG, 100, encoded)) { "The screenshot couldn't be encoded" }
+                encoded.toByteArray()
             }
             copied = suspendCancellableCoroutine { continuation ->
                 holder.screenshotClipboard.copyScreenshot(png, stillWanted = { job.isActive }) { file ->
@@ -738,7 +741,8 @@ class MainActivity : ComponentActivity() {
      * the device has memory to spare for right now ([CaptureGeometry.wholePageMaxPixels]): a page
      * over that is taken smaller, and one too long even so is refused before anything is drawn.
      * Running out of memory for it all the same is refused the same way, never a crash.
-     * The PNG and the notice's picture (the top of the page) are made off the main thread.
+     * The PNG, written straight into the clipboard's file, and the notice's picture (the top of
+     * the page) are made off the main thread.
      *
      * Cancelled (given up on, or the notice's Cancel), it frees its pictures and never reaches the
      * clipboard, however late the engine answers.
@@ -750,6 +754,7 @@ class MainActivity : ComponentActivity() {
         val job = currentCoroutineContext().job
         var page: Bitmap? = null
         var thumbnail: Bitmap? = null
+        var pending: File? = null
         var file: Uri? = null
         return try {
             val memory = ActivityManager.MemoryInfo().also { getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
@@ -761,13 +766,17 @@ class MainActivity : ComponentActivity() {
             }
             val width = taken.width
             val height = taken.height
-            val png = withContext(Dispatchers.Default) {
+            // Encoded straight into a file: as a PNG in memory a long page of photos could be
+            // over 100 MB, more than the app may hold. A PNG that can't be made whole (no room
+            // for it, say) is a failed screenshot, never a broken file on the clipboard.
+            val png = withContext(Dispatchers.IO) {
                 thumbnail = topOfPageThumbnail(taken, thumbnailHeight)
-                ByteArrayOutputStream().also { taken.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
-            }
-            // Up to 256 MB: let go of before the file is written
+                holder.screenshotClipboard.writeScreenshot { taken.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }.also { pending = it }
+            // Up to 256 MB: let go of before the file goes on the clipboard
             taken.recycle()
             page = null
+            if (png == null) return ScreenshotResult.Failed
             file = suspendCancellableCoroutine { continuation ->
                 holder.screenshotClipboard.copyScreenshot(png, stillWanted = { job.isActive }) { copied ->
                     if (continuation.isActive) continuation.resume(copied)
@@ -792,6 +801,8 @@ class MainActivity : ComponentActivity() {
             page?.recycle()
             // The notice keeps the small picture of a page that was copied
             if (file == null) thumbnail?.recycle()
+            // Not there any more once it has been moved onto the clipboard
+            if (file == null) pending?.delete()
         }
     }
 

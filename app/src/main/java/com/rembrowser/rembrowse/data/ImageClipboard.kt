@@ -14,7 +14,9 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.URLDecoder
 import java.util.concurrent.atomic.AtomicBoolean
 import org.mozilla.geckoview.GeckoRuntime
@@ -30,7 +32,7 @@ fun interface ImageClipboard {
 }
 
 /** Puts a screenshot of the window on the clipboard, for pasting into a page or another app. */
-fun interface ScreenshotClipboard {
+interface ScreenshotClipboard {
     /**
      * Copies [png] (a PNG image) to the clipboard, then calls [onDone] on the main thread with the
      * `content:` address of the file on the clipboard, or null when it isn't there. The file stays
@@ -40,6 +42,21 @@ fun interface ScreenshotClipboard {
      * screenshot given up on meanwhile changes nothing.
      */
     fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Uri?) -> Unit)
+
+    /**
+     * Has [write] write a PNG straight into a file, for a picture too large to hold in memory
+     * as a PNG as well (a whole page). Returns the file, which is not on the clipboard yet
+     * ([copyScreenshot] puts it there); null, with nothing left behind, when [write] answers
+     * false or the file can't be written. Call it off the main thread: it returns when [write] has.
+     */
+    fun writeScreenshot(write: (OutputStream) -> Boolean): File?
+
+    /**
+     * Copies the PNG in [file] (from [writeScreenshot]) to the clipboard, as the other
+     * [copyScreenshot] does a PNG in memory. The file is taken over: moved onto the clipboard,
+     * or deleted when it doesn't get there.
+     */
+    fun copyScreenshot(file: File, stillWanted: () -> Boolean, onDone: (Uri?) -> Unit)
 }
 
 /**
@@ -195,6 +212,7 @@ object ClipboardImages {
 internal class ClipboardImageFiles(context: Context) {
     private val appContext = context.applicationContext
     private val dir = File(appContext.cacheDir, DIR)
+    private val pendingDir = File(appContext.cacheDir, PENDING_DIR)
 
     /**
      * Saves [image] as the one file here, named after [name], and returns its `content:` address;
@@ -213,6 +231,53 @@ internal class ClipboardImageFiles(context: Context) {
     }
 
     /**
+     * Has [write] write a picture into a new file with [extension], beside the one on the
+     * clipboard and not yet in its place ([adopt] moves it there), so a picture that fails
+     * half-written never replaces a good one. Returns the file; null, with nothing left behind,
+     * when [write] answers false or the file can't be written. Anything else [write] throws,
+     * running out of memory included, is passed on once the file is gone. Off the main thread.
+     */
+    fun writePending(extension: String, write: (OutputStream) -> Boolean): File? {
+        pendingDir.mkdirs()
+        // One left by a copy that never finished
+        pendingDir.listFiles()?.forEach { it.delete() }
+        val file = File(pendingDir, "pending-${System.currentTimeMillis()}.$extension")
+        val written = try {
+            file.outputStream().buffered().use(write)
+        } catch (e: IOException) {
+            Log.w(TAG, "Couldn't write a picture for the clipboard", e)
+            false
+        } catch (e: Throwable) {
+            file.delete()
+            throw e
+        }
+        if (!written) file.delete()
+        return file.takeIf { written }
+    }
+
+    /**
+     * Makes [pending] (from [writePending]) the one file here, named after [name], and returns
+     * its `content:` address; null, with [pending] deleted and nothing else touched, if it is no
+     * longer [wanted] or can't be moved. Off the main thread. Synchronized as [save] is.
+     */
+    @Synchronized
+    fun adopt(pending: File, name: String, wanted: () -> Boolean = { true }): Uri? {
+        if (!wanted() || !pending.isFile) {
+            pending.delete()
+            return null
+        }
+        dir.mkdirs()
+        val file = File(dir, "$name-${System.currentTimeMillis()}.${pending.extension}")
+        val others = dir.listFiles().orEmpty()
+        if (!pending.renameTo(file)) {
+            pending.delete()
+            return null
+        }
+        others.forEach { it.delete() }
+        return FileProvider.getUriForFile(appContext, "${appContext.packageName}.downloads", file)
+    }
+
+    /**
      * Puts [uri] on the clipboard under [label]. The clip's type comes from the FileProvider
      * (`image/png` for a `.png`), which is what lets GeckoView offer it to a page. On the main
      * thread. False when there is no clipboard.
@@ -226,6 +291,9 @@ internal class ClipboardImageFiles(context: Context) {
     companion object {
         /** Under the cache directory; named in the FileProvider's paths (res/xml/download_paths.xml). */
         const val DIR = "clipboard"
+
+        /** Under the cache directory too, and not handed out: pictures still being written. */
+        const val PENDING_DIR = "clipboard-pending"
     }
 }
 
@@ -294,10 +362,26 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
     private val files = ClipboardImageFiles(appContext)
     private val pageImages = PageImageCopier(files, main)
 
-    override fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Uri?) -> Unit) {
+    override fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Uri?) -> Unit) =
+        copyScreenshot(stillWanted, onDone) { files.save(ClipboardImage(png, "image/png"), "screenshot", stillWanted) }
+
+    override fun writeScreenshot(write: (OutputStream) -> Boolean): File? = files.writePending("png", write)
+
+    override fun copyScreenshot(file: File, stillWanted: () -> Boolean, onDone: (Uri?) -> Unit) =
+        copyScreenshot(stillWanted, onDone) {
+            try {
+                files.adopt(file, "screenshot", stillWanted)
+            } finally {
+                // Gone already when it was moved onto the clipboard
+                file.delete()
+            }
+        }
+
+    /** Puts the file [save] makes, on a thread of its own, on the clipboard if it is [stillWanted]. */
+    private fun copyScreenshot(stillWanted: () -> Boolean, onDone: (Uri?) -> Unit, save: () -> Uri?) {
         Thread({
             val uri = try {
-                files.save(ClipboardImage(png, "image/png"), "screenshot", stillWanted)
+                save()
             } catch (e: Exception) {
                 Log.w(TAG, "Couldn't save a screenshot for the clipboard", e)
                 null
