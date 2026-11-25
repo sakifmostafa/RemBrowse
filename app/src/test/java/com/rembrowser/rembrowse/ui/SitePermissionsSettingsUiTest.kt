@@ -39,6 +39,8 @@ import com.rembrowser.rembrowse.model.SiteOrigins
 import com.rembrowser.rembrowse.model.SitePermissionEntry
 import com.rembrowser.rembrowse.model.SitePermissionKind
 import com.rembrowser.rembrowse.model.SitePermissionKind.CAMERA
+import com.rembrowser.rembrowse.model.SitePermissionKind.LOCAL_DEVICE
+import com.rembrowser.rembrowse.model.SitePermissionKind.LOCAL_NETWORK
 import com.rembrowser.rembrowse.model.SitePermissionKind.LOCATION
 import com.rembrowser.rembrowse.model.SitePermissionKind.MICROPHONE
 import com.rembrowser.rembrowse.model.SitePermissionKind.NOTIFICATIONS
@@ -135,7 +137,9 @@ class SitePermissionsSettingsUiTest {
                 entry(meet, MICROPHONE, BLOCK),
                 entry(meet, LOCATION, ALLOW),
                 entry(meet, NOTIFICATIONS, BLOCK),
-                entry(meet, PROTECTED_CONTENT, ALLOW)
+                entry(meet, PROTECTED_CONTENT, ALLOW),
+                entry(meet, LOCAL_NETWORK, ALLOW),
+                entry(meet, LOCAL_DEVICE, BLOCK)
             )
         )
         val expected = mapOf(
@@ -143,7 +147,9 @@ class SitePermissionsSettingsUiTest {
             MICROPHONE to ("Microphone" to false),
             LOCATION to ("Location" to true),
             NOTIFICATIONS to ("Notifications" to false),
-            PROTECTED_CONTENT to ("Protected content" to true)
+            PROTECTED_CONTENT to ("Protected content" to true),
+            LOCAL_NETWORK to ("Devices on your local network" to true),
+            LOCAL_DEVICE to ("Apps and services on this device" to false)
         )
         expected.forEach { (kind, labelAndAllowed) ->
             val (label, allowed) = labelAndAllowed
@@ -212,6 +218,20 @@ class SitePermissionsSettingsUiTest {
         composeRule.onNodeWithTag(sitePermissionRowTag(mic)).performClick()
 
         assertEquals(listOf(camera to BLOCK, mic to ALLOW), sets)
+    }
+
+    @Test
+    fun localNetworkDecisionsSwitchAndAreForgottenLikeTheOthers() {
+        val network = entry(meet, LOCAL_NETWORK, BLOCK)
+        val device = entry(meet, LOCAL_DEVICE, ALLOW)
+        showSection(listOf(network, device))
+
+        composeRule.onNodeWithTag(sitePermissionRowTag(network)).performClick()
+        composeRule.onNodeWithTag("${sitePermissionRowTag(device)}_remove").performClick()
+
+        assertEquals(listOf(network to ALLOW, device to null), sets)
+        assertEquals("site_permission_${meet}_local_network", sitePermissionRowTag(network))
+        composeRule.onNode(hasContentDescription("Forget decision: Apps and services on this device")).assertExists()
     }
 
     @Test

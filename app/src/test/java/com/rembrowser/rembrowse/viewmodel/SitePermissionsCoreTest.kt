@@ -6,6 +6,8 @@ import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
 import com.rembrowser.rembrowse.model.PermissionAnswer
 import com.rembrowser.rembrowse.model.SiteOrigins
 import com.rembrowser.rembrowse.model.SitePermissionKind.CAMERA
+import com.rembrowser.rembrowse.model.SitePermissionKind.LOCAL_DEVICE
+import com.rembrowser.rembrowse.model.SitePermissionKind.LOCAL_NETWORK
 import com.rembrowser.rembrowse.model.SitePermissionKind.LOCATION
 import com.rembrowser.rembrowse.model.SitePermissionKind.MICROPHONE
 import com.rembrowser.rembrowse.model.SitePermissionKind.NOTIFICATIONS
@@ -741,8 +743,89 @@ class SitePermissionsCoreTest {
     }
 
     @Test
-    fun allowOnceIsOfferedForCameraMicrophoneAndLocationOnly() {
+    fun allowOnceIsOfferedForCameraMicrophoneLocationAndTheLocalNetworkOnly() {
         val offered = SitePermissionKind.entries.filter { it.offersAllowOnce }.toSet()
-        assertEquals(setOf(CAMERA, MICROPHONE, LOCATION), offered)
+        assertEquals(setOf(CAMERA, MICROPHONE, LOCATION, LOCAL_NETWORK, LOCAL_DEVICE), offered)
+    }
+
+    // --- local network access ---
+
+    @Test
+    fun aLocalNetworkRequestIsAskedWithAllowThisTime() {
+        engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_NETWORK))
+        val request = viewModel.permissionRequests.value.single()
+        assertEquals(setOf(LOCAL_NETWORK), request.kinds)
+        assertEquals("web.example.org", request.displayHost)
+        assertTrue(request.offersAllowOnce)
+    }
+
+    @Test
+    fun allowForTheLocalNetworkIsRememberedAndDoesNotCoverThisDevice() {
+        val first = engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_NETWORK))
+        viewModel.answerPermission(viewModel.permissionRequests.value.single().id, PermissionAnswer.ALLOW)
+        assertEquals(PermissionAnswer.ALLOW, first.answer)
+        assertEquals(
+            listOf(SitePermissionEntry("https://web.example.org", "web.example.org", LOCAL_NETWORK, SitePermissionState.ALLOW)),
+            viewModel.sitePermissions.value
+        )
+
+        val again = engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_NETWORK))
+        assertEquals(PermissionAnswer.ALLOW, again.answer)
+        // Reaching this device is a question of its own
+        val device = engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_DEVICE))
+        assertNull(device.answer)
+        assertEquals(setOf(LOCAL_DEVICE), viewModel.permissionRequests.value.single().kinds)
+    }
+
+    @Test
+    fun blockForThisDeviceIsRememberedAndRefusesWithoutAsking() {
+        engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_DEVICE))
+        viewModel.answerPermission(viewModel.permissionRequests.value.single().id, PermissionAnswer.BLOCK)
+
+        val again = engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_DEVICE))
+
+        assertEquals(PermissionAnswer.DISMISS, again.answer)
+        assertTrue(viewModel.permissionRequests.value.isEmpty())
+        assertEquals(SitePermissionState.BLOCK, engine.storedPermissions.single { it.kind == LOCAL_DEVICE }.state)
+    }
+
+    @Test
+    fun allowThisTimeForTheLocalNetworkLastsWhileTheTabStaysOnTheSite() {
+        val first = engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_NETWORK))
+        viewModel.answerPermission(viewModel.permissionRequests.value.single().id, PermissionAnswer.ALLOW_ONCE)
+        assertEquals(PermissionAnswer.ALLOW_ONCE, first.answer)
+        assertTrue(engine.storedPermissions.isEmpty())
+        assertTrue(viewModel.sitePermissions.value.isEmpty())
+
+        val sameSite = engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_NETWORK))
+        assertEquals(PermissionAnswer.ALLOW_ONCE, sameSite.answer)
+
+        engine.sessions.getValue("tab-1").simulatePageStart("https://other.example.com/")
+        engine.sessions.getValue("tab-1").simulatePageStart("https://web.example.org/chat")
+        val afterLeaving = engine.simulatePermissionRequest("tab-1", "https://web.example.org", setOf(LOCAL_NETWORK))
+        assertNull(afterLeaving.answer)
+        assertEquals(1, viewModel.permissionRequests.value.size)
+    }
+
+    @Test
+    fun localNetworkDecisionsChangeAndGoFromSettings() {
+        viewModel.setSitePermission("https://web.example.org", LOCAL_NETWORK, SitePermissionState.ALLOW)
+        viewModel.setSitePermission("https://web.example.org", LOCAL_DEVICE, SitePermissionState.BLOCK)
+        assertEquals(
+            mapOf(LOCAL_NETWORK to SitePermissionState.ALLOW, LOCAL_DEVICE to SitePermissionState.BLOCK),
+            viewModel.sitePermissions.value.associate { it.kind to it.state }
+        )
+
+        viewModel.setSitePermission("https://web.example.org", LOCAL_NETWORK, SitePermissionState.BLOCK)
+        viewModel.setSitePermission("https://web.example.org", LOCAL_DEVICE, null)
+
+        assertEquals(
+            listOf(LOCAL_NETWORK to SitePermissionState.BLOCK),
+            viewModel.sitePermissions.value.map { it.kind to it.state }
+        )
+        assertEquals(
+            listOf(LOCAL_NETWORK to SitePermissionState.BLOCK),
+            engine.storedPermissions.map { it.kind to it.state }
+        )
     }
 }

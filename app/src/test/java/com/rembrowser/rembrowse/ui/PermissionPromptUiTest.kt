@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Router
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +38,8 @@ import com.rembrowser.rembrowse.model.PermissionAnswer
 import com.rembrowser.rembrowse.model.PermissionRequest
 import com.rembrowser.rembrowse.model.SitePermissionKind
 import com.rembrowser.rembrowse.model.SitePermissionKind.CAMERA
+import com.rembrowser.rembrowse.model.SitePermissionKind.LOCAL_DEVICE
+import com.rembrowser.rembrowse.model.SitePermissionKind.LOCAL_NETWORK
 import com.rembrowser.rembrowse.model.SitePermissionKind.LOCATION
 import com.rembrowser.rembrowse.model.SitePermissionKind.MICROPHONE
 import com.rembrowser.rembrowse.model.SitePermissionKind.NOTIFICATIONS
@@ -45,6 +50,7 @@ import com.rembrowser.rembrowse.ui.components.PermissionActionDelayMillis
 import com.rembrowser.rembrowse.ui.components.PermissionPromptCard
 import com.rembrowser.rembrowse.ui.components.PermissionPromptOverlay
 import com.rembrowser.rembrowse.ui.components.permissionAskText
+import com.rembrowser.rembrowse.ui.components.permissionIcon
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
@@ -152,6 +158,8 @@ class PermissionPromptUiTest {
             setOf(LOCATION) to "Know your location",
             setOf(NOTIFICATIONS) to "Show notifications",
             setOf(PROTECTED_CONTENT) to "Play protected content (DRM)",
+            setOf(LOCAL_NETWORK) to "Connect to devices on your local network",
+            setOf(LOCAL_DEVICE) to "Connect to apps and services on this device",
             setOf(CAMERA, LOCATION) to "Use your camera and know your location",
             setOf(MICROPHONE, LOCATION, NOTIFICATIONS) to "Use your microphone, know your location and show notifications"
         )
@@ -177,6 +185,30 @@ class PermissionPromptUiTest {
         showCard(request(setOf(STORAGE_ACCESS), host = "news.example.org", embeddedHost = "comments.example.com"))
         composeRule.onNodeWithText("news.example.org wants to").assertIsDisplayed()
         composeRule.onNodeWithText("Let comments.example.com use its cookies on this site").assertIsDisplayed()
+    }
+
+    @Test
+    fun theCardAsksAboutTheLocalNetworkWithAllThreeAnswers() {
+        showCard(request(setOf(LOCAL_NETWORK), host = "example.com"))
+        composeRule.onNodeWithText("example.com wants to").assertIsDisplayed()
+        composeRule.onNodeWithText("Connect to devices on your local network").assertIsDisplayed()
+        composeRule.onNodeWithTag("permission_block").assertIsDisplayed()
+        composeRule.onNodeWithTag("permission_allow_once").assertIsDisplayed()
+        composeRule.onNodeWithTag("permission_allow").assertIsDisplayed()
+    }
+
+    @Test
+    fun theCardAsksAboutThisDeviceWithAllThreeAnswers() {
+        showCard(request(setOf(LOCAL_DEVICE), host = "example.com"))
+        composeRule.onNodeWithText("example.com wants to").assertIsDisplayed()
+        composeRule.onNodeWithText("Connect to apps and services on this device").assertIsDisplayed()
+        composeRule.onNodeWithText("Allow this time").assertIsDisplayed()
+    }
+
+    @Test
+    fun theLocalNetworkKindsHaveTheirOwnOutlinedIcons() {
+        assertEquals(Icons.Outlined.Router, permissionIcon(setOf(LOCAL_NETWORK)))
+        assertEquals(Icons.Outlined.Devices, permissionIcon(setOf(LOCAL_DEVICE)))
     }
 
     @Test

@@ -44,6 +44,14 @@ class GeckoPermissionRowsTest {
         assertNull(GeckoSitePermissions.decisionKeyOf(row("persistent-storage", ContentPermission.VALUE_DENY)))
     }
 
+    @Test
+    fun localNetworkRowsAreDecisionsOfThePageItself() {
+        assertEquals(SitePermissionKind.LOCAL_NETWORK to null, GeckoSitePermissions.kindOfType("local-network"))
+        assertEquals(SitePermissionKind.LOCAL_DEVICE to null, GeckoSitePermissions.kindOfType("loopback-network"))
+        assertEquals("$page LOCAL_NETWORK", GeckoSitePermissions.decisionKeyOf(row("local-network", ContentPermission.VALUE_ALLOW)))
+        assertEquals("$page LOCAL_DEVICE", GeckoSitePermissions.decisionKeyOf(row("loopback-network", ContentPermission.VALUE_DENY)))
+    }
+
     // 6. The start-up clean-up removes leftovers and stale refusals, never the user's Blocks
 
     @Test
@@ -63,6 +71,23 @@ class GeckoPermissionRowsTest {
         )
 
         assertEquals(listOf(leftover, stale), cleaned)
+    }
+
+    @Test
+    fun theCleanUpTakesBackALeftoverLocalNetworkGrantButNeverALocalNetworkBlock() {
+        val leftover = row("local-network", ContentPermission.VALUE_ALLOW)
+        val lasting = row("loopback-network", ContentPermission.VALUE_ALLOW)
+        // Local network refusals can only be the user's: the type is newer than the stale refusals
+        val block = row("local-network", ContentPermission.VALUE_DENY, uri = "https://blocked.example/")
+
+        val cleaned = GeckoSitePermissions.rowsToClean(
+            rows = listOf(leftover, lasting, block),
+            leftoverGrants = setOf("$page LOCAL_NETWORK"),
+            userDenials = emptySet(),
+            clearStaleDenials = true
+        )
+
+        assertEquals(listOf(leftover), cleaned)
     }
 
     @Test

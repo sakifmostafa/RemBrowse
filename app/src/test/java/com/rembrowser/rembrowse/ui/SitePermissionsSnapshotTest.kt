@@ -85,9 +85,14 @@ class SitePermissionsSnapshotTest {
         uiScope.cancel()
     }
 
-    private fun launch(dark: Boolean, layout: LayoutMode = LayoutMode.SINGLE_1X1) {
+    private val meetTab = BrowserTab(id = "meet", url = "https://meet.google.com/abc-defg-hij", title = "Meet")
+
+    /** A web app that talks to a media server at home, as the local network prompt's example. */
+    private val plexTab = BrowserTab(id = "plex", url = "https://app.plex.tv/desktop", title = "Plex")
+
+    private fun launch(dark: Boolean, layout: LayoutMode = LayoutMode.SINGLE_1X1, firstTab: BrowserTab = meetTab) {
         val tabs = listOf(
-            BrowserTab(id = "meet", url = "https://meet.google.com/abc-defg-hij", title = "Meet"),
+            firstTab,
             BrowserTab(id = "news", url = "https://news.example.com/", title = "The Example Times"),
             BrowserTab(id = "new")
         )
@@ -98,7 +103,7 @@ class SitePermissionsSnapshotTest {
                 PersistedBrowserState(
                     layoutMode = layout,
                     tabs = tabs,
-                    paneTabIds = listOf("meet", "news").take(layout.paneCount),
+                    paneTabIds = listOf(firstTab.id, "news").take(layout.paneCount),
                     settings = settings
                 )
             )
@@ -147,6 +152,10 @@ class SitePermissionsSnapshotTest {
                 embeddedOrigin = "https://comments.disqus.com"
             )
         }
+    }
+
+    private fun askLocal(kind: SitePermissionKind) {
+        composeRule.runOnUiThread { engine.simulatePermissionRequest("plex", "https://app.plex.tv", setOf(kind)) }
     }
 
     /**
@@ -238,6 +247,40 @@ class SitePermissionsSnapshotTest {
         save("perm-09-prompt-phone-light-notifications")
     }
 
+    @Test
+    fun promptLocalNetworkWideDark() {
+        launch(dark = true, firstTab = plexTab)
+        askLocal(SitePermissionKind.LOCAL_NETWORK)
+        waitOutActionDelay()
+        save("perm-14-prompt-local-network-wide-dark")
+    }
+
+    @Test
+    fun promptLocalNetworkWideLight() {
+        launch(dark = false, firstTab = plexTab)
+        askLocal(SitePermissionKind.LOCAL_NETWORK)
+        waitOutActionDelay()
+        save("perm-15-prompt-local-network-wide-light")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun promptThisDevicePhoneDark() {
+        launch(dark = true, firstTab = plexTab)
+        askLocal(SitePermissionKind.LOCAL_DEVICE)
+        waitOutActionDelay()
+        save("perm-16-prompt-this-device-phone-dark")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun promptThisDevicePhoneLight() {
+        launch(dark = false, firstTab = plexTab)
+        askLocal(SitePermissionKind.LOCAL_DEVICE)
+        waitOutActionDelay()
+        save("perm-17-prompt-this-device-phone-light")
+    }
+
     private fun seedDecisions() {
         fun entry(origin: String, kind: SitePermissionKind, state: SitePermissionState, embedded: String? = null) =
             SitePermissionEntry(origin, SiteOrigins.displayHost(origin), kind, state, embedded)
@@ -253,7 +296,9 @@ class SitePermissionsSnapshotTest {
                 SitePermissionState.ALLOW,
                 embedded = "https://comments.disqus.com"
             ),
-            entry("http://192.168.1.20:8080", SitePermissionKind.CAMERA, SitePermissionState.BLOCK)
+            entry("http://192.168.1.20:8080", SitePermissionKind.CAMERA, SitePermissionState.BLOCK),
+            entry("https://app.plex.tv", SitePermissionKind.LOCAL_NETWORK, SitePermissionState.ALLOW),
+            entry("https://app.plex.tv", SitePermissionKind.LOCAL_DEVICE, SitePermissionState.BLOCK)
         )
     }
 

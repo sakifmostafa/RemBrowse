@@ -28,6 +28,48 @@ class GeckoSitePermissionsMappingTest {
         assertEquals(SitePermissionKind.NOTIFICATIONS, GeckoSitePermissions.kindFor(PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION))
         assertEquals(SitePermissionKind.PROTECTED_CONTENT, GeckoSitePermissions.kindFor(PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS))
         assertEquals(SitePermissionKind.STORAGE_ACCESS, GeckoSitePermissions.kindFor(PermissionDelegate.PERMISSION_STORAGE_ACCESS))
+        assertEquals(SitePermissionKind.LOCAL_NETWORK, GeckoSitePermissions.kindFor(PermissionDelegate.PERMISSION_LOCAL_NETWORK_ACCESS))
+        assertEquals(SitePermissionKind.LOCAL_DEVICE, GeckoSitePermissions.kindFor(PermissionDelegate.PERMISSION_LOCAL_DEVICE_ACCESS))
+    }
+
+    /** GeckoView's own name for content permission [type], as it reads and writes its store. */
+    private fun geckoViewTypeName(type: Int): String {
+        // Package-private in GeckoView (StorageController uses it); reached by reflection so the
+        // names RemBrowse writes are checked against the engine's, not against a copy of them
+        val method = ContentPermission::class.java.getDeclaredMethod(
+            "convertType",
+            Int::class.javaPrimitiveType,
+            Boolean::class.javaPrimitiveType
+        )
+        method.isAccessible = true
+        return method.invoke(null, type, false) as String
+    }
+
+    @Test
+    fun eachKindGeckoKeepsIsStoredUnderGeckoViewsOwnTypeName() {
+        val types = mapOf(
+            SitePermissionKind.LOCATION to PermissionDelegate.PERMISSION_GEOLOCATION,
+            SitePermissionKind.NOTIFICATIONS to PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION,
+            SitePermissionKind.PROTECTED_CONTENT to PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS,
+            SitePermissionKind.LOCAL_NETWORK to PermissionDelegate.PERMISSION_LOCAL_NETWORK_ACCESS,
+            SitePermissionKind.LOCAL_DEVICE to PermissionDelegate.PERMISSION_LOCAL_DEVICE_ACCESS
+        )
+        types.forEach { (kind, type) ->
+            val name = GeckoSitePermissions.geckoTypeName(kind)
+            assertEquals("type name for $kind", geckoViewTypeName(type), name)
+            // And a row of that type reads back as the same kind
+            assertEquals(kind to null, GeckoSitePermissions.kindOfType(name!!))
+        }
+        assertEquals("local-network", GeckoSitePermissions.geckoTypeName(SitePermissionKind.LOCAL_NETWORK))
+        assertEquals("loopback-network", GeckoSitePermissions.geckoTypeName(SitePermissionKind.LOCAL_DEVICE))
+    }
+
+    @Test
+    fun kindsGeckoDoesNotKeepByOneNameHaveNoTypeName() {
+        // Camera and microphone are RemBrowse's own records; storage access has a key per embedded site
+        listOf(CAMERA, MICROPHONE, SitePermissionKind.STORAGE_ACCESS).forEach {
+            assertNull("type name for $it", GeckoSitePermissions.geckoTypeName(it))
+        }
     }
 
     @Test
@@ -91,6 +133,8 @@ class GeckoSitePermissionsMappingTest {
             androidPermissionsFor(setOf(CAMERA, MICROPHONE)).toSet()
         )
         assertTrue(androidPermissionsFor(setOf(SitePermissionKind.NOTIFICATIONS, SitePermissionKind.STORAGE_ACCESS)).isEmpty())
+        // The local network kinds need no Android permission of RemBrowse's asking (see onAndroidRequest)
+        assertTrue(androidPermissionsFor(setOf(SitePermissionKind.LOCAL_NETWORK, SitePermissionKind.LOCAL_DEVICE)).isEmpty())
     }
 
     @Test

@@ -346,7 +346,7 @@ Passwords and private keys are encrypted with a key held by Android's keystore, 
 
 ## 12. Site permissions and notifications
 
-When a site asks to use your camera, microphone or location, to show notifications, to play protected (DRM) video, or (for a site embedded in another) to use its cookies, a card drops in at the top of that site's tab: "**web.telegram.org** wants to Show notifications", with **Block**, **Allow** and, for the camera, microphone and location, **Allow this time**.
+When a site asks to use your camera, microphone or location, to show notifications, to play protected (DRM) video, to connect to your local network or to this device, or (for a site embedded in another) to use its cookies, a card drops in at the top of that site's tab: "**web.telegram.org** wants to Show notifications", with **Block**, **Allow** and, for the camera, microphone, location and the local network, **Allow this time**.
 
 * **Allow** and **Block** are remembered for that site; it is not asked again.
 * **Allow this time** lasts while the tab stays on that site, and ends when it moves to another site, closes, or RemBrowse restarts.
@@ -354,6 +354,8 @@ When a site asks to use your camera, microphone or location, to show notificatio
 * The buttons ignore taps for half a second after the card appears or moves, so a click meant for the page can't answer it by accident.
 * The card names the site in the address bar, even when the request comes from something embedded in that page. A site you allowed is not let in through another site's page.
 * The first time, Android also asks whether RemBrowse itself may use the camera, microphone, location or notifications.
+
+**Local network and this device.** A site on the internet now asks before it connects to a device on your home or office network, such as a router's settings page or a media server (Plex's web app reaching your Plex server), or to an app or service running on this device (`localhost`): "**app.plex.tv** wants to Connect to devices on your local network" or "… Connect to apps and services on this device". Until you allow it, those connections fail and the site may say it can't find the device. Typing a local address such as `192.168.1.1` into the address bar is not asked about, and neither is a page on your local network reaching this device. In Settings → Site permissions these decisions are listed as **Devices on your local network** and **Apps and services on this device**.
 
 Some requests are answered without asking: sites may keep their data on the device (persistent storage) and play silent video; video with sound waits until you press play.
 

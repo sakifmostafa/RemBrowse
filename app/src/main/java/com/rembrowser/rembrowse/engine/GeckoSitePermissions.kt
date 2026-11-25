@@ -125,8 +125,8 @@ internal class GeckoSitePermissions(
     private val waitingForReady = mutableListOf<() -> Unit>()
 
     /**
-     * True once that clean-up succeeded. Until then a stored location ALLOW may be a one-time
-     * grant an earlier run left behind, so none is trusted.
+     * True once that clean-up succeeded. Until then a stored ALLOW for location or the local
+     * network may be a one-time grant an earlier run left behind, so none is trusted.
      */
     private var cleanedUp = false
 
@@ -467,6 +467,13 @@ internal class GeckoSitePermissions(
      * asked (Gecko cannot list the devices without them) and through whichever window was used
      * last, so nothing here says which site it is for: the site's own decision is applied when
      * its request follows. For location it comes only after the site was allowed.
+     *
+     * On Android 17 and later Gecko also asks for ACCESS_LOCAL_NETWORK whenever it connects to an
+     * address on the local network (not this device), through the window used last, and connects
+     * without waiting for the answer (GeckoViewStartup.sys.mjs, AndroidLocalNetworkPermission.cpp).
+     * An app targeting API 36 or lower holds it through INTERNET (Android's split permission), so
+     * it is answered here without a dialog. Android asks apps not to declare or request it before
+     * they target 37; the manifest needs it from then on.
      */
     private fun onAndroidRequest(
         handle: GeckoSessionHandle,
@@ -550,9 +557,15 @@ internal class GeckoSitePermissions(
         return embedded == null || SiteOrigins.siteOf(suffix) == embedded
     }
 
+    /**
+     * Whether a stored ALLOW for [key] is not to be taken as the user's decision: a one-time grant
+     * of this run, or, until the clean-up succeeded, one an earlier run may have left behind (any
+     * ALLOW of a kind that offers "Allow this time", as the note of it may not have reached the
+     * disk).
+     */
     private fun isDistrusted(key: GrantKey): Boolean =
         temporaryGrants.any { it.key == key } ||
-            (!cleanedUp && key !in confirmedAllows && (key in leftoverGrants || key.kind == SitePermissionKind.LOCATION))
+            (!cleanedUp && key !in confirmedAllows && (key in leftoverGrants || key.kind.offersAllowOnce))
 
     /**
      * The user refused [key] while Gecko still holds refusals from before RemBrowse answered
@@ -796,6 +809,15 @@ internal class GeckoSitePermissions(
         private const val STORAGE_PREFIX = "3rdPartyStorage^"
 
         /**
+         * The types Gecko stores the local network decisions under, for the page's origin: the
+         * names GeckoView 161 converts PERMISSION_LOCAL_NETWORK_ACCESS and
+         * PERMISSION_LOCAL_DEVICE_ACCESS to and from (`ContentPermission.convertType`), which
+         * are also the keys necko's LNAPermissionRequest asks under.
+         */
+        internal const val LOCAL_NETWORK_TYPE = "local-network"
+        internal const val LOCAL_DEVICE_TYPE = "loopback-network"
+
+        /**
          * Which decision [row] is, as "origin KIND [embedded]" (the form one-time grants and the
          * user's Blocks are noted in), or null for a row RemBrowse does not manage.
          */
@@ -837,12 +859,19 @@ internal class GeckoSitePermissions(
             else -> KeepAllowStep.STOP
         }
 
-        /** The kind a content permission request is about, or null for one answered without asking. */
+        /**
+         * The kind a content permission request is about, or null for one answered without asking.
+         * The two local network kinds come from the engine's Local Network Access checks (on by
+         * default since GeckoView 143), for a page on the internet reaching the local network or
+         * this device.
+         */
         internal fun kindFor(type: Int): SitePermissionKind? = when (type) {
             PermissionDelegate.PERMISSION_GEOLOCATION -> SitePermissionKind.LOCATION
             PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION -> SitePermissionKind.NOTIFICATIONS
             PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS -> SitePermissionKind.PROTECTED_CONTENT
             PermissionDelegate.PERMISSION_STORAGE_ACCESS -> SitePermissionKind.STORAGE_ACCESS
+            PermissionDelegate.PERMISSION_LOCAL_NETWORK_ACCESS -> SitePermissionKind.LOCAL_NETWORK
+            PermissionDelegate.PERMISSION_LOCAL_DEVICE_ACCESS -> SitePermissionKind.LOCAL_DEVICE
             else -> null
         }
 
@@ -854,6 +883,8 @@ internal class GeckoSitePermissions(
             "geolocation" -> SitePermissionKind.LOCATION to null
             "desktop-notification" -> SitePermissionKind.NOTIFICATIONS to null
             "media-key-system-access" -> SitePermissionKind.PROTECTED_CONTENT to null
+            LOCAL_NETWORK_TYPE -> SitePermissionKind.LOCAL_NETWORK to null
+            LOCAL_DEVICE_TYPE -> SitePermissionKind.LOCAL_DEVICE to null
             else -> storageSuffixOf(type)?.let { SitePermissionKind.STORAGE_ACCESS to it }
         }
 
@@ -916,10 +947,12 @@ internal class GeckoSitePermissions(
         }
 
         /** The type Gecko stores [kind] under; storage access has one per embedded site instead. */
-        private fun geckoTypeName(kind: SitePermissionKind): String? = when (kind) {
+        internal fun geckoTypeName(kind: SitePermissionKind): String? = when (kind) {
             SitePermissionKind.LOCATION -> "geolocation"
             SitePermissionKind.NOTIFICATIONS -> "desktop-notification"
             SitePermissionKind.PROTECTED_CONTENT -> "media-key-system-access"
+            SitePermissionKind.LOCAL_NETWORK -> LOCAL_NETWORK_TYPE
+            SitePermissionKind.LOCAL_DEVICE -> LOCAL_DEVICE_TYPE
             SitePermissionKind.STORAGE_ACCESS, SitePermissionKind.CAMERA, SitePermissionKind.MICROPHONE -> null
         }
 

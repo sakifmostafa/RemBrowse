@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark light">
+<title>RemBrowse local network test</title>
+<link rel="stylesheet" href="assets/site.css?v=3">
+<link rel="stylesheet" href="assets/keys.css?v=1">
+<link rel="stylesheet" href="assets/lna.css?v=1">
+<script src="assets/lna.js?v=1" defer></script>
+</head>
+<body>
+<main class="kt wrap">
+  <h1>Local network test</h1>
+  <p class="kt-lede">Checks whether this page may reach a device on your local network (a router, a media server) and an app or service on this device. A site on the internet has to ask first: press <strong>Connect</strong>, answer the browser's question, and the result shows below.</p>
+
+  <section class="lna-targets" aria-label="Addresses to try">
+    <form class="lna-target" id="lan-form" data-name="local network">
+      <label class="kt-label" for="lan-url">A device on your local network</label>
+      <div class="lna-row">
+        <input class="lna-input" id="lan-url" type="url" value="http://192.168.1.1/" required spellcheck="false" autocomplete="off">
+        <button class="pill" type="submit" aria-label="Connect to the device on your local network">Connect</button>
+      </div>
+      <p class="lna-result" id="lan-result" aria-live="polite"></p>
+    </form>
+    <form class="lna-target" id="device-form" data-name="this device">
+      <label class="kt-label" for="device-url">An app or service on this device</label>
+      <div class="lna-row">
+        <input class="lna-input" id="device-url" type="url" value="http://127.0.0.1:8080/" required spellcheck="false" autocomplete="off">
+        <button class="pill" type="submit" aria-label="Connect to the app or service on this device">Connect</button>
+      </div>
+      <p class="lna-result" id="device-result" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <p class="kt-lede lna-note">"Reached" means something answered at that address, whatever it sent. "Blocked or unreachable" means the browser refused the connection or nothing answered. On a page loaded over https, a browser also refuses plain http addresses on your network (mixed content), though not this device's; try an https address for those.</p>
+
+  <div class="kt-actions">
+    <button class="pill" type="button" id="copy">Copy log</button>
+    <button class="kt-clear" type="button" id="clear">Clear</button>
+    <span id="copied" aria-live="polite"></span>
+  </div>
+
+  <h2 class="kt-h2">Results (newest first)</h2>
+  <pre class="kt-pre kt-log" id="log"></pre>
+</main>
+</body>
+</html>

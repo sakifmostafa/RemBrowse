@@ -16,14 +16,27 @@ enum class SitePermissionKind {
     PROTECTED_CONTENT,
 
     /** An embedded site asking to use its own cookies on the page's site. */
-    STORAGE_ACCESS;
+    STORAGE_ACCESS,
+
+    /**
+     * A site on the internet connecting to a device on the local network (a router's page, a
+     * media server), as the engine's Local Network Access checks see it.
+     */
+    LOCAL_NETWORK,
+
+    /**
+     * A site on the internet connecting to an app or service on this device (localhost). A page
+     * on the local network does so without asking, as the engine has it.
+     */
+    LOCAL_DEVICE;
 
     /**
      * Whether a request for this kind offers "Allow this time". Only things a site uses while it
      * is open get it; a lasting one such as notifications would be meaningless granted once.
      */
     val offersAllowOnce: Boolean
-        get() = this == CAMERA || this == MICROPHONE || this == LOCATION
+        get() = this == CAMERA || this == MICROPHONE || this == LOCATION ||
+            this == LOCAL_NETWORK || this == LOCAL_DEVICE
 }
 
 /** A decision remembered for a site. No decision at all means the site is asked again. */
@@ -62,7 +75,7 @@ data class PermissionRequest(
     val kinds: Set<SitePermissionKind>,
     /** For STORAGE_ACCESS, the host of the embedded site that wants its cookies; otherwise null. */
     val embeddedHost: String?,
-    /** Whether to offer [PermissionAnswer.ALLOW_ONCE] (camera, microphone and location only). */
+    /** Whether to offer [PermissionAnswer.ALLOW_ONCE] (see [SitePermissionKind.offersAllowOnce]). */
     val offersAllowOnce: Boolean
 )
 

@@ -1,0 +1,48 @@
+/* RemBrowse local network test page (lna.html), beside keys.css. Uses the site's tokens from site.css. */
+.lna-targets {
+  display: grid;
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+}
+@media (min-width: 768px) {
+  .lna-targets {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.lna-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.lna-input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--s-3);
+  /* --text-3, not --line: a field's edge needs 3:1 against the page in both themes */
+  border: 1px solid var(--text-3);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--text);
+  font: 400 var(--fs-base) / 1.5 var(--mono);
+}
+.lna-input:focus {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+/* While an address is being tried */
+.lna-row .pill:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.lna-result {
+  min-height: 1.5em;
+  margin-top: var(--s-2);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.lna-note {
+  font-size: var(--fs-sm);
+}

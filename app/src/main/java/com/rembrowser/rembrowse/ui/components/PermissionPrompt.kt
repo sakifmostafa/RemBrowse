@@ -41,9 +41,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Cookie
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Icon
@@ -189,9 +191,9 @@ fun BoxScope.PermissionPromptOverlay(
 }
 
 /**
- * The card itself: what the site wants, Block, Allow this time (camera, microphone and location
- * only) and Allow, and a close button that refuses this request without remembering anything.
- * Esc closes it too while keyboard focus is in it.
+ * The card itself: what the site wants, Block, Allow this time (camera, microphone, location and
+ * the local network only) and Allow, and a close button that refuses this request without
+ * remembering anything. Esc closes it too while keyboard focus is in it.
  *
  * A request that follows another in the same card crossfades in, and every new request holds
  * its answers back for [PermissionActionDelayMillis].
@@ -490,11 +492,14 @@ internal val SitePermissionKind.icon: ImageVector
         SitePermissionKind.NOTIFICATIONS -> Icons.Outlined.Notifications
         SitePermissionKind.PROTECTED_CONTENT -> Icons.Outlined.SmartDisplay
         SitePermissionKind.STORAGE_ACCESS -> Icons.Outlined.Cookie
+        SitePermissionKind.LOCAL_NETWORK -> Icons.Outlined.Router
+        SitePermissionKind.LOCAL_DEVICE -> Icons.Outlined.Devices
     }
 
 /**
  * What the site wants, as the second line of the card: "Use your camera and microphone",
- * "Know your location", or for cookies "Let **embedded.example** use its cookies on this site".
+ * "Know your location", "Connect to devices on your local network", or for cookies
+ * "Let **embedded.example** use its cookies on this site".
  */
 internal fun permissionAskText(kinds: Set<SitePermissionKind>, embeddedHost: String?): AnnotatedString {
     val boldHost = SpanStyle(fontWeight = FontWeight.SemiBold)
@@ -509,6 +514,8 @@ internal fun permissionAskText(kinds: Set<SitePermissionKind>, embeddedHost: Str
         if (SitePermissionKind.LOCATION in kinds) add(AnnotatedString("know your location"))
         if (SitePermissionKind.NOTIFICATIONS in kinds) add(AnnotatedString("show notifications"))
         if (SitePermissionKind.PROTECTED_CONTENT in kinds) add(AnnotatedString("play protected content (DRM)"))
+        if (SitePermissionKind.LOCAL_NETWORK in kinds) add(AnnotatedString("connect to devices on your local network"))
+        if (SitePermissionKind.LOCAL_DEVICE in kinds) add(AnnotatedString("connect to apps and services on this device"))
         if (SitePermissionKind.STORAGE_ACCESS in kinds) {
             add(
                 buildAnnotatedString {
@@ -548,5 +555,7 @@ internal fun sitePermissionLabel(kind: SitePermissionKind, embeddedHost: String?
     SitePermissionKind.NOTIFICATIONS -> "Notifications"
     SitePermissionKind.PROTECTED_CONTENT -> "Protected content"
     SitePermissionKind.STORAGE_ACCESS -> if (embeddedHost != null) "Cookies for $embeddedHost" else "Cookies for embedded sites"
+    SitePermissionKind.LOCAL_NETWORK -> "Devices on your local network"
+    SitePermissionKind.LOCAL_DEVICE -> "Apps and services on this device"
 }
 
