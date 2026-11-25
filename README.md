@@ -14,8 +14,8 @@
 
 | Your device | Download |
 | :--- | :--- |
-| Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](https://rembrowse.com/RemBrowse-x86_64.apk)** · 90 MB |
-| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](https://rembrowse.com/RemBrowse-arm64-v8a.apk)** · 85 MB |
+| Intel or AMD processor (most Android laptops) | **[RemBrowse-x86_64.apk](https://rembrowse.com/RemBrowse-x86_64.apk)** · 109 MB |
+| ARM processor (phones, tablets, ARM laptops) | **[RemBrowse-arm64-v8a.apk](https://rembrowse.com/RemBrowse-arm64-v8a.apk)** · 104 MB |
 
 Requires Android 13 or newer (on Android 8 to 12, keep 0.15.0). If Android refuses to install over an existing copy, uninstall the old one first: builds signed with different keys cannot update each other (see the [Build & Test Guide](docs/BUILD_AND_TEST_GUIDE.md#5-signing--versioning-rules)).
 
