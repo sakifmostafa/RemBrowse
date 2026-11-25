@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -712,6 +713,8 @@ fun ExtensionPopupDialog(
                     .fillMaxSize()
                     .onPlaced { bounds.window = it }
                     .pointerInput(bounds) { closeOnTapOutside(bounds) { dismiss() } }
+                    // Above the on-screen keyboard, so it doesn't cover a field of the popup
+                    .imePadding()
                     // The visible popup starts 4dp past the rail; at the bottom, its shadow margin
                     // lines it up with the panes' bottom edge
                     .padding(start = (railWidth + PopupRailGap - PopupShadowMargin).coerceAtLeast(0.dp))
