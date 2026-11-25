@@ -4,8 +4,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.model.PxRect
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -87,6 +90,53 @@ class WholePageShotTest {
             PageContentSize(1000, 1000, 1f)
         }
         assertEquals(listOf(1000 to 1000), asked)
+    }
+
+    @Test
+    fun aPageWhoseViewLostFocus_isInTheEnginesFocusWhileItIsTaken_andOutOfItAfter() = runTest {
+        val focus = mutableListOf<Any>()
+        val result = withEngineFocus(viewFocused = { false }, setEngineFocus = { focus += it }) {
+            focus += "taken"
+            7
+        }
+        assertEquals(7, result)
+        assertEquals(listOf(true, "taken", false), focus)
+    }
+
+    @Test
+    fun aPageWhoseViewHasFocus_isLeftAlone() = runTest {
+        val focus = mutableListOf<Boolean>()
+        assertEquals(7, withEngineFocus(viewFocused = { true }, setEngineFocus = { focus += it }) { 7 })
+        assertTrue(focus.isEmpty())
+    }
+
+    @Test
+    fun aViewThatGainsFocusMeanwhile_keepsTheEnginesFocus() = runTest {
+        val focus = mutableListOf<Boolean>()
+        var viewFocused = false
+        withEngineFocus(viewFocused = { viewFocused }, setEngineFocus = { focus += it }) { viewFocused = true }
+        assertEquals(listOf(true), focus)
+    }
+
+    @Test
+    fun theEnginesFocusIsGivenBack_whenTheCaptureFailsOrIsCancelled() = runTest {
+        val focus = mutableListOf<Boolean>()
+        val thrown = runCatching {
+            withEngineFocus<Unit>(viewFocused = { false }, setEngineFocus = { focus += it }) {
+                throw IllegalStateException("no page")
+            }
+        }
+        assertTrue(thrown.exceptionOrNull() is IllegalStateException)
+        assertEquals(listOf(true, false), focus)
+
+        focus.clear()
+        val capture = launch {
+            withEngineFocus(viewFocused = { false }, setEngineFocus = { focus += it }) { awaitCancellation() }
+        }
+        runCurrent()
+        assertEquals(listOf(true), focus)
+        capture.cancelAndJoin()
+        assertEquals(listOf(true, false), focus)
     }
 
     /** What the engine makes of a side of the region it is asked for: CSS pixels, rounded down. */

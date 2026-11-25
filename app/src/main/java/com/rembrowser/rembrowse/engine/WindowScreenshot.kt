@@ -92,15 +92,51 @@ private class PictureDisplay(session: GeckoSession) : GeckoDisplay(session)
  * hands that failure back as an [OutOfMemoryError] rather than throwing it. One larger than
  * Android makes at all, a failure caused by an [IllegalArgumentException], is too long.
  *
+ * The page is put in the engine's focus meanwhile ([withEngineFocus]): the engine can't find a
+ * page whose view lost focus, as this one has to whatever asked for the screenshot.
+ *
  * Cancelling it frees the picture whenever it arrives.
  */
 suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot {
     val session = session ?: return WholePageShot.Failed
-    return wholePageShot(
-        maxPixels,
-        askSize = { session.awaitPageContentSize() },
-        take = { source, width, height -> session.awaitWholePage(source, width, height) }
-    )
+    return withEngineFocus(
+        viewFocused = { isFocused },
+        setEngineFocus = { focused -> if (session.isOpen) session.setFocused(focused) }
+    ) {
+        wholePageShot(
+            maxPixels,
+            askSize = { session.awaitPageContentSize() },
+            take = { source, width, height -> session.awaitWholePage(source, width, height) }
+        )
+    }
+}
+
+/**
+ * Runs [block] with the page in the engine's focus, which the engine needs to find the page at
+ * all: a session told it lost focus (`GeckoSession.setFocused(false)`, which GeckoView does
+ * whenever its view loses Android's focus) no longer has a page the engine can measure or draw
+ * whole, and both fail with "could not retrieve canonical browsing context". The view has always
+ * lost focus by the time a whole page is asked for, to the screenshot overlay or the command
+ * palette, if it ever had it. GeckoView's own `saveAsPdf` gives the session focus first for the
+ * same reason.
+ *
+ * A view that has Android's focus ([viewFocused]) is in the engine's focus already and is left
+ * alone. Otherwise the session is given focus ([setEngineFocus]) for as long as [block] runs and
+ * told it is lost again after, however [block] ends, unless the view has gained Android's focus
+ * meanwhile: then the engine's focus is the view's own and stays.
+ */
+internal suspend fun <T> withEngineFocus(
+    viewFocused: () -> Boolean,
+    setEngineFocus: (Boolean) -> Unit,
+    block: suspend () -> T
+): T {
+    if (viewFocused()) return block()
+    setEngineFocus(true)
+    try {
+        return block()
+    } finally {
+        if (!viewFocused()) setEngineFocus(false)
+    }
 }
 
 /**
