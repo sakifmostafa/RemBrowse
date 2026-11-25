@@ -25,9 +25,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -39,6 +42,7 @@ import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,6 +56,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -73,7 +78,9 @@ import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -87,6 +94,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import coil3.compose.AsyncImage
 import com.rembrowser.rembrowse.model.AmoAddon
+import com.rembrowser.rembrowse.model.ExtensionDataCollection
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.ExtensionPromptKind
@@ -607,12 +615,21 @@ private fun InstallXpiTab(
     }
 }
 
+/**
+ * The review of an extension's permissions before it is installed or updated, or before it gets
+ * the optional permissions it asked for. Under the permissions, what the developer says the
+ * extension collects, and on an install the optional technical and interaction data with a
+ * checkbox, unticked. [onDecision] gets whether to go ahead and whether that box was ticked.
+ * The content scrolls when it is taller than the window.
+ */
 @Composable
 fun ExtensionInstallPromptDialog(
     prompt: ExtensionInstallPrompt,
-    onDecision: (Boolean) -> Unit
+    onDecision: (allow: Boolean, shareTechnicalData: Boolean) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
+    // A new prompt starts unticked
+    var shareTechnicalData by remember(prompt) { mutableStateOf(false) }
     val (title, intro, confirmLabel) = when (prompt.kind) {
         ExtensionPromptKind.INSTALL -> Triple(
             "Add ${prompt.extensionName}?",
@@ -631,10 +648,13 @@ fun ExtensionInstallPromptDialog(
         )
     }
     AlertDialog(
-        onDismissRequest = { onDecision(false) },
+        onDismissRequest = { onDecision(false, false) },
         title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     text = if (prompt.permissions.isEmpty()) {
                         "It doesn't ask for any special permissions."
@@ -658,13 +678,102 @@ fun ExtensionInstallPromptDialog(
                         color = colors.onSurfaceVariant
                     )
                 }
+                ExtensionDataCollectionSection(
+                    prompt = prompt,
+                    shareTechnicalData = shareTechnicalData,
+                    onShareTechnicalDataChange = { shareTechnicalData = it }
+                )
             }
         },
-        confirmButton = { PrimaryDialogButton(label = confirmLabel, onClick = { onDecision(true) }) },
+        confirmButton = {
+            PrimaryDialogButton(label = confirmLabel, onClick = { onDecision(true, shareTechnicalData) })
+        },
         dismissButton = {
-            TextButton(onClick = { onDecision(false) }) { Text("Cancel") }
+            TextButton(onClick = { onDecision(false, false) }) { Text("Cancel") }
         }
     )
+}
+
+/**
+ * What the developer says the extension collects, in the permission list's style: each kind in
+ * plain words, or a line saying it collects nothing; then, on an install that offers it, a
+ * checkbox for the optional technical and interaction data. Nothing for an extension that
+ * declares nothing (made before Firefox asked extensions to say).
+ */
+@Composable
+private fun ExtensionDataCollectionSection(
+    prompt: ExtensionInstallPrompt,
+    shareTechnicalData: Boolean,
+    onShareTechnicalDataChange: (Boolean) -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val collected = prompt.dataCollection
+    if (collected.isEmpty() && !prompt.offersTechnicalData) return
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = when (prompt.kind) {
+            ExtensionPromptKind.INSTALL -> "Data this extension collects"
+            ExtensionPromptKind.UPDATE -> "Data the new version collects"
+            ExtensionPromptKind.OPTIONAL_PERMISSIONS -> "Data it asks to collect"
+        },
+        style = MaterialTheme.typography.titleSmall,
+        color = colors.onSurface,
+        modifier = Modifier.semantics { heading() }
+    )
+    when {
+        ExtensionDataCollection.NONE in collected -> Text(
+            text = "The developer says this extension doesn't collect data.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant
+        )
+        collected.isNotEmpty() -> {
+            Text(
+                text = "The developer says it collects:",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant
+            )
+            collected.forEach { kind ->
+                Text(
+                    text = "•  ${ExtensionDataCollection.describe(kind)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurface
+                )
+            }
+        }
+    }
+    if (prompt.offersTechnicalData) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(
+                    value = shareTechnicalData,
+                    interactionSource = null,
+                    indication = ripple(focusRingShape = MaterialTheme.shapes.small),
+                    role = Role.Checkbox,
+                    onValueChange = onShareTechnicalDataChange
+                )
+                // Keeps the box clear of the focus ring, drawn just inside the row's edge
+                .padding(horizontal = 4.dp)
+                .testTag("extension_prompt_technical_data"),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(checked = shareTechnicalData, onCheckedChange = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Text(
+                    text = "Share technical and interaction data with the developer",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurface
+                )
+                Text(
+                    text = "Optional. Your device and browser versions, the extension's settings, and how you use it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 /**

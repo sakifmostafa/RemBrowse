@@ -475,6 +475,7 @@ class FakeExtensionManager : ExtensionManager {
     val installedUris = mutableListOf<String>()
     val triggeredActionIds = mutableListOf<String>()
     var lastPromptDecision: Boolean? = null
+    var lastTechnicalDataDecision: Boolean? = null
 
     /**
      * When set, what refreshInstalled returns, without touching [installedExtensions] first: on a
@@ -555,9 +556,10 @@ class FakeExtensionManager : ExtensionManager {
         activePopup.value = null
     }
 
-    override fun dismissPrompt(allow: Boolean) {
+    override fun dismissPrompt(allow: Boolean, shareTechnicalData: Boolean) {
         lastPromptDecision = allow
-        pendingPrompt.value?.onDecision?.invoke(allow)
+        lastTechnicalDataDecision = shareTechnicalData
+        pendingPrompt.value?.onDecision?.invoke(allow, shareTechnicalData)
         pendingPrompt.value = null
     }
 }

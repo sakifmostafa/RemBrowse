@@ -271,6 +271,8 @@ Enabled extensions with a toolbar button appear at the bottom of the tab rail, w
 
 You are asked again whenever an update needs **new permissions** or an extension requests **additional permissions**.
 
+**What an extension collects.** Under the permissions, the review lists the data the developer says the extension collects and sends them, in plain words ("Your location", "What you search for"), or says "The developer says this extension doesn't collect data". Extensions made before Firefox asked developers to say so show nothing there. Some extensions also ask to collect **technical and interaction data** (your device and browser versions, the extension's settings and how you use it) only if you agree: that one has its own checkbox, unticked, and the extension installs either way. Updates and additional permission requests list any new kinds of data the same way.
+
 > **Signing note**: extensions must be signed by Mozilla (everything on addons.mozilla.org is).
 
 ---

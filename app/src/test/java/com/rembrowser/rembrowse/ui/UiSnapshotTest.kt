@@ -51,6 +51,8 @@ import com.rembrowser.rembrowse.model.ArchivedAdBlocker
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.DownloadStatus
+import com.rembrowser.rembrowse.model.ExtensionDataCollection
+import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.LayoutMode
 import com.rembrowser.rembrowse.model.PersistedBrowserState
@@ -106,6 +108,7 @@ class UiSnapshotTest {
     private lateinit var extVm: ExtensionsViewModel
     private lateinit var downloadsVm: DownloadsViewModel
     private lateinit var inputModes: InputModeManager
+    private lateinit var extensionManager: FakeExtensionManager
 
     @Before
     fun setUp() {
@@ -151,7 +154,7 @@ class UiSnapshotTest {
                 )
             )
         )
-        val extensionManager = FakeExtensionManager()
+        extensionManager = FakeExtensionManager()
         val amo = FakeAmoApiClient()
         if (withExtensions) {
             extensionManager.installedExtensions.value = listOf(
@@ -439,6 +442,97 @@ class UiSnapshotTest {
         launch(withExtensions = true)
         composeRule.onNodeWithTag("rail_extension_vpn@proton.ch").performClick()
         save("21-extension-popup")
+    }
+
+    /**
+     * The install prompt of an extension that says what it collects and offers the optional
+     * technical data, with the box unticked.
+     */
+    private fun showDataCollectionPrompt() {
+        composeRule.runOnUiThread {
+            extensionManager.pendingPrompt.value = ExtensionInstallPrompt(
+                extensionId = "weather@example.com",
+                extensionName = "Forecastfox Weather",
+                version = "4.2.0",
+                permissions = listOf("geolocation", "storage", "notifications", "<all_urls>"),
+                dataCollection = listOf("locationInfo", "browsingActivity", "websiteContent"),
+                offersTechnicalData = true,
+                onDecision = { _, _ -> }
+            )
+        }
+    }
+
+    @Test
+    fun extensionDataCollectionPrompt() {
+        launch()
+        showDataCollectionPrompt()
+        save("26-extension-data-prompt-dark")
+    }
+
+    @Test
+    fun extensionDataCollectionPromptLight() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT))
+        showDataCollectionPrompt()
+        save("26b-extension-data-prompt-light")
+    }
+
+    /** An extension that says it collects nothing, and still offers the technical data. */
+    @Test
+    fun extensionCollectsNothingPrompt() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT))
+        composeRule.runOnUiThread {
+            extensionManager.pendingPrompt.value = ExtensionInstallPrompt(
+                extensionId = "notes@example.com",
+                extensionName = "Quick Notes",
+                version = "1.3",
+                permissions = listOf("storage"),
+                dataCollection = listOf(ExtensionDataCollection.NONE),
+                offersTechnicalData = true,
+                onDecision = { _, _ -> }
+            )
+        }
+        save("26c-extension-collects-nothing-light")
+    }
+
+    /** On a phone at font scale 1.3 the prompt scrolls; scrolled down to the checkbox, ticked. */
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 1.3f)
+    fun compactExtensionDataCollectionPrompt() {
+        launch()
+        showDataCollectionPrompt()
+        save("26d-compact-extension-data-prompt-dark")
+        composeRule.onNodeWithTag("extension_prompt_technical_data").performScrollTo().performClick()
+        save("26e-compact-extension-data-prompt-ticked-dark")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 1.3f)
+    fun compactExtensionDataCollectionPromptLight() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT))
+        showDataCollectionPrompt()
+        composeRule.onNodeWithTag("extension_prompt_technical_data").performScrollTo()
+        save("26f-compact-extension-data-prompt-light")
+    }
+
+    /** The checkbox with the keyboard's focus, in light and dark. */
+    @Test
+    fun keyboardFocusOnTheDataCheckbox() {
+        launch()
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
+        composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
+        showDataCollectionPrompt()
+        composeRule.onNodeWithTag("extension_prompt_technical_data").requestFocus()
+        save("26g-keyboard-focus-data-checkbox-dark")
+    }
+
+    @Test
+    fun keyboardFocusOnTheDataCheckboxLight() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT))
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
+        composeRule.runOnIdle { inputModes.requestInputMode(InputMode.Keyboard) }
+        showDataCollectionPrompt()
+        composeRule.onNodeWithTag("extension_prompt_technical_data").requestFocus()
+        save("26h-keyboard-focus-data-checkbox-light")
     }
 
     @Test

@@ -7,6 +7,9 @@ import com.rembrowser.rembrowse.fakes.FakeExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ArchivedAdBlocker
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
+import com.rembrowser.rembrowse.model.ExtensionDataCollection
+import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
+import com.rembrowser.rembrowse.model.ExtensionPromptKind
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import kotlinx.coroutines.CompletableDeferred
@@ -631,6 +634,59 @@ class ExtensionsViewModelTest {
             assertTrue(enabledOf(DefaultAdBlocker.ID))
             assertTrue("A failed list does not pass for AdGuard being off", enabledOf(ArchivedAdBlocker.ID))
             assertFalse(store.blockerMovedToUblock)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    /** A prompt for an extension that collects [dataCollection], recording each answer it gets. */
+    private fun promptCollecting(
+        answers: MutableList<Pair<Boolean, Boolean>>,
+        dataCollection: List<String> = listOf("locationInfo", "browsingActivity"),
+        offersTechnicalData: Boolean = true
+    ) = ExtensionInstallPrompt(
+        extensionId = "weather@example.com",
+        extensionName = "Weather",
+        version = "2.0",
+        permissions = listOf("geolocation"),
+        kind = ExtensionPromptKind.INSTALL,
+        dataCollection = dataCollection,
+        offersTechnicalData = offersTechnicalData,
+        onDecision = { allow, share -> answers += allow to share }
+    )
+
+    @Test
+    fun thePromptCarriesWhatTheExtensionCollects() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope)
+            extensionManager.pendingPrompt.value = promptCollecting(mutableListOf())
+
+            val prompt = viewModel.uiState.value.pendingPrompt
+            assertNotNull(prompt)
+            assertEquals(listOf("locationInfo", "browsingActivity"), prompt!!.dataCollection)
+            assertTrue(prompt.offersTechnicalData)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun theAnswerCarriesTheTechnicalDataCheckbox() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope)
+            val answers = mutableListOf<Pair<Boolean, Boolean>>()
+
+            extensionManager.pendingPrompt.value = promptCollecting(answers)
+            viewModel.respondToInstallPrompt(allow = true, shareTechnicalData = true)
+            extensionManager.pendingPrompt.value = promptCollecting(answers)
+            viewModel.respondToInstallPrompt(allow = true, shareTechnicalData = false)
+            extensionManager.pendingPrompt.value = promptCollecting(answers, listOf(ExtensionDataCollection.NONE))
+            viewModel.respondToInstallPrompt(allow = false)
+
+            assertEquals(listOf(true to true, true to false, false to false), answers)
+            assertNull(viewModel.uiState.value.pendingPrompt)
         } finally {
             vmScope.cancel()
         }

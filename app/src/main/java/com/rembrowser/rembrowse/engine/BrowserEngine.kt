@@ -252,5 +252,9 @@ interface ExtensionManager {
     suspend fun uninstall(extensionId: String): Result<Unit>
     fun triggerBrowserAction(extensionId: String)
     fun dismissPopup()
-    fun dismissPrompt(allow: Boolean)
+    /**
+     * Answers the prompt on show: [allow] goes ahead; [shareTechnicalData] is the prompt's
+     * checkbox for the optional technical and interaction data, when it offers one.
+     */
+    fun dismissPrompt(allow: Boolean, shareTechnicalData: Boolean = false)
 }

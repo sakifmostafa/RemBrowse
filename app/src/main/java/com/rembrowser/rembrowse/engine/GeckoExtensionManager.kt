@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import com.rembrowser.rembrowse.model.ExtensionDataCollection
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
 import com.rembrowser.rembrowse.model.ExtensionPromptKind
@@ -52,6 +53,22 @@ private const val ICON_REFRESH_DELAY_MS = 300L
  */
 internal const val POPUP_VIEWPORT_EXTENSION_ID = "extension-popups@rembrowse"
 internal const val POPUP_VIEWPORT_EXTENSION_URI = "resource://android/assets/extensions/popup_viewport/"
+
+/**
+ * The answer to an install prompt: [allow] grants the extension's permissions and, as RemBrowse
+ * always does (see allowInPrivateBrowsing), private browsing; technical and interaction data
+ * only when the extension offered it and the user ticked its box ([shareTechnicalData]).
+ */
+internal fun installAnswer(allow: Boolean, shareTechnicalData: Boolean): WebExtension.PermissionPromptResponse =
+    WebExtension.PermissionPromptResponse(allow, allow, allow && shareTechnicalData)
+
+/**
+ * The answer for one of the browser's own default extensions, installed without a prompt: all
+ * its permissions and private browsing, never technical and interaction data, which nobody was
+ * asked about.
+ */
+internal fun trustedInstallAnswer(): WebExtension.PermissionPromptResponse =
+    WebExtension.PermissionPromptResponse(true, true, false)
 
 /**
  * @param openExtensionTab creates a browser tab for [url] and returns its *unopened* session,
@@ -163,23 +180,29 @@ class GeckoExtensionManager(
 
     private fun configureDelegates() {
         controller.setPromptDelegate(object : WebExtensionController.PromptDelegate {
-            // dataCollectionPermissions (what the extension's manifest says it collects) is not
-            // shown yet, and the optional "technical and interaction data" is never granted: the
-            // third value of PermissionPromptResponse.
+            // dataCollectionPermissions is what the extension's manifest says it collects and
+            // sends its developer, shown in the prompt (see ExtensionDataCollection). On an
+            // install it also holds the optional "technical and interaction data", which is
+            // granted only when the user ticks its box: the third value of
+            // PermissionPromptResponse.
             override fun onInstallPromptRequest(
                 extension: WebExtension,
                 permissions: Array<String>,
                 origins: Array<String>,
                 dataCollectionPermissions: Array<String>
             ): GeckoResult<WebExtension.PermissionPromptResponse> {
-                // The second value allows the extension in private browsing; see
-                // allowInPrivateBrowsing for why RemBrowse always does.
                 if (extension.id in trustedInstallIds) {
-                    return GeckoResult.fromValue(WebExtension.PermissionPromptResponse(true, true, false))
+                    return GeckoResult.fromValue(trustedInstallAnswer())
                 }
                 val result = GeckoResult<WebExtension.PermissionPromptResponse>()
-                enqueuePrompt(extension, permissions, origins, ExtensionPromptKind.INSTALL) { allow ->
-                    result.complete(WebExtension.PermissionPromptResponse(allow, allow, false))
+                enqueuePrompt(
+                    extension,
+                    permissions,
+                    origins,
+                    dataCollectionPermissions,
+                    ExtensionPromptKind.INSTALL
+                ) { allow, shareTechnicalData ->
+                    result.complete(installAnswer(allow, shareTechnicalData))
                 }
                 return result
             }
@@ -193,7 +216,13 @@ class GeckoExtensionManager(
                 newDataCollectionPermissions: Array<String>
             ): GeckoResult<AllowOrDeny> {
                 val result = GeckoResult<AllowOrDeny>()
-                enqueuePrompt(extension, newPermissions, newOrigins, ExtensionPromptKind.UPDATE) { allow ->
+                enqueuePrompt(
+                    extension,
+                    newPermissions,
+                    newOrigins,
+                    newDataCollectionPermissions,
+                    ExtensionPromptKind.UPDATE
+                ) { allow, _ ->
                     result.complete(if (allow) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
                 }
                 return result
@@ -210,8 +239,9 @@ class GeckoExtensionManager(
                     extension,
                     permissions,
                     origins,
+                    dataCollectionPermissions,
                     ExtensionPromptKind.OPTIONAL_PERMISSIONS
-                ) { allow ->
+                ) { allow, _ ->
                     result.complete(if (allow) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
                 }
                 return result
@@ -223,10 +253,12 @@ class GeckoExtensionManager(
         extension: WebExtension,
         permissions: Array<String>,
         origins: Array<String>,
+        dataCollectionPermissions: Array<String>,
         kind: ExtensionPromptKind,
-        complete: (Boolean) -> Unit
+        complete: (allow: Boolean, shareTechnicalData: Boolean) -> Unit
     ) {
         val meta = extension.metaData
+        val data = ExtensionDataCollection.forPrompt(kind, dataCollectionPermissions.toList())
         lateinit var prompt: ExtensionInstallPrompt
         prompt = ExtensionInstallPrompt(
             extensionId = extension.id,
@@ -234,10 +266,12 @@ class GeckoExtensionManager(
             version = meta.version.orEmpty().ifBlank { "1.0" },
             permissions = (permissions.toList() + origins.toList()).distinct(),
             kind = kind,
-            onDecision = { allow ->
+            dataCollection = data.collected,
+            offersTechnicalData = data.offersTechnicalData,
+            onDecision = { allow, shareTechnicalData ->
                 // remove() guards against a double tap answering the same prompt twice
                 if (promptQueue.remove(prompt)) {
-                    runCatching { complete(allow) }
+                    runCatching { complete(allow, allow && data.offersTechnicalData && shareTechnicalData) }
                         .onFailure { Log.w(TAG, "Extension prompt was already resolved", it) }
                     _pendingPrompt.value = promptQueue.firstOrNull()
                 }
@@ -371,8 +405,8 @@ class GeckoExtensionManager(
         _activePopup.value = null
     }
 
-    override fun dismissPrompt(allow: Boolean) {
-        _pendingPrompt.value?.onDecision?.invoke(allow)
+    override fun dismissPrompt(allow: Boolean, shareTechnicalData: Boolean) {
+        _pendingPrompt.value?.onDecision?.invoke(allow, shareTechnicalData)
     }
 
     private fun registerDelegates(extension: WebExtension) {

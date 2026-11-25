@@ -329,8 +329,8 @@ class ExtensionsViewModel(
         extensionManager.triggerBrowserAction(extensionId)
     }
 
-    fun respondToInstallPrompt(allow: Boolean) {
-        extensionManager.dismissPrompt(allow)
+    fun respondToInstallPrompt(allow: Boolean, shareTechnicalData: Boolean = false) {
+        extensionManager.dismissPrompt(allow, shareTechnicalData)
     }
 
     fun dismissPopup() {
