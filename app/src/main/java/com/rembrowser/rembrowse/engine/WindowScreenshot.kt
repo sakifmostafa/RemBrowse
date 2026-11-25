@@ -8,14 +8,20 @@ import android.util.Log
 import android.view.PixelCopy
 import android.view.View
 import android.view.Window
+import com.rembrowser.rembrowse.model.CaptureGeometry
 import com.rembrowser.rembrowse.model.PxRect
+import com.rembrowser.rembrowse.model.WholePagePlan
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.mozilla.geckoview.GeckoDisplay
+import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
+import org.mozilla.geckoview.PageContentSize
+import org.mozilla.geckoview.requestPageContentSize
 
 private const val TAG = "WindowScreenshot"
 
@@ -61,25 +67,67 @@ sealed interface WholePageShot {
 }
 
 /**
- * The whole page in this view, scrolled-out parts included, drawn by the engine
- * (`GeckoView.captureFullPage`, GeckoView 157 and later) at the screen's density. Frames from
- * other sites, drawn by the compositor, should be in it as on screen (not yet checked on a
- * device). Call it on the main thread.
+ * A display of [session]'s only to ask it for pictures ([GeckoDisplay.screenshot]): the view's
+ * own display, which has the surface, is not handed out. This one never gets a surface.
+ */
+private class PictureDisplay(session: GeckoSession) : GeckoDisplay(session)
+
+/**
+ * The whole page in this view, scrolled-out parts included, drawn by the engine (GeckoView's
+ * full-page screenshot, 157 and later). Frames from other sites, drawn by the compositor, should
+ * be in it as on screen (not yet checked on a device). Call it on the main thread.
  *
- * The engine reports the page's size only with the picture it has drawn, so a page over
- * [maxPixels] is refused as soon as that arrives, before anything is copied or encoded, and the
- * picture is let go of at once. A picture the engine has no memory for is refused the same way:
- * the engine hands that failure back as an [OutOfMemoryError] rather than throwing it, and one
- * larger than Android makes at all as a failure caused by an [IllegalArgumentException].
+ * The engine is asked for the page's size first, which costs nothing, and
+ * [CaptureGeometry.wholePagePlan] decides from it before anything is drawn: a page within
+ * [maxPixels] is taken at the screen's density, a longer one smaller, and one too long even so
+ * is refused with no picture made at all. The engine is then told the picture's size, so it can
+ * never make a larger one, also when the page has grown meanwhile.
+ *
+ * A picture the engine has no memory for is refused the same way: the engine hands that failure
+ * back as an [OutOfMemoryError] rather than throwing it, and one larger than Android makes at
+ * all as a failure caused by an [IllegalArgumentException].
  *
  * Cancelling it frees the picture whenever it arrives.
  */
-suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot = suspendCancellableCoroutine { continuation ->
+suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot {
+    val session = session ?: return WholePageShot.Failed
+    val size = session.awaitPageContentSize() ?: return WholePageShot.Failed
+    val plan = CaptureGeometry.wholePagePlan(size.width, size.height, size.devicePixelRatio, maxPixels)
+    return when (plan) {
+        null -> WholePageShot.Failed
+        WholePagePlan.TooLong -> WholePageShot.TooLong
+        is WholePagePlan.Take -> session.awaitWholePage(plan.width, plan.height)
+    }
+}
+
+/** The size of the page in this session ([requestPageContentSize]), or null if the engine can't say. */
+private suspend fun GeckoSession.awaitPageContentSize(): PageContentSize? = suspendCancellableCoroutine { continuation ->
+    fun finish(size: PageContentSize?) {
+        if (continuation.isActive) continuation.resume(size)
+    }
+    val result = try {
+        requestPageContentSize()
+    } catch (e: RuntimeException) {
+        Log.w(TAG, "The page's size couldn't be asked for", e)
+        finish(null)
+        return@suspendCancellableCoroutine
+    }
+    result.accept(
+        { size -> finish(size) },
+        { error ->
+            Log.w(TAG, "The engine couldn't say how large the page is", error)
+            finish(null)
+        }
+    )
+}
+
+/** The whole page in this session as a picture of exactly [width] by [height] pixels. */
+private suspend fun GeckoSession.awaitWholePage(width: Int, height: Int): WholePageShot = suspendCancellableCoroutine { continuation ->
     fun finish(shot: WholePageShot) {
         if (continuation.isActive) continuation.resume(shot)
     }
     val result = try {
-        captureFullPage()
+        PictureDisplay(this).screenshot().size(width, height).captureFullPage()
     } catch (e: RuntimeException) {
         Log.w(TAG, "The whole page couldn't be asked for", e)
         finish(WholePageShot.Failed)
@@ -89,7 +137,8 @@ suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot = suspend
         { bitmap ->
             when {
                 bitmap == null -> finish(WholePageShot.Failed)
-                bitmap.width.toLong() * bitmap.height > maxPixels -> {
+                // Never expected, since the engine was told the size: not kept if it happens
+                bitmap.width.toLong() * bitmap.height > width.toLong() * height -> {
                     bitmap.recycle()
                     finish(WholePageShot.TooLong)
                 }

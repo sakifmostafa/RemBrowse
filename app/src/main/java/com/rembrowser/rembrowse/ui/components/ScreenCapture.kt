@@ -141,7 +141,7 @@ sealed interface ScreenshotResult {
     /** Nothing was copied. */
     data object Failed : ScreenshotResult
 
-    /** A whole page too long to take ([CaptureGeometry.WHOLE_PAGE_MAX_PIXELS]): nothing was copied. */
+    /** A whole page too long to take, even smaller ([CaptureGeometry.wholePagePlan]): nothing was copied. */
     data object TooLong : ScreenshotResult
 
     /** The whole page from the notice was saved in Downloads as [fileName]. */

@@ -1,7 +1,9 @@
 package com.rembrowser.rembrowse.model
 
+import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * A rectangle of whole pixels in the window, as a screenshot takes it. [right] and [bottom] are
@@ -25,6 +27,18 @@ data class PxRect(val left: Int, val top: Int, val right: Int, val bottom: Int) 
 
 /** A point in whole pixels. */
 data class PxPoint(val x: Int, val y: Int)
+
+/** What to do about a whole page, decided from its size before it is drawn ([CaptureGeometry.wholePagePlan]). */
+sealed interface WholePagePlan {
+    /**
+     * Take it as a picture of [width] by [height] pixels: at the screen's density, or smaller
+     * than that when [reduced], for a page too long to take at full size.
+     */
+    data class Take(val width: Int, val height: Int, val reduced: Boolean) : WholePagePlan
+
+    /** Too long to take even reduced: nothing is drawn. */
+    data object TooLong : WholePagePlan
+}
 
 /**
  * Somewhere a click on the screenshot overlay captures whole: a pane (the page, terminal or
@@ -92,15 +106,82 @@ object CaptureGeometry {
         regions.firstOrNull { it.key == key }?.bounds?.intersect(window) ?: window
 
     /**
-     * The largest whole page taken, in pixels: 64 megapixels, 256 MB as a picture. A longer page
-     * is refused rather than copied, since its picture and the PNG made from it could run the app
-     * out of memory, and few places would take one that large anyway.
+     * The largest whole page taken on any device, in pixels: 64 megapixels, 256 MB as a picture.
+     * Few places would take a larger one. A device with less memory to spare takes less
+     * ([wholePageMaxPixels]).
      */
     const val WHOLE_PAGE_MAX_PIXELS = 64_000_000L
 
-    /** Whether a whole page of [width] by [height] pixels is within [WHOLE_PAGE_MAX_PIXELS]. */
-    fun fitsWholePage(width: Int, height: Int): Boolean =
-        width > 0 && height > 0 && width.toLong() * height <= WHOLE_PAGE_MAX_PIXELS
+    /**
+     * The memory set aside for each pixel of a whole page while it is taken, in bytes. The
+     * picture itself is 4, all of it in the app's main process, which is where the memory was
+     * seen to go on a device (a 110-megapixel picture added 460 MB there, and nothing to the
+     * engine's other processes). Twice that again is kept spare for the PNG made from it, the
+     * page's own process and whatever else is running.
+     */
+    const val WHOLE_PAGE_BYTES_PER_PIXEL = 12L
+
+    /**
+     * A whole page this small is taken however little memory is free: 4 megapixels, about what a
+     * screenshot of the window takes anyway.
+     */
+    const val WHOLE_PAGE_MIN_BUDGET_PIXELS = 4_000_000L
+
+    /**
+     * The largest whole page this device can take right now, in pixels. [availableBytes] is the
+     * memory Android counts as free and [lowMemoryBytes] the level at which it starts closing
+     * other apps (`ActivityManager.MemoryInfo.availMem` and `threshold`): the page may use what
+     * is between the two, at [WHOLE_PAGE_BYTES_PER_PIXEL], so taking it never brings the device
+     * that low. Never more than [WHOLE_PAGE_MAX_PIXELS], nor less than
+     * [WHOLE_PAGE_MIN_BUDGET_PIXELS].
+     */
+    fun wholePageMaxPixels(availableBytes: Long, lowMemoryBytes: Long): Long =
+        ((availableBytes - lowMemoryBytes) / WHOLE_PAGE_BYTES_PER_PIXEL)
+            .coerceIn(WHOLE_PAGE_MIN_BUDGET_PIXELS, WHOLE_PAGE_MAX_PIXELS)
+
+    /**
+     * What to do about a whole page of [cssWidth] by [cssHeight] CSS pixels, each
+     * [devicePixelRatio] pixels on this screen, when no more than [maxPixels] may be taken.
+     * Decided from the page's size alone, before the engine draws anything.
+     *
+     * Within the budget it is taken at the screen's density, the size the engine itself gives a
+     * whole page. Over it, it is taken smaller, as large as the budget allows with its shape
+     * kept, but never with less than one pixel for each CSS pixel (how it would look on an
+     * ordinary monitor): a page too long for that is [WholePagePlan.TooLong]. Null when there is
+     * no page to take.
+     *
+     * The engine fits the page into the picture it is asked for by whichever side is tighter. So
+     * the page's longer side is settled first, rounded down, and the shorter one follows from it,
+     * rounded up: the page then fills the picture to within a pixel, with no blank strip at its
+     * end.
+     */
+    fun wholePagePlan(cssWidth: Int, cssHeight: Int, devicePixelRatio: Float, maxPixels: Long): WholePagePlan? {
+        if (cssWidth <= 0 || cssHeight <= 0 || !(devicePixelRatio > 0f) || devicePixelRatio.isInfinite()) return null
+        // As the engine rounds them
+        val fullWidth = (cssWidth * devicePixelRatio).toInt()
+        val fullHeight = (cssHeight * devicePixelRatio).toInt()
+        if (fullWidth <= 0 || fullHeight <= 0) return null
+        val fullPixels = fullWidth.toLong() * fullHeight
+        if (fullPixels > maxPixels && cssWidth.toLong() * cssHeight > maxPixels) return WholePagePlan.TooLong
+        val scale = if (fullPixels > maxPixels) sqrt(maxPixels.toDouble() / fullPixels) else 1.0
+        val tall = cssHeight >= cssWidth
+        val cssLong = if (tall) cssHeight else cssWidth
+        val cssShort = if (tall) cssWidth else cssHeight
+        val fullLong = if (tall) fullHeight else fullWidth
+        fun shortFor(long: Int): Int = ceil(cssShort.toDouble() * long / cssLong).toInt().coerceAtLeast(1)
+        var long = (fullLong * scale).toInt().coerceAtLeast(1)
+        var short = shortFor(long)
+        if (long.toLong() * short > maxPixels) {
+            // Rounding up took it just over: the shorter side can only get shorter from here
+            long = (maxPixels / short).toInt().coerceAtLeast(1)
+            short = shortFor(long)
+        }
+        return WholePagePlan.Take(
+            width = if (tall) short else long,
+            height = if (tall) long else short,
+            reduced = long < fullLong
+        )
+    }
 
     /**
      * Whose whole page the overlay's key takes: the region under the mouse ([hoveredKey]) when

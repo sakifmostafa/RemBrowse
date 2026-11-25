@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.app.Application
 import android.app.DownloadManager
 import android.app.UiModeManager
@@ -733,9 +734,10 @@ class MainActivity : ComponentActivity() {
     /**
      * Copies the whole page shown in [tabId], scrolled-out parts included, to the clipboard as a
      * PNG, as [captureScreen] does for part of the window, and keeps its file's address for the
-     * notice's Save. The engine draws the page itself ([captureWholePage]). A page over
-     * [CaptureGeometry.WHOLE_PAGE_MAX_PIXELS] is refused as soon as its size is known, before
-     * anything is encoded; running out of memory for it is refused the same way, never a crash.
+     * notice's Save. The engine draws the page itself ([captureWholePage]), no larger than
+     * the device has memory to spare for right now ([CaptureGeometry.wholePageMaxPixels]): a page
+     * over that is taken smaller, and one too long even so is refused before anything is drawn.
+     * Running out of memory for it all the same is refused the same way, never a crash.
      * The PNG and the notice's picture (the top of the page) are made off the main thread.
      *
      * Cancelled (given up on, or the notice's Cancel), it frees its pictures and never reaches the
@@ -750,7 +752,9 @@ class MainActivity : ComponentActivity() {
         var thumbnail: Bitmap? = null
         var file: Uri? = null
         return try {
-            val taken = when (val shot = view.captureWholePage(CaptureGeometry.WHOLE_PAGE_MAX_PIXELS)) {
+            val memory = ActivityManager.MemoryInfo().also { getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
+            val maxPixels = CaptureGeometry.wholePageMaxPixels(memory.availMem, memory.threshold)
+            val taken = when (val shot = view.captureWholePage(maxPixels)) {
                 is WholePageShot.Taken -> shot.picture.also { page = it }
                 WholePageShot.TooLong -> return ScreenshotResult.TooLong
                 WholePageShot.Failed -> return ScreenshotResult.Failed

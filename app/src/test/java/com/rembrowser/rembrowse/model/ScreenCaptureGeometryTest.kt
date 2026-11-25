@@ -114,16 +114,145 @@ class ScreenCaptureGeometryTest {
     }
 
     @Test
-    fun aWholePage_isTakenUpTo64Megapixels() {
-        assertEquals(64_000_000L, CaptureGeometry.WHOLE_PAGE_MAX_PIXELS)
-        assertTrue("A long article on a laptop", CaptureGeometry.fitsWholePage(2560, 20_000))
-        assertTrue("Exactly the budget", CaptureGeometry.fitsWholePage(2000, 32_000))
-        assertFalse("One row more", CaptureGeometry.fitsWholePage(2000, 32_001))
-        assertFalse("A 30,000 px page at twice the density", CaptureGeometry.fitsWholePage(2560, 60_000))
-        // Past what an Int can count, without overflowing
-        assertFalse(CaptureGeometry.fitsWholePage(100_000, 100_000))
-        assertFalse("Nothing to take", CaptureGeometry.fitsWholePage(0, 500))
-        assertFalse(CaptureGeometry.fitsWholePage(500, 0))
+    fun aWholePageWithinTheBudget_isTakenAtTheScreensDensity() {
+        val budget = CaptureGeometry.WHOLE_PAGE_MAX_PIXELS
+        assertEquals(64_000_000L, budget)
+        assertEquals(
+            "A long article on a laptop",
+            WholePagePlan.Take(2560, 20_000, reduced = false),
+            CaptureGeometry.wholePagePlan(1280, 10_000, 2f, budget)
+        )
+        assertEquals(
+            "Exactly the budget",
+            WholePagePlan.Take(2000, 32_000, reduced = false),
+            CaptureGeometry.wholePagePlan(2000, 32_000, 1f, budget)
+        )
+        assertEquals(
+            "The longer side as the engine rounds it, the shorter one rounded up to hold the page",
+            WholePagePlan.Take(1082, 2100, reduced = false),
+            CaptureGeometry.wholePagePlan(412, 800, 2.625f, budget)
+        )
+        assertEquals(
+            "A page zoomed out is smaller than its CSS size",
+            WholePagePlan.Take(490, 5000, reduced = false),
+            CaptureGeometry.wholePagePlan(980, 10_000, 0.5f, budget)
+        )
+    }
+
+    @Test
+    fun aWholePageOverTheBudget_isTakenSmaller_withItsShapeKept() {
+        // 30,000 CSS px tall at three pixels each: 1218 by 90,000, 110 megapixels
+        val plan = CaptureGeometry.wholePagePlan(406, 30_000, 3f, 64_000_000L) as WholePagePlan.Take
+        assertTrue(plan.reduced)
+        assertTrue("Within the budget", plan.width.toLong() * plan.height <= 64_000_000L)
+        assertTrue("Nearly all of the budget", plan.width.toLong() * plan.height > 63_000_000L)
+        assertEquals("The page's shape", 90_000.0 / 1218, plan.height.toDouble() / plan.width, 0.1)
+        assertFillsThePicture(406, 30_000, plan)
+        assertTrue("At least a pixel for each CSS pixel", plan.width >= 406 && plan.height >= 30_000)
+
+        // The same page on a device with little memory to spare
+        val small = CaptureGeometry.wholePagePlan(406, 30_000, 3f, 20_000_000L) as WholePagePlan.Take
+        assertTrue(small.reduced)
+        assertTrue(small.width.toLong() * small.height <= 20_000_000L)
+        assertTrue(small.width >= 406 && small.height >= 30_000)
+        assertFillsThePicture(406, 30_000, small)
+
+        // A wide page: its width is the longer side
+        val wide = CaptureGeometry.wholePagePlan(40_000, 700, 3f, 64_000_000L) as WholePagePlan.Take
+        assertTrue(wide.reduced)
+        assertTrue(wide.width.toLong() * wide.height <= 64_000_000L)
+        assertFillsThePicture(40_000, 700, wide)
+
+        // One row over the budget
+        val barely = CaptureGeometry.wholePagePlan(1000, 16_001, 2f, 64_000_000L) as WholePagePlan.Take
+        assertTrue(barely.reduced)
+        assertTrue(barely.width.toLong() * barely.height <= 64_000_000L)
+        assertEquals(2000f, barely.width.toFloat(), 2f)
+    }
+
+    /**
+     * The engine draws the page at the smaller of the two ratios of picture to page: drawn so,
+     * a [cssWidth] by [cssHeight] page covers [plan]'s picture to within a pixel each way.
+     */
+    private fun assertFillsThePicture(cssWidth: Int, cssHeight: Int, plan: WholePagePlan.Take) {
+        val scale = minOf(plan.width.toDouble() / cssWidth, plan.height.toDouble() / cssHeight)
+        assertEquals("Blank columns", plan.width.toDouble(), cssWidth * scale, 1.0)
+        assertEquals("Blank rows", plan.height.toDouble(), cssHeight * scale, 1.0)
+    }
+
+    @Test
+    fun aWholePageAtFullSize_fillsItsPictureAtAnyDensity() {
+        for (ratio in listOf(1f, 1.5f, 2f, 2.625f, 2.75f, 3f, 3.5f)) {
+            for ((width, height) in listOf(412 to 800, 412 to 12_000, 427 to 5000, 1280 to 700, 3000 to 900)) {
+                val plan = CaptureGeometry.wholePagePlan(width, height, ratio, 64_000_000L) as WholePagePlan.Take
+                assertFalse("$width by $height at $ratio", plan.reduced)
+                assertFillsThePicture(width, height, plan)
+                assertEquals("$width by $height at $ratio", width * ratio, plan.width.toFloat(), 1f)
+                assertEquals("$width by $height at $ratio", height * ratio, plan.height.toFloat(), 1f)
+            }
+        }
+    }
+
+    @Test
+    fun aWholePageTooLongEvenAtOnePixelForEachCssPixel_isRefused() {
+        assertEquals(
+            "Exactly the budget at its CSS size: taken at that size",
+            WholePagePlan.Take(1000, 64_000, reduced = true),
+            CaptureGeometry.wholePagePlan(1000, 64_000, 2f, 64_000_000L)
+        )
+        assertEquals(WholePagePlan.TooLong, CaptureGeometry.wholePagePlan(1000, 64_001, 2f, 64_000_000L))
+        assertEquals(
+            "An ordinary monitor has nothing to reduce",
+            WholePagePlan.TooLong,
+            CaptureGeometry.wholePagePlan(2000, 32_001, 1f, 64_000_000L)
+        )
+        assertEquals(
+            "As large as the engine lays a page out, without overflowing",
+            WholePagePlan.TooLong,
+            CaptureGeometry.wholePagePlan(17_895_697, 17_895_697, 4f, 64_000_000L)
+        )
+        assertEquals(
+            "The 30,000 px page with little memory to spare",
+            WholePagePlan.TooLong,
+            CaptureGeometry.wholePagePlan(406, 30_000, 3f, 12_000_000L)
+        )
+    }
+
+    @Test
+    fun noPage_isNoWholePage() {
+        assertNull(CaptureGeometry.wholePagePlan(0, 500, 2f, 64_000_000L))
+        assertNull(CaptureGeometry.wholePagePlan(500, 0, 2f, 64_000_000L))
+        assertNull(CaptureGeometry.wholePagePlan(500, 500, 0f, 64_000_000L))
+        assertNull(CaptureGeometry.wholePagePlan(500, 500, Float.NaN, 64_000_000L))
+        assertNull(CaptureGeometry.wholePagePlan(500, 500, Float.POSITIVE_INFINITY, 64_000_000L))
+        assertNull("Too small to be a pixel", CaptureGeometry.wholePagePlan(1, 500, 0.5f, 64_000_000L))
+    }
+
+    @Test
+    fun theWholePageBudget_followsTheMemoryTheDeviceCanSpare() {
+        val perPixel = CaptureGeometry.WHOLE_PAGE_BYTES_PER_PIXEL
+        val megabyte = 1024L * 1024
+        assertEquals(
+            "What is free above the level where Android closes other apps",
+            (800 - 200) * megabyte / perPixel,
+            CaptureGeometry.wholePageMaxPixels(800 * megabyte, 200 * megabyte)
+        )
+        assertEquals(
+            "Plenty of memory: the fixed limit",
+            CaptureGeometry.WHOLE_PAGE_MAX_PIXELS,
+            CaptureGeometry.wholePageMaxPixels(8000 * megabyte, 200 * megabyte)
+        )
+        assertEquals(
+            "Little to spare: still about a screenful",
+            CaptureGeometry.WHOLE_PAGE_MIN_BUDGET_PIXELS,
+            CaptureGeometry.wholePageMaxPixels(210 * megabyte, 200 * megabyte)
+        )
+        assertEquals(
+            "Already low",
+            CaptureGeometry.WHOLE_PAGE_MIN_BUDGET_PIXELS,
+            CaptureGeometry.wholePageMaxPixels(150 * megabyte, 200 * megabyte)
+        )
+        assertTrue(CaptureGeometry.WHOLE_PAGE_MIN_BUDGET_PIXELS < CaptureGeometry.WHOLE_PAGE_MAX_PIXELS)
     }
 
     @Test
