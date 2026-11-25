@@ -292,22 +292,22 @@ dependencies {
     // Networking & extension icon loading
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // SSH for terminal tabs: ConnectBot's client library (BSD 3-Clause), made for Android
     implementation("org.connectbot:sshlib:2.2.52")
 
     // Unit & Headless Robolectric + Compose UI Tests
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("org.robolectric:robolectric:4.18.1")
-    testImplementation("androidx.test:core-ktx:1.6.1")
-    testImplementation("androidx.test.ext:junit-ktx:1.2.1")
+    testImplementation("androidx.test:core-ktx:1.7.0")
+    testImplementation("androidx.test.ext:junit-ktx:1.3.0")
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260814")
     // A real SSH server inside the tests, for the terminal's end-to-end checks (tests only)
-    testImplementation("org.apache.sshd:sshd-core:2.15.0")
+    testImplementation("org.apache.sshd:sshd-core:2.20.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

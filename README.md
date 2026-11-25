@@ -79,7 +79,7 @@ RemBrowse/
 ├── scripts/                    # Build-server setup, keystore password, publishing to the site
 ├── site/                       # The download page at rembrowse.com
 ├── deploy/site-host/           # The site's server: nginx + Cloudflare Tunnel (Docker)
-├── gradle/                     # Gradle 9.9.1 wrapper
+├── gradle/                     # Gradle 9.9.2 wrapper
 ├── build.gradle.kts
 ├── settings.gradle.kts
 └── gradle.properties
