@@ -35,8 +35,8 @@
     }
   }
 
-  // ?lan=<address>&device=<address> fill in the boxes, and ?run=lan or ?run=device connects once
-  // the page has loaded, for checks driven from a script
+  // ?lan=<address>&device=<address> fill in the boxes. Connecting takes a press of the button:
+  // a link to this page must not be able to make the browser reach for an address by itself.
   const params = new URLSearchParams(location.search);
 
   for (const [key, formId, inputId, resultId] of [
@@ -48,7 +48,6 @@
     const result = $(resultId);
     const button = form.querySelector("button");
     if (params.get(key)) input.value = params.get(key);
-    if (params.get("run") === key) addEventListener("load", () => form.requestSubmit());
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const url = input.value.trim();
