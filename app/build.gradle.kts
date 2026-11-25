@@ -44,10 +44,11 @@ val releaseSigning = run {
 
 android {
     namespace = "com.rembrowser.rembrowse"
-    // API level 37's first minor release (platforms;android-37.1), which Compose 1.13 requires
+    // API level 37's second minor release (platforms;android-37.2), which GeckoView 161 requires
+    // (Compose 1.13 needs 37.1 or later)
     compileSdk {
         version = release(37) {
-            minorApiLevel = 1
+            minorApiLevel = 2
         }
     }
 
@@ -149,9 +150,11 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
         jniLibs {
-            // Gecko's crash-report analyser: RemBrowse sends no crash reports, and nothing in
-            // GeckoView loads it otherwise. 1.5 MB of the download, 3.8 MB installed.
-            excludes += "**/libminidump_analyzer.so"
+            // Gecko's crash-report tools: only Mozilla's own crash-reporting component (Android
+            // Components' lib-crash) loads them, and RemBrowse does not include it or send crash
+            // reports. 2.5 MB of the download, 6.0 MB installed (arm64). Not libcrashhelper.so:
+            // GeckoRuntime starts its crash helper service on every launch.
+            excludes += "**/libcrashtools.so"
         }
     }
 
@@ -269,9 +272,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.19.1")
     // The launch screen on Android 8-11 as on 12+, in the light or dark chrome colour
     implementation("androidx.core:core-splashscreen:1.2.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.1")
     implementation("androidx.activity:activity-compose:1.13.0")
 
     implementation("androidx.compose.ui:ui")
@@ -281,7 +284,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     // Mozilla GeckoView — real browser engine with native WebExtensions (.xpi)
-    implementation("org.mozilla.geckoview:geckoview:138.0.20250517143237")
+    implementation("org.mozilla.geckoview:geckoview:161.0.20261118180411")
 
     // Networking & extension icon loading
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
@@ -419,7 +422,7 @@ abstract class PatchGeckoOmniJa : DefaultTask() {
         const val PROXY_SCRIPT = "chrome/toolkit/content/extensions/parent/ext-proxy.js"
         const val PATCH_MARKER = "RemBrowse: proxy.settings is allowed on Android"
 
-        /** What is replaced in Firefox 138's ext-proxy.js; each is expected exactly once. */
+        /** What is replaced in Firefox 161's ext-proxy.js; each is expected exactly once. */
         val PATCHES = listOf(
             // The refusal in validate(), which get(), set(), clear() and onChange all run
             "if (AppConstants.platform == \"android\") {" to "if (false /* $PATCH_MARKER */) {",

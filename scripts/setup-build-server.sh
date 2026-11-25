@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sets up an Ubuntu machine (22.04 or later) to build, test and sign RemBrowse:
-# a JDK, the Android SDK (command-line tools, platform 37.1, build tools 36.0.0, platform tools)
+# a JDK, the Android SDK (command-line tools, platform 37.2, build tools 36.0.0, platform tools)
 # and the environment variables Gradle needs. Safe to run again.
 #
 #   bash scripts/setup-build-server.sh
@@ -10,7 +10,7 @@ set -euo pipefail
 
 SDK="${ANDROID_HOME:-$HOME/android-sdk}"
 TOOLS_ZIP="commandlinetools-linux-11076708_latest.zip" # Command-line tools 12.0
-PACKAGES=(${SDK_PACKAGES:-platform-tools "platforms;android-37.1" "build-tools;36.0.0"})
+PACKAGES=(${SDK_PACKAGES:-platform-tools "platforms;android-37.2" "build-tools;36.0.0"})
 
 if [ "${SKIP_APT:-0}" != "1" ]; then
   echo "==> Installing the JDK, git and unzip"

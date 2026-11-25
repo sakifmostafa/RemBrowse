@@ -61,7 +61,7 @@ RemBrowse/
 │   ├── BUILD_AND_TEST_GUIDE.md # Toolchain, tests, UI renders, publishing and signing
 │   └── USER_GUIDE.md           # The interface, split view, settings, extensions, downloads, terminal
 ├── app/
-│   ├── build.gradle.kts        # Android app config (compileSdk 37.1, targetSdk 36)
+│   ├── build.gradle.kts        # Android app config (compileSdk 37.2, targetSdk 36)
 │   └── src/
 │       ├── main/java/com/rembrowser/rembrowse/
 │       │   ├── RemBrowseApplication.kt

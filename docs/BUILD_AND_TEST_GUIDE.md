@@ -6,7 +6,7 @@ This guide covers building, testing, and signing **RemBrowse** (`com.rembrowser.
 
 ## 1. Prerequisites
 
-On Ubuntu 22.04 or later, one script sets up everything below (a JDK, the Android SDK's command-line tools, platform 37.1, build tools 36.0.0 and platform tools, and `ANDROID_HOME` in `~/.bashrc`). It is safe to run again:
+On Ubuntu 22.04 or later, one script sets up everything below (a JDK, the Android SDK's command-line tools, platform 37.2, build tools 36.0.0 and platform tools, and `ANDROID_HOME` in `~/.bashrc`). It is safe to run again:
 
 ```bash
 bash scripts/setup-build-server.sh
@@ -19,10 +19,10 @@ Or by hand:
   sudo apt-get update && sudo apt-get install -y openjdk-21-jdk-headless unzip
   ```
   A Java runtime without the compiler (`javac`) isn't enough: Gradle stops with "does not provide the required capabilities: [JAVA_COMPILER]". Without sudo, unpack a JDK 21 such as [Eclipse Temurin](https://adoptium.net/temurin/releases/?version=21) in your home folder and set `JAVA_HOME` to it, then run the script with `SKIP_APT=1`. The build server does this: its JDK is at `~/android-sdk/jdk-21`, set in `~/.bashrc`.
-* **Android CLI** (`android`) & Android SDK 37.1 (API level 37's first minor release; Compose 1.13 needs it to compile against, set in `app/build.gradle.kts` as `release(37) { minorApiLevel = 1 }`):
+* **Android CLI** (`android`) & Android SDK 37.2 (API level 37's second minor release; GeckoView 161 needs it to compile against, set in `app/build.gradle.kts` as `release(37) { minorApiLevel = 2 }`):
   ```bash
   curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
-  android sdk install platforms/android-37.1 build-tools/36.0.0 platform-tools
+  android sdk install platforms/android-37.2 build-tools/36.0.0 platform-tools
   ```
 * **The build tools themselves** are fetched by Gradle; nothing to install: Gradle 9.9.1 (the wrapper) and Android Gradle Plugin 9.5.1, which compiles the Kotlin code itself with Kotlin 2.4.21 (there is no separate Kotlin Android plugin; the version is pinned in the root `build.gradle.kts`). Both need a JDK 17 or newer to run. Gradle 9 writes its problems report (compiler warnings) to `build/reports/problems/` at the repository root; it is scratch output, not a release file, and `.gitignore` leaves it out.
 * Ensure `local.properties` points to your Android SDK directory:

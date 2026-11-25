@@ -529,7 +529,7 @@ class GeckoBrowserEngine(
                 listener.onContextMenuRequested(
                     contextMenuAtPointer(session, tabId).copy(
                         linkUrl = element.linkUri?.takeIf { it.isNotBlank() },
-                        linkText = element.textContent?.trim()?.takeIf { it.isNotEmpty() },
+                        linkText = element.linkText?.trim()?.takeIf { it.isNotEmpty() },
                         mediaUrl = element.srcUri?.takeIf { it.isNotBlank() && mediaType != PageMediaType.NONE },
                         mediaType = mediaType
                     )

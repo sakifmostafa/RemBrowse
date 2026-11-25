@@ -69,7 +69,7 @@ import java.io.File
  * Read at startup, so a mouse connected later counts from the next start.
  *
  * (Checked against `Document::GetViewportInfo`, `nsXPLookAndFeel.cpp`, `nsLookAndFeel.cpp` and
- * `Preferences.cpp` in Firefox 138.)
+ * `Preferences.cpp` in Firefox 161.)
  */
 internal object EngineConfig {
     private const val TAG = "EngineConfig"

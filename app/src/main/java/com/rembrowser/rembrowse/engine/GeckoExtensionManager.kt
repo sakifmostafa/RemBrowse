@@ -163,19 +163,23 @@ class GeckoExtensionManager(
 
     private fun configureDelegates() {
         controller.setPromptDelegate(object : WebExtensionController.PromptDelegate {
+            // dataCollectionPermissions (what the extension's manifest says it collects) is not
+            // shown yet, and the optional "technical and interaction data" is never granted: the
+            // third value of PermissionPromptResponse.
             override fun onInstallPromptRequest(
                 extension: WebExtension,
                 permissions: Array<String>,
-                origins: Array<String>
+                origins: Array<String>,
+                dataCollectionPermissions: Array<String>
             ): GeckoResult<WebExtension.PermissionPromptResponse> {
                 // The second value allows the extension in private browsing; see
                 // allowInPrivateBrowsing for why RemBrowse always does.
                 if (extension.id in trustedInstallIds) {
-                    return GeckoResult.fromValue(WebExtension.PermissionPromptResponse(true, true))
+                    return GeckoResult.fromValue(WebExtension.PermissionPromptResponse(true, true, false))
                 }
                 val result = GeckoResult<WebExtension.PermissionPromptResponse>()
                 enqueuePrompt(extension, permissions, origins, ExtensionPromptKind.INSTALL) { allow ->
-                    result.complete(WebExtension.PermissionPromptResponse(allow, allow))
+                    result.complete(WebExtension.PermissionPromptResponse(allow, allow, false))
                 }
                 return result
             }
@@ -183,13 +187,13 @@ class GeckoExtensionManager(
             // Updates that ask for more access, and optional permission requests, used to be
             // approved silently. They now go through the same review dialog as an install.
             override fun onUpdatePrompt(
-                currentlyInstalled: WebExtension,
-                updatedExtension: WebExtension,
+                extension: WebExtension,
                 newPermissions: Array<String>,
-                newOrigins: Array<String>
+                newOrigins: Array<String>,
+                newDataCollectionPermissions: Array<String>
             ): GeckoResult<AllowOrDeny> {
                 val result = GeckoResult<AllowOrDeny>()
-                enqueuePrompt(updatedExtension, newPermissions, newOrigins, ExtensionPromptKind.UPDATE) { allow ->
+                enqueuePrompt(extension, newPermissions, newOrigins, ExtensionPromptKind.UPDATE) { allow ->
                     result.complete(if (allow) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
                 }
                 return result
@@ -198,7 +202,8 @@ class GeckoExtensionManager(
             override fun onOptionalPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
-                origins: Array<String>
+                origins: Array<String>,
+                dataCollectionPermissions: Array<String>
             ): GeckoResult<AllowOrDeny> {
                 val result = GeckoResult<AllowOrDeny>()
                 enqueuePrompt(

@@ -34,8 +34,8 @@ fun GeckoView.usePageRendering(rendering: PageRendering) {
  *
  * GeckoView listens to its TextureView and treats `onSurfaceTextureUpdated` like a new
  * surface. Android calls that for *every frame* the texture shows, on the main thread, so for
- * each frame of a scrolling page GeckoView 138 (`SurfaceViewWrapper.ListenerWrapper`, and
- * `GeckoSession.onSurfaceChanged` behind it):
+ * each frame of a scrolling page GeckoView 161 (`SurfaceViewWrapper.ListenerWrapper`, unchanged
+ * since 138, and `GeckoSession.onSurfaceChanged` behind it):
  *  - wraps the texture in a new `Surface` and sends it to the GPU process;
  *  - makes a blocking call (`syncResumeResizeCompositor`) during which the compositor destroys
  *    its EGL surface, creates a new one for the same texture and renders a forced frame.

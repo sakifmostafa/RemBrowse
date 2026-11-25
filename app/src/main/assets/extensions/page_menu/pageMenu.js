@@ -116,11 +116,11 @@ window.addEventListener("auxclick", event => {
 
 // A page's own button for copying a picture (navigator.clipboard.write with a PNG, as in an
 // image viewer's Copy button) fails in GeckoView: Android's clipboard takes a picture only as a
-// content: address, and GeckoView's clipboard handles text and HTML only, so the engine refuses
-// the write. So a write with a PNG is taken over here: the picture is sent to the app, which
-// puts it on the clipboard as its own Copy image does, and the page's promise settles with the
-// app's answer, so the site shows its own message for it. A write with text as well copies the
-// picture alone. Every other write goes to the engine unchanged.
+// content: address, and GeckoView's clipboard handles text, HTML and web custom formats only, so
+// the engine refuses the write. So a write with a PNG is taken over here: the picture is sent to
+// the app, which puts it on the clipboard as its own Copy image does, and the page's promise
+// settles with the app's answer, so the site shows its own message for it. A write with text as
+// well copies the picture alone. Every other write goes to the engine unchanged.
 // As in the real API, only a write the user has just asked for (a click or a key press a moment
 // ago) may change the clipboard; otherwise any page could replace what the user copied. That is
 // checked as the page calls, and the copy starts here and then, so nothing the page is handed
