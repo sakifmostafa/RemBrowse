@@ -81,7 +81,8 @@ private class PictureDisplay(session: GeckoSession) : GeckoDisplay(session)
  * [CaptureGeometry.wholePagePlan] decides from it before anything is drawn: a page within
  * [maxPixels] is taken at the screen's density, a longer one smaller, and one too long even so
  * is refused with no picture made at all. The engine is then told the picture's size, so it can
- * never make a larger one, also when the page has grown meanwhile.
+ * never make a larger one, and which part of the page to draw, the page as it was measured, so
+ * one that has grown meanwhile is not squeezed into it.
  *
  * A picture the engine has no memory for is refused the same way: the engine hands that failure
  * back as an [OutOfMemoryError] rather than throwing it, and one larger than Android makes at
@@ -94,7 +95,7 @@ suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot {
     return wholePageShot(
         maxPixels,
         askSize = { session.awaitPageContentSize() },
-        take = { width, height -> session.awaitWholePage(width, height) }
+        take = { source, width, height -> session.awaitWholePage(source, width, height) }
     )
 }
 
@@ -109,11 +110,17 @@ internal const val PAGE_SIZE_TIMEOUT_MILLIS = 5_000L
  * [captureWholePage] without the engine: [askSize] says how large the page is (null if it can't
  * tell), and [take] draws it as a picture of the size planned from that. A size that doesn't
  * come within [PAGE_SIZE_TIMEOUT_MILLIS] is a failed screenshot, and nothing is drawn.
+ *
+ * [take] is also told which part of the page to draw, in the screen's pixels from the page's
+ * top left corner: the page as large as [askSize] found it. The engine measures the page again
+ * when it draws, and a page that has grown since (one that loads more as it is scrolled, say)
+ * would otherwise be squeezed into a picture planned for the shorter one, with a blank strip
+ * down its side.
  */
 internal suspend fun wholePageShot(
     maxPixels: Long,
     askSize: suspend () -> PageContentSize?,
-    take: suspend (width: Int, height: Int) -> WholePageShot
+    take: suspend (source: PxRect, width: Int, height: Int) -> WholePageShot
 ): WholePageShot {
     val size = withTimeoutOrNull(PAGE_SIZE_TIMEOUT_MILLIS) { askSize() }
     if (size == null) {
@@ -124,7 +131,16 @@ internal suspend fun wholePageShot(
     return when (plan) {
         null -> WholePageShot.Failed
         WholePagePlan.TooLong -> WholePageShot.TooLong
-        is WholePagePlan.Take -> take(plan.width, plan.height)
+        is WholePagePlan.Take -> take(
+            PxRect(
+                0,
+                0,
+                CaptureGeometry.wholePageSource(size.width, size.devicePixelRatio),
+                CaptureGeometry.wholePageSource(size.height, size.devicePixelRatio)
+            ),
+            plan.width,
+            plan.height
+        )
     }
 }
 
@@ -149,13 +165,19 @@ private suspend fun GeckoSession.awaitPageContentSize(): PageContentSize? = susp
     )
 }
 
-/** The whole page in this session as a picture of exactly [width] by [height] pixels. */
-private suspend fun GeckoSession.awaitWholePage(width: Int, height: Int): WholePageShot = suspendCancellableCoroutine { continuation ->
+/**
+ * The part of the page in this session that is [source] (in the screen's pixels, from the page's
+ * top left corner) as a picture of exactly [width] by [height] pixels.
+ */
+private suspend fun GeckoSession.awaitWholePage(source: PxRect, width: Int, height: Int): WholePageShot = suspendCancellableCoroutine { continuation ->
     fun finish(shot: WholePageShot) {
         if (continuation.isActive) continuation.resume(shot)
     }
     val result = try {
-        PictureDisplay(this).screenshot().size(width, height).captureFullPage()
+        PictureDisplay(this).screenshot()
+            .source(source.left, source.top, source.width, source.height)
+            .size(width, height)
+            .captureFullPage()
     } catch (e: RuntimeException) {
         Log.w(TAG, "The whole page couldn't be asked for", e)
         finish(WholePageShot.Failed)

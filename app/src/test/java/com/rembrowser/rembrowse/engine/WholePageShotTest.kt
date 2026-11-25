@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.engine
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rembrowser.rembrowse.model.PxRect
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -25,10 +26,12 @@ class WholePageShotTest {
 
     private val budget = 64_000_000L
     private val asked = mutableListOf<Pair<Int, Int>>()
+    private val sources = mutableListOf<PxRect>()
     private val taken = WholePageShot.Failed
 
     private suspend fun shot(maxPixels: Long = budget, askSize: suspend () -> PageContentSize?): WholePageShot =
-        wholePageShot(maxPixels, askSize) { width, height ->
+        wholePageShot(maxPixels, askSize) { source, width, height ->
+            sources += source
             asked += width to height
             taken
         }
@@ -77,5 +80,32 @@ class WholePageShotTest {
             PageContentSize(1000, 1000, 1f)
         }
         assertEquals(listOf(1000 to 1000), asked)
+    }
+
+    /** What the engine makes of a side of the region it is asked for: CSS pixels, rounded down. */
+    private fun engineCss(source: Int, ratio: Float): Int = (source / ratio).toInt()
+
+    @Test
+    fun theEngineIsToldToDrawThePageAsItWasMeasured_soOneThatGrowsMeanwhileIsNotSqueezedIn() = runTest {
+        shot { PageContentSize(1280, 10_000, 2f) }
+        assertEquals("From the top left corner, all of it", PxRect(0, 0, 2560, 20_000), sources.single())
+
+        // Over the budget the picture is smaller, the part of the page drawn is not
+        sources.clear()
+        shot { PageContentSize(427, 30_000, 3f) }
+        assertEquals(PxRect(0, 0, 1281, 90_000), sources.single())
+    }
+
+    @Test
+    fun theRegionAskedFor_comesBackAsExactlyThePagesCssSize_atAnyDensity() = runTest {
+        for (ratio in listOf(1f, 1.5f, 2f, 2.625f, 2.75f, 3f, 3.5f)) {
+            for ((width, height) in listOf(412 to 800, 412 to 12_000, 427 to 5000, 1280 to 700, 980 to 3000)) {
+                sources.clear()
+                shot { PageContentSize(width, height, ratio) }
+                val source = sources.single()
+                assertEquals("$width at $ratio", width, engineCss(source.width, ratio))
+                assertEquals("$height at $ratio", height, engineCss(source.height, ratio))
+            }
+        }
     }
 }

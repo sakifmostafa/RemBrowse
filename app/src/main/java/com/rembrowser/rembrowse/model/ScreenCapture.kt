@@ -185,6 +185,20 @@ object CaptureGeometry {
     }
 
     /**
+     * The side of the region the engine is asked to draw for a page side of [css] CSS pixels,
+     * in the screen's pixels, each CSS pixel being [devicePixelRatio] of them. The engine turns
+     * it back into CSS pixels by dividing and rounding down, so this is the smallest number that
+     * comes back as [css]: all of that side and no more. (Where none does, on a page zoomed out,
+     * the next one up: never less than the page.)
+     */
+    fun wholePageSource(css: Int, devicePixelRatio: Float): Int {
+        var source = ceil(css * devicePixelRatio).toInt().coerceAtLeast(1)
+        while ((source / devicePixelRatio).toInt() < css) source++
+        while (source > 1 && ((source - 1) / devicePixelRatio).toInt() >= css) source--
+        return source
+    }
+
+    /**
      * Whose whole page the overlay's key takes: the region under the mouse ([hoveredKey]) when
      * there is one, else the focused one; null unless that region is a pane showing a web page
      * (one of [pageKeys]). Over the toolbar, which is no region, it is the focused pane's.

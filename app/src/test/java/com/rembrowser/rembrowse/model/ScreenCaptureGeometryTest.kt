@@ -219,6 +219,27 @@ class ScreenCaptureGeometryTest {
     }
 
     @Test
+    fun theRegionOfAWholePage_isTheFewestPixelsTheEngineCountsAsAllOfIt() {
+        assertEquals(2560, CaptureGeometry.wholePageSource(1280, 2f))
+        assertEquals(30_000, CaptureGeometry.wholePageSource(30_000, 1f))
+        // 412 CSS px at 2.625 is 1081.5 px: 1081 would come back as 411, a column short
+        assertEquals(1082, CaptureGeometry.wholePageSource(412, 2.625f))
+        assertEquals(411, (1081 / 2.625f).toInt())
+        assertEquals(412, (1082 / 2.625f).toInt())
+        assertEquals(490, CaptureGeometry.wholePageSource(980, 0.5f))
+        // Zoomed out, an odd side has no exact region: the next one up, never less than the page
+        assertEquals(491, CaptureGeometry.wholePageSource(981, 0.5f))
+        assertEquals(1, CaptureGeometry.wholePageSource(1, 0.25f))
+        for (ratio in listOf(1.25f, 1.5f, 2.625f, 2.75f, 3f, 3.5f)) {
+            for (css in listOf(1, 319, 412, 427, 980, 1281, 30_001, 250_000)) {
+                val source = CaptureGeometry.wholePageSource(css, ratio)
+                assertEquals("$css at $ratio", css, (source / ratio).toInt())
+                assertTrue("$css at $ratio: one fewer is short", ((source - 1) / ratio).toInt() < css)
+            }
+        }
+    }
+
+    @Test
     fun noPage_isNoWholePage() {
         assertNull(CaptureGeometry.wholePagePlan(0, 500, 2f, 64_000_000L))
         assertNull(CaptureGeometry.wholePagePlan(500, 0, 2f, 64_000_000L))
