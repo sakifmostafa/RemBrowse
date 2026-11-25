@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.15.0`)
+# RemBrowse (`v0.16.0`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a private, native browser made for Googlebook, where SSH is just another tab. It runs on Android laptops (Googlebook OS) and any Android device. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.15.0** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
+**Version 0.16.0** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 

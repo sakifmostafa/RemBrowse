@@ -56,8 +56,8 @@ android {
         applicationId = "com.rembrowser.rembrowse"
         minSdk = 33
         targetSdk = 36
-        versionCode = 36
-        versionName = "0.15.0"
+        versionCode = 37
+        versionName = "0.16.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
