@@ -161,9 +161,7 @@ class OkHttpAmoApiClient(
             if (!response.isSuccessful) {
                 throw IOException("addons.mozilla.org returned HTTP ${response.code}")
             }
-            val body = response.body?.string()
-                ?: throw IOException("Empty response from addons.mozilla.org")
-            AmoJsonParser.parseSearchResponse(body)
+            AmoJsonParser.parseSearchResponse(response.body.string())
         }
     }
 }

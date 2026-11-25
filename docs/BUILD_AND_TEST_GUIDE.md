@@ -87,6 +87,8 @@ Test suites included:
 * `DownloadsViewModelTest` — asking first, saving, declining, failure and cancel clean-up, name collisions, progress, the list and its history.
 * `BrowsingHistoryTest` / `BrowsingHistoryStoreTest` — what is recorded (web pages only, one entry per address, titles filled in, the cap), the Keep history switch, remove and clear, and the saved list.
 * `AppUpdatesTest` — reading `update.json` (and rejecting unsafe entries), choosing the APK for the device, offering nothing to a device older than the release's `minSdk`, fetching it, and deleting a download that is damaged, truncated or too large.
+* `NotificationIconClientTest` — the client that downloads a site notification's icon, against servers on the test machine's loopback address: a name that leads to this device or the local network is refused before anything connects, an address written in the URL is refused before it is requested, and so is a redirect to either; and the two facts about OkHttp that guard rests on (it asks the client's name lookup for every name, and connects to an address in a URL without asking).
+* `SiteOriginsSiteTest` — a site as storage access is granted to it (the scheme and registrable domain), with OkHttp's list of public suffixes really read: it needs Robolectric and `OkHttp.initialize`, and fails if the list is missing.
 * `UpdatesViewModelTest` / `UpdatesUiTest` — the daily check and its notice, checking on request, download progress and cancel, retrying, the install permission round trip, refused updates, and the controls in Settings → About.
 * `CommandPaletteResultsTest` — what the command palette offers for a typed query.
 * `ThemeContrastTest` — WCAG contrast of every theme and accent combination.

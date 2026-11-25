@@ -155,6 +155,9 @@ object SiteOrigins {
         val scheme = match.groupValues[1]
         val host = match.groupValues[2]
         if (host.startsWith("[")) return "$scheme://$host"
+        // Since OkHttp 5 its list of public suffixes is an Android asset, read through the context
+        // AndroidX Startup gives it as the app starts. Without one the lookup throws and the whole
+        // host stands as the site, which SiteOriginsSiteTest guards against.
         val domain = runCatching { "$scheme://$host/".toHttpUrlOrNull()?.topPrivateDomain() }.getOrNull()
         return "$scheme://${domain ?: host}"
     }

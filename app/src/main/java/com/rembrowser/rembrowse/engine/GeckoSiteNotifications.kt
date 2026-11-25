@@ -86,16 +86,7 @@ class GeckoSiteNotifications internal constructor(
     // Lives as long as the runtime, which is as long as the process
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val iconClient by lazy {
-        OkHttpClient.Builder()
-            // A name can lead to this device or the local network as surely as an address can
-            .dns(PublicAddressesOnly)
-            // Followed in download, where each new address is checked first: OkHttp connects to an
-            // address written in a URL without asking the Dns above
-            .followRedirects(false)
-            .followSslRedirects(false)
-            .build()
-    }
+    private val iconClient by lazy { notificationIconClient() }
 
     private var channelCreated = false
 
@@ -258,7 +249,8 @@ class GeckoSiteNotifications internal constructor(
         val bytes = if (url.startsWith("data:", ignoreCase = true)) {
             SiteNotifications.dataUrlBytes(url)
         } else {
-            download(url)
+            // Sent with the user agent Gecko gives mobile pages, so the site sees a browser
+            downloadNotificationIcon(iconClient, url, GeckoSession.getDefaultUserAgent())
         } ?: return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -268,49 +260,6 @@ class GeckoSiteNotifications internal constructor(
             inSampleSize = SiteNotifications.iconSampleSize(bounds.outWidth, bounds.outHeight)
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-    }
-
-    /**
-     * [url]'s body, or null when the request fails, takes longer than [ICON_TIMEOUT_SECONDS] in
-     * all, is redirected somewhere an icon may not come from, or is larger than an icon can be.
-     * It is sent with the user agent Gecko gives mobile pages, so the site sees a browser.
-     */
-    private fun download(url: String): ByteArray? {
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(ICON_TIMEOUT_SECONDS)
-        var target = url
-        repeat(ICON_MAX_REDIRECTS + 1) {
-            val request = Request.Builder()
-                .url(target)
-                .header("User-Agent", GeckoSession.getDefaultUserAgent())
-                .build()
-            val call = iconClient.newCall(request)
-            val left = deadline - System.nanoTime()
-            if (left <= 0) return null
-            call.timeout().timeout(left, TimeUnit.NANOSECONDS)
-            call.execute().use { response ->
-                if (response.isRedirect) {
-                    val next = response.header("Location")?.let { response.request.url.resolve(it) }
-                    target = next?.toString()?.let(SiteNotifications::iconUrlOf) ?: return null
-                    return@use
-                }
-                if (!response.isSuccessful) return null
-                val body = response.body ?: return null
-                if (body.contentLength() > SiteNotifications.MAX_ICON_BYTES) return null
-                val source = body.source()
-                // One byte past the limit tells a body that is too large, without reading the rest
-                if (source.request(SiteNotifications.MAX_ICON_BYTES + 1L)) return null
-                return source.readByteArray()
-            }
-        }
-        return null
-    }
-
-    /** Looks names up as usual, but never hands back an address on this device or the local network. */
-    private object PublicAddressesOnly : Dns {
-        override fun lookup(hostname: String): List<InetAddress> =
-            Dns.SYSTEM.lookup(hostname)
-                .filterNot { SiteNotifications.isLocalAddress(it.address) }
-                .ifEmpty { throw UnknownHostException("$hostname is on this device or the local network") }
     }
 
     companion object {
@@ -346,6 +295,77 @@ class GeckoSiteNotifications internal constructor(
          */
         private fun uriOf(key: String): Uri = Uri.fromParts("rembrowse-notification", key, null)
     }
+}
+
+/**
+ * The client a notification's large icon is downloaded with. It never connects to this device or
+ * the local network by name ([PublicAddressesOnly] answers every name it is asked about), and it
+ * follows no redirect itself: [downloadNotificationIcon] does, checking each new address first,
+ * since OkHttp connects to an address written in a URL without asking its [Dns]. The tests pin
+ * both of those facts about OkHttp ([dns] is theirs to replace).
+ */
+internal fun notificationIconClient(dns: Dns = PublicAddressesOnly()): OkHttpClient =
+    OkHttpClient.Builder()
+        .dns(dns)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .build()
+
+/**
+ * [url]'s body, or null when the request fails, takes longer than [timeoutNanos] in all, is
+ * redirected somewhere an icon may not come from, or is larger than an icon can be. [url] and
+ * every address it redirects to must be a web address [SiteNotifications.iconUrlOf] accepts (not
+ * on this device or the local network, nor on a port pages may not use); up to
+ * [ICON_MAX_REDIRECTS] redirects are followed. Blocks: call it off the main thread.
+ */
+internal fun downloadNotificationIcon(
+    client: OkHttpClient,
+    url: String,
+    userAgent: String,
+    timeoutNanos: Long = TimeUnit.SECONDS.toNanos(ICON_TIMEOUT_SECONDS)
+): ByteArray? {
+    val deadline = System.nanoTime() + timeoutNanos
+    var target = webIconUrlOf(url) ?: return null
+    repeat(ICON_MAX_REDIRECTS + 1) {
+        val request = Request.Builder()
+            .url(target)
+            .header("User-Agent", userAgent)
+            .build()
+        val call = client.newCall(request)
+        val left = deadline - System.nanoTime()
+        if (left <= 0) return null
+        call.timeout().timeout(left, TimeUnit.NANOSECONDS)
+        call.execute().use { response ->
+            if (response.isRedirect) {
+                val next = response.header("Location")?.let { response.request.url.resolve(it) }
+                target = next?.toString()?.let(::webIconUrlOf) ?: return null
+                return@use
+            }
+            if (!response.isSuccessful) return null
+            val body = response.body
+            if (body.contentLength() > SiteNotifications.MAX_ICON_BYTES) return null
+            val source = body.source()
+            // One byte past the limit tells a body that is too large, without reading the rest
+            if (source.request(SiteNotifications.MAX_ICON_BYTES + 1L)) return null
+            return source.readByteArray()
+        }
+    }
+    return null
+}
+
+/** [url] when it is a web address an icon may be fetched from (see [SiteNotifications.iconUrlOf]). */
+private fun webIconUrlOf(url: String): String? =
+    SiteNotifications.iconUrlOf(url)?.takeUnless { it.startsWith("data:", ignoreCase = true) }
+
+/**
+ * Looks names up with [names] (the system's resolver outside the tests), but never hands back an
+ * address on this device or the local network: a name that leads only there is not found.
+ */
+internal class PublicAddressesOnly(private val names: Dns = Dns.SYSTEM) : Dns {
+    override fun lookup(hostname: String): List<InetAddress> =
+        names.lookup(hostname)
+            .filterNot { SiteNotifications.isLocalAddress(it.address) }
+            .ifEmpty { throw UnknownHostException("$hostname is on this device or the local network") }
 }
 
 /**

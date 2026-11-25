@@ -169,7 +169,7 @@ class OkHttpUpdateSource(
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw UpdateHttpException(response.code)
-                val body = response.body?.string() ?: throw IOException("Empty response")
+                val body = response.body.string()
                 val manifest = UpdateManifests.parse(body) ?: throw UnreadableUpdateException()
                 manifest.copy(filesBaseUrl = filesBaseUrl)
             }
@@ -186,7 +186,7 @@ class OkHttpUpdateSource(
             .build()
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw UpdateHttpException(response.code)
-            val sha = response.body?.string()?.trim().orEmpty()
+            val sha = response.body.string().trim()
             if (!COMMIT_SHA.matches(sha)) throw IOException("Not a commit id")
             sha
         }
@@ -206,7 +206,7 @@ class OkHttpUpdateSource(
                 var received = 0L
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) throw UpdateHttpException(response.code)
-                    val body = response.body ?: throw IOException("Empty response")
+                    val body = response.body
                     body.byteStream().use { input ->
                         partial.outputStream().use { output ->
                             val buffer = ByteArray(BUFFER_BYTES)

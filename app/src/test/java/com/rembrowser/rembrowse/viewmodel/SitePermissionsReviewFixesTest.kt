@@ -109,16 +109,8 @@ class SitePermissionsReviewFixesTest {
         assertEquals("https://" + ace("k\u00f6ln-test") + ".example", koeln)
     }
 
-    // 3. Storage access is granted to the embedded page's whole site
-
-    @Test
-    fun aSiteIsTheSchemeAndRegistrableDomain() {
-        assertEquals("https://embed.com", SiteOrigins.siteOf("https://www.embed.com:8443/frame"))
-        assertEquals("https://embed.co.uk", SiteOrigins.siteOf("https://login.embed.co.uk/"))
-        assertEquals("http://192.168.1.20", SiteOrigins.siteOf("http://192.168.1.20:8080/"))
-        assertEquals("http://localhost", SiteOrigins.siteOf("http://localhost:3000/"))
-        assertNull(SiteOrigins.siteOf("about:blank"))
-    }
+    // 3. Storage access is granted to the embedded page's whole site: SiteOriginsSiteTest, which
+    // needs Robolectric for OkHttp's list of public suffixes
 
     // 4. Taking a device away stops the pages using it
 
