@@ -939,7 +939,7 @@ class GeckoBrowserEngine(
             // the builder is then left alone, as before.
             val configFile = EngineConfig.prepare(
                 directory = appContext.filesDir,
-                smallestScreenWidthDp = appContext.resources.configuration.smallestScreenWidthDp,
+                smallestScreenWidthDp = DeviceScreen.smallestWidthDp(appContext),
                 hasMouseOrTouchpad = PointerDevices.hasMouseOrTouchpad(appContext)
             )
             // Site isolation is not set here: in GeckoView 161 each site's pages run in their own
