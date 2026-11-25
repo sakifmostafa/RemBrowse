@@ -1,11 +1,14 @@
 package com.rembrowser.rembrowse.ui.components
 
 import android.graphics.Bitmap
-import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,14 +57,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -73,7 +80,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -87,6 +93,7 @@ import com.rembrowser.rembrowse.model.ExtensionsTab
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
 import com.rembrowser.rembrowse.ui.theme.RemDimens
+import com.rembrowser.rembrowse.ui.theme.RemMotion
 import java.util.Locale
 import kotlinx.coroutines.delay
 
@@ -680,72 +687,98 @@ fun ExtensionPopupDialog(
     val width = popup.contentWidth?.dp?.coerceIn(PopupMinWidth, PopupMaxWidth) ?: PopupDefaultWidth
     val pageHeight = popup.contentHeight?.dp?.coerceIn(PopupMinPageHeight, PopupMaxPageHeight)
         ?: PopupDefaultPageHeight
-    // Hidden for a moment until the content's size is known, so the popup does not visibly
-    // jump from the default size to its own
-    var waited by remember(popup.sessionId) { mutableStateOf(false) }
-    LaunchedEffect(popup.sessionId) {
-        delay(POPUP_SIZE_WAIT_MS)
-        waited = true
-    }
-    val shown = waited || popup.contentWidth != null
+    val atDefaultSize = width == PopupDefaultWidth && pageHeight == PopupDefaultPageHeight
+    val shown = rememberPopupShown(popup, atDefaultSize)
+    // A short fade once it is shown, in place; hidden again at once for the next popup
+    val alpha by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = if (shown) RemMotion.fastEffects() else snap(),
+        label = "extension popup"
+    )
+    val dismiss by rememberUpdatedState(onDismiss)
+    val bounds = remember { PopupBounds() }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        PlaceDialogWindow(anchorToRail, railWidth)
-        Surface(
-            modifier = Modifier
-                .padding(PopupShadowMargin)
-                .width(width)
-                .alpha(if (shown) 1f else 0f)
-                .testTag("extension_popup"),
-            shape = MaterialTheme.shapes.large,
-            color = colors.surface,
-            contentColor = colors.onSurface,
-            border = BorderStroke(1.dp, colors.outlineVariant),
-            shadowElevation = 12.dp
+        PlaceDialogWindow(anchorToRail)
+        // Beside the rail the dialog's window fills the screen and the popup is placed in it, at
+        // the bottom corner on the rail's side, just past the rail. The dialog itself centres what
+        // it shows across its window's width and cannot be told otherwise, so placing the window
+        // (its gravity) only ever moved the popup up and down. Elsewhere the dialog centres it.
+        Box(
+            modifier = if (anchorToRail) {
+                Modifier
+                    .fillMaxSize()
+                    .onPlaced { bounds.window = it }
+                    .pointerInput(bounds) { closeOnTapOutside(bounds) { dismiss() } }
+                    // The visible popup starts 4dp past the rail; at the bottom, its shadow margin
+                    // lines it up with the panes' bottom edge
+                    .padding(start = (railWidth + PopupRailGap - PopupShadowMargin).coerceAtLeast(0.dp))
+            } else {
+                Modifier
+            },
+            // The popup grows and shrinks from this corner, so a later size keeps it in place
+            contentAlignment = Alignment.BottomStart
         ) {
-            Column {
-                Row(
-                    modifier = Modifier
-                        .height(44.dp)
-                        .padding(start = 14.dp, end = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ExtensionIcon(icon = icon, size = 18.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = popup.extensionName,
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    RemIconButton(
-                        icon = Icons.Outlined.Close,
-                        label = "Close ${popup.extensionName}",
-                        onClick = onDismiss,
-                        size = 32.dp,
-                        iconSize = 18.dp
-                    )
-                }
-                HorizontalDivider(color = colors.outlineVariant)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .height(pageHeight)
-                        .testTag("extension_popup_page")
-                ) {
-                    popupContent(Modifier.fillMaxSize())
+            Surface(
+                modifier = Modifier
+                    .padding(PopupShadowMargin)
+                    .onPlaced { bounds.popup = it }
+                    .width(width)
+                    .graphicsLayer { this.alpha = alpha }
+                    .testTag("extension_popup"),
+                shape = MaterialTheme.shapes.large,
+                color = colors.surface,
+                contentColor = colors.onSurface,
+                border = BorderStroke(1.dp, colors.outlineVariant),
+                shadowElevation = 12.dp
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .height(44.dp)
+                            .padding(start = 14.dp, end = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ExtensionIcon(icon = icon, size = 18.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = popup.extensionName,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        RemIconButton(
+                            icon = Icons.Outlined.Close,
+                            label = "Close ${popup.extensionName}",
+                            onClick = onDismiss,
+                            size = 32.dp,
+                            iconSize = 18.dp
+                        )
+                    }
+                    HorizontalDivider(color = colors.outlineVariant)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .height(pageHeight)
+                            .testTag("extension_popup_page")
+                    ) {
+                        popupContent(Modifier.fillMaxSize())
+                    }
                 }
             }
         }
     }
 }
 
-/** Room around the popup for its shadow; the dialog window is this much larger than it. */
+/** Room around the popup for its shadow. */
 private val PopupShadowMargin = 8.dp
+
+/** Between the rail and the popup beside it. */
+private val PopupRailGap = 4.dp
 
 /** The popup's size before its content has reported one, or when it never does. */
 private val PopupDefaultWidth = 420.dp
@@ -758,46 +791,88 @@ private val PopupMinPageHeight = 160.dp
 private val PopupMaxPageHeight = 600.dp
 
 /** How long a popup stays hidden waiting for its content's size before it is shown anyway. */
-private const val POPUP_SIZE_WAIT_MS = 700L
+internal const val POPUP_SIZE_WAIT_MS = 700L
 
 /**
- * Places the dialog's window. Beside the rail it goes to the bottom corner on the rail's side,
- * just past the rail, so the popup sits next to the extension buttons, and the page behind is
- * not dimmed (a tap outside still closes the popup). Otherwise it is centred and dimmed.
+ * How long a reported size has to stand before the popup is shown at it. The popup helper
+ * measures a page 100ms after it last changed, so a page that builds itself in steps reports
+ * its next size sooner than this, and so does one that reflows once the popup takes its size
+ * (Proton VPN reports 370 wide, then 420 at that width, 100ms apart).
+ */
+internal const val POPUP_SIZE_SETTLE_MS = 250L
+
+/**
+ * Whether [popup] is shown yet. It stays hidden until its content's size has settled, so it
+ * appears once, at its own size, instead of growing (or jumping from the default size) on
+ * screen: a size counts once no new one has followed it for [POPUP_SIZE_SETTLE_MS], or at once
+ * when it is the size the popup already has ([atDefaultSize]: a popup made for Android reports
+ * that), and after [POPUP_SIZE_WAIT_MS] the popup is shown whatever it has said. Once shown it
+ * stays shown; later sizes resize it in place.
+ */
+@Composable
+internal fun rememberPopupShown(popup: ExtensionPopupState, atDefaultSize: Boolean): Boolean {
+    var shown by remember(popup.sessionId) { mutableStateOf(false) }
+    LaunchedEffect(popup.sessionId) {
+        delay(POPUP_SIZE_WAIT_MS)
+        shown = true
+    }
+    LaunchedEffect(popup.sessionId, popup.contentWidth, popup.contentHeight) {
+        if (popup.contentWidth == null || popup.contentHeight == null) return@LaunchedEffect
+        if (!atDefaultSize) delay(POPUP_SIZE_SETTLE_MS)
+        shown = true
+    }
+    return shown
+}
+
+/** Where the popup is in a dialog window that fills the screen beside the rail. */
+private class PopupBounds {
+    var window: LayoutCoordinates? = null
+    var popup: LayoutCoordinates? = null
+
+    /** Whether [position], in the window's coordinates, is on the popup. */
+    operator fun contains(position: Offset): Boolean {
+        val window = window?.takeIf { it.isAttached } ?: return false
+        val popup = popup?.takeIf { it.isAttached } ?: return false
+        return window.localBoundingBoxOf(popup, clipBounds = false).contains(position)
+    }
+}
+
+/**
+ * Closes the popup when a press outside it is let go. The dialog does that by itself only for
+ * presses outside what it shows, which here fills the window.
+ */
+private suspend fun PointerInputScope.closeOnTapOutside(bounds: PopupBounds, close: () -> Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        if (down.position in bounds) return@awaitEachGesture
+        if (waitForUpOrCancellation() != null) close()
+    }
+}
+
+/**
+ * Sets up the dialog's window. Beside the rail it fills the screen (its content does) and
+ * leaves the page behind undimmed; it has no animation of its own, which would move all of it,
+ * so the popup only fades in where it stands. Otherwise the popup is centred over the dimmed
+ * page and opens and closes as a dialog does.
  *
  * Both cases are set every time, because the same dialog can move from one to the other: the
  * activity handles rotation and resizing itself, so a popup opened on a wide window survives
  * the window becoming phone-sized.
  */
 @Composable
-private fun PlaceDialogWindow(anchorToRail: Boolean, railWidth: Dp) {
-    val view = LocalView.current
-    val density = LocalDensity.current
-    val layoutDirection = LocalLayoutDirection.current
-    DisposableEffect(view, anchorToRail, railWidth, density, layoutDirection) {
-        val window = (view.parent as? DialogWindowProvider)?.window
+private fun PlaceDialogWindow(anchorToRail: Boolean) {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    // The theme's dialog animation, to go back to
+    val dialogAnimations = remember(window) { window?.attributes?.windowAnimations ?: 0 }
+    DisposableEffect(window, anchorToRail) {
         if (window != null) {
             val params = window.attributes
             if (anchorToRail) {
-                // A window's gravity is not resolved against the layout direction (START
-                // would always mean left), and in a right-to-left layout the rail is on the
-                // right, so resolve it here
-                params.gravity = Gravity.getAbsoluteGravity(
-                    Gravity.BOTTOM or Gravity.START,
-                    if (layoutDirection == LayoutDirection.Rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
-                )
-                with(density) {
-                    // The visible popup starts 4dp past the rail and lines up with the panes'
-                    // bottom edge; x is measured from whichever side the gravity names
-                    params.x = (railWidth + 4.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
-                    params.y = (6.dp - PopupShadowMargin).roundToPx().coerceAtLeast(0)
-                }
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND.inv()
+                params.windowAnimations = 0
             } else {
-                params.gravity = Gravity.CENTER
-                params.x = 0
-                params.y = 0
                 params.flags = params.flags or WindowManager.LayoutParams.FLAG_DIM_BEHIND
+                params.windowAnimations = dialogAnimations
             }
             window.attributes = params
         }
