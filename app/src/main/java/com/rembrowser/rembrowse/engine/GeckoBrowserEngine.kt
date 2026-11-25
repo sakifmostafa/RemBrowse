@@ -874,8 +874,10 @@ class GeckoBrowserEngine(
          * redirected through but that the user never used themselves, which is how a redirect
          * tracker follows people from site to site. It acts only under Enhanced privacy: Firefox
          * itself runs it in dry-run mode outside Nightly, so that is the cautious choice. With the
-         * switch off it is on standby, which keeps noting the sites that bounce without clearing
-         * anything, so turning the switch on acts on what was already seen.
+         * switch off it is on standby, GeckoView's "disabled" state for a feature that can be
+         * switched on and off: no site is noted as a redirect tracker and nothing is cleared.
+         * The engine only goes on recording which sites the user has used, so that once the
+         * switch is on it already knows which sites to leave alone.
          */
         internal fun applyTrackingProtection(settings: ContentBlocking.Settings, enhanced: Boolean) {
             val standard = ContentBlocking.AntiTracking.DEFAULT

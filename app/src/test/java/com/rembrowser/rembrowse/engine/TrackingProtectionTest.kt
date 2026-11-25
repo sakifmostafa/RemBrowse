@@ -28,8 +28,8 @@ class TrackingProtectionTest {
 
     @Test
     fun withoutEnhancedPrivacyBounceTrackingProtectionIsOnStandby() {
-        // Standby notes the sites that bounce without clearing anything, unlike disabled, which
-        // forgets them; so a later switch-on acts at once
+        // Standby neither notes redirect trackers nor clears anything. Unlike disabled, it goes
+        // on recording which sites the user has used, which a later switch-on needs
         assertEquals(
             BounceTrackingProtectionMode.BOUNCE_TRACKING_PROTECTION_MODE_ENABLED_STANDBY,
             settingsFor(enhanced = false).bounceTrackingProtectionMode
