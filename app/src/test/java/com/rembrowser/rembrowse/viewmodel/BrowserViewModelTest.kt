@@ -52,10 +52,11 @@ class BrowserViewModelTest {
         viewModel = newViewModel()
     }
 
-    private fun newViewModel() = BrowserViewModel(
+    private fun newViewModel(isPhone: Boolean = false) = BrowserViewModel(
         engine = engine,
         repository = repository,
-        idGenerator = { "tab-${++idCounter}" }
+        idGenerator = { "tab-${++idCounter}" },
+        isPhone = isPhone
     )
 
     private fun alert(id: String, tabId: String) =
@@ -975,6 +976,92 @@ class BrowserViewModelTest {
         repository.storedState = PersistedBrowserState(settings = repository.storedState.settings)
         engine = FakeBrowserEngine()
         assertFalse(newViewModel().uiState.value.activeTab!!.desktopMode)
+    }
+
+    @Test
+    fun desktopSiteDefault_onAFreshInstall_isOffOnAPhone_andOnOnATabletOrLaptop() {
+        repository = FakeBrowserStateRepository()
+        engine = FakeBrowserEngine()
+        val phone = newViewModel(isPhone = true)
+        assertFalse(phone.uiState.value.settings.desktopSiteByDefault)
+        val firstTab = phone.uiState.value.activeTab!!
+        assertFalse("The first tab asks for mobile sites", firstTab.desktopMode)
+        assertFalse(engine.sessions.getValue(firstTab.id).desktopModeEnabled)
+        val newTabId = phone.openNewTab("https://m.example")
+        assertFalse(phone.uiState.value.tabs.first { it.id == newTabId }.desktopMode)
+        assertFalse(repository.storedState.settings.desktopSiteByDefault)
+        assertTrue("The marker is saved", repository.storedState.desktopSiteSetForDevice)
+
+        repository = FakeBrowserStateRepository()
+        engine = FakeBrowserEngine()
+        val tablet = newViewModel(isPhone = false)
+        assertTrue(tablet.uiState.value.settings.desktopSiteByDefault)
+        assertTrue(tablet.uiState.value.activeTab!!.desktopMode)
+        assertTrue(repository.storedState.desktopSiteSetForDevice)
+    }
+
+    /** A state saved by 0.15.0 or older: no marker, every tab and the setting on the old default. */
+    private fun savedBeforeThePhoneDefault() = PersistedBrowserState(
+        tabs = listOf(
+            BrowserTab(id = "start", url = BrowserTab.NEW_TAB_URL, desktopMode = true),
+            BrowserTab(id = "site", url = "https://site.example/", title = "Site", desktopMode = true),
+            BrowserTab(id = "mobile", url = "https://m.example/", title = "Mobile", desktopMode = false)
+        ),
+        paneTabIds = listOf("site"),
+        settings = BrowserSettings(desktopSiteByDefault = true)
+    )
+
+    @Test
+    fun desktopSiteDefault_anUpdatedPhone_turnsItOffOnce_andTabsShowingASiteKeepTheirMode() {
+        repository = FakeBrowserStateRepository(savedBeforeThePhoneDefault())
+        engine = FakeBrowserEngine()
+        val phone = newViewModel(isPhone = true)
+
+        val tabs = phone.uiState.value.tabs.associateBy { it.id }
+        assertFalse(phone.uiState.value.settings.desktopSiteByDefault)
+        assertFalse("A tab with no site yet follows", tabs.getValue("start").desktopMode)
+        assertTrue("A tab showing a site keeps its mode", tabs.getValue("site").desktopMode)
+        assertTrue("Its page isn't reloaded in another mode", engine.sessions.getValue("site").desktopModeEnabled)
+        assertFalse(tabs.getValue("mobile").desktopMode)
+        assertFalse(repository.storedState.settings.desktopSiteByDefault)
+        assertTrue(repository.storedState.desktopSiteSetForDevice)
+
+        // Turned back on, it stays on through restarts: the marker is there now
+        phone.setDesktopSiteByDefault(true)
+        engine = FakeBrowserEngine()
+        val restarted = newViewModel(isPhone = true)
+        assertTrue(restarted.uiState.value.settings.desktopSiteByDefault)
+        assertTrue(restarted.uiState.value.tabs.first { it.id == "start" }.desktopMode)
+        engine = FakeBrowserEngine()
+        assertTrue(newViewModel(isPhone = true).uiState.value.settings.desktopSiteByDefault)
+    }
+
+    @Test
+    fun desktopSiteDefault_anUpdatedTabletOrLaptop_isUnchanged() {
+        for (saved in listOf(true, false)) {
+            val before = savedBeforeThePhoneDefault().let { it.copy(settings = it.settings.copy(desktopSiteByDefault = saved)) }
+            repository = FakeBrowserStateRepository(before)
+            engine = FakeBrowserEngine()
+            val tablet = newViewModel(isPhone = false)
+            assertEquals("Saved $saved", saved, tablet.uiState.value.settings.desktopSiteByDefault)
+            assertEquals(before.tabs.map { it.desktopMode }, tablet.uiState.value.tabs.map { it.desktopMode })
+            assertTrue(repository.storedState.desktopSiteSetForDevice)
+        }
+    }
+
+    @Test
+    fun desktopSiteDefault_aPhoneSaveWithTheMarker_keepsWhatItHas() {
+        // A phone user's choice from 0.16.0 on, either way
+        for (saved in listOf(true, false)) {
+            val before = savedBeforeThePhoneDefault().let {
+                it.copy(settings = it.settings.copy(desktopSiteByDefault = saved), desktopSiteSetForDevice = true)
+            }
+            repository = FakeBrowserStateRepository(before)
+            engine = FakeBrowserEngine()
+            val phone = newViewModel(isPhone = true)
+            assertEquals("Saved $saved", saved, phone.uiState.value.settings.desktopSiteByDefault)
+            assertEquals(before.tabs.map { it.desktopMode }, phone.uiState.value.tabs.map { it.desktopMode })
+        }
     }
 
     @Test

@@ -169,7 +169,10 @@ data class BrowserSettings(
     val restoreTabsOnStartup: Boolean = true,
     /** Put a new tab right after the current one instead of at the end of the list. */
     val openNewTabsNextToCurrent: Boolean = false,
-    /** New tabs ask sites for their desktop version. A tab can still be switched on its own. */
+    /**
+     * New tabs ask sites for their desktop version. A tab can still be switched on its own. On
+     * for tablets and laptops; a phone starts with it off ([PersistedBrowserState.desktopSiteSetForDevice]).
+     */
     val desktopSiteByDefault: Boolean = true,
     /** Show a file's name, size and site, and wait for a yes, before saving it. */
     val askBeforeDownloading: Boolean = true,
@@ -300,7 +303,14 @@ data class PersistedBrowserState(
     val activePaneIndex: Int = 0,
     val bookmarks: List<BookmarkItem> = emptyList(),
     val settings: BrowserSettings = BrowserSettings(),
-    val layout: PaneNode? = null
+    val layout: PaneNode? = null,
+    /**
+     * Whether [BrowserSettings.desktopSiteByDefault] has been set for the kind of device, once:
+     * off on a phone (0.16.0). False for a new install and for a state saved by an older version,
+     * where a phone's saved `true` may be the old default rather than a choice. Saved with the
+     * settings; every save after the first launch of 0.16.0 has it.
+     */
+    val desktopSiteSetForDevice: Boolean = false
 )
 
 data class BrowserUiState(

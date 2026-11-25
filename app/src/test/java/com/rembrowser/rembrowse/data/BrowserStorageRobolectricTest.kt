@@ -174,6 +174,20 @@ class BrowserStorageRobolectricTest {
     }
 
     @Test
+    fun desktopSiteSetForDevice_isSavedWithTheSettings_andMissingFromOlderData() {
+        assertFalse("Nothing saved yet", repository.loadState().desktopSiteSetForDevice)
+        saveRawSettings("""{"desktopSiteByDefault":true}""")
+        assertFalse("Saved by 0.15.0 or older", repository.loadState().desktopSiteSetForDevice)
+        assertTrue(repository.loadState().settings.desktopSiteByDefault)
+
+        repository.saveState(PersistedBrowserState(settings = BrowserSettings(desktopSiteByDefault = true), desktopSiteSetForDevice = true))
+        assertTrue(repository.loadState().desktopSiteSetForDevice)
+        assertTrue(repository.loadState().settings.desktopSiteByDefault)
+        repository.saveState(PersistedBrowserState(desktopSiteSetForDevice = false))
+        assertFalse(repository.loadState().desktopSiteSetForDevice)
+    }
+
+    @Test
     fun tabRail_isCollapsedUntilExpanded_andForDataSavedByAnOlderVersion() {
         assertFalse(BrowserSettings().tabRailExpanded)
         assertFalse(repository.loadState().settings.tabRailExpanded)

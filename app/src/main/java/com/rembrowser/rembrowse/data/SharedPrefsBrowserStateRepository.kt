@@ -50,6 +50,9 @@ class SharedPrefsBrowserStateRepository(
          */
         private const val KEY_LEGACY_DARK_THEME = "useDarkTheme"
 
+        /** [PersistedBrowserState.desktopSiteSetForDevice], in the saved settings. */
+        private const val KEY_DESKTOP_SITE_SET_FOR_DEVICE = "desktopSiteSetForDevice"
+
         /**
          * The old switch as 0.14.0 and older read it, should one of them be installed over this
          * version: Dark and Light as they are, System default as dark, the default those builds
@@ -109,6 +112,7 @@ class SharedPrefsBrowserStateRepository(
                     put("restoreTabsOnStartup", state.settings.restoreTabsOnStartup)
                     put("openNewTabsNextToCurrent", state.settings.openNewTabsNextToCurrent)
                     put("desktopSiteByDefault", state.settings.desktopSiteByDefault)
+                    put(KEY_DESKTOP_SITE_SET_FOR_DEVICE, state.desktopSiteSetForDevice)
                     put("askBeforeDownloading", state.settings.askBeforeDownloading)
                     put("keepHistory", state.settings.keepHistory)
                     put("pageRendering", state.settings.pageRendering.name)
@@ -210,7 +214,8 @@ class SharedPrefsBrowserStateRepository(
                 settings = settings,
                 // Absent in states saved before layouts became free-form; unreadable ones are
                 // dropped the same way, and the layout is rebuilt from the fields above.
-                layout = root.optJSONObject("layout")?.let { decodeLayout(it, depth = 0) }
+                layout = root.optJSONObject("layout")?.let { decodeLayout(it, depth = 0) },
+                desktopSiteSetForDevice = settingsObj?.optBoolean(KEY_DESKTOP_SITE_SET_FOR_DEVICE, false) ?: false
             )
         }
 

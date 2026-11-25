@@ -57,6 +57,7 @@ import com.rembrowser.rembrowse.data.SharedPrefsDownloadHistoryStore
 import com.rembrowser.rembrowse.data.SharedPrefsSitePermissionStore
 import com.rembrowser.rembrowse.data.SharedPrefsTerminalStore
 import com.rembrowser.rembrowse.data.SharedPrefsUpdatePreferences
+import com.rembrowser.rembrowse.engine.EngineConfig
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
@@ -174,7 +175,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
         browser = BrowserViewModel(
             engine = engine,
             repository = SharedPrefsBrowserStateRepository(application),
-            historyStore = SharedPrefsBrowsingHistoryStore(application)
+            historyStore = SharedPrefsBrowsingHistoryStore(application),
+            isPhone = EngineConfig.isPhone(application.resources.configuration.smallestScreenWidthDp)
         )
         extensions = ExtensionsViewModel(
             extensionManager = extensionManager,

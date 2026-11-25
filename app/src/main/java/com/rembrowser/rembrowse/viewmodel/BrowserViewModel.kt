@@ -81,7 +81,12 @@ class BrowserViewModel(
     private val repository: BrowserStateRepository,
     private val idGenerator: () -> String = { UUID.randomUUID().toString() },
     private val historyStore: BrowsingHistoryStore = NoBrowsingHistory,
-    private val clock: () -> Long = System::currentTimeMillis
+    private val clock: () -> Long = System::currentTimeMillis,
+    /**
+     * The device is a phone (EngineConfig.isPhone): new tabs there ask for mobile sites until
+     * the user chooses otherwise (see [forDevice]).
+     */
+    private val isPhone: Boolean = false
 ) {
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
@@ -363,7 +368,7 @@ class BrowserViewModel(
     }
 
     private fun restoreInitialState() {
-        val persisted = repository.loadState()
+        val persisted = forDevice(repository.loadState())
         // In place before any tab is created: new tabs take their defaults from the settings
         _uiState.value = BrowserUiState(settings = persisted.settings)
 
@@ -404,6 +409,22 @@ class BrowserViewModel(
         syncSessions()
         persistCurrentState()
         refreshSitePermissions()
+    }
+
+    /**
+     * [state] with the desktop site setting for this kind of device, the first time this version
+     * starts (new install or update; [PersistedBrowserState.desktopSiteSetForDevice]): off on a
+     * phone, as [setDesktopSiteByDefault] turns it off, so tabs with no site yet follow and tabs
+     * already showing one keep their own mode. Tablets and laptops keep what they have. Every save
+     * from then on says it was done, so a phone user who turns it back on keeps it.
+     */
+    private fun forDevice(state: PersistedBrowserState): PersistedBrowserState {
+        if (state.desktopSiteSetForDevice || !isPhone) return state
+        return state.copy(
+            settings = state.settings.copy(desktopSiteByDefault = false),
+            tabs = state.tabs.map { if (it.isWebPage) it else it.copy(desktopMode = false) },
+            desktopSiteSetForDevice = true
+        )
     }
 
     /**
@@ -1785,7 +1806,9 @@ class BrowserViewModel(
                 activePaneIndex = state.activePaneIndex,
                 bookmarks = state.bookmarks,
                 settings = state.settings,
-                layout = state.layout
+                layout = state.layout,
+                // Set for the device at start (forDevice), before the first save
+                desktopSiteSetForDevice = true
             )
         )
     }

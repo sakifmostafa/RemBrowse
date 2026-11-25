@@ -94,7 +94,7 @@ internal object EngineConfig {
     const val MIN_PANE_LAYOUT_WIDTH = 320
 
     /** Smallest screen width, in dp, from which a device is treated as a tablet or laptop. */
-    private const val LARGE_SCREEN_DP = 600
+    const val LARGE_SCREEN_DP = 600
 
     private const val FILE_NAME = "geckoview-config.yaml"
 
@@ -104,7 +104,10 @@ internal object EngineConfig {
      * means wanting the wide layout fitted to the screen.
      */
     fun desktopViewportWidth(smallestScreenWidthDp: Int): Int =
-        if (smallestScreenWidthDp >= LARGE_SCREEN_DP) MIN_PANE_LAYOUT_WIDTH else GECKO_DESKTOP_WIDTH
+        if (isPhone(smallestScreenWidthDp)) GECKO_DESKTOP_WIDTH else MIN_PANE_LAYOUT_WIDTH
+
+    /** Whether a device whose smallest screen side is [smallestScreenWidthDp] is a phone (below [LARGE_SCREEN_DP]). */
+    fun isPhone(smallestScreenWidthDp: Int): Boolean = smallestScreenWidthDp < LARGE_SCREEN_DP
 
     /**
      * What RemBrowse sets on a device whose smallest screen side is [smallestScreenWidthDp], with
