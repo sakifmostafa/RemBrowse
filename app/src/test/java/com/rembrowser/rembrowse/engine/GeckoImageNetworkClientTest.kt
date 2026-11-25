@@ -28,7 +28,8 @@ import org.mozilla.geckoview.WebResponse
 /**
  * The network client that fetches site and add-on icons through the engine, against a fake
  * engine: what it sends (GET only, anonymous, no redirects followed by the engine), where it lets
- * a redirect go (web addresses only), and its size cap and time-out.
+ * a redirect go (web addresses only, and never from a site into the local network), and its size
+ * cap and time-out.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class GeckoImageNetworkClientTest {
@@ -153,13 +154,13 @@ class GeckoImageNetworkClientTest {
         val engine = FakeEngine {
             when (it.uri) {
                 "https://site.test/favicon.ico" -> response(it.uri, 301, redirectBody, mapOf("location" to "/static/icon.png"))
-                "https://site.test/static/icon.png" -> response(it.uri, 302, null, mapOf("Location" to "http://cdn.test/icon.png"))
+                "https://site.test/static/icon.png" -> response(it.uri, 302, null, mapOf("Location" to "https://cdn.test/icon.png"))
                 else -> response(it.uri)
             }
         }
         val received = client(engine).get("https://site.test/favicon.ico")
         assertEquals(
-            listOf("https://site.test/favicon.ico", "https://site.test/static/icon.png", "http://cdn.test/icon.png"),
+            listOf("https://site.test/favicon.ico", "https://site.test/static/icon.png", "https://cdn.test/icon.png"),
             engine.sent.map { it.url }
         )
         assertTrue(engine.sent.all { it.flags == GeckoImageNetworkClient.FETCH_FLAGS && it.method == "GET" })
@@ -182,6 +183,97 @@ class GeckoImageNetworkClientTest {
             failsWith<IOException> { client(engine).get("https://site.test/favicon.ico") }
             assertEquals(location, 1, engine.sent.size)
             assertTrue(location, body.closed)
+        }
+    }
+
+    @Test
+    fun aSitesIconCannotRedirectToThisDeviceOrTheLocalNetwork() = runTest {
+        for (location in listOf(
+            "http://192.168.1.1/apply?dns=203.0.113.9",
+            "https://192.168.1.1/apply",
+            "http://127.0.0.1:8080/shutdown",
+            "http://localhost:8080/shutdown",
+            "http://app.localhost/",
+            "http://10.0.0.2/",
+            "http://172.16.4.4/",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://100.64.0.1/",
+            "http://0.0.0.0:8080/",
+            "http://[::1]:8080/",
+            "http://[fe80::1]/",
+            "http://[fd00::1]/",
+            "http://[::ffff:192.168.1.1]/",
+            // The same machine as 127.0.0.1, written other ways
+            "http://127.1/",
+            "http://2130706433/",
+            "http://0x7f.0.0.1/",
+        )) {
+            val body = Body(ByteArray(0))
+            val engine = FakeEngine { response(it.uri, 302, body, mapOf("Location" to location)) }
+            failsWith<IOException> { client(engine).get("https://site.test/favicon.ico") }
+            assertEquals("$location was never asked", listOf("https://site.test/favicon.ico"), engine.sent.map { it.url })
+            assertTrue(location, body.closed)
+        }
+    }
+
+    @Test
+    fun aLaterRedirectCannotLeadThereEither() = runTest {
+        val engine = FakeEngine {
+            when (it.uri) {
+                "https://site.test/favicon.ico" -> response(it.uri, 302, null, mapOf("Location" to "https://cdn.test/icon.png"))
+                else -> response(it.uri, 302, null, mapOf("Location" to "http://192.168.1.1/apply"))
+            }
+        }
+        failsWith<IOException> { client(engine).get("https://site.test/favicon.ico") }
+        assertEquals(listOf("https://site.test/favicon.ico", "https://cdn.test/icon.png"), engine.sent.map { it.url })
+    }
+
+    @Test
+    fun aSitesIconCannotRedirectToAnotherSiteWithoutHttps() = runTest {
+        // A name anyone can point at 192.168.1.1; over https the router has no certificate for it
+        for (asked in listOf("https://site.test/favicon.ico", "http://site.test/favicon.ico")) {
+            val engine = FakeEngine { response(it.uri, 302, null, mapOf("Location" to "http://router.attacker.test/apply?dns=203.0.113.9")) }
+            failsWith<IOException> { client(engine).get(asked) }
+            assertEquals(listOf(asked), engine.sent.map { it.url })
+        }
+    }
+
+    @Test
+    fun anHttpSitesIconMayRedirectWithinTheSiteOrToHttps() = runTest {
+        for (location in listOf("/static/icon.png", "https://site.test/icon.png", "https://cdn.test/icon.png")) {
+            val engine = FakeEngine {
+                if (it.uri == "http://site.test/favicon.ico") response(it.uri, 302, null, mapOf("Location" to location)) else response(it.uri)
+            }
+            assertArrayEquals(location, PNG, client(engine).get("http://site.test/favicon.ico").bytes)
+            assertEquals(location, 2, engine.sent.size)
+        }
+    }
+
+    @Test
+    fun noIconRedirectsToAPortPagesMayNotUse() = runTest {
+        for ((asked, location) in listOf(
+            "https://site.test/favicon.ico" to "https://cdn.test:22/",
+            "https://site.test/favicon.ico" to "https://site.test:6667/icon.png",
+            "http://192.168.1.10/favicon.ico" to "http://192.168.1.1:25/",
+        )) {
+            val engine = FakeEngine { response(it.uri, 302, null, mapOf("Location" to location)) }
+            failsWith<IOException> { client(engine).get(asked) }
+            assertEquals(location, listOf(asked), engine.sent.map { it.url })
+        }
+    }
+
+    @Test
+    fun anIconOnTheLocalNetworkMayRedirectThere() = runTest {
+        // The user's own router or server: its page is open, and its icon is its own business
+        for ((asked, location) in listOf(
+            "http://192.168.1.1/favicon.ico" to "http://192.168.1.1/static/icon.png",
+            "http://192.168.1.1/favicon.ico" to "http://192.168.1.2:8080/icon.png",
+            "http://localhost:3000/favicon.ico" to "http://127.0.0.1:3000/icon.png",
+            "http://[fd00::1]/favicon.ico" to "http://cdn.test/icon.png",
+        )) {
+            val engine = FakeEngine { if (it.uri == asked) response(it.uri, 302, null, mapOf("Location" to location)) else response(it.uri) }
+            assertArrayEquals(location, PNG, client(engine).get(asked).bytes)
+            assertEquals(location, listOf(asked, location), engine.sent.map { it.url })
         }
     }
 

@@ -9,6 +9,7 @@ import coil3.network.NetworkHeaders
 import coil3.network.NetworkRequest
 import coil3.network.NetworkResponse
 import coil3.network.NetworkResponseBody
+import com.rembrowser.rembrowse.model.SiteNotifications
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
@@ -18,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okio.Buffer
 import okio.ForwardingSource
@@ -98,6 +100,10 @@ internal class GeckoEngineFetch(private val runtime: () -> GeckoRuntime) : Engin
  * - **Web addresses only.** The engine follows no redirect itself
  *   ([GeckoWebExecutor.FETCH_FLAGS_NO_REDIRECTS]); this client follows up to [MAX_REDIRECTS], each
  *   only to another http or https address. A redirect anywhere else fails the icon.
+ * - **No way in to the local network.** A site's icon may not redirect to this device or the
+ *   local network, nor to a port pages may not use: a site could otherwise have the browser send
+ *   a request of its choosing to a router or to another app (see [refuseRedirect]). An icon asked
+ *   of the local network itself may redirect as it likes.
  * - **At most [maxBytes]**, refused from the Content-Length when it says more, and otherwise cut
  *   off while reading.
  * - **At most [timeoutMillis] in all**, from the first request to the last byte of the body.
@@ -119,8 +125,8 @@ internal class GeckoImageNetworkClient(
             throw IOException("Only plain GET requests are sent for icons, not ${request.method}")
         }
         val deadline = nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
-        var url = request.url.toHttpUrlOrNull()?.toString()
-            ?: throw IOException("Icons are fetched from web addresses only")
+        val asked = request.url.toHttpUrlOrNull() ?: throw IOException("Icons are fetched from web addresses only")
+        var url = asked.toString()
         repeat(MAX_REDIRECTS + 1) {
             val requestMillis = currentTimeMillis()
             val webRequest = webRequestOf(url, request.headers)
@@ -128,7 +134,7 @@ internal class GeckoImageNetworkClient(
                 ?: throw SocketTimeoutException("No answer for an icon within $timeoutMillis ms")
             val responseMillis = currentTimeMillis()
             val next = try {
-                redirectOf(response, url)
+                redirectOf(response, url, asked)
             } catch (e: IOException) {
                 response.body?.close()
                 throw e
@@ -172,13 +178,15 @@ internal class GeckoImageNetworkClient(
 
     /**
      * Where [response] redirects to, resolved against [from]; null when it is not a redirect.
-     * Throws when it redirects anywhere but an http or https address.
+     * Throws when it redirects anywhere but an http or https address, or somewhere the icon
+     * first [asked] for may not lead (see [refuseRedirect]).
      */
-    private fun redirectOf(response: WebResponse, from: String): String? {
+    private fun redirectOf(response: WebResponse, from: String, asked: HttpUrl): String? {
         if (response.statusCode !in REDIRECT_CODES) return null
         val location = header(response, "Location") ?: return null
         val next = from.toHttpUrlOrNull()?.resolve(location.trim())
             ?: throw IOException("An icon may only be redirected to a web address")
+        refuseRedirect(asked, next)?.let { throw IOException(it) }
         return next.toString()
     }
 
@@ -224,6 +232,34 @@ internal class GeckoImageNetworkClient(
         private const val ACCEPT = "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5"
 
         private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
+
+        /**
+         * Why the icon first [asked] for may not be redirected to [next], or null when it may.
+         *
+         * The request is the browser's own, sent from outside any page, so nothing else stops a
+         * site's icon from leading to a router's settings or to an app on this device, with a
+         * path and query the site chose. So:
+         * - Never to a port pages may not use ([SiteNotifications.BLOCKED_PORTS]).
+         * - An icon asked of this device or the local network (by address, or `localhost`) may
+         *   go anywhere else: the user's own router or server is trusted with that.
+         * - A redirect within the site asked (same scheme, host and port) is followed: the
+         *   request before it went there already.
+         * - Any other must be to https, and not to an address on this device or the local
+         *   network ([SiteNotifications.isLocalHost]). The name of a site on the internet can be
+         *   made to point at a local address, and names are not looked up here: a lookup would
+         *   go around a proxy extension, and the engine could still be given another answer when
+         *   it connects. Over https such a name gets nowhere, since the device it points at has
+         *   no certificate for it, so no request is sent.
+         */
+        internal fun refuseRedirect(asked: HttpUrl, next: HttpUrl): String? = when {
+            next.port in SiteNotifications.BLOCKED_PORTS -> "An icon may not be redirected to port ${next.port}"
+            SiteNotifications.isLocalHost(asked.host) -> null
+            next.scheme == asked.scheme && next.host == asked.host && next.port == asked.port -> null
+            SiteNotifications.isLocalHost(next.host) ->
+                "A site's icon may not be redirected to this device or the local network"
+            !next.isHttps -> "A site's icon may only be redirected to another site over https"
+            else -> null
+        }
 
         /** [response]'s header [name], whatever case the engine wrote it in. */
         private fun header(response: WebResponse, name: String): String? =
