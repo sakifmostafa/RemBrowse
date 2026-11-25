@@ -689,6 +689,26 @@ class ScreenCaptureUiTest {
     }
 
     @Test
+    fun aPageTheDeviceHasNoMemoryFor_saysThat_notThatItIsTooLong() {
+        wholePageCapturer = { tabId ->
+            wholePages += tabId
+            ScreenshotResult.LowMemory
+        }
+        launch()
+        loadPage()
+        startCapture()
+        wholePageButton.performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Not enough free memory for the whole page").assertIsDisplayed()
+        composeRule.onNodeWithText("Capture part of it with Ctrl+Alt+S").assertIsDisplayed()
+        composeRule.onNodeWithText("This page is too long to capture whole").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Error", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("screenshot_notice_save").assertDoesNotExist()
+        assertEquals(ScreenCaptureState.Phase.IDLE, capture.phase)
+    }
+
+    @Test
     fun theNoticesSave_putsTheWholePageInDownloads_andSaysWhere() {
         launch()
         loadPage()

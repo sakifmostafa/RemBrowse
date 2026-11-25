@@ -739,8 +739,9 @@ class MainActivity : ComponentActivity() {
      * PNG, as [captureScreen] does for part of the window, and keeps its file's address for the
      * notice's Save. The engine draws the page itself ([captureWholePage]), no larger than
      * the device has memory to spare for right now ([CaptureGeometry.wholePageMaxPixels]): a page
-     * over that is taken smaller, and one too long even so is refused before anything is drawn.
-     * Running out of memory for it all the same is refused the same way, never a crash.
+     * over that is taken smaller, and one too long even so is refused before anything is drawn:
+     * as too long, or as too much for the memory free right now when that is what rules it out.
+     * Running out of memory for it all the same is refused as that too, never a crash.
      * The PNG, written straight into the clipboard's file, and the notice's picture (the top of
      * the page) are made off the main thread.
      *
@@ -762,6 +763,7 @@ class MainActivity : ComponentActivity() {
             val taken = when (val shot = view.captureWholePage(maxPixels)) {
                 is WholePageShot.Taken -> shot.picture.also { page = it }
                 WholePageShot.TooLong -> return ScreenshotResult.TooLong
+                WholePageShot.LowMemory -> return ScreenshotResult.LowMemory
                 WholePageShot.Failed -> return ScreenshotResult.Failed
             }
             val width = taken.width
@@ -793,7 +795,7 @@ class MainActivity : ComponentActivity() {
             throw e
         } catch (e: OutOfMemoryError) {
             Log.w(TAG, "Not enough memory for the whole page", e)
-            ScreenshotResult.TooLong
+            ScreenshotResult.LowMemory
         } catch (e: Exception) {
             Log.w(TAG, "Couldn't take the whole page", e)
             ScreenshotResult.Failed

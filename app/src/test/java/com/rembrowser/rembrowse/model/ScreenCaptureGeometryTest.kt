@@ -211,10 +211,38 @@ class ScreenCaptureGeometryTest {
             WholePagePlan.TooLong,
             CaptureGeometry.wholePagePlan(17_895_697, 17_895_697, 4f, 64_000_000L)
         )
+    }
+
+    @Test
+    fun aWholePageOnlyTheFreeMemoryRulesOut_isNotCalledTooLong() {
         assertEquals(
             "The 30,000 px page with little memory to spare",
-            WholePagePlan.TooLong,
+            WholePagePlan.LowMemory,
             CaptureGeometry.wholePagePlan(406, 30_000, 3f, 12_000_000L)
+        )
+        // An ordinary article on a laptop, with memory for no more than the least ever allowed
+        val least = CaptureGeometry.WHOLE_PAGE_MIN_BUDGET_PIXELS
+        assertEquals(WholePagePlan.LowMemory, CaptureGeometry.wholePagePlan(1280, 5000, 2f, least))
+        assertEquals(WholePagePlan.LowMemory, CaptureGeometry.wholePagePlan(1280, 5000, 1f, least))
+        assertEquals(
+            "Still taken smaller where that is enough",
+            WholePagePlan.Take(1306, 3060, reduced = true),
+            CaptureGeometry.wholePagePlan(1280, 3000, 2f, least)
+        )
+        assertEquals(
+            "The longest page any device takes",
+            WholePagePlan.LowMemory,
+            CaptureGeometry.wholePagePlan(1000, 64_000, 2f, least)
+        )
+        assertEquals(
+            "Too long whatever memory is free",
+            WholePagePlan.TooLong,
+            CaptureGeometry.wholePagePlan(1000, 64_001, 2f, least)
+        )
+        assertEquals(
+            "Zoomed out, its size on screen is what counts",
+            WholePagePlan.LowMemory,
+            CaptureGeometry.wholePagePlan(20_000, 10_000, 0.5f, least)
         )
     }
 

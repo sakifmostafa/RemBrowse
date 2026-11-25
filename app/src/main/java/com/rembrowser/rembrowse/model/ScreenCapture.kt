@@ -36,8 +36,14 @@ sealed interface WholePagePlan {
      */
     data class Take(val width: Int, val height: Int, val reduced: Boolean) : WholePagePlan
 
-    /** Too long to take even reduced: nothing is drawn. */
+    /** Too long to take even reduced, on any device: nothing is drawn. */
     data object TooLong : WholePagePlan
+
+    /**
+     * Too long to take even reduced with the memory this device has free right now, though not
+     * otherwise: nothing is drawn. It may well be taken once other apps or tabs are closed.
+     */
+    data object LowMemory : WholePagePlan
 }
 
 /**
@@ -148,8 +154,11 @@ object CaptureGeometry {
      * Within the budget it is taken at the screen's density, the size the engine itself gives a
      * whole page. Over it, it is taken smaller, as large as the budget allows with its shape
      * kept, but never with less than one pixel for each CSS pixel (how it would look on an
-     * ordinary monitor): a page too long for that is [WholePagePlan.TooLong]. Null when there is
-     * no page to take.
+     * ordinary monitor, below which text stops being readable). A page too long for that is
+     * [WholePagePlan.TooLong] when it would be so with all of [WHOLE_PAGE_MAX_PIXELS] too, and
+     * [WholePagePlan.LowMemory] when it is only the device's free memory that has brought
+     * [maxPixels] under what it needs: an ordinary article on a device short of memory is not
+     * "too long", and can be taken later. Null when there is no page to take.
      *
      * The engine fits the page into the picture it is asked for by whichever side is tighter. So
      * the page's longer side is settled first, rounded down, and the shorter one follows from it,
@@ -163,7 +172,11 @@ object CaptureGeometry {
         val fullHeight = (cssHeight * devicePixelRatio).toInt()
         if (fullWidth <= 0 || fullHeight <= 0) return null
         val fullPixels = fullWidth.toLong() * fullHeight
-        if (fullPixels > maxPixels && cssWidth.toLong() * cssHeight > maxPixels) return WholePagePlan.TooLong
+        val cssPixels = cssWidth.toLong() * cssHeight
+        if (fullPixels > maxPixels && cssPixels > maxPixels) {
+            val fitsWithMemory = minOf(fullPixels, cssPixels) <= WHOLE_PAGE_MAX_PIXELS
+            return if (fitsWithMemory) WholePagePlan.LowMemory else WholePagePlan.TooLong
+        }
         val scale = if (fullPixels > maxPixels) sqrt(maxPixels.toDouble() / fullPixels) else 1.0
         val tall = cssHeight >= cssWidth
         val cssLong = if (tall) cssHeight else cssWidth

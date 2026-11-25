@@ -59,8 +59,11 @@ sealed interface WholePageShot {
     /** The page, top to bottom; the caller recycles it. */
     class Taken(val picture: Bitmap) : WholePageShot
 
-    /** Too long to take: over the pixel budget, or out of memory for its picture. */
+    /** Too long to take on any device: over the pixel budget, or larger than Android makes a picture. */
     data object TooLong : WholePageShot
+
+    /** Not enough memory free for it right now: over what the device can spare, or out of memory for its picture. */
+    data object LowMemory : WholePageShot
 
     /** The engine couldn't draw it (no page yet, or it went away). */
     data object Failed : WholePageShot
@@ -80,13 +83,14 @@ private class PictureDisplay(session: GeckoSession) : GeckoDisplay(session)
  * The engine is asked for the page's size first, which costs nothing, and
  * [CaptureGeometry.wholePagePlan] decides from it before anything is drawn: a page within
  * [maxPixels] is taken at the screen's density, a longer one smaller, and one too long even so
- * is refused with no picture made at all. The engine is then told the picture's size, so it can
+ * is refused with no picture made at all ([WholePageShot.TooLong], or [WholePageShot.LowMemory]
+ * when it is the device's free memory that rules it out). The engine is then told the picture's size, so it can
  * never make a larger one, and which part of the page to draw, the page as it was measured, so
  * one that has grown meanwhile is not squeezed into it.
  *
- * A picture the engine has no memory for is refused the same way: the engine hands that failure
- * back as an [OutOfMemoryError] rather than throwing it, and one larger than Android makes at
- * all as a failure caused by an [IllegalArgumentException].
+ * A picture the engine has no memory for after all is [WholePageShot.LowMemory] too: the engine
+ * hands that failure back as an [OutOfMemoryError] rather than throwing it. One larger than
+ * Android makes at all, a failure caused by an [IllegalArgumentException], is too long.
  *
  * Cancelling it frees the picture whenever it arrives.
  */
@@ -131,6 +135,7 @@ internal suspend fun wholePageShot(
     return when (plan) {
         null -> WholePageShot.Failed
         WholePagePlan.TooLong -> WholePageShot.TooLong
+        WholePagePlan.LowMemory -> WholePageShot.LowMemory
         is WholePagePlan.Take -> take(
             PxRect(
                 0,
@@ -200,9 +205,13 @@ private suspend fun GeckoSession.awaitWholePage(source: PxRect, width: Int, heig
         },
         { error ->
             Log.w(TAG, "The whole page couldn't be captured", error)
-            val tooLarge = error is OutOfMemoryError || error?.cause is OutOfMemoryError ||
-                error?.cause is IllegalArgumentException
-            finish(if (tooLarge) WholePageShot.TooLong else WholePageShot.Failed)
+            finish(
+                when {
+                    error is OutOfMemoryError || error?.cause is OutOfMemoryError -> WholePageShot.LowMemory
+                    error?.cause is IllegalArgumentException -> WholePageShot.TooLong
+                    else -> WholePageShot.Failed
+                }
+            )
         }
     )
 }

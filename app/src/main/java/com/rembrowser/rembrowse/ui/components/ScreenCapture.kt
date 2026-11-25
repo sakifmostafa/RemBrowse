@@ -144,6 +144,12 @@ sealed interface ScreenshotResult {
     /** A whole page too long to take, even smaller ([CaptureGeometry.wholePagePlan]): nothing was copied. */
     data object TooLong : ScreenshotResult
 
+    /**
+     * A whole page the device has too little memory free for right now, though it is not too long
+     * otherwise ([CaptureGeometry.wholePagePlan]): nothing was copied.
+     */
+    data object LowMemory : ScreenshotResult
+
     /** The whole page from the notice was saved in Downloads as [fileName]. */
     class Saved(val fileName: String) : ScreenshotResult
 
@@ -841,6 +847,7 @@ internal fun screenshotNoticeText(result: ScreenshotResult, saving: Boolean = fa
     )
     ScreenshotResult.Failed -> "Couldn't take the screenshot" to "Try again with Ctrl+Alt+S"
     ScreenshotResult.TooLong -> "This page is too long to capture whole" to "Capture part of it with Ctrl+Alt+S"
+    ScreenshotResult.LowMemory -> "Not enough free memory for the whole page" to "Capture part of it with Ctrl+Alt+S"
     is ScreenshotResult.Saved -> "Saved to Downloads" to result.fileName
     ScreenshotResult.NotSaved -> "Couldn't save the screenshot" to null
 }

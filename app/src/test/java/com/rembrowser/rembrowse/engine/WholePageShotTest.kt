@@ -57,6 +57,13 @@ class WholePageShotTest {
     }
 
     @Test
+    fun aPageOnlyTheFreeMemoryRulesOut_isRefusedAsThat_withNothingDrawn() = runTest {
+        val result = shot(maxPixels = 4_000_000L) { PageContentSize(1280, 5000, 2f) }
+        assertSame(WholePageShot.LowMemory, result)
+        assertTrue(asked.isEmpty())
+    }
+
+    @Test
     fun aPageTheEngineCantSize_isAFailedScreenshot_withNothingDrawn() = runTest {
         assertSame(WholePageShot.Failed, shot { null })
         assertSame(WholePageShot.Failed, shot { PageContentSize(0, 0, 2f) })
