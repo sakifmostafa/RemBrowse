@@ -40,6 +40,39 @@ fun interface ScreenshotClipboard {
     fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Boolean) -> Unit)
 }
 
+/**
+ * Puts a picture a page copies itself (`navigator.clipboard.write` with a PNG, from its own copy
+ * button) on the clipboard, which GeckoView can't do on Android.
+ */
+fun interface PageImageClipboard {
+    /**
+     * Copies [png] once it is known to be a PNG that Android can read, then calls [onDone] on the
+     * main thread with whether it is on the clipboard. May be called on any thread.
+     */
+    fun copyPageImage(png: ByteArray, onDone: (Boolean) -> Unit)
+}
+
+/** Pixels decoded to check a page's picture; a larger one is checked at a reduced size. */
+private const val CHECK_PIXELS = 4_000_000L
+
+/**
+ * Whether [bytes] are a PNG that Android can read, decoded whole (at a reduced size when large,
+ * so a huge picture doesn't need its full memory). A page's picture is checked with this before
+ * it goes on the clipboard. Off the main thread.
+ */
+internal fun isReadablePng(bytes: ByteArray): Boolean {
+    if (ClipboardImages.sniff(bytes) != "image/png") return false
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return false
+    var sample = 1
+    while ((bounds.outWidth / sample).toLong() * (bounds.outHeight / sample) > CHECK_PIXELS) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return false
+    bitmap.recycle()
+    return true
+}
+
 /** A picture ready for the clipboard: its bytes and its type. */
 class ClipboardImage(val bytes: ByteArray, val mimeType: String) {
     val extension: String get() = ClipboardImages.extensionFor(mimeType)
@@ -174,11 +207,11 @@ internal class ClipboardImageFiles(context: Context) {
 }
 
 /**
- * [ImageClipboard] and [ScreenshotClipboard] for the device. A page's picture is fetched through
- * the engine's own network stack (GeckoView's GeckoWebExecutor), so it comes with the site's
- * cookies as on the page. Both go through [ClipboardImageFiles].
+ * [ImageClipboard], [ScreenshotClipboard] and [PageImageClipboard] for the device. A page's
+ * picture is fetched through the engine's own network stack (GeckoView's GeckoWebExecutor), so it
+ * comes with the site's cookies as on the page. All go through [ClipboardImageFiles].
  */
-class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipboard, ScreenshotClipboard {
+class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipboard, ScreenshotClipboard, PageImageClipboard {
     private val appContext = context.applicationContext
     private val executor = GeckoWebExecutor(runtime)
     private val main = Handler(Looper.getMainLooper())
@@ -203,6 +236,27 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
                 onDone(copied)
             }
         }, "copy-screenshot").start()
+    }
+
+    // No notice of its own: the page shows one when its promise settles
+    override fun copyPageImage(png: ByteArray, onDone: (Boolean) -> Unit) {
+        Thread({
+            val uri = try {
+                if (isReadablePng(png)) files.save(ClipboardImage(png, "image/png"), "image") else null
+            } catch (e: Exception) {
+                Log.w(TAG, "Couldn't save a page's picture for the clipboard", e)
+                null
+            }
+            main.post {
+                val copied = uri != null && try {
+                    files.putOnClipboard(uri, "Image")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Couldn't put a page's picture on the clipboard", e)
+                    false
+                }
+                onDone(copied)
+            }
+        }, "copy-page-image").start()
     }
 
     override fun copyImage(url: String, pageUrl: String?) {

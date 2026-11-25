@@ -9,6 +9,8 @@ import android.os.SystemClock
 import android.util.Log
 import android.webkit.MimeTypeMap
 import com.rembrowser.rembrowse.BuildConfig
+import com.rembrowser.rembrowse.data.ClipboardImages
+import com.rembrowser.rembrowse.data.PageImageClipboard
 import com.rembrowser.rembrowse.data.SharedPrefsSitePermissionStore
 import com.rembrowser.rembrowse.data.SitePermissionStore
 import com.rembrowser.rembrowse.data.UploadCache
@@ -31,6 +33,7 @@ import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
+import java.util.Base64
 import java.util.UUID
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -47,9 +50,10 @@ private const val CRASH_LOOP_WINDOW_MS = 10_000L
 /**
  * RemBrowse's page menu helper, shipped in the APK's assets: a content script that reports a
  * right click a page left to the browser on its background or text, where GeckoView itself
- * reports nothing, and a Ctrl+click or middle click on a link, which GeckoView ignores (see
- * assets/extensions/page_menu/pageMenu.js). Its manifest version must go up whenever the script
- * changes: `ensureBuiltIn` keeps an installed copy of the same version.
+ * reports nothing, and a Ctrl+click or middle click on a link, which GeckoView ignores; and that
+ * hands over a picture a page copies with `navigator.clipboard.write`, which GeckoView can't put
+ * on Android's clipboard (see assets/extensions/page_menu/pageMenu.js). Its manifest version must
+ * go up whenever the script changes: `ensureBuiltIn` keeps an installed copy of the same version.
  */
 internal const val PAGE_MENU_EXTENSION_ID = "page-menu@rembrowse"
 internal const val PAGE_MENU_EXTENSION_URI = "resource://android/assets/extensions/page_menu/"
@@ -59,6 +63,9 @@ internal const val PAGE_MENU_NATIVE_APP = "rembrowse_page_menu"
 
 /** A link the page menu helper asks to open in a new tab; see [GeckoBrowserEngine.linkOpenRequest]. */
 internal data class LinkOpenRequest(val url: String, val inForeground: Boolean)
+
+/** The largest picture a page may copy; the page menu helper sends none bigger either. */
+internal const val PAGE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
 
 class GeckoSessionHandle(
     override val tabId: String,
@@ -283,7 +290,9 @@ class GeckoBrowserEngine(
     /** Where camera and microphone decisions are kept; Gecko keeps the other kinds itself. */
     sitePermissionStore: SitePermissionStore = SharedPrefsSitePermissionStore(context),
     /** Asks Android for the app's camera, microphone and location permissions; null asks for none. */
-    androidPermissions: AndroidPermissionRequester? = null
+    androidPermissions: AndroidPermissionRequester? = null,
+    /** Puts pictures that pages copy themselves on the clipboard; null refuses them. */
+    private val pageImageClipboard: PageImageClipboard? = null
 ) : BrowserEngine {
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -671,6 +680,15 @@ class GeckoBrowserEngine(
                             linkOpenRequest(message)?.let {
                                 handle.listener.onOpenLinkRequested(handle.tabId, it.url, it.inForeground)
                             }
+                            if (isPageImageCopy(message)) {
+                                // The page's promise settles with the answer: true once it is copied
+                                val png = pageImageCopyRequest(message)
+                                val clipboard = pageImageClipboard
+                                if (png == null || clipboard == null) return GeckoResult.fromValue<Any>(false)
+                                val reply = GeckoResult<Any>()
+                                clipboard.copyPageImage(png) { copied -> reply.complete(copied) }
+                                return reply
+                            }
                             return null
                         }
                     },
@@ -813,6 +831,30 @@ class GeckoBrowserEngine(
                 url.startsWith("http://", ignoreCase = true)
             if (!isWebAddress) return null
             return LinkOpenRequest(url = url, inForeground = json.optBoolean("foreground", false))
+        }
+
+        /** Whether [message] from the page menu helper hands over a picture a page copied. */
+        internal fun isPageImageCopy(message: Any?): Boolean =
+            (message as? org.json.JSONObject)?.optString("type") == "copyImage"
+
+        /**
+         * The picture that [message] from the page menu helper asks to put on the clipboard (a
+         * page's `navigator.clipboard.write` with a PNG, its bytes in base64), or null. Only a
+         * PNG, and none over [PAGE_IMAGE_MAX_BYTES]. Whether Android can read it is checked
+         * before it is copied, off the main thread.
+         */
+        internal fun pageImageCopyRequest(message: Any?): ByteArray? {
+            if (!isPageImageCopy(message)) return null
+            val data = (message as org.json.JSONObject).opt("data") as? String ?: return null
+            // Four base64 characters for every three bytes, so a too large picture isn't decoded
+            if (data.isEmpty() || data.length > (PAGE_IMAGE_MAX_BYTES + 2) / 3 * 4) return null
+            val bytes = try {
+                Base64.getDecoder().decode(data)
+            } catch (e: IllegalArgumentException) {
+                return null
+            }
+            if (bytes.size > PAGE_IMAGE_MAX_BYTES || ClipboardImages.sniff(bytes) != "image/png") return null
+            return bytes
         }
 
         fun createRuntime(appContext: Context): GeckoRuntime {

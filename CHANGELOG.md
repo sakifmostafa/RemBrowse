@@ -2,6 +2,11 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Fixed
+* **A site's own button for copying a picture works.** Buttons such as an image viewer's **Copy** put the picture on the clipboard through the page (`navigator.clipboard.write`), which the engine can't do on Android: it handles only text there, so the site said it couldn't copy the image. RemBrowse now puts the picture on the clipboard as its own **Copy image** does, and the site shows its own message when it is done. As in other browsers, a site can do this only right after you click or press a key, so it can't replace what you copied behind your back. PNG pictures up to 20 MB are copied; if the site copies text with the picture, the picture alone is copied.
+
 ## v0.15.0 (2026-11-24) — Material 3 Expressive, tab titles on the rail and your device's theme
 
 ### Added

@@ -113,3 +113,103 @@ window.addEventListener("auxclick", event => {
     openInNewTab(event);
   }
 }, { capture: true });
+
+// A page's own button for copying a picture (navigator.clipboard.write with a PNG, as in an
+// image viewer's Copy button) fails in GeckoView: Android's clipboard takes a picture only as a
+// content: address, and GeckoView's clipboard handles text and HTML only, so the engine refuses
+// the write. So a write with a PNG is taken over here: the picture is sent to the app, which
+// puts it on the clipboard as its own Copy image does, and the page's promise settles with the
+// app's answer, so the site shows its own message for it. A write with text as well copies the
+// picture alone. Every other write goes to the engine unchanged.
+// As in the real API, only a write the user has just asked for (a click or a key press a moment
+// ago) may change the clipboard; otherwise any page could replace what the user copied. That is
+// checked as the page calls, before anything else.
+const PNG = "image/png";
+
+// The largest picture sent to the app, which refuses bigger ones too
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
+// The page's own objects. Everywhere else the script sees the page through Xrays: the real
+// properties and methods, whatever the page has changed.
+const page = window.wrappedJSObject;
+
+// The first item with a PNG among those written, or null: then the write is the engine's, which
+// also says what is wrong with anything that isn't a list of items.
+function pngItem(items) {
+  try {
+    for (let i = 0; i < items.length; i++) {
+      const types = items[i] && items[i].types;
+      for (let j = 0; types && j < types.length; j++) {
+        if (types[j] === PNG) {
+          return items[i];
+        }
+      }
+    }
+  } catch (e) {
+    // Not a list of items: the engine says what is wrong with it
+  }
+  return null;
+}
+
+// The picture's bytes in base64, read without the page's help
+function base64Of(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.slice(reader.result.indexOf(",") + 1));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function copyPng(item) {
+  const blob = await item.getType(PNG);
+  if (!(blob.size > 0) || blob.size > MAX_IMAGE_BYTES) {
+    throw new Error("No picture, or too large a one");
+  }
+  const data = await base64Of(blob);
+  const copied = await browser.runtime.sendNativeMessage(NATIVE_APP, { type: "copyImage", data });
+  if (copied !== true) {
+    throw new Error("The app could not copy the picture");
+  }
+}
+
+// An error of the page's own, for its promise
+function pageError(name, message) {
+  return new page.DOMException(message, name);
+}
+
+// A promise of the page's own, settled by [work]: the page can't use one of the script's
+function pagePromise(work) {
+  return new page.Promise(exportFunction((resolve, reject) => {
+    work().then(
+      () => resolve(),
+      () => reject(pageError("DataError", "The picture could not be copied."))
+    );
+  }, page));
+}
+
+function wrapClipboardWrite() {
+  // Only a secure page (https, or a local one) has a clipboard
+  if (!window.Clipboard || !page.Clipboard) {
+    return;
+  }
+  // The engine's own method, through the Xray: never one the page put there, nor the one an
+  // earlier copy of this script left on a page open while RemBrowse updated it (that one no
+  // longer works)
+  const engineWrite = window.Clipboard.prototype.write;
+  exportFunction(function write(...args) {
+    const item = pngItem(args[0]);
+    if (!item) {
+      return Reflect.apply(engineWrite, this, args);
+    }
+    const activation = window.navigator.userActivation;
+    if (!activation || !activation.isActive) {
+      return page.Promise.reject(
+        pageError("NotAllowedError", "Clipboard write was blocked due to lack of user activation.")
+      );
+    }
+    return pagePromise(() => copyPng(item));
+  }, page.Clipboard.prototype, { defineAs: "write" });
+}
+
+wrapClipboardWrite();

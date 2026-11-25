@@ -2,12 +2,14 @@ package com.rembrowser.rembrowse.engine
 
 import org.json.JSONArray
 import org.json.JSONObject
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.Base64
 
 /**
  * The popup viewport helper ships as files in the APK's assets and is only checked by Gecko on
@@ -143,7 +145,100 @@ class BuiltInExtensionAssetsTest {
 
     @Test
     fun pageMenu_versionWasBumpedSoInstalledCopiesUpdate() {
-        assertTrue(pageMenuManifest.getString("version") != "1.0.0")
+        // Versions already shipped: an installed copy of the same version keeps its old script
+        assertFalse(pageMenuManifest.getString("version") in listOf("1.0.0", "1.1.0"))
+    }
+
+    private val pageMenuSource by lazy {
+        val script = pageMenuManifest.getJSONArray("content_scripts").getJSONObject(0)
+        script.getJSONArray("js").strings().joinToString("\n") { File(pageMenuDir, it).readText() }
+    }
+
+    @Test
+    fun pageMenu_scriptCopiesAPagesPngThroughTheApp() {
+        val source = pageMenuSource
+        // The page's own Clipboard.prototype.write is replaced, and anything but a PNG goes on to
+        // the engine's own method, read through the Xray (never one the page or an older copy of
+        // the script left there)
+        assertTrue(source.contains("}, page.Clipboard.prototype, { defineAs: \"write\" });"))
+        assertTrue(source.contains("const engineWrite = window.Clipboard.prototype.write;"))
+        assertTrue(source.contains("return Reflect.apply(engineWrite, this, args);"))
+        assertTrue(source.contains("const PNG = \"image/png\";"))
+        assertTrue(source.contains("sendNativeMessage(NATIVE_APP, { type: \"copyImage\", data })"))
+        // The promise the page gets is its own, so it can wait on it
+        assertTrue(source.contains("new page.Promise(exportFunction("))
+        // The same limit as the app's
+        assertTrue(source.contains("const MAX_IMAGE_BYTES = 20 * 1024 * 1024;"))
+        assertEquals(20 * 1024 * 1024, PAGE_IMAGE_MAX_BYTES)
+    }
+
+    @Test
+    fun pageMenu_onlyAWriteTheUserJustAskedFor_reachesTheApp() {
+        val write = pageMenuSource.substringAfter("exportFunction(function write(").substringBefore("}, page.Clipboard.prototype")
+        // Checked as the page calls, through the Xray (which the page can't change), before any wait
+        val check = write.indexOf("window.navigator.userActivation")
+        assertTrue(check >= 0)
+        assertTrue(write.contains("if (!activation || !activation.isActive) {"))
+        assertTrue(write.contains("pageError(\"NotAllowedError\""))
+        assertTrue(check < write.indexOf("pagePromise(() => copyPng(item))"))
+        assertFalse(write.contains("await"))
+    }
+
+    private val pngBytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3)
+
+    private fun copyImage(data: Any?, type: Any? = "copyImage"): JSONObject =
+        JSONObject().apply {
+            if (type != null) put("type", type)
+            if (data != null) put("data", data)
+        }
+
+    private fun base64(bytes: ByteArray) = Base64.getEncoder().encodeToString(bytes)
+
+    @Test
+    fun pageImageCopyRequest_readsTheBase64Png() {
+        val message = copyImage(base64(pngBytes))
+        assertTrue(GeckoBrowserEngine.isPageImageCopy(message))
+        assertArrayEquals(pngBytes, GeckoBrowserEngine.pageImageCopyRequest(message))
+        // Not taken for the other messages
+        assertFalse(GeckoBrowserEngine.isPageMenuMessage(message))
+        assertNull(GeckoBrowserEngine.linkOpenRequest(message))
+    }
+
+    @Test
+    fun pageImageCopyRequest_refusesAnythingButAPng() {
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0, 0x10)
+        val gif = "GIF89a....".toByteArray()
+        val svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".toByteArray()
+        for (bytes in listOf(jpeg, gif, svg, "hello".toByteArray())) {
+            assertNull(String(bytes), GeckoBrowserEngine.pageImageCopyRequest(copyImage(base64(bytes))))
+        }
+    }
+
+    @Test
+    fun pageImageCopyRequest_refusesBrokenOrMissingData() {
+        for (data in listOf("", "not base64!", "iVBORw0KGgo=\n", "data:image/png;base64,${base64(pngBytes)}")) {
+            assertNull(data, GeckoBrowserEngine.pageImageCopyRequest(copyImage(data)))
+        }
+        assertNull("no data", GeckoBrowserEngine.pageImageCopyRequest(copyImage(null)))
+        assertNull("not a string", GeckoBrowserEngine.pageImageCopyRequest(copyImage(JSONArray().put(1))))
+    }
+
+    @Test
+    fun pageImageCopyRequest_refusesTheWrongTypeAndNonObjectMessages() {
+        val data = base64(pngBytes)
+        assertNull(GeckoBrowserEngine.pageImageCopyRequest(copyImage(data, type = "pageMenu")))
+        assertNull(GeckoBrowserEngine.pageImageCopyRequest(copyImage(data, type = null)))
+        assertNull(GeckoBrowserEngine.pageImageCopyRequest(data))
+        assertNull(GeckoBrowserEngine.pageImageCopyRequest(null))
+        assertFalse(GeckoBrowserEngine.isPageImageCopy(JSONArray().put("copyImage")))
+    }
+
+    @Test
+    fun pageImageCopyRequest_takesUpTo20Mb() {
+        val largest = pngBytes.copyOf(PAGE_IMAGE_MAX_BYTES)
+        assertEquals(PAGE_IMAGE_MAX_BYTES, GeckoBrowserEngine.pageImageCopyRequest(copyImage(base64(largest)))?.size)
+        val tooLarge = pngBytes.copyOf(PAGE_IMAGE_MAX_BYTES + 1)
+        assertNull(GeckoBrowserEngine.pageImageCopyRequest(copyImage(base64(tooLarge))))
     }
 
     private fun openLink(url: Any?, type: Any? = "openLink", foreground: Boolean? = null): JSONObject =

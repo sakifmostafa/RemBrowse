@@ -163,7 +163,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             application,
             providedRuntime = runtime,
             sitePermissionStore = SharedPrefsSitePermissionStore(application),
-            androidPermissions = androidPermissions
+            androidPermissions = androidPermissions,
+            pageImageClipboard = clipboard
         )
         extensionManager = GeckoExtensionManager(
             runtime = runtime,
