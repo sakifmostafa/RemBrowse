@@ -205,7 +205,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
   * **Show tab titles** — off by default. On a wide window the tab rail is expanded, with each tab's title beside its icon, and the page moves over to make room; the rail's menu button does the same. On a narrower window the rail stays narrow, and its menu button opens it over the page for a moment. See [The expanded tab rail](#the-expanded-tab-rail).
 * **Privacy**
   * **Block ads and trackers** — turns the built-in ad blocker (uBlock Origin) on or off. See [Ad blocking](#8-ad-blocking).
-  * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers. It is off by default; turn it off again if a site stops working.
+  * **Enhanced privacy** — standard tracking protection is always on. This adds blocking of known fingerprinters, cryptominers and email trackers, and clears the cookies and site data that redirect trackers leave: sites a link sent you through on the way to the page you wanted, which you never used yourself. It is off by default; turn it off again if a site stops working.
 * **Site permissions** — what you allowed or blocked for each site. See [Site permissions](#12-site-permissions-and-notifications).
 * **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
 * **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#10-downloads).

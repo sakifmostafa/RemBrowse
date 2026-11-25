@@ -768,8 +768,9 @@ private fun PrivacySection(
         )
         SwitchRow(
             title = "Enhanced privacy (restricts tracking)",
-            description = "Also blocks known fingerprinters, cryptominers and email trackers. " +
-                "Standard tracking protection stays on either way. Turn this off if a site stops working.",
+            description = "Also blocks known fingerprinters, cryptominers and email trackers, and clears " +
+                "cookies left by redirect trackers. Standard tracking protection stays on either way. " +
+                "Turn this off if a site stops working.",
             checked = settings.enhancedPrivacy,
             onCheckedChange = onSetEnhancedPrivacy,
             testTag = "setting_enhanced_privacy",

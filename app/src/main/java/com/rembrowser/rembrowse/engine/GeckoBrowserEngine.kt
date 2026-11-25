@@ -831,21 +831,8 @@ class GeckoBrowserEngine(
 
     override fun setEnhancedPrivacy(enabled: Boolean) {
         runOnMain {
-            runCatching {
-                // Neither level uses Gecko's "content" list (AntiTracking.CONTENT / STRICT, or
-                // EtpLevel.STRICT). That list contains general-purpose hosts such as
-                // cloudflare.com, gstatic.com, google.com and cdn.jsdelivr.net, so blocking it
-                // breaks Cloudflare's bot check, reCAPTCHA and a large part of the web.
-                val standard = ContentBlocking.AntiTracking.DEFAULT
-                val enhanced = standard or
-                    ContentBlocking.AntiTracking.CRYPTOMINING or
-                    ContentBlocking.AntiTracking.FINGERPRINTING or
-                    ContentBlocking.AntiTracking.EMAIL
-                runtime.settings.contentBlocking
-                    .setAntiTracking(if (enabled) enhanced else standard)
-                    .setEnhancedTrackingProtectionLevel(ContentBlocking.EtpLevel.DEFAULT)
-                    .setStrictSocialTrackingProtection(enabled)
-            }.onFailure { Log.w(TAG, "Could not update tracking protection", it) }
+            runCatching { applyTrackingProtection(runtime.settings.contentBlocking, enhanced = enabled) }
+                .onFailure { Log.w(TAG, "Could not update tracking protection", it) }
         }
     }
 
@@ -875,6 +862,40 @@ class GeckoBrowserEngine(
     }
 
     companion object {
+        /**
+         * Sets tracking protection on [settings] for the Enhanced privacy switch ([enhanced]).
+         *
+         * Neither level uses Gecko's "content" list (AntiTracking.CONTENT / STRICT, or
+         * EtpLevel.STRICT). That list contains general-purpose hosts such as cloudflare.com,
+         * gstatic.com, google.com and cdn.jsdelivr.net, so blocking it breaks Cloudflare's bot
+         * check, reCAPTCHA and a large part of the web.
+         *
+         * Bounce-tracking protection clears the cookies and site data of sites a page was
+         * redirected through but that the user never used themselves, which is how a redirect
+         * tracker follows people from site to site. It acts only under Enhanced privacy: Firefox
+         * itself runs it in dry-run mode outside Nightly, so that is the cautious choice. With the
+         * switch off it is on standby, which keeps noting the sites that bounce without clearing
+         * anything, so turning the switch on acts on what was already seen.
+         */
+        internal fun applyTrackingProtection(settings: ContentBlocking.Settings, enhanced: Boolean) {
+            val standard = ContentBlocking.AntiTracking.DEFAULT
+            val enhancedCategories = standard or
+                ContentBlocking.AntiTracking.CRYPTOMINING or
+                ContentBlocking.AntiTracking.FINGERPRINTING or
+                ContentBlocking.AntiTracking.EMAIL
+            settings
+                .setAntiTracking(if (enhanced) enhancedCategories else standard)
+                .setEnhancedTrackingProtectionLevel(ContentBlocking.EtpLevel.DEFAULT)
+                .setStrictSocialTrackingProtection(enhanced)
+                .setBounceTrackingProtectionMode(
+                    if (enhanced) {
+                        ContentBlocking.BounceTrackingProtectionMode.BOUNCE_TRACKING_PROTECTION_MODE_ENABLED
+                    } else {
+                        ContentBlocking.BounceTrackingProtectionMode.BOUNCE_TRACKING_PROTECTION_MODE_ENABLED_STANDBY
+                    }
+                )
+        }
+
         /** Whether [message] from the page menu helper asks for the page's own menu. */
         internal fun isPageMenuMessage(message: Any?): Boolean =
             (message as? org.json.JSONObject)?.optString("type") == "pageMenu"

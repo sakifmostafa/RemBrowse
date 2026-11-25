@@ -161,8 +161,8 @@ data class BrowserSettings(
     val useSystemColors: Boolean = false,
     val searchEngine: SearchEngine = SearchEngine.DEFAULT,
     /**
-     * Also block known fingerprinters, cryptominers and email trackers. Off by default: the
-     * standard level is what keeps every site working.
+     * Also block known fingerprinters, cryptominers and email trackers, and clear cookies left
+     * by redirect trackers. Off by default: the standard level is what keeps every site working.
      */
     val enhancedPrivacy: Boolean = false,
     /** Reopen the previous tabs at launch. When off, the browser starts on one new tab. */

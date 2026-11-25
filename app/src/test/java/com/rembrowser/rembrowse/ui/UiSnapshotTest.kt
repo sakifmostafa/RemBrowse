@@ -27,6 +27,7 @@ import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -599,6 +600,25 @@ class UiSnapshotTest {
         launch()
         composeRule.runOnUiThread { browserVm.openSettings() }
         save("24c-font-130-settings")
+    }
+
+    /** The Privacy rows on a phone at font scale 1.3, where Enhanced privacy's text is longest. */
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 1.3f)
+    fun fontScale130CompactPrivacy() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.PRIVACY) }
+        composeRule.onNodeWithTag("setting_enhanced_privacy").performScrollTo()
+        save("24d-font-130-compact-privacy-dark")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 1.3f)
+    fun fontScale130CompactPrivacyLight() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT))
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.PRIVACY) }
+        composeRule.onNodeWithTag("setting_enhanced_privacy").performScrollTo()
+        save("24e-font-130-compact-privacy-light")
     }
 
     @Test

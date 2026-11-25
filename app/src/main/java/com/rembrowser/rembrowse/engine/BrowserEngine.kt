@@ -206,7 +206,8 @@ interface BrowserEngine {
 
     /**
      * Standard tracking protection is always on. Enhanced additionally blocks known
-     * fingerprinters, cryptominers and email trackers.
+     * fingerprinters, cryptominers and email trackers, and clears cookies left by redirect
+     * trackers (bounce-tracking protection).
      */
     fun setEnhancedPrivacy(enabled: Boolean) {}
 
