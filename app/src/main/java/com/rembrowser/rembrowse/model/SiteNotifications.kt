@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.model
 
+import java.security.MessageDigest
 import java.util.Base64
 import java.util.Locale
 import java.util.UUID
@@ -45,6 +46,13 @@ object SiteNotifications {
      * none of its own; two leaves each button room for its words on a phone.
      */
     const val MAX_ACTIONS = 2
+
+    /**
+     * The longest button name, and the longest tag, in characters, that RemBrowse carries as the
+     * page gave it. Both travel in the notification's intents, and Android refuses an intent of
+     * more than about a megabyte; no real name or tag comes near this.
+     */
+    const val MAX_NAME_LENGTH = 1024
 
     /** The most bytes read for a large icon; a site's icon is far smaller. */
     const val MAX_ICON_BYTES = 1024 * 1024
@@ -124,10 +132,13 @@ object SiteNotifications {
 
     /**
      * The buttons to show for a page's [offered] actions: in the page's order, those with a
-     * title (trimmed), at most [MAX_ACTIONS]. A button without words would be a blank button.
+     * title (trimmed), at most [MAX_ACTIONS]. A button without words would be a blank button,
+     * and one whose name is longer than [MAX_NAME_LENGTH] is left out, since its name could not
+     * travel in its intent.
      */
     fun actionsOf(offered: List<SiteNotificationAction>): List<SiteNotificationAction> =
         offered.mapNotNull { action ->
+            if (action.name.length > MAX_NAME_LENGTH) return@mapNotNull null
             action.title.trim().takeIf { it.isNotEmpty() }?.let { action.copy(title = it) }
         }.take(MAX_ACTIONS)
 
@@ -143,12 +154,18 @@ object SiteNotifications {
      * The key of a notification from [source] with Gecko's [tag], or null without a tag. The
      * site's origin is part of it so two sites' tags can never meet; the rest of the page's
      * address is not, since it changes as a single-page app moves around (Telegram's address
-     * names the open chat).
+     * names the open chat). A tag longer than [MAX_NAME_LENGTH] is stood in for by its SHA-256
+     * digest, which keeps the key short and still the same for the same tag.
      */
     fun keyOf(source: String?, tag: String?): String? {
         if (tag.isNullOrEmpty()) return null
-        return "${SiteOrigins.originOf(source).orEmpty()} $tag"
+        val short = if (tag.length <= MAX_NAME_LENGTH) tag else "#long:${sha256Hex(tag)}"
+        return "${SiteOrigins.originOf(source).orEmpty()} $short"
     }
+
+    private fun sha256Hex(text: String): String =
+        MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 
     /**
      * [imageUrl] when RemBrowse can fetch it for the large icon: an http or https address, or a

@@ -164,6 +164,36 @@ class GeckoSiteNotificationsTest {
     }
 
     @Test
+    fun aButtonWithAVeryLongNameIsDroppedAndTheNotificationStillPosted() {
+        notifications.onShowNotification(
+            webNotificationWithActions("New message", "x".repeat(600_000) to "Huge", "reply" to "Reply")
+        )
+
+        assertEquals(listOf("Reply"), shown().actions.map { it.title.toString() })
+        assertEquals(listOf("shown New message"), told)
+    }
+
+    @Test
+    fun aVeryLongTagIsNotCarriedInTheNotificationOrItsIntents() {
+        val notification = webNotificationWithActions(
+            "New message",
+            "reply" to "Reply",
+            tag = "https://chat.example#tag:" + "a".repeat(600_000)
+        )
+        notifications.onShowNotification(notification)
+
+        assertEquals(listOf("shown New message"), told)
+        val tag = manager.activeNotifications.single().tag
+        assertEquals(true, tag.length < 200)
+        val tap = intentOf(shown().contentIntent)
+        assertEquals(true, tap.dataString!!.length < 400)
+        assertEquals(tag, tap.getStringExtra("com.rembrowser.rembrowse.extra.SITE_NOTIFICATION_KEY"))
+        // The page closing it still finds it
+        notifications.onCloseNotification(notification)
+        assertEquals(0, posted())
+    }
+
+    @Test
     fun theSiteBesideTheAppsNameIsTheNotificationsOrigin() {
         notifications.onShowNotification(
             webNotificationWithActions("New message", origin = "https://chat.example^userContextId=1")
@@ -274,13 +304,14 @@ class GeckoSiteNotificationsTest {
     private fun webNotificationWithActions(
         title: String,
         vararg actions: Pair<String, String>,
-        origin: String = "https://chat.example"
+        origin: String = "https://chat.example",
+        tag: String = "https://chat.example#tag:${UUID.randomUUID()}"
     ): WebNotification {
         val parcel = Parcel.obtain()
         try {
             parcel.writeInt(3)
             parcel.writeString(title)
-            parcel.writeString("https://chat.example#tag:${UUID.randomUUID()}")
+            parcel.writeString(tag)
             parcel.writeString(null) // cookie
             parcel.writeString("Hello")
             parcel.writeString("")

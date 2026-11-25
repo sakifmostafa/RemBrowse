@@ -150,6 +150,37 @@ class SiteNotificationsTest {
     }
 
     @Test
+    fun aButtonWithAVeryLongNameIsLeftOut() {
+        val longest = "n".repeat(SiteNotifications.MAX_NAME_LENGTH)
+        val offered = listOf(
+            SiteNotificationAction("x".repeat(600_000), "Huge"),
+            SiteNotificationAction(longest, "Longest"),
+            SiteNotificationAction(longest + "n", "Too long"),
+            SiteNotificationAction("reply", "Reply")
+        )
+
+        assertEquals(listOf("Longest", "Reply"), SiteNotifications.actionsOf(offered).map { it.title })
+        // What is not shown cannot be tapped either
+        assertNull(SiteNotifications.clickedAction(offered[0].name, SiteNotifications.actionsOf(offered)))
+    }
+
+    @Test
+    fun aVeryLongTagGivesAShortKeyThatStillTellsTagsApart() {
+        val site = "https://chat.example.org/"
+        val long = "https://chat.example.org#tag:" + "a".repeat(600_000)
+        val key = SiteNotifications.keyOf(site, long)!!
+
+        assertTrue(key.length < 200)
+        assertTrue(key.startsWith("https://chat.example.org "))
+        // The same tag replaces, another long tag with the same start does not
+        assertEquals(key, SiteNotifications.keyOf("https://chat.example.org/other", long))
+        assertNotEquals(key, SiteNotifications.keyOf(site, long + "b"))
+        // A tag of the longest length carried is kept as it is
+        val longest = "t".repeat(SiteNotifications.MAX_NAME_LENGTH)
+        assertEquals("https://chat.example.org $longest", SiteNotifications.keyOf(site, longest))
+    }
+
+    @Test
     fun aTapNamingAShownButtonPassesItsName() {
         val shown = listOf(SiteNotificationAction("reply", "Reply"), SiteNotificationAction("archive", "Archive"))
         assertEquals("reply", SiteNotifications.clickedAction("reply", shown))

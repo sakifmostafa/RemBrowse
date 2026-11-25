@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.engine
 
 import android.Manifest
 import android.app.Activity
+import android.app.Notification
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -149,6 +150,28 @@ class GeckoSiteNotifications internal constructor(
     }
 
     private fun post(notification: WebNotification, content: SiteNotificationContent, token: String, icon: Bitmap?) {
+        val failure = try {
+            manager.notify(content.key, NOTIFICATION_ID, build(content, token, icon))
+            null
+        } catch (e: SecurityException) {
+            // The permission was taken back after mayPost looked
+            e
+        } catch (e: RuntimeException) {
+            // Android would not take what the page sent: an intent or a notification too large
+            // to hand over fails this way, and must not take the app down with it
+            e
+        }
+        if (failure != null) {
+            registry.remove(content.key)
+            Log.w(TAG, "Couldn't show a site notification", failure)
+            notShown(notification)
+            return
+        }
+        shown(notification)
+    }
+
+    /** [content]'s notification, with its intents. */
+    private fun build(content: SiteNotificationContent, token: String, icon: Bitmap?): Notification {
         val builder = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_rembrowse)
             .setContentTitle(content.title)
@@ -169,16 +192,7 @@ class GeckoSiteNotifications internal constructor(
                     .build()
             )
         }
-        try {
-            manager.notify(content.key, NOTIFICATION_ID, builder.build())
-        } catch (e: SecurityException) {
-            // The permission was taken back after mayPost looked
-            registry.remove(content.key)
-            Log.w(TAG, "Not allowed to show a site notification", e)
-            notShown(notification)
-            return
-        }
-        shown(notification)
+        return builder.build()
     }
 
     /** The page hears that its notification is on show (its `show` event). */
