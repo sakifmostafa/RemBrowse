@@ -99,15 +99,22 @@ private class PictureDisplay(session: GeckoSession) : GeckoDisplay(session)
  */
 suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot {
     val session = session ?: return WholePageShot.Failed
-    return withEngineFocus(
-        viewFocused = { isFocused },
-        setEngineFocus = { focused -> if (session.isOpen) session.setFocused(focused) }
-    ) {
-        wholePageShot(
-            maxPixels,
-            askSize = { session.awaitPageContentSize() },
-            take = { source, width, height -> session.awaitWholePage(source, width, height) }
-        )
+    try {
+        return withEngineFocus(
+            viewFocused = { isFocused },
+            setEngineFocus = { focused -> if (session.isOpen) session.setFocused(focused) }
+        ) {
+            wholePageShot(
+                maxPixels,
+                askSize = { session.awaitPageContentSize() },
+                take = { source, width, height -> session.awaitWholePage(source, width, height) }
+            )
+        }
+    } finally {
+        // Giving this page the engine's focus can take it from the page in another pane that
+        // has Android's focus now (the one being typed in, in a split view): give it back.
+        (rootView?.findFocus() as? GeckoView)?.takeIf { it !== this }?.session
+            ?.takeIf { it.isOpen }?.setFocused(true)
     }
 }
 
