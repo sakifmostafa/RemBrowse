@@ -136,7 +136,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.LayoutMode

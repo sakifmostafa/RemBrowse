@@ -291,7 +291,10 @@ dependencies {
 
     // Networking & extension icon loading
     implementation("com.squareup.okhttp3:okhttp:5.5.1")
-    implementation("io.coil-kt:coil-compose:2.7.0")
+    // Site and add-on icons. Coil 3 loads nothing from the network by itself: the OkHttp
+    // artifact adds that (its POM names OkHttp 4.12.0; the line above resolves it to 5.5.1)
+    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // SSH for terminal tabs: ConnectBot's client library (BSD 3-Clause), made for Android

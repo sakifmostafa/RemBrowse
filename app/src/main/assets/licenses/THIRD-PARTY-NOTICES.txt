@@ -1,9 +1,9 @@
 RemBrowse: third-party software
 ===============================
 
-The terminal in RemBrowse, and the downloads RemBrowse makes outside web pages, are built on
-the following open-source software. Each is used under the licence named, as published by its
-authors; the full licence texts are in this folder.
+The terminal in RemBrowse, the downloads RemBrowse makes outside web pages and the site and
+add-on icons it shows are built on the following open-source software. Each is used under the
+licence named, as published by its authors; the full licence texts are in this folder.
 
 Terminal emulator and renderer (com.termux.terminal, com.termux.view)
   From Termux (https://github.com/termux/termux-app), derived from Jack Palevich's
@@ -58,11 +58,15 @@ SSH (org.connectbot:sshlib 2.2.52)
 
 Networking (com.squareup.okhttp3:okhttp 5.5.1, com.squareup.okio:okio 3.18.1)
   OkHttp and Okio (https://square.github.io/okhttp/), Copyright Square, Inc. Used for the
-  update check and download, the add-on catalogue and site notifications' icons. Apache
-  License 2.0: see APACHE-2.0.txt. OkHttp carries the Public Suffix List
+  update check and download, the add-on catalogue and icons. Apache License 2.0: see
+  APACHE-2.0.txt. OkHttp carries the Public Suffix List
   (https://publicsuffix.org/), Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/).
   With AndroidX Startup (androidx.startup:startup-runtime 1.2.0), Copyright The Android Open
   Source Project, which hands OkHttp the app's context: Apache License 2.0 (APACHE-2.0.txt).
+
+Images (io.coil-kt.coil3:coil-compose and coil-network-okhttp 3.6.3)
+  Coil (https://coil-kt.github.io/coil/), Copyright Coil Contributors. Loads the site and
+  add-on icons. Apache License 2.0: see APACHE-2.0.txt.
 
 Fonts
   JetBrains Mono, Copyright 2020 The JetBrains Mono Project Authors. SIL Open Font
