@@ -338,16 +338,19 @@ class GeckoSiteNotifications internal constructor(
          * and travels in an intent, so it counts only when the live notification shows a button
          * of that name; any other name is a tap on the notification itself. A button, unlike the
          * notification itself, doesn't take the notification off the screen, so that is done
-         * here. Main thread only.
+         * here: for the live notification, and for one left in the shade by a process that has
+         * ended, which nothing else would take down. A live one whose token the intent lacks
+         * stays. Main thread only.
          */
         fun takeTapOf(context: Context, intent: Intent): SiteNotificationTap? {
-            val notification = takeNotificationOf(intent) ?: return null
+            val key = intent.getStringExtra(EXTRA_KEY)
             val requested = intent.getStringExtra(EXTRA_ACTION)
-            if (requested != null) {
-                intent.getStringExtra(EXTRA_KEY)?.let { key ->
-                    NotificationManagerCompat.from(context).cancel(key, NOTIFICATION_ID)
-                }
+            val leftOver = key != null && !registry.has(key)
+            val notification = takeNotificationOf(intent)
+            if (requested != null && key != null && (notification != null || leftOver)) {
+                NotificationManagerCompat.from(context).cancel(key, NOTIFICATION_ID)
             }
+            if (notification == null) return null
             val action = SiteNotifications.clickedAction(requested, SiteNotifications.actionsOf(actionsOf(notification)))
             return SiteNotificationTap(notification, action)
         }

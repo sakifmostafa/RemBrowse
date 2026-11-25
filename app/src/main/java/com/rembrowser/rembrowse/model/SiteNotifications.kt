@@ -368,6 +368,9 @@ class SiteNotificationRegistry<T : Any>(private val maxEntries: Int = MAX_ENTRIE
     /** Whether [key] is still the notification [token] was given to (not closed, nor replaced). */
     fun holds(key: String, token: String): Boolean = entries[key]?.token == token
 
+    /** Whether a notification posted as [key] is kept, whatever its token. */
+    fun has(key: String): Boolean = key in entries
+
     /** Takes out the notification posted as [key] when [token] is its own; otherwise null. */
     fun take(key: String?, token: String?): T? {
         if (key == null || token == null || !holds(key, token)) return null

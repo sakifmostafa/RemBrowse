@@ -219,6 +219,20 @@ class GeckoSiteNotificationsTest {
     }
 
     @Test
+    fun aButtonTappedAfterARestartTakesItsNotificationOutOfTheShade() {
+        notifications.onShowNotification(webNotificationWithActions("New message", "reply" to "Reply"))
+        val reply = intentOf(shown().actions[0].actionIntent)
+        // The process that showed it has ended: the shade still has it, the registry does not
+        GeckoSiteNotifications.registry.remove(manager.activeNotifications.single().tag)
+
+        assertNull(GeckoSiteNotifications.takeTapOf(app, reply))
+
+        assertEquals(0, posted())
+        // The page it came from is still known, to be shown
+        assertEquals("https://chat.example/sw.js", GeckoSiteNotifications.sourceOf(reply))
+    }
+
+    @Test
     fun aTapOnTheNotificationItselfNamesNoButton() {
         notifications.onShowNotification(webNotificationWithActions("New message", "reply" to "Reply"))
 
