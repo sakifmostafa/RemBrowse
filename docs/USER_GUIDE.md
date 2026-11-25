@@ -361,7 +361,7 @@ Some requests are answered without asking: sites may keep their data on the devi
 
 **Settings → Site permissions** lists every site you have answered, with a switch for each decision (Allowed or Blocked), **×** to forget one (the site asks again next time) and **Reset** to forget all of a site's. Blocking the camera or microphone there stops a page that is using it. If Android's notifications are off for RemBrowse, a notice there says so and opens Android's settings.
 
-**Notifications** from sites you allowed appear as Android notifications, with the site's name. Tapping one opens that site's tab (or the page, if it isn't open) and lets the page react, for example Telegram opening the chat. Sites can notify while their tab is open, also in the background, and while RemBrowse is the last app you used; once Android pauses RemBrowse they wait until you come back. Icons from addresses on your own device or home network are not fetched.
+**Notifications** from sites you allowed appear as Android notifications, with the site's name. Tapping one opens that site's tab (or the page, if it isn't open) and lets the page react, for example Telegram opening the chat. A site can add up to two buttons of its own, such as **Reply** or **Mark as read**, shown when you expand the notification; tapping one also opens the site's tab, tells the page which button it was and takes the notification away. Sites can notify while their tab is open, also in the background, and while RemBrowse is the last app you used; once Android pauses RemBrowse they wait until you come back. Icons from addresses on your own device or home network are not fetched.
 
 ---
 

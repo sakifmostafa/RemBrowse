@@ -28,10 +28,24 @@ data class SiteNotificationContent(
     /** The page that showed it (a web address), opened again by a tap after a restart. */
     val sourceUrl: String?,
     /** The site that showed it, as scheme://host[:port]; null for a notification without a page. */
-    val origin: String?
+    val origin: String?,
+    /** The page's buttons, in its order: at most [SiteNotifications.MAX_ACTIONS], each with a title. */
+    val actions: List<SiteNotificationAction> = emptyList()
 )
 
+/**
+ * A button on a site notification. [name] is what the page's `notificationclick` handler is told
+ * (`event.action`) when it is tapped, [title] what the button says.
+ */
+data class SiteNotificationAction(val name: String, val title: String)
+
 object SiteNotifications {
+    /**
+     * The most buttons a site notification shows. Android shows three at most and RemBrowse adds
+     * none of its own; two leaves each button room for its words on a phone.
+     */
+    const val MAX_ACTIONS = 2
+
     /** The most bytes read for a large icon; a site's icon is far smaller. */
     const val MAX_ICON_BYTES = 1024 * 1024
 
@@ -65,6 +79,10 @@ object SiteNotifications {
      * notification, which already carries the site and the page's own tag (`origin#tag:…`, or
      * `origin#notag:<unique id>` when the page gave none); a notification without one never
      * replaces another, so it gets a key from [uniqueId].
+     *
+     * The site shown beside the app's name is the notification's [principalOrigin] (Gecko's
+     * `WebNotification.origin`, see [siteOriginOf]), or the site of [source] when there is none.
+     * [actions] are the page's buttons, as [actionsOf] keeps them.
      */
     fun contentOf(
         title: String?,
@@ -73,22 +91,53 @@ object SiteNotifications {
         imageUrl: String?,
         source: String?,
         silent: Boolean,
+        principalOrigin: String? = null,
+        actions: List<SiteNotificationAction> = emptyList(),
         uniqueId: () -> String = { UUID.randomUUID().toString() }
     ): SiteNotificationContent {
-        val origin = SiteOrigins.originOf(source)
+        val sourceOrigin = SiteOrigins.originOf(source)
+        val origin = siteOriginOf(principalOrigin) ?: sourceOrigin
         val host = origin?.let(SiteOrigins::displayHost)
         return SiteNotificationContent(
-            key = keyOf(source, tag) ?: "${origin.orEmpty()} #unique:${uniqueId()}",
+            key = keyOf(source, tag) ?: "${sourceOrigin.orEmpty()} #unique:${uniqueId()}",
             // Android shows an empty title as a blank line: the site's name says more
             title = title?.trim()?.takeIf { it.isNotEmpty() } ?: host.orEmpty(),
             text = text?.trim()?.takeIf { it.isNotEmpty() },
             subText = host,
             iconUrl = iconUrlOf(imageUrl),
             silent = silent,
-            sourceUrl = source?.trim()?.takeIf { origin != null },
-            origin = origin
+            sourceUrl = source?.trim()?.takeIf { sourceOrigin != null },
+            origin = origin,
+            actions = actionsOf(actions)
         )
     }
+
+    /**
+     * The site of a notification's [principalOrigin] as scheme://host[:port], or null when it is
+     * not a web site (an extension's, or none). Gecko gives the origin of the page or service
+     * worker's principal (`nsIPrincipal.origin`), which ends in its attributes after a caret
+     * for a container, a private page or a frame partitioned under another site
+     * (`https://chat.example^userContextId=1`); those are not part of the site.
+     */
+    fun siteOriginOf(principalOrigin: String?): String? =
+        SiteOrigins.originOf(principalOrigin?.substringBefore('^'))
+
+    /**
+     * The buttons to show for a page's [offered] actions: in the page's order, those with a
+     * title (trimmed), at most [MAX_ACTIONS]. A button without words would be a blank button.
+     */
+    fun actionsOf(offered: List<SiteNotificationAction>): List<SiteNotificationAction> =
+        offered.mapNotNull { action ->
+            action.title.trim().takeIf { it.isNotEmpty() }?.let { action.copy(title = it) }
+        }.take(MAX_ACTIONS)
+
+    /**
+     * The action to pass to the page for a tap that names [requested], or null for a tap on the
+     * notification itself. Only a name among the buttons [shown] counts: the name arrives in an
+     * intent, and the activity it opens can be started by any app.
+     */
+    fun clickedAction(requested: String?, shown: List<SiteNotificationAction>): String? =
+        requested?.takeIf { name -> shown.any { it.name == name } }
 
     /**
      * The key of a notification from [source] with Gecko's [tag], or null without a tag. The

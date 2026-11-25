@@ -761,20 +761,23 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * A site notification was tapped, which brought the window forward: the tab with its site
-     * comes to the front (see [BrowserViewModel.showTabForSite]), and then the page handles the
-     * click as it would on a desktop (Telegram opens the chat). The page must be showing first,
-     * since its handler may only switch what it shows. After a restart the notification is no
-     * longer live, and its page is just shown.
+     * A site notification, or one of its buttons, was tapped, which brought the window forward:
+     * the tab with its site comes to the front (see [BrowserViewModel.showTabForSite]), and then
+     * the page handles the click as it would on a desktop (Telegram opens the chat), told which
+     * button it was (`event.action`). The page must be showing first, since its handler may only
+     * switch what it shows. After a restart the notification is no longer live, and its page is
+     * just shown.
      */
     private fun openSiteNotification(intent: Intent) {
-        val notification = GeckoSiteNotifications.takeNotificationOf(intent)
-        val page = notification?.source ?: GeckoSiteNotifications.sourceOf(intent)
+        val tap = GeckoSiteNotifications.takeTapOf(this, intent)
+        val page = tap?.notification?.source ?: GeckoSiteNotifications.sourceOf(intent)
         chrome.showTabSwitcher = false
         if (page != null) holder.browser.showTabForSite(page)
-        notification?.let { tapped ->
-            runCatching { tapped.click() }
-                .onFailure { Log.w(TAG, "Couldn't pass a notification's click to its page", it) }
+        tap?.let {
+            runCatching {
+                val action = it.action
+                if (action != null) it.notification.click(action) else it.notification.click()
+            }.onFailure { error -> Log.w(TAG, "Couldn't pass a notification's click to its page", error) }
         }
     }
 }

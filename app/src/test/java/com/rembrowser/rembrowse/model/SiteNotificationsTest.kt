@@ -19,8 +19,20 @@ class SiteNotificationsTest {
         imageUrl: String? = null,
         source: String? = "https://chat.example.org/room/1",
         silent: Boolean = false,
+        principalOrigin: String? = null,
+        actions: List<SiteNotificationAction> = emptyList(),
         uniqueId: () -> String = { "u1" }
-    ) = SiteNotifications.contentOf(title, text, tag, imageUrl, source, silent, uniqueId)
+    ) = SiteNotifications.contentOf(
+        title = title,
+        text = text,
+        tag = tag,
+        imageUrl = imageUrl,
+        source = source,
+        silent = silent,
+        principalOrigin = principalOrigin,
+        actions = actions,
+        uniqueId = uniqueId
+    )
 
     private fun dataUrl(bytes: ByteArray, mime: String = "image/png") =
         "data:$mime;base64," + Base64.getEncoder().encodeToString(bytes)
@@ -60,6 +72,108 @@ class SiteNotificationsTest {
             assertNull("sourceUrl for $source", c.sourceUrl)
             assertEquals("", c.title)
         }
+    }
+
+    // --- origin ---
+
+    @Test
+    fun theSiteShownIsTheNotificationsOrigin() {
+        // A service worker's notification: its source is the worker's script
+        val c = content(source = "https://chat.example.org/sw.js", principalOrigin = "https://chat.example.org")
+        assertEquals("chat.example.org", c.subText)
+        assertEquals("https://chat.example.org", c.origin)
+    }
+
+    @Test
+    fun theOriginsAttributesAreNotPartOfTheSite() {
+        listOf(
+            "https://chat.example.org^userContextId=1",
+            "https://chat.example.org^privateBrowsingId=1",
+            "https://chat.example.org^partitionKey=%28https%2Cexample.com%29"
+        ).forEach { principal ->
+            val c = content(principalOrigin = principal)
+            assertEquals(principal, "chat.example.org", c.subText)
+            assertEquals(principal, "https://chat.example.org", c.origin)
+        }
+        assertEquals("https://chat.example.org:8443", SiteNotifications.siteOriginOf("https://chat.example.org:8443^userContextId=2"))
+    }
+
+    @Test
+    fun withoutAWebOriginTheSiteComesFromTheSource() {
+        // Gecko's origin is empty for a notification restored from an older parcel, and an
+        // extension's is its moz-extension: address
+        listOf(null, "", "moz-extension://0d1c8a5e-3a1c-4b8e-9f1e-2b8a0e0c1d2e").forEach { principal ->
+            val c = content(source = "https://chat.example.org/room/1", principalOrigin = principal)
+            assertEquals("for $principal", "chat.example.org", c.subText)
+        }
+        val fromAnExtension = content(source = null, principalOrigin = "moz-extension://0d1c8a5e-3a1c-4b8e-9f1e-2b8a0e0c1d2e")
+        assertNull(fromAnExtension.subText)
+        assertNull(fromAnExtension.origin)
+    }
+
+    @Test
+    fun theOriginChangesNeitherTheKeyNorThePageATapOpens() {
+        val withOrigin = content(source = "https://chat.example.org/sw.js", principalOrigin = "https://chat.example.org^userContextId=1")
+        val without = content(source = "https://chat.example.org/sw.js")
+        assertEquals(without.key, withOrigin.key)
+        assertEquals("https://chat.example.org/sw.js", withOrigin.sourceUrl)
+    }
+
+    // --- action buttons ---
+
+    @Test
+    fun aNotificationWithoutActionsHasNoButtons() {
+        assertEquals(emptyList<SiteNotificationAction>(), content().actions)
+    }
+
+    @Test
+    fun theButtonsAreThePagesActionsInItsOrder() {
+        val c = content(
+            actions = listOf(SiteNotificationAction("reply", "  Reply "), SiteNotificationAction("archive", "Archive"))
+        )
+        assertEquals(listOf(SiteNotificationAction("reply", "Reply"), SiteNotificationAction("archive", "Archive")), c.actions)
+    }
+
+    @Test
+    fun atMostTwoButtonsAreShownAndBlankTitlesAreDropped() {
+        val c = content(
+            actions = listOf(
+                SiteNotificationAction("blank", "  "),
+                SiteNotificationAction("empty", ""),
+                SiteNotificationAction("one", "One"),
+                SiteNotificationAction("two", "Two"),
+                SiteNotificationAction("three", "Three")
+            )
+        )
+        assertEquals(listOf("one", "two"), c.actions.map { it.name })
+        assertEquals(2, SiteNotifications.MAX_ACTIONS)
+    }
+
+    @Test
+    fun aTapNamingAShownButtonPassesItsName() {
+        val shown = listOf(SiteNotificationAction("reply", "Reply"), SiteNotificationAction("archive", "Archive"))
+        assertEquals("reply", SiteNotifications.clickedAction("reply", shown))
+        assertEquals("archive", SiteNotifications.clickedAction("archive", shown))
+    }
+
+    @Test
+    fun anUnknownActionNameIsAPlainTap() {
+        val shown = listOf(SiteNotificationAction("reply", "Reply"))
+        assertNull(SiteNotifications.clickedAction(null, shown))
+        assertNull(SiteNotifications.clickedAction("delete-everything", shown))
+        assertNull(SiteNotifications.clickedAction("Reply", shown))
+        assertNull(SiteNotifications.clickedAction("reply", emptyList()))
+    }
+
+    @Test
+    fun aButtonThatIsNotShownCannotBeTapped() {
+        // The page's third action has no button, so a tap can't name it
+        val offered = listOf(
+            SiteNotificationAction("one", "One"),
+            SiteNotificationAction("two", "Two"),
+            SiteNotificationAction("three", "Three")
+        )
+        assertNull(SiteNotifications.clickedAction("three", SiteNotifications.actionsOf(offered)))
     }
 
     @Test

@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.rembrowser.rembrowse.R
+import com.rembrowser.rembrowse.model.SiteNotificationAction
 import com.rembrowser.rembrowse.model.SiteNotificationContent
 import com.rembrowser.rembrowse.model.SiteNotificationRegistry
 import com.rembrowser.rembrowse.model.SiteNotifications
@@ -52,14 +53,18 @@ private const val ICON_MAX_REDIRECTS = 3
 private const val EXTRA_KEY = "com.rembrowser.rembrowse.extra.SITE_NOTIFICATION_KEY"
 private const val EXTRA_TOKEN = "com.rembrowser.rembrowse.extra.SITE_NOTIFICATION_TOKEN"
 private const val EXTRA_SOURCE = "com.rembrowser.rembrowse.extra.SITE_NOTIFICATION_SOURCE"
+/** Names the button tapped, on a button's intent. */
+internal const val EXTRA_ACTION = "com.rembrowser.rembrowse.extra.SITE_NOTIFICATION_ACTION"
 
 /**
  * Shows sites' web notifications as Android notifications, on the "Site notifications" channel.
  * Without a delegate on the runtime Gecko shows nothing, even for a site allowed to notify.
  *
  * A tap opens [tapActivity], which shows the site's tab and then lets the page handle the click
- * (see [takeNotificationOf]); a swipe tells the page its notification was dismissed (see
+ * (see [takeTapOf]); a swipe tells the page its notification was dismissed (see
  * [SiteNotificationDismissReceiver]). The live notifications are kept in [registry] until then.
+ * The page's action buttons (up to two) open [tapActivity] the same way, each with its own
+ * intent that also names the button.
  *
  * The page is told what became of each notification, as GeckoView asks since 145: shown once it
  * is posted, which fires the page's `show` event, or dismissed when nothing is posted (a private
@@ -110,7 +115,9 @@ class GeckoSiteNotifications internal constructor(
             tag = notification.tag,
             imageUrl = notification.imageUrl,
             source = notification.source,
-            silent = notification.silent
+            silent = notification.silent,
+            principalOrigin = notification.origin,
+            actions = actionsOf(notification)
         )
         // Only this notification's own tap and swipe carry the token
         val token = UUID.randomUUID().toString()
@@ -154,6 +161,14 @@ class GeckoSiteNotifications internal constructor(
             .setDeleteIntent(dismissIntent(content.key, token))
         // A long message can be read in full by expanding it
         content.text?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(it)) }
+        content.actions.forEachIndexed { index, action ->
+            builder.addAction(
+                NotificationCompat.Action.Builder(0, action.title, actionIntent(content, token, action, index))
+                    // It brings RemBrowse forward, as a tap on the notification does
+                    .setShowsUserInterface(true)
+                    .build()
+            )
+        }
         try {
             manager.notify(content.key, NOTIFICATION_ID, builder.build())
         } catch (e: SecurityException) {
@@ -214,21 +229,39 @@ class GeckoSiteNotifications internal constructor(
         channelCreated = true
     }
 
-    private fun tapIntent(content: SiteNotificationContent, token: String): PendingIntent {
-        val intent = Intent(appContext, tapActivity)
+    private fun tapIntent(content: SiteNotificationContent, token: String): PendingIntent =
+        PendingIntent.getActivity(
+            appContext,
+            0,
+            openIntent(content, token),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    /**
+     * The intent of the button at [index]: the notification's tap, naming [action]. Each button
+     * has its own request code, since its intent differs from the tap's only in its extras.
+     */
+    private fun actionIntent(
+        content: SiteNotificationContent,
+        token: String,
+        action: SiteNotificationAction,
+        index: Int
+    ): PendingIntent =
+        PendingIntent.getActivity(
+            appContext,
+            1 + index,
+            openIntent(content, token).putExtra(EXTRA_ACTION, action.name),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    private fun openIntent(content: SiteNotificationContent, token: String): Intent =
+        Intent(appContext, tapActivity)
             .setAction(ACTION_OPEN)
             .setData(uriOf(content.key))
             .putExtra(EXTRA_KEY, content.key)
             .putExtra(EXTRA_TOKEN, token)
             .putExtra(EXTRA_SOURCE, content.sourceUrl)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return PendingIntent.getActivity(
-            appContext,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
 
     private fun dismissIntent(key: String, token: String): PendingIntent {
         val intent = Intent(appContext, SiteNotificationDismissReceiver::class.java)
@@ -283,6 +316,31 @@ class GeckoSiteNotifications internal constructor(
          */
         fun takeNotificationOf(intent: Intent): WebNotification? =
             registry.take(intent.getStringExtra(EXTRA_KEY), intent.getStringExtra(EXTRA_TOKEN))
+
+        /**
+         * A tap on a site notification or on one of its buttons, from the tap [intent]: the live
+         * notification, taken out of [registry] as [takeNotificationOf] does (null when it is not
+         * live or the token is wrong), and the button's action name. The name came from the page
+         * and travels in an intent, so it counts only when the live notification shows a button
+         * of that name; any other name is a tap on the notification itself. A button, unlike the
+         * notification itself, doesn't take the notification off the screen, so that is done
+         * here. Main thread only.
+         */
+        fun takeTapOf(context: Context, intent: Intent): SiteNotificationTap? {
+            val notification = takeNotificationOf(intent) ?: return null
+            val requested = intent.getStringExtra(EXTRA_ACTION)
+            if (requested != null) {
+                intent.getStringExtra(EXTRA_KEY)?.let { key ->
+                    NotificationManagerCompat.from(context).cancel(key, NOTIFICATION_ID)
+                }
+            }
+            val action = SiteNotifications.clickedAction(requested, SiteNotifications.actionsOf(actionsOf(notification)))
+            return SiteNotificationTap(notification, action)
+        }
+
+        /** The page's buttons on [notification], as Gecko hands them over. */
+        private fun actionsOf(notification: WebNotification): List<SiteNotificationAction> =
+            notification.actions.map { SiteNotificationAction(name = it.name, title = it.title) }
 
         /** The page a tap [intent] came from, when it is a web address. */
         fun sourceOf(intent: Intent): String? =
@@ -367,6 +425,12 @@ internal class PublicAddressesOnly(private val names: Dns = Dns.SYSTEM) : Dns {
             .filterNot { SiteNotifications.isLocalAddress(it.address) }
             .ifEmpty { throw UnknownHostException("$hostname is on this device or the local network") }
 }
+
+/**
+ * A tap on a live site notification: [action] names the button tapped, or is null for the
+ * notification itself.
+ */
+class SiteNotificationTap(val notification: WebNotification, val action: String?)
 
 /**
  * A site notification was swiped away (or cleared with the rest): the page hears that it was
