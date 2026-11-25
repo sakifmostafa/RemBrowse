@@ -472,15 +472,19 @@ internal class GeckoSitePermissions(
      * address on the local network (not this device), through the window used last, and connects
      * without waiting for the answer (GeckoViewStartup.sys.mjs, AndroidLocalNetworkPermission.cpp).
      * An app targeting API 36 or lower holds it through INTERNET (Android's split permission), so
-     * it is answered here without a dialog. Android asks apps not to declare or request it before
-     * they target 37; the manifest needs it from then on.
+     * it is granted here without Android being asked ([androidPermissionsToAsk]), in a private
+     * tab too. Android asks apps not to declare or request it before they target 37, and a request
+     * for a permission the manifest doesn't declare is refused; the manifest needs it from then on.
      */
     private fun onAndroidRequest(
         handle: GeckoSessionHandle,
         permissions: Array<out String>?,
         callback: PermissionDelegate.Callback
     ) {
-        val requested = permissions.orEmpty().toList().distinct()
+        val requested = androidPermissionsToAsk(
+            permissions.orEmpty().toList(),
+            targetSdk = appContext.applicationInfo.targetSdkVersion
+        )
         if (requested.isEmpty()) {
             callback.grant()
             return
@@ -940,6 +944,20 @@ internal class GeckoSitePermissions(
 
         internal fun pickMicrophone(sources: Array<out MediaSource>): MediaSource? =
             sources.firstOrNull { it.source == MediaSource.SOURCE_MICROPHONE }
+
+        /**
+         * The Android permissions to ask Android for out of those Gecko [requested]: all of them,
+         * once each, but the local network permission while the app targets less than API 37
+         * ([targetSdk]), which it then holds without asking (see [onAndroidRequest]).
+         */
+        internal fun androidPermissionsToAsk(requested: List<String>, targetSdk: Int): List<String> =
+            requested.distinct().filterNot { it == ACCESS_LOCAL_NETWORK && targetSdk < LOCAL_NETWORK_PERMISSION_TARGET_SDK }
+
+        /** Android 17's local network permission (Manifest.permission.ACCESS_LOCAL_NETWORK, API 37). */
+        internal const val ACCESS_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
+
+        /** The first targetSdk whose apps have to declare and request [ACCESS_LOCAL_NETWORK]. */
+        internal const val LOCAL_NETWORK_PERMISSION_TARGET_SDK = 37
 
         private fun androidPermissionsFor(kinds: Set<SitePermissionKind>): List<String> = buildList {
             if (SitePermissionKind.CAMERA in kinds) add(Manifest.permission.CAMERA)

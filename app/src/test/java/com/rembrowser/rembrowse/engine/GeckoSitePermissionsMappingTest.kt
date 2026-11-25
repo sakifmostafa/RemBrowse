@@ -138,6 +138,22 @@ class GeckoSitePermissionsMappingTest {
     }
 
     @Test
+    fun theLocalNetworkPermissionIsNotAskedForWhileTheAppTargetsLessThanApi37() {
+        val lan = "android.permission.ACCESS_LOCAL_NETWORK"
+        val camera = Manifest.permission.CAMERA
+        assertEquals(lan, GeckoSitePermissions.ACCESS_LOCAL_NETWORK)
+        // Held through INTERNET: nothing is left to ask Android, so the request is granted as it is
+        assertTrue(GeckoSitePermissions.androidPermissionsToAsk(listOf(lan), targetSdk = 36).isEmpty())
+        assertTrue(GeckoSitePermissions.androidPermissionsToAsk(listOf(lan, lan), targetSdk = 35).isEmpty())
+        // What comes with it is still asked for, once
+        assertEquals(listOf(camera), GeckoSitePermissions.androidPermissionsToAsk(listOf(lan, camera, camera), targetSdk = 36))
+        // From 37 the app has to ask
+        assertEquals(listOf(lan), GeckoSitePermissions.androidPermissionsToAsk(listOf(lan), targetSdk = 37))
+        assertEquals(listOf(camera, lan), GeckoSitePermissions.androidPermissionsToAsk(listOf(camera, lan), targetSdk = 38))
+        assertTrue(GeckoSitePermissions.androidPermissionsToAsk(emptyList(), targetSdk = 36).isEmpty())
+    }
+
+    @Test
     fun missingCameraOrMicrophoneIsNotMadeUpForByLocation() {
         val camera = Manifest.permission.CAMERA
         val mic = Manifest.permission.RECORD_AUDIO
