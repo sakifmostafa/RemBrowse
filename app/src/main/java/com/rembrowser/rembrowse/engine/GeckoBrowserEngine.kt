@@ -916,6 +916,19 @@ class GeckoBrowserEngine(
                     "Dangerous site blocked" to
                         "This page was reported as unsafe and has been blocked to protect you."
 
+                // Android itself refused RemBrowse a connection to the local network (GeckoView 155:
+                // only NS_ERROR_OS_LOCAL_NETWORK_ACCESS_DENIED, from Android 17's local network
+                // permission, becomes this code). The engine's own refusal of a site
+                // (NS_ERROR_LOCAL_NETWORK_ACCESS_DENIED) has no code and gets the general page.
+                WebRequestError.ERROR_LOCAL_NETWORK_ACCESS_DENIED ->
+                    "Local network access blocked" to
+                        "Android didn't let RemBrowse connect to devices on your network, so the page couldn't be loaded."
+
+                // The address is on the harmful add-on block list (GeckoView 148)
+                WebRequestError.ERROR_HARMFULADDON_URI ->
+                    "Dangerous add-on blocked" to
+                        "This page was reported as distributing a harmful add-on and has been blocked to protect you."
+
                 WebRequestError.ERROR_PROXY_CONNECTION_REFUSED,
                 WebRequestError.ERROR_UNKNOWN_PROXY_HOST ->
                     "Proxy problem" to "The proxy server couldn't be reached. Check your proxy settings."

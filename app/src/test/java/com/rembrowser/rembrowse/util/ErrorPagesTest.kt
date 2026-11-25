@@ -1,9 +1,11 @@
 package com.rembrowser.rembrowse.util
 
+import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mozilla.geckoview.WebRequestError
 import java.util.Base64
 
 class ErrorPagesTest {
@@ -44,5 +46,34 @@ class ErrorPagesTest {
         val decoded = String(Base64.getDecoder().decode(url.removePrefix(prefix)), Charsets.UTF_8)
         assertEquals(ErrorPages.buildHtml("https://example.com", "You're offline", "Check your connection."), decoded)
         assertTrue(decoded.contains("You&#39;re offline"))
+    }
+
+    private fun pageFor(code: Int, category: Int) =
+        GeckoBrowserEngine.describeLoadError(WebRequestError(code, category))
+
+    @Test
+    fun androidRefusingTheLocalNetworkHasItsOwnPage() {
+        assertEquals(
+            "Local network access blocked" to
+                "Android didn't let RemBrowse connect to devices on your network, so the page couldn't be loaded.",
+            pageFor(WebRequestError.ERROR_LOCAL_NETWORK_ACCESS_DENIED, WebRequestError.ERROR_CATEGORY_NETWORK)
+        )
+    }
+
+    @Test
+    fun aHarmfulAddOnPageHasItsOwnPage() {
+        assertEquals(
+            "Dangerous add-on blocked" to
+                "This page was reported as distributing a harmful add-on and has been blocked to protect you.",
+            pageFor(WebRequestError.ERROR_HARMFULADDON_URI, WebRequestError.ERROR_CATEGORY_SAFEBROWSING)
+        )
+    }
+
+    @Test
+    fun anErrorWithoutAPageOfItsOwnGetsTheGeneralOne() {
+        assertEquals(
+            "This page couldn't be loaded" to "Something went wrong while loading the page.",
+            pageFor(WebRequestError.ERROR_UNKNOWN, WebRequestError.ERROR_CATEGORY_UNKNOWN)
+        )
     }
 }

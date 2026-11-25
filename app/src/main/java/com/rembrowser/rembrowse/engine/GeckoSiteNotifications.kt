@@ -62,12 +62,24 @@ private const val EXTRA_SOURCE = "com.rembrowser.rembrowse.extra.SITE_NOTIFICATI
  * (see [takeNotificationOf]); a swipe tells the page its notification was dismissed (see
  * [SiteNotificationDismissReceiver]). The live notifications are kept in [registry] until then.
  *
+ * The page is told what became of each notification, as GeckoView asks since 145: shown once it
+ * is posted, which fires the page's `show` event, or dismissed when nothing is posted (a private
+ * page, notifications turned off, posting refused), which fires its `error` event instead (both
+ * seen on an emulator with GeckoView 161).
+ *
  * Gecko calls in on the main thread, which everything here stays on, apart from loading icons.
  */
-class GeckoSiteNotifications(
+class GeckoSiteNotifications internal constructor(
     context: Context,
-    private val tapActivity: Class<out Activity>
+    private val tapActivity: Class<out Activity>,
+    /** Tells the page its notification is on show; [WebNotification.show] outside the tests. */
+    private val tellShown: (WebNotification) -> Unit,
+    /** Tells the page its notification went nowhere; [WebNotification.dismiss] outside the tests. */
+    private val tellNotShown: (WebNotification) -> Unit
 ) : WebNotificationDelegate {
+
+    constructor(context: Context, tapActivity: Class<out Activity>) :
+        this(context, tapActivity, WebNotification::show, WebNotification::dismiss)
 
     private val appContext = context.applicationContext
     private val manager = NotificationManagerCompat.from(appContext)
@@ -95,9 +107,13 @@ class GeckoSiteNotifications(
         // What a private page shows must not outlive it in the notification shade
         if (notification.privateBrowsing) {
             Log.d(TAG, "Not showing a notification from a private page")
+            notShown(notification)
             return
         }
-        if (!mayPost()) return
+        if (!mayPost()) {
+            notShown(notification)
+            return
+        }
         val content = SiteNotifications.contentOf(
             title = notification.title,
             text = notification.text,
@@ -111,7 +127,7 @@ class GeckoSiteNotifications(
         registry.put(content.key, notification, token)
         val iconUrl = content.iconUrl
         if (iconUrl == null) {
-            post(content, token, icon = null)
+            post(notification, content, token, icon = null)
             return
         }
         scope.launch {
@@ -120,8 +136,10 @@ class GeckoSiteNotifications(
                     .onFailure { Log.d(TAG, "Couldn't load a notification's icon", it) }
                     .getOrNull()
             }
-            // The page may have closed or replaced it while the icon loaded
-            if (registry.holds(content.key, token)) post(content, token, icon)
+            // The page may have closed or replaced it while the icon loaded. Then it is told
+            // nothing more about this one: it closed it itself, or a dismiss, which Gecko matches
+            // by tag, would close the notification that replaced it.
+            if (registry.holds(content.key, token)) post(notification, content, token, icon)
         }
     }
 
@@ -133,7 +151,7 @@ class GeckoSiteNotifications(
         manager.cancel(key, NOTIFICATION_ID)
     }
 
-    private fun post(content: SiteNotificationContent, token: String, icon: Bitmap?) {
+    private fun post(notification: WebNotification, content: SiteNotificationContent, token: String, icon: Bitmap?) {
         val builder = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_rembrowse)
             .setContentTitle(content.title)
@@ -152,7 +170,22 @@ class GeckoSiteNotifications(
             // The permission was taken back after mayPost looked
             registry.remove(content.key)
             Log.w(TAG, "Not allowed to show a site notification", e)
+            notShown(notification)
+            return
         }
+        shown(notification)
+    }
+
+    /** The page hears that its notification is on show (its `show` event). */
+    private fun shown(notification: WebNotification) {
+        runCatching { tellShown(notification) }
+            .onFailure { Log.w(TAG, "Couldn't tell a page its notification is shown", it) }
+    }
+
+    /** The page hears that its notification will not be shown (its `error` event). */
+    private fun notShown(notification: WebNotification) {
+        runCatching { tellNotShown(notification) }
+            .onFailure { Log.w(TAG, "Couldn't tell a page its notification wasn't shown", it) }
     }
 
     /**
