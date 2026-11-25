@@ -678,12 +678,13 @@ class ExtensionsViewModelTest {
             val viewModel = ExtensionsViewModel(extensionManager, amoApiClient, vmScope)
             val answers = mutableListOf<Pair<Boolean, Boolean>>()
 
-            extensionManager.pendingPrompt.value = promptCollecting(answers)
-            viewModel.respondToInstallPrompt(allow = true, shareTechnicalData = true)
-            extensionManager.pendingPrompt.value = promptCollecting(answers)
-            viewModel.respondToInstallPrompt(allow = true, shareTechnicalData = false)
-            extensionManager.pendingPrompt.value = promptCollecting(answers, listOf(ExtensionDataCollection.NONE))
-            viewModel.respondToInstallPrompt(allow = false)
+            fun show(prompt: ExtensionInstallPrompt) = prompt.also { extensionManager.pendingPrompt.value = it }
+            viewModel.respondToInstallPrompt(show(promptCollecting(answers)), allow = true, shareTechnicalData = true)
+            viewModel.respondToInstallPrompt(show(promptCollecting(answers)), allow = true, shareTechnicalData = false)
+            viewModel.respondToInstallPrompt(
+                show(promptCollecting(answers, listOf(ExtensionDataCollection.NONE))),
+                allow = false
+            )
 
             assertEquals(listOf(true to true, true to false, false to false), answers)
             assertNull(viewModel.uiState.value.pendingPrompt)

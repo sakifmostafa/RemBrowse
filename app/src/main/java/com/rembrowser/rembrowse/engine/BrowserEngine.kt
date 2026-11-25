@@ -253,8 +253,10 @@ interface ExtensionManager {
     fun triggerBrowserAction(extensionId: String)
     fun dismissPopup()
     /**
-     * Answers the prompt on show: [allow] goes ahead; [shareTechnicalData] is the prompt's
-     * checkbox for the optional technical and interaction data, when it offers one.
+     * Answers [prompt], the one whose dialog was answered: [allow] goes ahead;
+     * [shareTechnicalData] is its checkbox for the optional technical and interaction data, when
+     * it offers one. Does nothing when [prompt] is no longer the one on show, so a late answer
+     * never reaches the prompt after it.
      */
-    fun dismissPrompt(allow: Boolean, shareTechnicalData: Boolean = false)
+    fun dismissPrompt(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean = false)
 }

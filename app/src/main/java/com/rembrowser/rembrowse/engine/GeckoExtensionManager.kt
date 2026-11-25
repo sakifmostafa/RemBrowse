@@ -71,6 +71,41 @@ internal fun trustedInstallAnswer(): WebExtension.PermissionPromptResponse =
     WebExtension.PermissionPromptResponse(true, true, false)
 
 /**
+ * The extension prompts waiting for an answer, oldest first; the oldest is the one [onShow].
+ * Main thread only.
+ */
+internal class ExtensionPromptQueue {
+    private val waiting = ArrayDeque<ExtensionInstallPrompt>()
+
+    private val _onShow = MutableStateFlow<ExtensionInstallPrompt?>(null)
+    val onShow: StateFlow<ExtensionInstallPrompt?> = _onShow.asStateFlow()
+
+    fun add(prompt: ExtensionInstallPrompt) {
+        waiting.addLast(prompt)
+        _onShow.value = waiting.firstOrNull()
+    }
+
+    /** Takes [prompt] out, bringing the next one on show; false when it was not waiting. */
+    fun remove(prompt: ExtensionInstallPrompt): Boolean {
+        // By identity: two requests may look alike
+        val index = waiting.indexOfFirst { it === prompt }
+        if (index < 0) return false
+        waiting.removeAt(index)
+        _onShow.value = waiting.firstOrNull()
+        return true
+    }
+
+    /**
+     * Gives [prompt] its answer, but only while it is the one on show. An answer meant for a
+     * prompt that has gone (a second tap on its dialog before the next one is drawn) is dropped,
+     * and so never reaches the prompt that took its place, which nobody has seen yet.
+     */
+    fun answer(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean) {
+        if (_onShow.value === prompt) prompt.onDecision(allow, shareTechnicalData)
+    }
+}
+
+/**
  * @param openExtensionTab creates a browser tab for [url] and returns its *unopened* session,
  *   used to honour `browser.tabs.create()`.
  * @param openUrlInNewTab opens [url] in an ordinary new tab (used for extension options pages).
@@ -114,13 +149,12 @@ class GeckoExtensionManager(
 
     // Permission prompts are answered one at a time; later requests wait their turn instead of
     // overwriting (and so never resolving) the one already on screen.
-    private val promptQueue = ArrayDeque<ExtensionInstallPrompt>()
+    private val prompts = ExtensionPromptQueue()
 
     private val _installedExtensions = MutableStateFlow<List<InstalledExtension>>(emptyList())
     override val installedExtensions: StateFlow<List<InstalledExtension>> = _installedExtensions.asStateFlow()
 
-    private val _pendingPrompt = MutableStateFlow<ExtensionInstallPrompt?>(null)
-    override val pendingPrompt: StateFlow<ExtensionInstallPrompt?> = _pendingPrompt.asStateFlow()
+    override val pendingPrompt: StateFlow<ExtensionInstallPrompt?> = prompts.onShow
 
     private val _activePopup = MutableStateFlow<ExtensionPopupState?>(null)
     override val activePopup: StateFlow<ExtensionPopupState?> = _activePopup.asStateFlow()
@@ -270,15 +304,13 @@ class GeckoExtensionManager(
             offersTechnicalData = data.offersTechnicalData,
             onDecision = { allow, shareTechnicalData ->
                 // remove() guards against a double tap answering the same prompt twice
-                if (promptQueue.remove(prompt)) {
+                if (prompts.remove(prompt)) {
                     runCatching { complete(allow, allow && data.offersTechnicalData && shareTechnicalData) }
                         .onFailure { Log.w(TAG, "Extension prompt was already resolved", it) }
-                    _pendingPrompt.value = promptQueue.firstOrNull()
                 }
             }
         )
-        promptQueue.addLast(prompt)
-        _pendingPrompt.value = promptQueue.firstOrNull()
+        prompts.add(prompt)
     }
 
     override suspend fun refreshInstalled(): Result<List<InstalledExtension>> =
@@ -405,8 +437,8 @@ class GeckoExtensionManager(
         _activePopup.value = null
     }
 
-    override fun dismissPrompt(allow: Boolean, shareTechnicalData: Boolean) {
-        _pendingPrompt.value?.onDecision?.invoke(allow, shareTechnicalData)
+    override fun dismissPrompt(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean) {
+        prompts.answer(prompt, allow, shareTechnicalData)
     }
 
     private fun registerDelegates(extension: WebExtension) {

@@ -8,6 +8,7 @@ import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ArchivedAdBlocker
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
+import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionsTab
 import com.rembrowser.rembrowse.model.ExtensionsUiState
 import com.rembrowser.rembrowse.model.InstalledExtension
@@ -329,8 +330,9 @@ class ExtensionsViewModel(
         extensionManager.triggerBrowserAction(extensionId)
     }
 
-    fun respondToInstallPrompt(allow: Boolean, shareTechnicalData: Boolean = false) {
-        extensionManager.dismissPrompt(allow, shareTechnicalData)
+    /** The answer given on [prompt]'s own dialog. */
+    fun respondToInstallPrompt(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean = false) {
+        extensionManager.dismissPrompt(prompt, allow, shareTechnicalData)
     }
 
     fun dismissPopup() {

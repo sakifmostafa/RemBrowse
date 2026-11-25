@@ -1,6 +1,9 @@
 package com.rembrowser.rembrowse.engine
 
+import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 import org.mozilla.geckoview.WebExtension
 
@@ -25,5 +28,66 @@ class ExtensionPromptAnswerTest {
     @Test
     fun theDefaultAdBlockerInstalledWithoutAPromptNeverSharesTechnicalData() {
         assertEquals(listOf(true, true, false), trustedInstallAnswer().values())
+    }
+
+    /** The answers each queued prompt got, by its extension's name, as (allow, share technical data). */
+    private val answered = mutableListOf<Triple<String, Boolean, Boolean>>()
+
+    /** A prompt wired to [queue] as the extension manager wires its own: answered once, then gone. */
+    private fun queued(queue: ExtensionPromptQueue, name: String): ExtensionInstallPrompt {
+        lateinit var prompt: ExtensionInstallPrompt
+        prompt = ExtensionInstallPrompt(
+            extensionId = "same@example.com",
+            extensionName = name,
+            version = "1.0",
+            permissions = emptyList(),
+            offersTechnicalData = true,
+            onDecision = { allow, share -> if (queue.remove(prompt)) answered += Triple(name, allow, share) }
+        )
+        queue.add(prompt)
+        return prompt
+    }
+
+    @Test
+    fun aSecondAnswerFromOnePromptsDialogDoesNotAnswerTheNextPrompt() {
+        val queue = ExtensionPromptQueue()
+        val first = queued(queue, "First")
+        val second = queued(queue, "Second")
+        assertSame(first, queue.onShow.value)
+
+        // Two taps on the first dialog before the second prompt is drawn
+        queue.answer(first, allow = true, shareTechnicalData = true)
+        queue.answer(first, allow = true, shareTechnicalData = true)
+
+        assertEquals(listOf(Triple("First", true, true)), answered)
+        assertSame(second, queue.onShow.value)
+
+        queue.answer(second, allow = false, shareTechnicalData = false)
+        assertEquals(listOf(Triple("First", true, true), Triple("Second", false, false)), answered)
+        assertNull(queue.onShow.value)
+    }
+
+    @Test
+    fun aPromptStillWaitingItsTurnCannotBeAnsweredUnseen() {
+        val queue = ExtensionPromptQueue()
+        val first = queued(queue, "First")
+        val second = queued(queue, "Second")
+
+        queue.answer(second, allow = true, shareTechnicalData = true)
+
+        assertEquals(emptyList<Triple<String, Boolean, Boolean>>(), answered)
+        assertSame(first, queue.onShow.value)
+    }
+
+    @Test
+    fun twoPromptsThatLookAlikeAreAnsweredSeparately() {
+        val queue = ExtensionPromptQueue()
+        val first = queued(queue, "Same")
+        val second = queued(queue, "Same")
+
+        queue.answer(first, allow = true, shareTechnicalData = false)
+
+        assertSame(second, queue.onShow.value)
+        assertEquals(listOf(Triple("Same", true, false)), answered)
     }
 }

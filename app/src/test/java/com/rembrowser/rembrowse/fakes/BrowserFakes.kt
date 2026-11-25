@@ -556,10 +556,11 @@ class FakeExtensionManager : ExtensionManager {
         activePopup.value = null
     }
 
-    override fun dismissPrompt(allow: Boolean, shareTechnicalData: Boolean) {
+    override fun dismissPrompt(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean) {
+        if (pendingPrompt.value !== prompt) return
         lastPromptDecision = allow
         lastTechnicalDataDecision = shareTechnicalData
-        pendingPrompt.value?.onDecision?.invoke(allow, shareTechnicalData)
+        prompt.onDecision(allow, shareTechnicalData)
         pendingPrompt.value = null
     }
 }

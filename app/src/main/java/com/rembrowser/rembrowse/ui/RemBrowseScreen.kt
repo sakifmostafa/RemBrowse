@@ -1211,7 +1211,10 @@ fun RemBrowseScreen(
     extensionsState.pendingPrompt?.let { prompt ->
         ExtensionInstallPromptDialog(
             prompt = prompt,
-            onDecision = extensionsViewModel::respondToInstallPrompt
+            // The dialog answers the prompt it shows, not whichever is on show by then
+            onDecision = { allow, shareTechnicalData ->
+                extensionsViewModel.respondToInstallPrompt(prompt, allow, shareTechnicalData)
+            }
         )
     }
 }
