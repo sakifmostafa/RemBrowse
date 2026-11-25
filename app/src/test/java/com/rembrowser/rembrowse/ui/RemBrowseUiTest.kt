@@ -614,20 +614,6 @@ class RemBrowseUiTest {
     }
 
     @Test
-    @Config(sdk = [28])
-    fun settings_onAndroid9_sayThatSystemIsDark() {
-        // Android 8 and 9 have no light or dark setting, and System is dark there
-        launch()
-        composeRule.onNodeWithTag("more_button").performClick()
-        composeRule.onNodeWithTag("menu_settings").performScrollTo().performClick()
-
-        composeRule.onNodeWithTag("theme_system").assertIsOn()
-        composeRule.onNodeWithText("System is dark: this version of Android has no light or dark setting to follow.")
-            .assertIsDisplayed()
-        composeRule.onNodeWithText("System is light or dark, as your device is set.").assertDoesNotExist()
-    }
-
-    @Test
     fun settings_changeThemeAccentAndPrivacy() {
         launch()
         composeRule.onNodeWithTag("more_button").performClick()

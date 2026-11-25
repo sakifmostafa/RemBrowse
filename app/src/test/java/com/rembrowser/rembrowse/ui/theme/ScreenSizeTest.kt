@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
 
 /**
  * Go to address sizes itself by the window as the configuration gives it: without the system
- * bars up to Android 14, as it was laid out and tried with. Robolectric draws no system bars, so
+ * bars on Android 13 and 14, as it was laid out and tried with. Robolectric draws no system bars, so
  * a configuration that leaves 48dp of bars out of the window is put in by hand.
  */
 @RunWith(AndroidJUnit4::class)
@@ -46,8 +46,8 @@ class ScreenSizeTest {
     }
 
     @Test
-    @Config(sdk = [26])
-    fun onAndroid8_theConfigurationsSize() = assertConfigurationsSize()
+    @Config(sdk = [33])
+    fun onAndroid13_theConfigurationsSize() = assertConfigurationsSize()
 
     @Test
     @Config(sdk = [34])

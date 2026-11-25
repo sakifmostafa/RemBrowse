@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+, dark: see values/colors.xml -->
+    <!-- The dark theme: see values/colors.xml -->
     <color name="rem_chrome">@color/rem_chrome_dark</color>
 </resources>

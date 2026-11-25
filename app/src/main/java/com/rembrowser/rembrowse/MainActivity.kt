@@ -17,7 +17,6 @@ import android.view.KeyEvent
 import android.view.KeyboardShortcutGroup
 import android.view.Menu
 import androidx.compose.ui.platform.ComposeView
-import android.content.res.Configuration
 import android.view.MotionEvent
 import android.view.WindowInsetsController
 import androidx.activity.ComponentActivity
@@ -203,6 +202,7 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             updatesDir = File(application.cacheDir, UPDATES_DIR),
             currentVersionCode = BuildConfig.VERSION_CODE,
             supportedAbis = Build.SUPPORTED_ABIS.toList(),
+            deviceSdk = Build.VERSION.SDK_INT,
             // Only if the source cannot say where it read the files
             baseUrl = BuildConfig.UPDATE_URL,
             scope = viewModelScope
@@ -341,11 +341,7 @@ class MainActivity : ComponentActivity() {
         // as it draws; nothing holds it on screen
         installSplashScreen()
         super.onCreate(savedInstanceState)
-        // Android 8-11: the light theme before the window is made (enableEdgeToEdge makes it).
-        // Android 12+ already starts in the mode set last time (applyNightModeToWindow).
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            applyWindowTheme(dark = holder.browser.uiState.value.settings.themeMode.isDark(systemIsDark = deviceIsDark()))
-        }
+        // The window already starts in the mode set last time (applyNightModeToWindow)
         enableEdgeToEdge()
 
         val engine = holder.engine
@@ -366,7 +362,7 @@ class MainActivity : ComponentActivity() {
                 val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
                 // The activity handles uiMode changes itself, so the device switching between
                 // light and dark recomposes here instead of restarting the activity
-                val theme = resolveTheme(this@MainActivity, settings, systemIsDark = deviceThemeIsDark(isSystemInDarkTheme()))
+                val theme = resolveTheme(this@MainActivity, settings, systemIsDark = isSystemInDarkTheme())
                 val darkTheme = theme.dark
                 LaunchedEffect(settings.themeMode) { applyNightModeToWindow(settings.themeMode) }
                 LaunchedEffect(darkTheme) { applyWindowTheme(darkTheme) }
@@ -513,21 +509,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Tells Android which mode the app is in (Android 12+), so it starts RemBrowse, its launch
-     * screen and its window in that mode, and the platform's own pieces (text selection toolbar,
-     * autofill) match. Android keeps the choice between launches; it is set again at every start
-     * to follow the saved setting. When the mode changes, the configuration changes with it.
+     * Tells Android which mode the app is in, so it starts RemBrowse, its launch screen and its
+     * window in that mode, and the platform's own pieces (text selection toolbar, autofill)
+     * match. Android keeps the choice between launches; it is set again at every start to follow
+     * the saved setting. When the mode changes, the configuration changes with it.
      */
     private fun applyNightModeToWindow(mode: ThemeMode) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         runCatching { getSystemService(UiModeManager::class.java)?.setApplicationNightMode(mode.applicationNightMode) }
             .onFailure { Log.w(TAG, "Couldn't set the app's night mode", it) }
     }
-
-
-    /** The device counts as dark for the System theme (always on Android 8 and 9: [deviceThemeIsDark]). */
-    private fun deviceIsDark(): Boolean =
-        deviceThemeIsDark((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
 
     /**
      * In a desktop window (a Googlebook), the window's header (the caption bar with its close,

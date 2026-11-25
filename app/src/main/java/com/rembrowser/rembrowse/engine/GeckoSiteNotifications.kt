@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
@@ -189,15 +188,13 @@ class GeckoSiteNotifications internal constructor(
     }
 
     /**
-     * Whether Android will show what RemBrowse posts: it needs the notification permission
-     * (Android 13 and later), and neither the app's notifications nor the channel may be turned
-     * off. When not, the log says why, once until it changes.
+     * Whether Android will show what RemBrowse posts: it needs the notification permission, and
+     * neither the app's notifications nor the channel may be turned off. When not, the log says why, once until it changes.
      */
     private fun mayPost(): Boolean {
         ensureChannel()
         val reason = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) !=
+            ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED -> "RemBrowse has no permission to post notifications"
             !manager.areNotificationsEnabled() -> "RemBrowse's notifications are turned off"
             manager.getNotificationChannelCompat(CHANNEL_ID)?.importance == NotificationManagerCompat.IMPORTANCE_NONE ->

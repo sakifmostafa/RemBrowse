@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Android 12+, light: see values/colors.xml -->
-    <color name="rem_chrome">@color/rem_chrome_light</color>
-</resources>

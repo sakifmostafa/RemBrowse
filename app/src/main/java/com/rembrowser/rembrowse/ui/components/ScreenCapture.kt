@@ -1,7 +1,6 @@
 package com.rembrowser.rembrowse.ui.components
 
 import android.content.res.Configuration
-import android.view.InputDevice
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -430,9 +429,7 @@ fun ScreenCaptureOverlay(
             // Before the focus target, so its keys pass through here
             .onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
-                val device = key.device
-                val physical = device != null && !device.isVirtual && key.isFromSource(InputDevice.SOURCE_KEYBOARD)
-                when (KeyboardShortcuts.screenCaptureKey(key.keyCode, key.isSystem, physical)) {
+                when (KeyboardShortcuts.screenCaptureKey(key.keyCode, key.isSystem)) {
                     ScreenCaptureKey.CANCEL -> {
                         if (event.type == KeyEventType.KeyDown) cancel()
                         true

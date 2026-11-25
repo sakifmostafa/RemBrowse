@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -286,12 +285,11 @@ private fun NotificationsOffNotice(onOpenSettings: () -> Unit) {
 }
 
 /**
- * Whether Android lets RemBrowse post notifications: the app's notifications are on and, from
- * Android 13, the POST_NOTIFICATIONS permission is granted.
+ * Whether Android lets RemBrowse post notifications: the app's notifications are on and the
+ * POST_NOTIFICATIONS permission is granted.
  */
 private fun appNotificationsOn(context: Context): Boolean {
-    val permitted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+    val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
         PackageManager.PERMISSION_GRANTED
     return permitted && NotificationManagerCompat.from(context).areNotificationsEnabled()
 }

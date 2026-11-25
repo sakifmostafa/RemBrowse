@@ -18,12 +18,12 @@ import org.robolectric.annotation.Config
 
 /**
  * Every check of [ThemeContrastTest], over the schemes Android builds from the wallpaper (here
- * the platform's default palette), as RemBrowse re-maps them for "Use system colors". Android 12
- * and 12L build them from the accent palettes (system_accent1_*), Android 14 from its own colour
- * roles, so both are checked.
+ * the platform's default palette), as RemBrowse re-maps them for "Use system colors". Android 13
+ * builds them from the accent palettes (system_accent1_*), Android 14 from its own colour roles,
+ * so both are checked.
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [31, 34])
+@Config(sdk = [33, 34])
 class DynamicSchemeContrastTest : ThemeContrastTest() {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()

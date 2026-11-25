@@ -30,7 +30,6 @@ class ComposingAwareInputConnectionTest {
             calls += "endBatchEdit"
             return true
         }
-        @android.annotation.TargetApi(android.os.Build.VERSION_CODES.TIRAMISU)
         override fun setComposingText(text: CharSequence, newCursorPosition: Int, textAttribute: android.view.inputmethod.TextAttribute?): Boolean {
             calls += "setComposingText+attr($text,$newCursorPosition)"
             if (failComposing) throw IllegalStateException("boom")
@@ -218,7 +217,6 @@ class ComposingAwareInputConnectionTest {
             calls += "commit($text,$newCursorPosition)"
             return true
         }
-        @android.annotation.TargetApi(android.os.Build.VERSION_CODES.TIRAMISU)
         override fun commitText(text: CharSequence, newCursorPosition: Int, textAttribute: android.view.inputmethod.TextAttribute?): Boolean {
             calls += "commit+attr($text,$newCursorPosition)"
             return true

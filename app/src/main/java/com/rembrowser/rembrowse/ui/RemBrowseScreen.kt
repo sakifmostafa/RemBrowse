@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
-import android.os.Build
 import android.os.SystemClock
 import android.view.View
 import androidx.activity.compose.BackHandler
@@ -308,14 +307,14 @@ fun RemBrowseScreen(
     // make by accident. Phones keep Android's own Back. Composed first, so every handler below,
     // which only acts when it has something to do, comes before it.
     //
-    // While the on-screen keyboard is up (Android 13 and later) and one of the handlers here is on,
-    // Back first puts it away: see KeyboardFirstBackHandler, composed after every other handler
-    // here. The handlers below stay on meanwhile, so a keyboard inset that reads "up" with nothing
-    // on screen never leaves Back with nothing to do.
+    // While the on-screen keyboard is up and one of the handlers here is on, Back first puts it
+    // away: see KeyboardFirstBackHandler, composed after every other handler here. The handlers
+    // below stay on meanwhile, so a keyboard inset that reads "up" with nothing on screen never
+    // leaves Back with nothing to do.
     val context = LocalContext.current
     val composeView = LocalView.current
     val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
-    val keyboardUp = backHidesKeyboardFirst(imeVisible = WindowInsets.isImeVisible)
+    val keyboardUp = WindowInsets.isImeVisible
     BackHandler(enabled = backAtRootStays) { }
     // The page gets Back first, so an open dialog or popover of its own closes before it is left
     val pageBackOn = !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)
@@ -1181,22 +1180,13 @@ internal const val TAB_SWITCHER_BACK_SHRINK = 0.1f
 internal const val TAB_SWITCHER_BACK_FADE = 0.3f
 
 /**
- * Whether Back puts the on-screen keyboard away before anything else ([imeVisible]: the keyboard
- * reads as up): only from Android 13 ([sdkInt]), where predictive back hands Back to the newest
- * callback, which can be newer than the keyboard's own. Up to Android 12L Back is a key, which the
- * keyboard app gets before the window, so it already goes first there.
- */
-internal fun backHidesKeyboardFirst(imeVisible: Boolean, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
-    imeVisible && sdkInt >= Build.VERSION_CODES.TIRAMISU
-
-/**
  * A keyboard that comes back up this soon after Back put it away is taken for one that hiding
  * didn't put away (an editor that asks for it again at once), so Back doesn't keep hiding it.
  */
 internal const val KEYBOARD_BACK_AGAIN_MILLIS = 1_000L
 
 /**
- * Back while the on-screen keyboard is up ([keyboardUp], see [backHidesKeyboardFirst]) and another
+ * Back while the on-screen keyboard is up ([keyboardUp]: its inset reads as up) and another
  * Back handler of the window is on ([anotherBackHandlerOn]) puts the keyboard away and does nothing
  * else, as the keyboard's own Back would; the next Back goes on to the other handlers, in their
  * usual order.

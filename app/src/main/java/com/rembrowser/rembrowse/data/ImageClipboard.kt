@@ -6,7 +6,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -364,11 +363,8 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
             val ready = if (ClipboardImages.keepsItsFormat(image.mimeType)) image else toPng(image) ?: image
             val uri = files.save(ready, "image") ?: return
             main.post {
-                if (!files.putOnClipboard(uri, "Image")) return@post
-                // Android 13 and later show their own notice for anything copied
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                    Toast.makeText(appContext, "Image copied", Toast.LENGTH_SHORT).show()
-                }
+                // Android shows its own notice for anything copied
+                files.putOnClipboard(uri, "Image")
             }
         } catch (e: Exception) {
             failed(e)

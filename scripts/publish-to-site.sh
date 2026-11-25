@@ -10,8 +10,8 @@
 #
 # Before the site changes, the release is copied next to it and checked: update.json lists exactly
 # RemBrowse-arm64-v8a.apk and RemBrowse-x86_64.apk with their sizes and SHA-256, each APK is this
-# app at update.json's version with only its own processor's engine, and each is signed with the
-# RemBrowse key only. Then the page goes up, and the release goes live as three renames: the APKs,
+# app at update.json's version and minSdk (installed copies skip a release their Android is too old
+# for) with only its own processor's engine, and each is signed with the RemBrowse key only. Then the page goes up, and the release goes live as three renames: the APKs,
 # then virustotal.json (the scan from scripts/virustotal-scan.sh, which must be for this version and
 # these SHA-256s), then update.json. A phone never sees a version before its APK is fully there, and never
 # downloads a half-written file.
@@ -91,6 +91,7 @@ def need(ok, why):
 d = json.load(open(path))
 need(isinstance(d.get("versionName"), str) and re.fullmatch(r"[0-9A-Za-z.+-]{1,32}", d["versionName"]), "bad versionName")
 need(type(d.get("versionCode")) is int and d["versionCode"] > 0, "bad versionCode")
+need(type(d.get("minSdk")) is int and d["minSdk"] > 0, "bad or missing minSdk")
 apks = d.get("apks")
 need(isinstance(apks, dict) and sorted(apks) == sorted(abis), "apks must list exactly: " + ", ".join(abis))
 for abi in abis:
@@ -102,7 +103,8 @@ PY
 
   VERSION_NAME="$(json_get "$STAGE/update.json" versionName)"
   VERSION_CODE="$(json_get "$STAGE/update.json" versionCode)"
-  echo "==> Checking RemBrowse $VERSION_NAME (versionCode $VERSION_CODE)"
+  MIN_SDK="$(json_get "$STAGE/update.json" minSdk)"
+  echo "==> Checking RemBrowse $VERSION_NAME (versionCode $VERSION_CODE, minSdk $MIN_SDK)"
 
   for abi in "${ABIS[@]}"; do
     file="RemBrowse-$abi.apk"
@@ -117,6 +119,8 @@ PY
     first_line="${badging%%$'\n'*}"
     [[ "$first_line" == "package: name='$PACKAGE' versionCode='$VERSION_CODE' versionName='$VERSION_NAME' "* ]] \
       || fail "$file is not $PACKAGE $VERSION_NAME ($VERSION_CODE)"
+    # update.json's minSdk is what an installed copy compares with its Android version
+    grep -qxF "minSdkVersion:'$MIN_SDK'" <<< "$badging" || fail "$file: minSdk differs from update.json ($MIN_SDK)"
     # Only the engine for this processor type, or Android refuses to install it there.
     # A here-string, not a pipe: grep stops reading early, which pipefail would count as a failure.
     grep -qxF "native-code: '$abi'" <<< "$badging" || fail "$file doesn't contain exactly the $abi engine"

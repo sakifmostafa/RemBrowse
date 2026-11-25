@@ -609,38 +609,6 @@ class BackNavigationUiTest {
         assertEquals(1, goBackCount(tab))
     }
 
-    @Test
-    @Config(sdk = [32])
-    fun onScreenKeyboardUp_beforeAndroid13_theHandlersActAsTheyAlwaysDid() {
-        // Up to Android 12L Back is a key, and the keyboard app gets it before the window: it goes
-        // first without RemBrowse asking, and a keyboard inset that reads "up" must not leave Back
-        // with nothing to close (the activity would finish)
-        val tab = launchOnAPageWithHistory()
-        composeRule.runOnUiThread { browserVm.openFindInPage() }
-        composeRule.waitForIdle()
-
-        setKeyboard(up = true)
-        assertTrue("The screen sees the keyboard up", imeVisible)
-        assertTrue(backDispatcher!!.hasEnabledCallbacks())
-        pressBack()
-        assertNull(browserVm.findInPage.value)
-        assertEquals(0, goBackCount(tab))
-        pressBack()
-        assertEquals(1, goBackCount(tab))
-        assertEquals("Never asked for the keyboard to go", 0, hideRequests)
-    }
-
-    @Test
-    fun backHidesTheKeyboardFirst_fromAndroid13() {
-        for (sdk in listOf(26, 30, 31, 32)) {
-            assertFalse("SDK $sdk, keyboard up", backHidesKeyboardFirst(imeVisible = true, sdkInt = sdk))
-        }
-        for (sdk in listOf(33, 34, 35, 36)) {
-            assertTrue("SDK $sdk, keyboard up", backHidesKeyboardFirst(imeVisible = true, sdkInt = sdk))
-            assertFalse("SDK $sdk, keyboard down", backHidesKeyboardFirst(imeVisible = false, sdkInt = sdk))
-        }
-    }
-
     /** Android puts the keyboard away, as asked: its inset goes. */
     private fun keyboardGoes() = setKeyboard(up = false)
 

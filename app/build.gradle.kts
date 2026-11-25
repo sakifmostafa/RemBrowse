@@ -54,7 +54,7 @@ android {
 
     defaultConfig {
         applicationId = "com.rembrowser.rembrowse"
-        minSdk = 26
+        minSdk = 33
         targetSdk = 36
         versionCode = 36
         versionName = "0.15.0"
@@ -225,6 +225,7 @@ tasks.register<Copy>("publishApk") {
     dependsOn("assembleRelease")
     val versionName = android.defaultConfig.versionName
     val versionCode = android.defaultConfig.versionCode
+    val minSdk = android.defaultConfig.minSdk
     val target = rootProject.layout.projectDirectory.dir("build")
     from(layout.buildDirectory.dir("outputs/apk/release")) {
         include("*.apk")
@@ -234,8 +235,9 @@ tasks.register<Copy>("publishApk") {
     doLast {
         val dir = target.asFile
         dir.resolve("VERSION.txt").writeText("RemBrowse $versionName (versionCode $versionCode)\n")
-        // What the app's update check reads: the version, and each APK's size and SHA-256 so a
-        // download can be checked before it is installed
+        // What the app's update check reads: the version, the oldest Android it installs on (an
+        // older device is not offered it), and each APK's size and SHA-256 so a download can be
+        // checked before it is installed
         val apks = dir.listFiles { file -> file.name.startsWith("RemBrowse-") && file.name.endsWith(".apk") }
             .orEmpty()
             .sortedBy { it.name }
@@ -254,7 +256,8 @@ tasks.register<Copy>("publishApk") {
                 "    \"$abi\": {\"file\": \"${apk.name}\", \"size\": ${apk.length()}, \"sha256\": \"$sha\"}"
             }
         dir.resolve("update.json").writeText(
-            "{\n  \"versionName\": \"$versionName\",\n  \"versionCode\": $versionCode,\n  \"apks\": {\n$apks\n  }\n}\n"
+            "{\n  \"versionName\": \"$versionName\",\n  \"versionCode\": $versionCode,\n  \"minSdk\": $minSdk,\n" +
+                "  \"apks\": {\n$apks\n  }\n}\n"
         )
     }
 }
@@ -270,7 +273,7 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.19.1")
-    // The launch screen on Android 8-11 as on 12+, in the light or dark chrome colour
+    // The launch screen (installSplashScreen, Theme.SplashScreen), in the light or dark chrome colour
     implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")

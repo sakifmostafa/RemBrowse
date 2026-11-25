@@ -3,8 +3,6 @@ package com.rembrowser.rembrowse
 import android.app.Activity
 import android.app.UiModeManager
 import android.content.Context
-import android.os.Build
-import androidx.annotation.StyleRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import com.rembrowser.rembrowse.model.BrowserSettings
@@ -33,30 +31,12 @@ class ResolvedTheme(
         get() = if (dark) GeckoRuntimeSettings.COLOR_SCHEME_DARK else GeckoRuntimeSettings.COLOR_SCHEME_LIGHT
 }
 
-/**
- * Whether the device counts as dark for the System theme, from Android's night mode
- * ([nightModeOn]: its dark theme is on). Android 10 brought the dark theme; Android 8 and 9
- * ([sdkInt] below 29) have none and always read light, so there System is dark: RemBrowse's look
- * up to 0.14.0, and the colour its launch screen and window start in on those versions.
- */
-fun deviceThemeIsDark(nightModeOn: Boolean, sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
-    nightModeOn || sdkInt < Build.VERSION_CODES.Q
+/** What Settings says the System theme is: light or dark as the device is set. */
+const val SYSTEM_THEME_DESCRIPTION = "System is light or dark, as your device is set."
 
 /**
- * What Settings says the System theme is on this device ([sdkInt]): light or dark as the device
- * is set from Android 10, and dark on Android 8 and 9, which have no setting for it to follow
- * ([deviceThemeIsDark]).
- */
-fun systemThemeDescription(sdkInt: Int = Build.VERSION.SDK_INT): String =
-    if (deviceThemeIsDark(nightModeOn = false, sdkInt = sdkInt)) {
-        "System is dark: this version of Android has no light or dark setting to follow."
-    } else {
-        "System is light or dark, as your device is set."
-    }
-
-/**
- * [mode] resolved against the device ([systemIsDark]: see [deviceThemeIsDark]), with the
- * colours [schemeFor] gives for that (light or dark).
+ * [mode] resolved against the device ([systemIsDark]: its dark theme is on), with the colours
+ * [schemeFor] gives for that (light or dark).
  */
 fun resolveTheme(mode: ThemeMode, systemIsDark: Boolean, schemeFor: (dark: Boolean) -> ColorScheme): ResolvedTheme {
     val dark = mode.isDark(systemIsDark)
@@ -70,8 +50,8 @@ fun resolveTheme(context: Context, settings: BrowserSettings, systemIsDark: Bool
     }
 
 /**
- * The night mode Android 12+ is given for the app (UiModeManager.setApplicationNightMode), so
- * its launch screen, window and the platform's own pieces start in this mode.
+ * The night mode Android is given for the app (UiModeManager.setApplicationNightMode), so its
+ * launch screen, window and the platform's own pieces start in this mode.
  */
 val ThemeMode.applicationNightMode: Int
     get() = when (this) {
@@ -81,32 +61,11 @@ val ThemeMode.applicationNightMode: Int
     }
 
 /**
- * The activity's window theme before Android 12, where the window can't follow the app's mode by
- * itself (see values/themes.xml): dark is the manifest's own, light is set over it at start.
- */
-@StyleRes
-fun windowThemeBeforeAndroid12(dark: Boolean): Int =
-    if (dark) R.style.Theme_RemBrowse else R.style.Theme_RemBrowse_Light
-
-/**
- * Brings the activity's window to the theme on screen, light or dark ([dark]), at start and on
- * every change while it runs.
- *
- * The window's background, which shows where nothing is drawn yet (a desktop window being made
- * larger, the moment before the first frame), is set on every Android version. MainActivity
- * handles uiMode changes itself, so on Android 12+ its window would otherwise keep the colour it
- * was made with until the next start.
- *
- * Android 8-11 only: the activity's theme. There Android can't be told the app's mode before it
- * starts (Android 12+ is, by UiModeManager.setApplicationNightMode, and picks the theme from the
- * resources), so the launch screen and the manifest's window theme are dark, as in 0.14.0 and
- * earlier. For the light theme the activity's theme is set here: at start, before the window is
- * made, so the window and the pieces Android draws over it (the text selection toolbar over a
- * page) are light; and again on every change, for the pieces made from then on. The launch
- * screen itself stays dark. The theme is applied over the current one, and does nothing when it
- * is already the one set.
+ * Brings the activity's window background to the theme on screen, light or dark ([dark]), at
+ * start and on every change while it runs. It shows where nothing is drawn yet (a desktop window
+ * being made larger, the moment before the first frame). MainActivity handles uiMode changes
+ * itself, so its window would otherwise keep the colour it was made with until the next start.
  */
 fun Activity.applyWindowTheme(dark: Boolean) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) setTheme(windowThemeBeforeAndroid12(dark))
     window.setBackgroundDrawableResource(if (dark) R.color.rem_chrome_dark else R.color.rem_chrome_light)
 }

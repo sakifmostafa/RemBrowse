@@ -87,8 +87,7 @@ import com.rembrowser.rembrowse.model.ThemeMode
 import com.rembrowser.rembrowse.viewmodel.TerminalUiState
 import com.rembrowser.rembrowse.model.UpdateStatus
 import com.rembrowser.rembrowse.model.UpdatesUiState
-import com.rembrowser.rembrowse.systemThemeDescription
-import com.rembrowser.rembrowse.ui.theme.systemColorsAvailable
+import com.rembrowser.rembrowse.SYSTEM_THEME_DESCRIPTION
 import com.rembrowser.rembrowse.ui.theme.tones
 import com.rembrowser.rembrowse.util.ByteSizes
 import java.time.Instant
@@ -633,9 +632,7 @@ private fun AppearanceSection(
     onSetThemeMode: (ThemeMode) -> Unit,
     onSetAccent: (AccentColor) -> Unit,
     onSetSystemColors: (Boolean) -> Unit,
-    onSetPageRendering: (PageRendering) -> Unit,
-    /** Whether the device has wallpaper colours to offer (Android 12+). */
-    canUseSystemColors: Boolean = systemColorsAvailable
+    onSetPageRendering: (PageRendering) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     GroupTitle("Theme")
@@ -650,9 +647,9 @@ private fun AppearanceSection(
         testTag = { "theme_${it.name.lowercase()}" },
         modifier = Modifier.testTag("setting_dark_theme")
     )
-    // What System means here: dark on Android 8 and 9, which have no light or dark setting
+    // What System means here
     Text(
-        text = systemThemeDescription(),
+        text = SYSTEM_THEME_DESCRIPTION,
         style = MaterialTheme.typography.bodyMedium,
         color = colors.onSurfaceVariant,
         modifier = Modifier.padding(top = 8.dp)
@@ -661,18 +658,16 @@ private fun AppearanceSection(
 
     GroupTitle("Theme color")
     // The accents stay chosen while the wallpaper's colours are used, for when they are turned off
-    val accentsInUse = !(canUseSystemColors && settings.useSystemColors)
-    if (canUseSystemColors) {
-        Spacer(modifier = Modifier.height(8.dp))
-        SwitchRow(
-            title = "Use system colors",
-            description = "Takes its colors from your wallpaper (Material You). The theme color below " +
-                "comes back when this is off.",
-            checked = settings.useSystemColors,
-            onCheckedChange = onSetSystemColors,
-            testTag = "setting_system_colors"
-        )
-    }
+    val accentsInUse = !settings.useSystemColors
+    Spacer(modifier = Modifier.height(8.dp))
+    SwitchRow(
+        title = "Use system colors",
+        description = "Takes its colors from your wallpaper (Material You). The theme color below " +
+            "comes back when this is off.",
+        checked = settings.useSystemColors,
+        onCheckedChange = onSetSystemColors,
+        testTag = "setting_system_colors"
+    )
     Spacer(modifier = Modifier.height(8.dp))
     Row(
         modifier = Modifier

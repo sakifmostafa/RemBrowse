@@ -28,46 +28,6 @@ class ThemeResolutionTest {
     }
 
     @Test
-    fun theDeviceCountsAsDark_whenItsDarkThemeIsOn_andAlwaysOnAndroid8And9() {
-        // Android 8 and 9 have no dark theme, so their night mode always reads off
-        for (sdk in listOf(26, 27, 28)) {
-            assertEquals("SDK $sdk", true, deviceThemeIsDark(nightModeOn = false, sdkInt = sdk))
-            assertEquals("SDK $sdk", true, deviceThemeIsDark(nightModeOn = true, sdkInt = sdk))
-        }
-        for (sdk in listOf(29, 30, 31, 34, 36)) {
-            assertEquals("SDK $sdk, light", false, deviceThemeIsDark(nightModeOn = false, sdkInt = sdk))
-            assertEquals("SDK $sdk, dark", true, deviceThemeIsDark(nightModeOn = true, sdkInt = sdk))
-        }
-    }
-
-    @Test
-    fun onAndroid8And9_systemDefaultIsDark_asIn0140_andLightStaysLight() {
-        for (sdk in listOf(26, 28)) {
-            val device = deviceThemeIsDark(nightModeOn = false, sdkInt = sdk)
-            assertEquals("System default, SDK $sdk", true, resolve(ThemeMode.SYSTEM, device).dark)
-            assertEquals(GeckoRuntimeSettings.COLOR_SCHEME_DARK, resolve(ThemeMode.SYSTEM, device).pageColorScheme)
-            assertEquals("Light, SDK $sdk", false, resolve(ThemeMode.LIGHT, device).dark)
-            assertEquals("Dark, SDK $sdk", true, resolve(ThemeMode.DARK, device).dark)
-        }
-        // From Android 10, System follows the device
-        assertEquals(false, resolve(ThemeMode.SYSTEM, deviceThemeIsDark(nightModeOn = false, sdkInt = 29)).dark)
-    }
-
-    @Test
-    fun settingsSaysWhatSystemIs_darkOnAndroid8And9_asTheDeviceIsSetFromAndroid10() {
-        for (sdk in listOf(26, 27, 28)) {
-            assertEquals(
-                "SDK $sdk",
-                "System is dark: this version of Android has no light or dark setting to follow.",
-                systemThemeDescription(sdkInt = sdk)
-            )
-        }
-        for (sdk in listOf(29, 30, 34, 36)) {
-            assertEquals("SDK $sdk", "System is light or dark, as your device is set.", systemThemeDescription(sdkInt = sdk))
-        }
-    }
-
-    @Test
     fun colours_areThoseOfTheResolvedSide() {
         for (mode in ThemeMode.entries) {
             for (systemIsDark in listOf(false, true)) {
@@ -110,7 +70,7 @@ class ThemeResolutionTest {
     }
 
     @Test
-    fun android12NightMode_followsTheSetting() {
+    fun applicationNightMode_followsTheSetting() {
         assertEquals(UiModeManager.MODE_NIGHT_AUTO, ThemeMode.SYSTEM.applicationNightMode)
         assertEquals(UiModeManager.MODE_NIGHT_NO, ThemeMode.LIGHT.applicationNightMode)
         assertEquals(UiModeManager.MODE_NIGHT_YES, ThemeMode.DARK.applicationNightMode)

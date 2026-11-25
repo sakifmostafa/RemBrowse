@@ -2,7 +2,6 @@ package com.rembrowser.rembrowse
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -131,8 +130,7 @@ internal class BrowserKeys(
             keyCode = event.keyCode,
             railOverlayOpen = true,
             noModifiers = event.hasNoModifiers(),
-            repeatCount = event.repeatCount,
-            fromPhysicalKeyboard = event.isFromPhysicalKeyboard()
+            repeatCount = event.repeatCount
         )
         if (!closes) return false
         takenKeys.take(event.keyCode)
@@ -146,7 +144,7 @@ internal class BrowserKeys(
      * Android may keep Esc or turn it into Back, and the bar's own text box never saw it.
      */
     private fun interceptEscapeForFindBar(event: KeyEvent, focus: View?): Boolean {
-        if (event.keyCode != KeyEvent.KEYCODE_ESCAPE && event.keyCode != KeyEvent.KEYCODE_BACK) return false
+        if (event.keyCode != KeyEvent.KEYCODE_ESCAPE) return false
         if (event.keyCode == escapeTakenForFindBar) {
             // Its release, or auto-repeat while it is held. A fresh press (the release was
             // missed) is looked at anew below.
@@ -165,7 +163,6 @@ internal class BrowserKeys(
             noModifiers = event.hasNoModifiers(),
             repeatCount = event.repeatCount,
             inTerminal = terminalHasKeyboard(focus),
-            fromPhysicalKeyboard = event.isFromPhysicalKeyboard(),
             escapeTakenInFront = browserState.isAddressBarFocused || chrome.isTabSearchFocused ||
                 chrome.showTabSwitcher || browserState.fullscreenTabId != null
         )
@@ -186,11 +183,7 @@ internal class BrowserKeys(
     private fun interceptKeyForScreenCapture(event: KeyEvent): Boolean {
         val capture = chrome.screenCapture
         if (!capture.isSelecting || event.action != KeyEvent.ACTION_DOWN) return false
-        val action = KeyboardShortcuts.screenCaptureKey(
-            keyCode = event.keyCode,
-            isSystemKey = event.isSystem,
-            fromPhysicalKeyboard = event.isFromPhysicalKeyboard()
-        )
+        val action = KeyboardShortcuts.screenCaptureKey(keyCode = event.keyCode, isSystemKey = event.isSystem)
         if (action == ScreenCaptureKey.PASS) return false
         // A key held from before the overlay keeps repeating: kept from the page, but not taken,
         // so its release still reaches the page that saw it go down
@@ -307,12 +300,6 @@ internal class BrowserKeys(
                 if (browser.findInPage.value == null) browser.openFindInPage() else browser.findPrevious()
         }
     }
-}
-
-/** From a keyboard that is a real device (not the on-screen one, nor one made up by an app). */
-private fun KeyEvent.isFromPhysicalKeyboard(): Boolean {
-    val device = device
-    return device != null && !device.isVirtual && isFromSource(InputDevice.SOURCE_KEYBOARD)
 }
 
 /**

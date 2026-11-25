@@ -2,7 +2,6 @@ package com.rembrowser.rembrowse.engine
 
 import android.graphics.Bitmap
 import android.graphics.Rect
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -13,8 +12,6 @@ import com.rembrowser.rembrowse.model.PxRect
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.android.awaitFrame
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -102,27 +99,20 @@ class WindowScreenshot(private val window: Window) {
     }
 
     /**
-     * Waits until the window has drawn and handed over a new frame. From Android 10 the frame
-     * commit callback says exactly that (its documented use is with PixelCopy); before, two
-     * frames and a little time stand in for it.
+     * Waits until the window has drawn and handed over a new frame. The frame commit callback
+     * says exactly that (its documented use is with PixelCopy).
      */
     private suspend fun awaitNextFrame(decor: View) {
         val committed = withTimeoutOrNull(FRAME_TIMEOUT_MILLIS) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                suspendCancellableCoroutine { continuation ->
-                    val observer = decor.viewTreeObserver
-                    val callback = Runnable { if (continuation.isActive) continuation.resume(Unit) }
-                    observer.registerFrameCommitCallback(callback)
-                    continuation.invokeOnCancellation {
-                        decor.post { if (observer.isAlive) observer.unregisterFrameCommitCallback(callback) }
-                    }
-                    // Nothing may be waiting to be drawn; this makes sure a frame comes
-                    decor.invalidate()
+            suspendCancellableCoroutine { continuation ->
+                val observer = decor.viewTreeObserver
+                val callback = Runnable { if (continuation.isActive) continuation.resume(Unit) }
+                observer.registerFrameCommitCallback(callback)
+                continuation.invokeOnCancellation {
+                    decor.post { if (observer.isAlive) observer.unregisterFrameCommitCallback(callback) }
                 }
-            } else {
-                awaitFrame()
-                awaitFrame()
-                delay(LEGACY_FRAME_WAIT_MILLIS)
+                // Nothing may be waiting to be drawn; this makes sure a frame comes
+                decor.invalidate()
             }
         }
         if (committed == null) Log.w(TAG, "No frame was drawn in time; copying the window as it is")
@@ -156,7 +146,6 @@ class WindowScreenshot(private val window: Window) {
 
     private companion object {
         const val FRAME_TIMEOUT_MILLIS = 500L
-        const val LEGACY_FRAME_WAIT_MILLIS = 34L
     }
 }
 

@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- The browser chrome (tab rail and toolbar), behind the launch screen and the window until
-         Compose draws. Dark before Android 12, as in 0.14.0 and earlier: Android can't be told the
-         app's theme before it starts there. From Android 12 values-v31 and values-night-v31 make
-         it light or dark, in the mode the app is started in. -->
-    <color name="rem_chrome">@color/rem_chrome_dark</color>
+         Compose draws: light here and dark in values-night, in the mode the app is started in. -->
+    <color name="rem_chrome">@color/rem_chrome_light</color>
     <color name="rem_chrome_dark">#14161B</color>
     <color name="rem_chrome_light">#F4F2F3</color>
     <!-- Deep maroon behind the gold RemBrowse mark -->

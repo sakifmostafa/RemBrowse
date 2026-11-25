@@ -3,14 +3,10 @@ package com.rembrowser.rembrowse.data
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.webkit.MimeTypeMap
-import androidx.annotation.RequiresApi
-import androidx.core.content.FileProvider
 import com.rembrowser.rembrowse.util.DownloadFileNames
-import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 
@@ -45,37 +41,22 @@ interface DownloadStorage {
 
 /**
  * Saves into the device's shared Downloads folder through MediaStore, which needs no storage
- * permission (Android 10 and newer). Older versions have no permission-free shared folder, so
- * files go to the app's own Download folder and are opened through a [FileProvider].
+ * permission.
  */
 class AndroidDownloadStorage(context: Context) : DownloadStorage {
 
     private val appContext = context.applicationContext
-    private val usesMediaStore = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
-    override val isSharedFolder: Boolean
-        get() = usesMediaStore
+    override val isSharedFolder: Boolean = true
 
-    override val locationLabel: String
-        get() = if (usesMediaStore) {
-            "The Downloads folder on this device"
-        } else {
-            "RemBrowse's own Download folder on this device"
-        }
+    override val locationLabel: String = "The Downloads folder on this device"
 
-    override fun create(fileName: String, mimeType: String): DownloadTarget {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            createInMediaStore(fileName)
-        } else {
-            createInAppFolder(fileName)
-        }
-    }
+    override fun create(fileName: String, mimeType: String): DownloadTarget = createInMediaStore(fileName)
 
     override fun exists(contentUri: String): Boolean = runCatching {
         appContext.contentResolver.openAssetFileDescriptor(Uri.parse(contentUri), "r")?.use { true } ?: false
     }.getOrDefault(false)
 
-    @RequiresApi(Build.VERSION_CODES.Q)
     private fun createInMediaStore(requestedName: String): DownloadTarget {
         val resolver = appContext.contentResolver
         val values = ContentValues().apply {
@@ -105,28 +86,6 @@ class AndroidDownloadStorage(context: Context) : DownloadStorage {
 
             override fun discard() {
                 runCatching { resolver.delete(uri, null, null) }
-            }
-        }
-    }
-
-    private fun createInAppFolder(requestedName: String): DownloadTarget {
-        val folder = appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            ?: File(appContext.filesDir, Environment.DIRECTORY_DOWNLOADS)
-        if (!folder.isDirectory && !folder.mkdirs()) {
-            throw IOException("Couldn't create the download folder")
-        }
-        val file = File(folder, DownloadFileNames.unique(requestedName) { File(folder, it).exists() })
-
-        return object : DownloadTarget {
-            override val fileName: String = file.name
-
-            override fun openOutput(): OutputStream = file.outputStream()
-
-            override fun commit(): String =
-                FileProvider.getUriForFile(appContext, "${appContext.packageName}.downloads", file).toString()
-
-            override fun discard() {
-                file.delete()
             }
         }
     }

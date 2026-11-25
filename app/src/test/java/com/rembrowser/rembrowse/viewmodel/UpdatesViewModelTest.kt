@@ -48,6 +48,7 @@ class UpdatesViewModelTest {
                 updatesDir = folder.root.resolve("updates"),
                 currentVersionCode = 14,
                 supportedAbis = listOf("x86_64", "arm64-v8a"),
+                deviceSdk = DEVICE_SDK,
                 baseUrl = "https://example.test/build/",
                 scope = scope,
                 ioDispatcher = dispatcher,
@@ -72,6 +73,20 @@ class UpdatesViewModelTest {
         assertEquals(available.update, state.notice)
         assertEquals(now, preferences.lastCheckedMillis)
         assertEquals(now, state.lastCheckedMillis)
+    }
+
+    @Test
+    fun aVersionThatNeedsANewerAndroid_isNotOffered() = updatesTest { vm ->
+        source.manifest = Result.success(manifest(versionCode = 15).copy(minSdk = DEVICE_SDK + 1))
+        vm.checkNow()
+        advanceUntilIdle()
+        assertEquals(UpdateStatus.UpToDate, vm.uiState.value.status)
+        assertNull(vm.uiState.value.notice)
+
+        source.manifest = Result.success(manifest(versionCode = 15).copy(minSdk = DEVICE_SDK))
+        vm.checkNow()
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.status is UpdateStatus.Available)
     }
 
     @Test
@@ -297,6 +312,7 @@ class UpdatesViewModelTest {
 
     private companion object {
         const val DAY = 24L * 60 * 60 * 1000
+        const val DEVICE_SDK = 34
         const val SIZE = 1_000_000L
     }
 }

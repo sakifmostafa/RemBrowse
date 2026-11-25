@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.data
 
-import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -8,7 +7,6 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
@@ -72,14 +70,10 @@ class AndroidUpdateInstaller(context: Context) : UpdateInstaller {
         }
     }
 
-    // The signatures are only compared with this app's own, never trusted on their own
-    @SuppressLint("PackageManagerGetSignatures")
-    @Suppress("DEPRECATION")
+    // The signers are only compared with this app's own, never trusted on their own
     private fun archiveInfo(pm: PackageManager, apk: File): PackageInfo? =
         runCatching { pm.getPackageArchiveInfo(apk.path, SIGNER_FLAGS) }.getOrNull()
 
-    @SuppressLint("PackageManagerGetSignatures")
-    @Suppress("DEPRECATION")
     private fun installedInfo(pm: PackageManager): PackageInfo? =
         runCatching { pm.getPackageInfo(context.packageName, SIGNER_FLAGS) }.getOrNull()
 
@@ -94,31 +88,21 @@ class AndroidUpdateInstaller(context: Context) : UpdateInstaller {
         return accepted.containsAll(current)
     }
 
-    @Suppress("DEPRECATION")
     private fun currentSigners(info: PackageInfo): Set<String>? {
-        val signing = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.signingInfo else null
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && signing != null) {
-            if (signing.hasMultipleSigners()) {
-                signing.apkContentsSigners?.toList()
-            } else {
-                // Oldest first: the last is the key it is signed with now
-                signing.signingCertificateHistory?.lastOrNull()?.let(::listOf)
-            }
+        val signing = info.signingInfo ?: return null
+        val signatures = if (signing.hasMultipleSigners()) {
+            signing.apkContentsSigners?.toList()
         } else {
-            info.signatures?.toList()
+            // Oldest first: the last is the key it is signed with now
+            signing.signingCertificateHistory?.lastOrNull()?.let(::listOf)
         }
         return signatures?.digests()
     }
 
-    @Suppress("DEPRECATION")
     private fun allSigners(info: PackageInfo): Set<String>? {
-        val signing = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.signingInfo else null
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && signing != null) {
-            signing.apkContentsSigners.orEmpty().toList() + signing.signingCertificateHistory.orEmpty().toList()
-        } else {
-            info.signatures?.toList()
-        }
-        return signatures?.digests()
+        val signing = info.signingInfo ?: return null
+        return (signing.apkContentsSigners.orEmpty().toList() + signing.signingCertificateHistory.orEmpty().toList())
+            .digests()
     }
 
     private fun List<Signature>.digests(): Set<String>? =
@@ -133,10 +117,7 @@ class AndroidUpdateInstaller(context: Context) : UpdateInstaller {
         /** The FileProvider declared in the manifest, which also shares updates/ in the cache. */
         const val PROVIDER_SUFFIX = ".downloads"
 
-        // Android 9 and 10 only read an archive's certificates when the old flag is set too
-        @SuppressLint("PackageManagerGetSignatures")
-        @Suppress("DEPRECATION")
-        val SIGNER_FLAGS = PackageManager.GET_SIGNATURES or
-            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) PackageManager.GET_SIGNING_CERTIFICATES else 0)
+        val SIGNER_FLAGS: PackageManager.PackageInfoFlags =
+            PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())
     }
 }

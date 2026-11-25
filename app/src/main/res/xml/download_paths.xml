@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Downloads, only before Android 10, where they are kept in the app's own Download folder -->
+    <!-- Downloads saved before Android 10, in the app's own Download folder. Kept so a download
+         from then, on a device since updated, still opens from Downloads. -->
     <external-files-path name="downloads" path="Download/" />
     <files-path name="downloads_internal" path="Download/" />
     <!-- A downloaded update of RemBrowse itself, handed to the system installer -->

@@ -43,7 +43,7 @@ enum class AccentColor(val label: String) {
 
 /**
  * Light or dark. New installs follow the device; [label] is shown in Settings, with what System
- * means on this device (systemThemeDescription in ThemeResolution.kt).
+ * means (SYSTEM_THEME_DESCRIPTION in ThemeResolution.kt).
  */
 enum class ThemeMode(val label: String) {
     SYSTEM("System"),
@@ -155,7 +155,7 @@ data class BrowserSettings(
     val themeMode: ThemeMode = ThemeMode.DEFAULT,
     val accent: AccentColor = AccentColor.MAROON,
     /**
-     * Take the colours from the wallpaper (Material You, Android 12+) instead of [accent]. Off by
+     * Take the colours from the wallpaper (Material You) instead of [accent]. Off by
      * default: the maroon accent is RemBrowse's own look.
      */
     val useSystemColors: Boolean = false,

@@ -271,7 +271,7 @@
         const apk = release && release.apks[guess.abi];
         heroSub.textContent = apk
           ? "Version " + release.versionName + " · " + ABI_NAMES[guess.abi] + " · " + megabytes(apk.size)
-          : ABI_NAMES[guess.abi] + " · Android 8.0 or later";
+          : ABI_NAMES[guess.abi] + " · Android 13 or later";
       }
     }
   }
@@ -296,7 +296,7 @@
     if (pub && published && !Number.isNaN(published.getTime())) {
       pub.textContent = "Published " + published.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
     }
-    if (heroSub) heroSub.textContent = "Version " + release.versionName + " · Free · Android 8.0 or later";
+    if (heroSub) heroSub.textContent = "Version " + release.versionName + " · Free · Android 13 or later";
     let missing = 0;
     for (const card of cards) {
       const abi = card.dataset.abi;

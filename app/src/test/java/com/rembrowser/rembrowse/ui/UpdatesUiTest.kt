@@ -90,6 +90,7 @@ class UpdatesUiTest {
             updatesDir = folder.root.resolve("updates"),
             currentVersionCode = 14,
             supportedAbis = listOf("x86_64"),
+            deviceSdk = 34,
             baseUrl = "https://example.test/build/",
             scope = uiScope,
             ioDispatcher = Dispatchers.Unconfined

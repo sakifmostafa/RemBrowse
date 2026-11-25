@@ -189,7 +189,7 @@ Settings are a page of their own. **More → Settings** (or `Ctrl+,`) opens them
 
 Sections are listed down the left side (across the top on a phone-sized window):
 
-* **Appearance** — **Theme**: **System** (light or dark as the device is set, switching when it does; the default for new installs; dark on Android 8 and 9, which have no dark theme), **Light** or **Dark**, side by side as one row of buttons; the chosen one is filled and ticked. Then the theme colour (six choices) and, on Android 12 and later, **Use system colors**, which takes the colours from your wallpaper (Material You) instead; it is off by default, and the six colours are dimmed while it is on. Last, **Page rendering**, how web pages are put on the screen:
+* **Appearance** — **Theme**: **System** (light or dark as the device is set, switching when it does; the default for new installs), **Light** or **Dark**, side by side as one row of buttons; the chosen one is filled and ticked. Then the theme colour (six choices) and **Use system colors**, which takes the colours from your wallpaper (Material You) instead; it is off by default, and the six colours are dimmed while it is on. Last, **Page rendering**, how web pages are put on the screen:
   * **Standard** (the default) — pages are drawn inside the window, set up once rather than again for every frame as before 0.13.3.
   * **Direct (experimental)** — pages go straight to the screen, which may scroll more smoothly still; a pane may flicker while it is resized or opens.
   * **As in 0.13.2 and earlier** — the old way, to compare against if scrolling is still not smooth, or if pages ever stay blank on the others.
@@ -279,10 +279,10 @@ You are asked again whenever an update needs **new permissions** or an extension
 
 When a page offers a file the browser cannot show (an archive, an installer, a document), RemBrowse asks **Download this file?** and names the file, its size and the site it comes from. Choose **Download** to save it or **Cancel** to drop it. Nothing is fetched until you answer. A PDF's own save button skips the question, since you have already chosen to save.
 
-* **Where files go**: the device's **Downloads** folder. If a file with the same name is already there, the new one is numbered (`report (1).pdf`); nothing is overwritten. On Android 9 and older, files go to RemBrowse's own Download folder instead.
+* **Where files go**: the device's **Downloads** folder. If a file with the same name is already there, the new one is numbered (`report (1).pdf`); nothing is overwritten.
 * **While it downloads**: a line at the bottom of the window says the download has started, and again when it has finished, with **Open**. It disappears by itself after a few seconds.
 * **The list**: **More → Downloads** (`Ctrl+J`) opens **Settings → Downloads**, which shows recent downloads with their progress. From there you can **cancel** one that is running (what was saved so far is removed), **Open** a finished one, or take an entry off the list. **Clear list** removes every finished entry. Removing an entry never deletes the file.
-* **Open folder** shows the device's downloaded files (Android 10 and newer).
+* **Open folder** shows the device's downloaded files.
 * **Turn the question off**: **Settings → Downloads → Ask before downloading**. Files are then saved as soon as a page offers them.
 
 Good to know:

@@ -41,6 +41,8 @@ class UpdatesViewModel(
     private val currentVersionCode: Int,
     /** The device's processor types, most preferred first. */
     private val supportedAbis: List<String>,
+    /** The device's Android version (API level): a release that needs a newer one isn't offered. */
+    private val deviceSdk: Int,
     private val baseUrl: String,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -152,7 +154,7 @@ class UpdatesViewModel(
             onSuccess = { manifest ->
                 val now = clock()
                 preferences.lastCheckedMillis = now
-                val update = UpdateManifests.updateFor(manifest, currentVersionCode, supportedAbis, baseUrl)
+                val update = UpdateManifests.updateFor(manifest, currentVersionCode, supportedAbis, baseUrl, deviceSdk)
                 _uiState.update { state ->
                     state.copy(
                         status = if (update == null) UpdateStatus.UpToDate else UpdateStatus.Available(update),

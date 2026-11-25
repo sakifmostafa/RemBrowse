@@ -174,19 +174,8 @@ class KeyboardShortcutsTest {
         // Shift+Esc and the rest are left alone; a held Esc closes it once
         assertFalse(KeyboardShortcuts.escapeClosesTabRail(esc, railOverlayOpen = true, noModifiers = false))
         assertFalse(KeyboardShortcuts.escapeClosesTabRail(esc, railOverlayOpen = true, noModifiers = true, repeatCount = 1))
-        // The system's Back is not Esc: the rail's Back handler closes it
+        // Back, a laptop keyboard's Esc sent as Back included, is not Esc: the rail's Back handler closes it
         assertFalse(KeyboardShortcuts.escapeClosesTabRail(KeyEvent.KEYCODE_BACK, railOverlayOpen = true, noModifiers = true))
-        // A laptop keyboard's Esc sent as Back, up to Android 12L only, as for the find bar
-        assertTrue(
-            KeyboardShortcuts.escapeClosesTabRail(
-                KeyEvent.KEYCODE_BACK, railOverlayOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 32
-            )
-        )
-        assertFalse(
-            KeyboardShortcuts.escapeClosesTabRail(
-                KeyEvent.KEYCODE_BACK, railOverlayOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 33
-            )
-        )
         assertFalse(KeyboardShortcuts.escapeClosesTabRail(KeyEvent.KEYCODE_A, railOverlayOpen = true, noModifiers = true))
     }
 
@@ -228,19 +217,10 @@ class KeyboardShortcutsTest {
         assertFalse(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true, repeatCount = 1))
         // vim and the shell keep their Esc
         assertFalse(KeyboardShortcuts.escapeClosesFindBar(esc, findBarOpen = true, noModifiers = true, inTerminal = true))
-        // The system's Back gesture or button is not Esc (the bar has its own Back handling)
+        // Back is not Esc, a laptop keyboard's Esc sent as Back included: predictive back hands it
+        // to the Back handlers (the bar has its own), and Android 16, which shows the window its
+        // press, still gives the release to the newest handler, so taking the press too would act twice
         assertFalse(KeyboardShortcuts.escapeClosesFindBar(KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true))
-        // A laptop keyboard that sends its Esc key as Back (up to Android 12L, see below)
-        assertTrue(
-            KeyboardShortcuts.escapeClosesFindBar(
-                KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 32
-            )
-        )
-        assertFalse(
-            KeyboardShortcuts.escapeClosesFindBar(
-                KeyEvent.KEYCODE_BACK, findBarOpen = false, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = 32
-            )
-        )
         // The address bar, the tab search, the tab switcher or a fullscreen page keep their Esc
         assertFalse(
             KeyboardShortcuts.escapeClosesFindBar(
@@ -248,56 +228,7 @@ class KeyboardShortcutsTest {
             )
         )
         // Other keys never close it
-        assertFalse(
-            KeyboardShortcuts.escapeClosesFindBar(
-                KeyEvent.KEYCODE_A, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true
-            )
-        )
-    }
-
-    @Test
-    fun aPhysicalKeyboardsBack_isItsEsc_onlyUpToAndroid12L() {
-        for (sdk in listOf(26, 30, 32)) {
-            assertTrue("SDK $sdk", KeyboardShortcuts.physicalBackIsEscape(sdk))
-            assertTrue(
-                "Find bar, SDK $sdk",
-                KeyboardShortcuts.escapeClosesFindBar(
-                    KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = sdk
-                )
-            )
-            assertEquals(
-                "Screenshot overlay, SDK $sdk",
-                ScreenCaptureKey.CANCEL,
-                KeyboardShortcuts.screenCaptureKey(KeyEvent.KEYCODE_BACK, isSystemKey = true, fromPhysicalKeyboard = true, sdkInt = sdk)
-            )
-        }
-        // From Android 13 the Back handlers take it (predictive back): Android 13-15 and 17 never
-        // show the window its press, and Android 16 shows it but still gives the release to the
-        // newest handler, so taking the press too would act twice
-        for (sdk in listOf(33, 34, 35, 36)) {
-            assertFalse("SDK $sdk", KeyboardShortcuts.physicalBackIsEscape(sdk))
-            assertFalse(
-                "Find bar, SDK $sdk",
-                KeyboardShortcuts.escapeClosesFindBar(
-                    KeyEvent.KEYCODE_BACK, findBarOpen = true, noModifiers = true, fromPhysicalKeyboard = true, sdkInt = sdk
-                )
-            )
-            assertEquals(
-                "Screenshot overlay, SDK $sdk",
-                ScreenCaptureKey.PASS,
-                KeyboardShortcuts.screenCaptureKey(KeyEvent.KEYCODE_BACK, isSystemKey = true, fromPhysicalKeyboard = true, sdkInt = sdk)
-            )
-            // A real Esc key is read first on every version
-            assertTrue(
-                "Esc, SDK $sdk",
-                KeyboardShortcuts.escapeClosesFindBar(KeyEvent.KEYCODE_ESCAPE, findBarOpen = true, noModifiers = true, sdkInt = sdk)
-            )
-            assertEquals(
-                "Esc over the overlay, SDK $sdk",
-                ScreenCaptureKey.CANCEL,
-                KeyboardShortcuts.screenCaptureKey(KeyEvent.KEYCODE_ESCAPE, isSystemKey = false, fromPhysicalKeyboard = true, sdkInt = sdk)
-            )
-        }
+        assertFalse(KeyboardShortcuts.escapeClosesFindBar(KeyEvent.KEYCODE_A, findBarOpen = true, noModifiers = true))
     }
 
     @Test
@@ -325,15 +256,12 @@ class KeyboardShortcutsTest {
 
     @Test
     fun whileTheScreenshotOverlayIsUp_escCancels_enterTakes_andOtherKeysStayOffThePage() {
-        fun key(code: Int, system: Boolean = false, physical: Boolean = true) =
-            KeyboardShortcuts.screenCaptureKey(code, isSystemKey = system, fromPhysicalKeyboard = physical, sdkInt = 32)
+        fun key(code: Int, system: Boolean = false) = KeyboardShortcuts.screenCaptureKey(code, isSystemKey = system)
 
         assertEquals(ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_ESCAPE))
-        assertEquals("An on-screen Esc too", ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_ESCAPE, physical = false))
-        // A laptop keyboard that sends its Esc key as Back
-        assertEquals(ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_BACK, system = true))
-        // The system's own Back goes on to the screen's Back handler, which cancels too
-        assertEquals(ScreenCaptureKey.PASS, key(KeyEvent.KEYCODE_BACK, system = true, physical = false))
+        // Back, a laptop keyboard's Esc sent as Back included, goes on to the screen's Back
+        // handler, which cancels too
+        assertEquals(ScreenCaptureKey.PASS, key(KeyEvent.KEYCODE_BACK, system = true))
         assertEquals(ScreenCaptureKey.CAPTURE_FOCUSED, key(KeyEvent.KEYCODE_ENTER))
         assertEquals(ScreenCaptureKey.CAPTURE_FOCUSED, key(KeyEvent.KEYCODE_NUMPAD_ENTER))
         assertEquals("Volume still works", ScreenCaptureKey.PASS, key(KeyEvent.KEYCODE_VOLUME_UP, system = true))

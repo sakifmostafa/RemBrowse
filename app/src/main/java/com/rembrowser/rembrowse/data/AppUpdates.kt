@@ -16,14 +16,20 @@ import kotlin.coroutines.coroutineContext
 
 /**
  * What `./gradlew publishApk` writes next to the published APKs as `build/update.json`:
- * the version, and for each processor type the APK's file name, size and SHA-256.
+ * the version, the oldest Android it installs on, and for each processor type the APK's file
+ * name, size and SHA-256.
  */
 data class UpdateManifest(
     val versionName: String,
     val versionCode: Int,
     val apks: Map<String, UpdateApk>,
     /** Where the APKs named in [apks] were published, when the source knows; null for its usual place. */
-    val filesBaseUrl: String? = null
+    val filesBaseUrl: String? = null,
+    /**
+     * The oldest Android version (API level) the APKs install on: their minSdk. 0 when the file
+     * doesn't say, as before 0.16.0, which installed on every version RemBrowse ran on.
+     */
+    val minSdk: Int = 0
 )
 
 data class UpdateApk(val file: String, val size: Long, val sha256: String)
@@ -54,7 +60,8 @@ object UpdateManifests {
         UpdateManifest(
             versionName = root.getString("versionName"),
             versionCode = root.getInt("versionCode"),
-            apks = apks
+            apks = apks,
+            minSdk = if (root.has("minSdk")) root.getInt("minSdk") else 0
         ).takeIf { it.versionCode > 0 && it.apks.isNotEmpty() }
     }.getOrNull()
 
@@ -62,15 +69,18 @@ object UpdateManifests {
      * The update to offer: a version newer than [currentVersionCode], in the APK for the first
      * of the device's [supportedAbis] (most preferred first) that was published. The APK is
      * fetched from where the manifest was read ([UpdateManifest.filesBaseUrl]), or else from
-     * [baseUrl]. Null when there is nothing newer or no APK fits this device.
+     * [baseUrl]. Null when there is nothing newer, no APK fits this device, or the version needs
+     * a newer Android than the device's [deviceSdk] (Android would refuse to install it).
      */
     fun updateFor(
         manifest: UpdateManifest,
         currentVersionCode: Int,
         supportedAbis: List<String>,
-        baseUrl: String
+        baseUrl: String,
+        deviceSdk: Int
     ): AvailableUpdate? {
         if (manifest.versionCode <= currentVersionCode) return null
+        if (manifest.minSdk > deviceSdk) return null
         val abi = supportedAbis.firstOrNull { it in manifest.apks } ?: return null
         val apk = manifest.apks.getValue(abi)
         return AvailableUpdate(

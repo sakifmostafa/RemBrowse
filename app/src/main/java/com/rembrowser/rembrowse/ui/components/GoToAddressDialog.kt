@@ -1,6 +1,5 @@
 package com.rembrowser.rembrowse.ui.components
 
-import android.os.Build
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
@@ -322,9 +321,9 @@ fun GoToAddressDialog(
 
 /**
  * Puts the popup near the top of the window and blurs what is behind it. The system blurs it
- * (Android 12 and later, where the device allows cross-window blur), so web pages blur too
- * whatever way they are drawn; elsewhere, and while the device turns blur off (battery saver),
- * a plain dark scrim does instead.
+ * (where the device allows cross-window blur), so web pages blur too whatever way they are
+ * drawn; elsewhere, and while the device turns blur off (battery saver), a plain dark scrim does
+ * instead.
  */
 @Composable
 private fun BlurBehindAndPlace(topOffset: Dp) {
@@ -340,7 +339,7 @@ private fun BlurBehindAndPlace(topOffset: Dp) {
         val blurRadius = with(density) { 24.dp.roundToPx() }
         fun applyBlur(enabled: Boolean) {
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (enabled) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                 window.attributes = window.attributes.apply { blurBehindRadius = blurRadius }
                 window.setDimAmount(0.25f)
@@ -349,15 +348,10 @@ private fun BlurBehindAndPlace(topOffset: Dp) {
                 window.setDimAmount(0.6f)
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val windowManager = window.windowManager
-            applyBlur(windowManager.isCrossWindowBlurEnabled)
-            val listener = Consumer<Boolean> { enabled -> applyBlur(enabled) }
-            windowManager.addCrossWindowBlurEnabledListener(ContextCompat.getMainExecutor(view.context), listener)
-            onDispose { windowManager.removeCrossWindowBlurEnabledListener(listener) }
-        } else {
-            applyBlur(false)
-            onDispose {}
-        }
+        val windowManager = window.windowManager
+        applyBlur(windowManager.isCrossWindowBlurEnabled)
+        val listener = Consumer<Boolean> { enabled -> applyBlur(enabled) }
+        windowManager.addCrossWindowBlurEnabledListener(ContextCompat.getMainExecutor(view.context), listener)
+        onDispose { windowManager.removeCrossWindowBlurEnabledListener(listener) }
     }
 }

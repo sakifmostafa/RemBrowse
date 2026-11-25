@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PointF
 import android.view.MotionEvent
-import androidx.annotation.RequiresApi
 import android.text.Selection
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.TextAttribute
@@ -242,7 +241,6 @@ internal class ComposingAwareInputConnection(
     override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean =
         startingOverSelection(text) { super.setComposingText(text, newCursorPosition) }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun setComposingText(text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?): Boolean =
         startingOverSelection(text) { super.setComposingText(text, newCursorPosition, textAttribute) }
 
@@ -265,7 +263,6 @@ internal class ComposingAwareInputConnection(
         return super.setComposingRegion(start, end)
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun setComposingRegion(start: Int, end: Int, textAttribute: TextAttribute?): Boolean {
         composing = start != end
         return super.setComposingRegion(start, end, textAttribute)
@@ -281,7 +278,6 @@ internal class ComposingAwareInputConnection(
         return replaceSelection(text, newCursorPosition) || super.commitText(text, newCursorPosition)
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun commitText(text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?): Boolean {
         composing = false
         return replaceSelection(text, newCursorPosition) || super.commitText(text, newCursorPosition, textAttribute)

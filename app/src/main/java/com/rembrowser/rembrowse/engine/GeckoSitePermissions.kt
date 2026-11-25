@@ -3,7 +3,6 @@ package com.rembrowser.rembrowse.engine
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -741,7 +740,6 @@ internal class GeckoSitePermissions(
     }
 
     private fun askToPostNotifications() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         if (isGranted(Manifest.permission.POST_NOTIFICATIONS)) return
         // Wanted by the app, not by one page: never withdrawn
         androidPermissions?.request(listOf(Manifest.permission.POST_NOTIFICATIONS)) {}

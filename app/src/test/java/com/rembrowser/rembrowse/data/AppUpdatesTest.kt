@@ -29,11 +29,13 @@ class AppUpdatesTest {
         versionCode: Int = 15,
         sha: String = apkSha,
         file: String = "RemBrowse-x86_64.apk",
-        size: Long = apkBytes.size.toLong()
+        size: Long = apkBytes.size.toLong(),
+        minSdk: Int = 33
     ) = """
         {
           "versionName": "0.13",
           "versionCode": $versionCode,
+          "minSdk": $minSdk,
           "apks": {
             "arm64-v8a": {"file": "RemBrowse-arm64-v8a.apk", "size": 100, "sha256": "${"a".repeat(64)}"},
             "x86_64": {"file": "$file", "size": $size, "sha256": "$sha"}
@@ -47,8 +49,26 @@ class AppUpdatesTest {
         assertNotNull(manifest)
         assertEquals("0.13", manifest!!.versionName)
         assertEquals(15, manifest.versionCode)
+        assertEquals(33, manifest.minSdk)
         assertEquals(setOf("arm64-v8a", "x86_64"), manifest.apks.keys)
         assertEquals(UpdateApk("RemBrowse-x86_64.apk", 200_000L, apkSha), manifest.apks["x86_64"])
+    }
+
+    @Test
+    fun parse_aManifestWithoutMinSdk_asBefore0160_needsNoParticularAndroid() {
+        val json = manifestJson().lines().filterNot { "\"minSdk\"" in it }.joinToString("\n")
+        val manifest = UpdateManifests.parse(json)!!
+        assertEquals(0, manifest.minSdk)
+        assertNotNull(UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), BASE, deviceSdk = 26))
+    }
+
+    @Test
+    fun updateFor_offersNothing_whenTheVersionNeedsANewerAndroidThanTheDevicesOwn() {
+        // Android refuses to install an APK whose minSdk is above the device's version
+        val manifest = UpdateManifests.parse(manifestJson(minSdk = 34))!!
+        assertNull(UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), BASE, deviceSdk = 33))
+        assertNotNull("Its own minimum", UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), BASE, deviceSdk = 34))
+        assertNotNull(UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), BASE, deviceSdk = 36))
     }
 
     @Test
@@ -73,22 +93,23 @@ class AppUpdatesTest {
             manifest,
             currentVersionCode = 14,
             supportedAbis = listOf("x86_64", "arm64-v8a"),
-            baseUrl = "https://example.test/build/"
+            baseUrl = "https://example.test/build/",
+            deviceSdk = 36
         )
         assertEquals("x86_64", update!!.abi)
         assertEquals("https://example.test/build/RemBrowse-x86_64.apk", update.url)
         assertEquals(apkSha, update.sha256)
 
-        val arm = UpdateManifests.updateFor(manifest, 14, listOf("arm64-v8a", "armeabi-v7a"), "https://example.test/build")
+        val arm = UpdateManifests.updateFor(manifest, 14, listOf("arm64-v8a", "armeabi-v7a"), "https://example.test/build", deviceSdk = 36)
         assertEquals("https://example.test/build/RemBrowse-arm64-v8a.apk", arm!!.url)
     }
 
     @Test
     fun updateFor_offersNothingWhenNotNewerOrNoApkFits() {
         val manifest = UpdateManifests.parse(manifestJson())!!
-        assertNull(UpdateManifests.updateFor(manifest, 15, listOf("x86_64"), BASE))
-        assertNull(UpdateManifests.updateFor(manifest, 16, listOf("x86_64"), BASE))
-        assertNull(UpdateManifests.updateFor(manifest, 14, listOf("armeabi-v7a"), BASE))
+        assertNull(UpdateManifests.updateFor(manifest, 15, listOf("x86_64"), BASE, deviceSdk = 36))
+        assertNull(UpdateManifests.updateFor(manifest, 16, listOf("x86_64"), BASE, deviceSdk = 36))
+        assertNull(UpdateManifests.updateFor(manifest, 14, listOf("armeabi-v7a"), BASE, deviceSdk = 36))
     }
 
     @Test
@@ -113,7 +134,7 @@ class AppUpdatesTest {
         assertEquals("Just the id, not a JSON commit", "application/vnd.github.sha", accept)
         // An address with the commit in it never changes, so no cache can serve an older file
         assertEquals("$RAW/owner/repo/$SHA/build/", manifest.filesBaseUrl)
-        val update = UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), "unused")
+        val update = UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), "unused", deviceSdk = 36)
         assertEquals("$RAW/owner/repo/$SHA/build/RemBrowse-x86_64.apk", update!!.url)
     }
 
@@ -141,7 +162,7 @@ class AppUpdatesTest {
         assertTrue("A query no cache has seen", requested.single().startsWith("https://downloads.test/rem/update.json?t="))
         assertEquals("no-cache", cacheControl)
         assertEquals("https://downloads.test/rem/", manifest.filesBaseUrl)
-        val update = UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), "unused")
+        val update = UpdateManifests.updateFor(manifest, 14, listOf("x86_64"), "unused", deviceSdk = 36)
         assertEquals("The APK beside update.json", "https://downloads.test/rem/RemBrowse-x86_64.apk", update!!.url)
     }
 

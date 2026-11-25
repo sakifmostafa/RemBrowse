@@ -248,16 +248,12 @@ fun remDynamicScheme(base: ColorScheme, dark: Boolean): ColorScheme = if (dark) 
     )
 }
 
-/** Whether this device can give the app its wallpaper colours (Android 12+). */
-val systemColorsAvailable: Boolean
-    get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-
 /**
- * The browser's colours: the wallpaper's when [systemColors] is on and the device has them,
- * otherwise the fixed theme for [accent].
+ * The browser's colours: the wallpaper's when [systemColors] is on, otherwise the fixed theme
+ * for [accent].
  */
 fun remColorScheme(context: Context, darkTheme: Boolean, accent: AccentColor, systemColors: Boolean): ColorScheme =
-    if (systemColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    if (systemColors) {
         remDynamicScheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context),
             darkTheme
@@ -271,7 +267,7 @@ fun remColorScheme(context: Context, darkTheme: Boolean, accent: AccentColor, sy
  * surfaces, from the wallpaper when system colours are on.
  */
 fun terminalCursorColor(context: Context, accent: AccentColor, systemColors: Boolean): Color =
-    if (systemColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    if (systemColors) {
         dynamicDarkColorScheme(context).primary
     } else {
         accent.tones().darkPrimary
@@ -427,7 +423,7 @@ fun isCompactHeight(height: Dp): Boolean = height < RemDimens.MediumHeight
 /**
  * The window's size as Android's configuration gives it (`screenWidthDp`, `screenHeightDp`),
  * which is what Go to address was laid out and tried with: whether it takes its compact form,
- * and how many suggestion rows fit. On Android 8 to 14 the configuration leaves the system bars
+ * and how many suggestion rows fit. On Android 13 and 14 the configuration leaves the system bars
  * out (the status bar and the navigation bar), where `LocalWindowInfo.containerDpSize` counts
  * the whole window: one or two rows too many, and a compact check that flipped near 600dp. From
  * Android 15 the configuration of an app that targets it counts the bars as well, so the
@@ -446,7 +442,7 @@ fun screenSizeDp(): DpSize {
 fun RemBrowseTheme(
     darkTheme: Boolean = true,
     accent: AccentColor = AccentColor.MAROON,
-    /** The wallpaper's colours instead of [accent] (Android 12+; ignored before). */
+    /** The wallpaper's colours instead of [accent]. */
     systemColors: Boolean = false,
     content: @Composable () -> Unit
 ) {
