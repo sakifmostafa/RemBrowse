@@ -17,6 +17,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.net.URLDecoder
+import java.util.concurrent.atomic.AtomicBoolean
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoWebExecutor
 import org.mozilla.geckoview.WebRequest
@@ -46,10 +47,12 @@ fun interface ScreenshotClipboard {
  */
 fun interface PageImageClipboard {
     /**
-     * Copies [png] once it is known to be a PNG that Android can read, then calls [onDone] on the
-     * main thread with whether it is on the clipboard. May be called on any thread.
+     * Copies the picture in [base64] (as the page menu helper sends it) once it is known to be a
+     * PNG that Android can read, then calls [onDone] on the main thread with whether it is on the
+     * clipboard. Read on a thread of its own, and one at a time: another picture handed over
+     * before that is refused. May be called on any thread.
      */
-    fun copyPageImage(png: ByteArray, onDone: (Boolean) -> Unit)
+    fun copyPageImage(base64: String, onDone: (Boolean) -> Unit)
 }
 
 /** Pixels decoded to check a page's picture; a larger one is checked at a reduced size. */
@@ -83,6 +86,25 @@ object ClipboardImages {
 
     /** The largest picture copied; a bigger one is almost certainly not meant for the clipboard. */
     const val MAX_BYTES = 25 * 1024 * 1024
+
+    /** The largest picture a page may copy itself; the page menu helper sends none bigger either. */
+    const val PAGE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
+
+    /** [PAGE_IMAGE_MAX_BYTES] in base64: four characters for every three bytes. */
+    const val PAGE_IMAGE_MAX_BASE64 = (PAGE_IMAGE_MAX_BYTES + 2) / 3 * 4
+
+    /** The PNG in [base64] (a page's picture), or null if it isn't one or is too large. */
+    fun pngFromBase64(base64: String): ByteArray? {
+        // Checked first, so a too large picture isn't decoded
+        if (base64.isEmpty() || base64.length > PAGE_IMAGE_MAX_BASE64) return null
+        val bytes = try {
+            java.util.Base64.getDecoder().decode(base64)
+        } catch (e: IllegalArgumentException) {
+            return null
+        }
+        if (bytes.size > PAGE_IMAGE_MAX_BYTES || sniff(bytes) != "image/png") return null
+        return bytes
+    }
 
     /** The picture in a `data:image/…` address, or null if it isn't one or can't be read. */
     fun fromDataUrl(url: String): ClipboardImage? {
@@ -207,6 +229,59 @@ internal class ClipboardImageFiles(context: Context) {
 }
 
 /**
+ * [PageImageClipboard] through [files]: the picture is read, checked and saved on a worker thread
+ * ([startWorker]) and put on the clipboard on the main thread. One at a time, until it is on the
+ * clipboard or has failed: pictures can be large, and a page could otherwise hand over many at
+ * once and run the app out of memory, or have an earlier copy's file deleted by a later one's
+ * just before it goes on the clipboard. Any failure, running out of memory included, is answered
+ * with false, so the page's promise always settles.
+ */
+internal class PageImageCopier(
+    private val files: ClipboardImageFiles,
+    private val main: Handler = Handler(Looper.getMainLooper()),
+    private val decode: (String) -> ByteArray? = ClipboardImages::pngFromBase64,
+    private val readable: (ByteArray) -> Boolean = ::isReadablePng,
+    private val startWorker: (Runnable) -> Unit = { Thread(it, "copy-page-image").start() }
+) : PageImageClipboard {
+    private val busy = AtomicBoolean(false)
+
+    override fun copyPageImage(base64: String, onDone: (Boolean) -> Unit) {
+        if (!busy.compareAndSet(false, true)) {
+            main.post { onDone(false) }
+            return
+        }
+        try {
+            startWorker(Runnable { copy(base64, onDone) })
+        } catch (e: Throwable) {
+            Log.w(TAG, "Couldn't start copying a page's picture", e)
+            busy.set(false)
+            main.post { onDone(false) }
+        }
+    }
+
+    /** On the worker thread. */
+    private fun copy(base64: String, onDone: (Boolean) -> Unit) {
+        val uri = try {
+            val png = decode(base64)
+            if (png != null && readable(png)) files.save(ClipboardImage(png, "image/png"), "image") else null
+        } catch (e: Throwable) {
+            Log.w(TAG, "Couldn't save a page's picture for the clipboard", e)
+            null
+        }
+        main.post {
+            val copied = uri != null && try {
+                files.putOnClipboard(uri, "Image")
+            } catch (e: Throwable) {
+                Log.w(TAG, "Couldn't put a page's picture on the clipboard", e)
+                false
+            }
+            busy.set(false)
+            onDone(copied)
+        }
+    }
+}
+
+/**
  * [ImageClipboard], [ScreenshotClipboard] and [PageImageClipboard] for the device. A page's
  * picture is fetched through the engine's own network stack (GeckoView's GeckoWebExecutor), so it
  * comes with the site's cookies as on the page. All go through [ClipboardImageFiles].
@@ -216,6 +291,7 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
     private val executor = GeckoWebExecutor(runtime)
     private val main = Handler(Looper.getMainLooper())
     private val files = ClipboardImageFiles(appContext)
+    private val pageImages = PageImageCopier(files, main)
 
     override fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Boolean) -> Unit) {
         Thread({
@@ -239,25 +315,8 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
     }
 
     // No notice of its own: the page shows one when its promise settles
-    override fun copyPageImage(png: ByteArray, onDone: (Boolean) -> Unit) {
-        Thread({
-            val uri = try {
-                if (isReadablePng(png)) files.save(ClipboardImage(png, "image/png"), "image") else null
-            } catch (e: Exception) {
-                Log.w(TAG, "Couldn't save a page's picture for the clipboard", e)
-                null
-            }
-            main.post {
-                val copied = uri != null && try {
-                    files.putOnClipboard(uri, "Image")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Couldn't put a page's picture on the clipboard", e)
-                    false
-                }
-                onDone(copied)
-            }
-        }, "copy-page-image").start()
-    }
+    override fun copyPageImage(base64: String, onDone: (Boolean) -> Unit) =
+        pageImages.copyPageImage(base64, onDone)
 
     override fun copyImage(url: String, pageUrl: String?) {
         ClipboardImages.fromDataUrl(url)?.let { image ->

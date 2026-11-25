@@ -33,7 +33,6 @@ import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
-import java.util.Base64
 import java.util.UUID
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -63,9 +62,6 @@ internal const val PAGE_MENU_NATIVE_APP = "rembrowse_page_menu"
 
 /** A link the page menu helper asks to open in a new tab; see [GeckoBrowserEngine.linkOpenRequest]. */
 internal data class LinkOpenRequest(val url: String, val inForeground: Boolean)
-
-/** The largest picture a page may copy; the page menu helper sends none bigger either. */
-internal const val PAGE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
 
 class GeckoSessionHandle(
     override val tabId: String,
@@ -681,12 +677,13 @@ class GeckoBrowserEngine(
                                 handle.listener.onOpenLinkRequested(handle.tabId, it.url, it.inForeground)
                             }
                             if (isPageImageCopy(message)) {
-                                // The page's promise settles with the answer: true once it is copied
-                                val png = pageImageCopyRequest(message)
+                                // The page's promise settles with the answer: true once it is copied.
+                                // The picture is decoded and checked off this (the main) thread.
+                                val data = pageImageCopyData(message)
                                 val clipboard = pageImageClipboard
-                                if (png == null || clipboard == null) return GeckoResult.fromValue<Any>(false)
+                                if (data == null || clipboard == null) return GeckoResult.fromValue<Any>(false)
                                 val reply = GeckoResult<Any>()
-                                clipboard.copyPageImage(png) { copied -> reply.complete(copied) }
+                                clipboard.copyPageImage(data) { copied -> reply.complete(copied) }
                                 return reply
                             }
                             return null
@@ -839,22 +836,15 @@ class GeckoBrowserEngine(
 
         /**
          * The picture that [message] from the page menu helper asks to put on the clipboard (a
-         * page's `navigator.clipboard.write` with a PNG, its bytes in base64), or null. Only a
-         * PNG, and none over [PAGE_IMAGE_MAX_BYTES]. Whether Android can read it is checked
-         * before it is copied, off the main thread.
+         * page's `navigator.clipboard.write` with a PNG), as its bytes in base64, or null. Only its
+         * length is checked here, against [ClipboardImages.PAGE_IMAGE_MAX_BASE64]: it is decoded
+         * and checked off the main thread ([PageImageClipboard.copyPageImage]).
          */
-        internal fun pageImageCopyRequest(message: Any?): ByteArray? {
+        internal fun pageImageCopyData(message: Any?): String? {
             if (!isPageImageCopy(message)) return null
             val data = (message as org.json.JSONObject).opt("data") as? String ?: return null
-            // Four base64 characters for every three bytes, so a too large picture isn't decoded
-            if (data.isEmpty() || data.length > (PAGE_IMAGE_MAX_BYTES + 2) / 3 * 4) return null
-            val bytes = try {
-                Base64.getDecoder().decode(data)
-            } catch (e: IllegalArgumentException) {
-                return null
-            }
-            if (bytes.size > PAGE_IMAGE_MAX_BYTES || ClipboardImages.sniff(bytes) != "image/png") return null
-            return bytes
+            if (data.isEmpty() || data.length > ClipboardImages.PAGE_IMAGE_MAX_BASE64) return null
+            return data
         }
 
         fun createRuntime(appContext: Context): GeckoRuntime {

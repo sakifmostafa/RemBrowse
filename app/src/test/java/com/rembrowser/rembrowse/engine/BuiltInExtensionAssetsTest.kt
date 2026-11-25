@@ -1,15 +1,14 @@
 package com.rembrowser.rembrowse.engine
 
+import com.rembrowser.rembrowse.data.ClipboardImages
 import org.json.JSONArray
 import org.json.JSONObject
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.util.Base64
 
 /**
  * The popup viewport helper ships as files in the APK's assets and is only checked by Gecko on
@@ -163,28 +162,47 @@ class BuiltInExtensionAssetsTest {
         assertTrue(source.contains("}, page.Clipboard.prototype, { defineAs: \"write\" });"))
         assertTrue(source.contains("const engineWrite = window.Clipboard.prototype.write;"))
         assertTrue(source.contains("return Reflect.apply(engineWrite, this, args);"))
+        // Only for the page's own clipboard: the engine answers a call on anything else
+        assertTrue(source.contains("this === window.navigator.clipboard ? pngItem(args[0]) : null"))
         assertTrue(source.contains("const PNG = \"image/png\";"))
         assertTrue(source.contains("sendNativeMessage(NATIVE_APP, { type: \"copyImage\", data })"))
-        // The promise the page gets is its own, so it can wait on it
-        assertTrue(source.contains("new page.Promise(exportFunction("))
         // The same limit as the app's
         assertTrue(source.contains("const MAX_IMAGE_BYTES = 20 * 1024 * 1024;"))
-        assertEquals(20 * 1024 * 1024, PAGE_IMAGE_MAX_BYTES)
+        assertEquals(20 * 1024 * 1024, ClipboardImages.PAGE_IMAGE_MAX_BYTES)
     }
 
     @Test
-    fun pageMenu_onlyAWriteTheUserJustAskedFor_reachesTheApp() {
-        val write = pageMenuSource.substringAfter("exportFunction(function write(").substringBefore("}, page.Clipboard.prototype")
-        // Checked as the page calls, through the Xray (which the page can't change), before any wait
-        val check = write.indexOf("window.navigator.userActivation")
-        assertTrue(check >= 0)
-        assertTrue(write.contains("if (!activation || !activation.isActive) {"))
-        assertTrue(write.contains("pageError(\"NotAllowedError\""))
-        assertTrue(check < write.indexOf("pagePromise(() => copyPng(item))"))
-        assertFalse(write.contains("await"))
+    fun pageMenu_takesThePagesPromiseAndErrorBeforeThePageRuns() {
+        val source = pageMenuSource
+        // At the top of the script (document_start), and never read from the page again: a page
+        // that replaces its Promise later must not be handed what settles the copy
+        assertTrue(source.contains("\nconst PagePromise = page.Promise;\n"))
+        assertTrue(source.contains("\nconst PageDOMException = page.DOMException;\n"))
+        assertEquals(1, Regex("""page\.Promise\b""").findAll(source).count())
+        assertEquals(1, Regex("""page\.DOMException\b""").findAll(source).count())
+        // What the page's promise is given only passes the outcome on; it can't start a copy
+        val executor = source.substringAfter("return new PagePromise(exportFunction((resolve, reject) => {")
+            .substringBefore("}, page));")
+        assertTrue(executor.trimStart().startsWith("done.then("))
+        assertFalse(executor.contains("copyPng"))
     }
 
-    private val pngBytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3)
+    @Test
+    fun pageMenu_onlyAWriteTheUserJustAskedFor_startsACopy_oneAtATime() {
+        val source = pageMenuSource
+        val write = source.substringAfter("exportFunction(function write(").substringBefore("}, page.Clipboard.prototype")
+        // Checked as the page calls, through the Xray (which the page can't change), then the copy
+        // starts there and then, with nothing waited for before it
+        assertTrue(write.contains("const activation = window.navigator.userActivation;"))
+        val check = write.indexOf("if (!activation || !activation.isActive) {")
+        val busy = write.indexOf("if (copying) {")
+        val start = write.indexOf("return pagePromise(copyPng(item));")
+        assertTrue(check >= 0 && check < busy && busy < start)
+        assertFalse(write.contains("await"))
+        // Nowhere else starts one, and the copy is marked as running before its first wait
+        assertEquals(2, Regex("""copyPng\(""").findAll(source).count())
+        assertTrue(source.contains("async function copyPng(item) {\n  copying = true;\n"))
+    }
 
     private fun copyImage(data: Any?, type: Any? = "copyImage"): JSONObject =
         JSONObject().apply {
@@ -192,53 +210,35 @@ class BuiltInExtensionAssetsTest {
             if (data != null) put("data", data)
         }
 
-    private fun base64(bytes: ByteArray) = Base64.getEncoder().encodeToString(bytes)
-
     @Test
-    fun pageImageCopyRequest_readsTheBase64Png() {
-        val message = copyImage(base64(pngBytes))
+    fun pageImageCopyData_handsTheBase64On_undecoded() {
+        val message = copyImage("iVBORw0KGgo=")
         assertTrue(GeckoBrowserEngine.isPageImageCopy(message))
-        assertArrayEquals(pngBytes, GeckoBrowserEngine.pageImageCopyRequest(message))
+        assertEquals("iVBORw0KGgo=", GeckoBrowserEngine.pageImageCopyData(message))
         // Not taken for the other messages
         assertFalse(GeckoBrowserEngine.isPageMenuMessage(message))
         assertNull(GeckoBrowserEngine.linkOpenRequest(message))
     }
 
     @Test
-    fun pageImageCopyRequest_refusesAnythingButAPng() {
-        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0, 0x10)
-        val gif = "GIF89a....".toByteArray()
-        val svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".toByteArray()
-        for (bytes in listOf(jpeg, gif, svg, "hello".toByteArray())) {
-            assertNull(String(bytes), GeckoBrowserEngine.pageImageCopyRequest(copyImage(base64(bytes))))
-        }
+    fun pageImageCopyData_refusesMissingOrTooLongData() {
+        assertNull("empty", GeckoBrowserEngine.pageImageCopyData(copyImage("")))
+        assertNull("no data", GeckoBrowserEngine.pageImageCopyData(copyImage(null)))
+        assertNull("not a string", GeckoBrowserEngine.pageImageCopyData(copyImage(JSONArray().put(1))))
+        // 20 MB in base64, and not a character more
+        val longest = "A".repeat(ClipboardImages.PAGE_IMAGE_MAX_BASE64)
+        assertEquals(longest.length, GeckoBrowserEngine.pageImageCopyData(copyImage(longest))?.length)
+        assertNull(GeckoBrowserEngine.pageImageCopyData(copyImage(longest + "A")))
     }
 
     @Test
-    fun pageImageCopyRequest_refusesBrokenOrMissingData() {
-        for (data in listOf("", "not base64!", "iVBORw0KGgo=\n", "data:image/png;base64,${base64(pngBytes)}")) {
-            assertNull(data, GeckoBrowserEngine.pageImageCopyRequest(copyImage(data)))
-        }
-        assertNull("no data", GeckoBrowserEngine.pageImageCopyRequest(copyImage(null)))
-        assertNull("not a string", GeckoBrowserEngine.pageImageCopyRequest(copyImage(JSONArray().put(1))))
-    }
-
-    @Test
-    fun pageImageCopyRequest_refusesTheWrongTypeAndNonObjectMessages() {
-        val data = base64(pngBytes)
-        assertNull(GeckoBrowserEngine.pageImageCopyRequest(copyImage(data, type = "pageMenu")))
-        assertNull(GeckoBrowserEngine.pageImageCopyRequest(copyImage(data, type = null)))
-        assertNull(GeckoBrowserEngine.pageImageCopyRequest(data))
-        assertNull(GeckoBrowserEngine.pageImageCopyRequest(null))
+    fun pageImageCopyData_refusesTheWrongTypeAndNonObjectMessages() {
+        val data = "iVBORw0KGgo="
+        assertNull(GeckoBrowserEngine.pageImageCopyData(copyImage(data, type = "pageMenu")))
+        assertNull(GeckoBrowserEngine.pageImageCopyData(copyImage(data, type = null)))
+        assertNull(GeckoBrowserEngine.pageImageCopyData(data))
+        assertNull(GeckoBrowserEngine.pageImageCopyData(null))
         assertFalse(GeckoBrowserEngine.isPageImageCopy(JSONArray().put("copyImage")))
-    }
-
-    @Test
-    fun pageImageCopyRequest_takesUpTo20Mb() {
-        val largest = pngBytes.copyOf(PAGE_IMAGE_MAX_BYTES)
-        assertEquals(PAGE_IMAGE_MAX_BYTES, GeckoBrowserEngine.pageImageCopyRequest(copyImage(base64(largest)))?.size)
-        val tooLarge = pngBytes.copyOf(PAGE_IMAGE_MAX_BYTES + 1)
-        assertNull(GeckoBrowserEngine.pageImageCopyRequest(copyImage(base64(tooLarge))))
     }
 
     private fun openLink(url: Any?, type: Any? = "openLink", foreground: Boolean? = null): JSONObject =

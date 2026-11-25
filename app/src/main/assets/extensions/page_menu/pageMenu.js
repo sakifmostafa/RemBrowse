@@ -123,7 +123,8 @@ window.addEventListener("auxclick", event => {
 // picture alone. Every other write goes to the engine unchanged.
 // As in the real API, only a write the user has just asked for (a click or a key press a moment
 // ago) may change the clipboard; otherwise any page could replace what the user copied. That is
-// checked as the page calls, before anything else.
+// checked as the page calls, and the copy starts here and then, so nothing the page is handed
+// can start another. One picture is copied at a time: each can be large.
 const PNG = "image/png";
 
 // The largest picture sent to the app, which refuses bigger ones too
@@ -132,6 +133,15 @@ const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 // The page's own objects. Everywhere else the script sees the page through Xrays: the real
 // properties and methods, whatever the page has changed.
 const page = window.wrappedJSObject;
+
+// Taken now, before the page's scripts run: a page that replaces its Promise or DOMException
+// later must not be handed what settles the copy
+const PagePromise = page.Promise;
+const PageDOMException = page.DOMException;
+
+const NO_ACTIVATION = ["NotAllowedError", "Clipboard write was blocked due to lack of user activation."];
+const STILL_COPYING = ["NotAllowedError", "A picture is still being copied."];
+const NOT_COPIED = ["DataError", "The picture could not be copied."];
 
 // The first item with a PNG among those written, or null: then the write is the engine's, which
 // also says what is wrong with anything that isn't a list of items.
@@ -161,29 +171,35 @@ function base64Of(blob) {
   });
 }
 
+let copying = false;
+
 async function copyPng(item) {
-  const blob = await item.getType(PNG);
-  if (!(blob.size > 0) || blob.size > MAX_IMAGE_BYTES) {
-    throw new Error("No picture, or too large a one");
-  }
-  const data = await base64Of(blob);
-  const copied = await browser.runtime.sendNativeMessage(NATIVE_APP, { type: "copyImage", data });
-  if (copied !== true) {
-    throw new Error("The app could not copy the picture");
+  copying = true;
+  try {
+    const blob = await item.getType(PNG);
+    if (!(blob.size > 0) || blob.size > MAX_IMAGE_BYTES) {
+      throw NOT_COPIED;
+    }
+    const data = await base64Of(blob);
+    const copied = await browser.runtime.sendNativeMessage(NATIVE_APP, { type: "copyImage", data });
+    if (copied !== true) {
+      throw NOT_COPIED;
+    }
+  } finally {
+    copying = false;
   }
 }
 
-// An error of the page's own, for its promise
-function pageError(name, message) {
-  return new page.DOMException(message, name);
-}
-
-// A promise of the page's own, settled by [work]: the page can't use one of the script's
-function pagePromise(work) {
-  return new page.Promise(exportFunction((resolve, reject) => {
-    work().then(
+// A promise of the page's own (it can't use one of the script's) that settles as [done] does.
+// It only passes on the outcome: calling what it is given again changes nothing.
+function pagePromise(done) {
+  return new PagePromise(exportFunction((resolve, reject) => {
+    done.then(
       () => resolve(),
-      () => reject(pageError("DataError", "The picture could not be copied."))
+      error => {
+        const [name, message] = error === NO_ACTIVATION || error === STILL_COPYING ? error : NOT_COPIED;
+        reject(new PageDOMException(message, name));
+      }
     );
   }, page));
 }
@@ -198,17 +214,19 @@ function wrapClipboardWrite() {
   // longer works)
   const engineWrite = window.Clipboard.prototype.write;
   exportFunction(function write(...args) {
-    const item = pngItem(args[0]);
+    // Only for this page's own clipboard: the engine answers a call on anything else
+    const item = this === window.navigator.clipboard ? pngItem(args[0]) : null;
     if (!item) {
       return Reflect.apply(engineWrite, this, args);
     }
     const activation = window.navigator.userActivation;
     if (!activation || !activation.isActive) {
-      return page.Promise.reject(
-        pageError("NotAllowedError", "Clipboard write was blocked due to lack of user activation.")
-      );
+      return pagePromise(Promise.reject(NO_ACTIVATION));
     }
-    return pagePromise(() => copyPng(item));
+    if (copying) {
+      return pagePromise(Promise.reject(STILL_COPYING));
+    }
+    return pagePromise(copyPng(item));
   }, page.Clipboard.prototype, { defineAs: "write" });
 }
 

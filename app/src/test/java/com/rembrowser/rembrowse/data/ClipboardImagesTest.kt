@@ -132,4 +132,40 @@ class ClipboardImagesTest {
         assertEquals(ClipboardImages.MAX_BYTES, result!!.size)
         assertNull(ClipboardImages.readLimited(EndlessStream(ClipboardImages.MAX_BYTES + 1L)))
     }
+
+    // --- A picture a page copies itself, sent in base64 by the page menu helper ---
+
+    private fun base64(bytes: ByteArray) = java.util.Base64.getEncoder().encodeToString(bytes)
+
+    @Test
+    fun pngFromBase64_readsAPng() {
+        assertArrayEquals(png, ClipboardImages.pngFromBase64(base64(png)))
+    }
+
+    @Test
+    fun pngFromBase64_refusesAnythingButAPng() {
+        val jpeg = bytes(0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10)
+        val svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".toByteArray()
+        for (other in listOf(jpeg, "GIF89a....".toByteArray(), svg, "hello".toByteArray())) {
+            assertNull(String(other), ClipboardImages.pngFromBase64(base64(other)))
+        }
+    }
+
+    @Test
+    fun pngFromBase64_refusesBrokenBase64() {
+        for (data in listOf("", "not base64!", "iVBORw0KGgo=\n", "data:image/png;base64,${base64(png)}")) {
+            assertNull(data, ClipboardImages.pngFromBase64(data))
+        }
+    }
+
+    @Test
+    fun pngFromBase64_takesUpTo20Mb() {
+        val largest = png.copyOf(ClipboardImages.PAGE_IMAGE_MAX_BYTES)
+        assertEquals(ClipboardImages.PAGE_IMAGE_MAX_BYTES, ClipboardImages.pngFromBase64(base64(largest))?.size)
+        // One byte more takes as many base64 characters, so the bytes are counted too
+        val tooLarge = png.copyOf(ClipboardImages.PAGE_IMAGE_MAX_BYTES + 1)
+        assertEquals(ClipboardImages.PAGE_IMAGE_MAX_BASE64, base64(tooLarge).length)
+        assertNull(ClipboardImages.pngFromBase64(base64(tooLarge)))
+        assertNull(ClipboardImages.pngFromBase64("A".repeat(ClipboardImages.PAGE_IMAGE_MAX_BASE64 + 4)))
+    }
 }
