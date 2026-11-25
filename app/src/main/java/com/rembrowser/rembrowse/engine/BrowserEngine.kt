@@ -161,6 +161,18 @@ interface BrowserSessionHandle {
     fun setVisible(visible: Boolean)
     fun setFocusedForExtensions(focused: Boolean)
 
+    /**
+     * Offers the system's Back to the page before the browser acts on it, as Firefox and Chrome
+     * do: an open `<dialog>`, a popover or anything else the page watches Back with (a
+     * CloseWatcher) closes. The page answers later, on the main thread, with exactly one of the
+     * two: [onHandled] when it took Back, so nothing else should happen, or [onUnhandled] when it
+     * had nothing to close, the session is closed or the engine failed, so Back goes on to do what
+     * it otherwise would. Without an engine that asks pages, Back is never theirs.
+     */
+    fun handleBack(onHandled: () -> Unit = {}, onUnhandled: () -> Unit) {
+        onUnhandled()
+    }
+
     /** Takes the page out of fullscreen, as its own exit button or Esc would. */
     fun exitFullScreen() {}
 

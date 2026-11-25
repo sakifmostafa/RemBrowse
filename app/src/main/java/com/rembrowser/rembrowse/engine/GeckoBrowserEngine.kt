@@ -63,6 +63,56 @@ internal const val PAGE_MENU_NATIVE_APP = "rembrowse_page_menu"
 /** A link the page menu helper asks to open in a new tab; see [GeckoBrowserEngine.linkOpenRequest]. */
 internal data class LinkOpenRequest(val url: String, val inForeground: Boolean)
 
+/**
+ * Offers Back to a page with [processBackPressed] (GeckoSession's, which runs the page's
+ * CloseWatchers: an open `<dialog>` or popover closes) and calls, on the main thread, [onHandled]
+ * when the page took it, or [onUnhandled] when it had nothing to close or the engine failed.
+ *
+ * The engine answers "taken" as soon as it has passed Back on, before the page has closed
+ * anything, and until the page has, it would answer "taken" again. So a taken Back is reported
+ * only once [reachPage], a question answered by the page itself and so after it got Back, comes
+ * back (or fails): a second Back then finds the page as it now is, and goes back.
+ */
+internal fun offerBackToPage(
+    processBackPressed: () -> GeckoResult<Boolean>?,
+    reachPage: () -> GeckoResult<*>?,
+    onHandled: () -> Unit,
+    onUnhandled: () -> Unit
+) {
+    val answer = try {
+        processBackPressed()
+    } catch (e: RuntimeException) {
+        Log.w(TAG, "Back could not be offered to the page", e)
+        null
+    }
+    if (answer == null) {
+        onUnhandled()
+        return
+    }
+    answer.accept(
+        { handled ->
+            if (handled == true) afterPageCaughtUp(reachPage, onHandled) else onUnhandled()
+        },
+        { error ->
+            Log.w(TAG, "The page did not answer Back", error)
+            onUnhandled()
+        }
+    )
+}
+
+private fun afterPageCaughtUp(reachPage: () -> GeckoResult<*>?, then: () -> Unit) {
+    val reached = try {
+        reachPage()
+    } catch (e: RuntimeException) {
+        null
+    }
+    if (reached == null) {
+        then()
+        return
+    }
+    reached.accept({ then() }, { then() })
+}
+
 class GeckoSessionHandle(
     override val tabId: String,
     private val runtime: GeckoRuntime,
@@ -119,6 +169,20 @@ class GeckoSessionHandle(
 
     override fun goForward() {
         runOnMain { if (session.isOpen) session.goForward() }
+    }
+
+    override fun handleBack(onHandled: () -> Unit, onUnhandled: () -> Unit) {
+        runOnMain {
+            // The engine closes only what the page with the keyboard's focus has open, yet answers
+            // "taken" for any page with something open: a page without focus is not asked, or its
+            // dialog would keep Back for ever while staying open
+            val pageHasFocus = session.textInput.view?.hasFocus() == true
+            if (closed || !session.isOpen || !pageHasFocus) {
+                onUnhandled()
+            } else {
+                offerBackToPage(session::processBackPressed, session::containsFormData, onHandled, onUnhandled)
+            }
+        }
     }
 
     override fun print() {

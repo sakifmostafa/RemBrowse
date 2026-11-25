@@ -74,6 +74,21 @@ class PaneGeckoViewTest {
     }
 
     @Test
+    fun theBackKey_stopsAtThePage_soItKeepsTheFocusFromAndroid13() {
+        // Android has already given it to the window's Back handlers
+        assertEquals(true, view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK)))
+        assertEquals(true, view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK)))
+        assertEquals("Other keys go on as before", false, view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE)))
+    }
+
+    @Test
+    @Config(sdk = [32])
+    fun theBackKey_goesOnToTheWindow_beforeAndroid13() {
+        assertEquals(false, view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK)))
+        assertEquals(false, view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK)))
+    }
+
+    @Test
     fun takesKeysPastTheKeyboardApp_isFalseWithoutAPage() {
         assertEquals(false, view.takesKeysPastKeyboardApp(enter = false))
         assertEquals(false, view.takesKeysPastKeyboardApp(enter = true))

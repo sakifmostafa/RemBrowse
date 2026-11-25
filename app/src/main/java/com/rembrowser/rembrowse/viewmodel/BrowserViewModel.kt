@@ -67,6 +67,15 @@ private val sitePermissionOrder = compareBy<SitePermissionEntry>(
  */
 private const val PAGE_PRINT_COOLDOWN_MS = 3_000L
 
+/**
+ * How long the system's Back waits for a page's answer to it (see [BrowserViewModel.goBack]).
+ * After that a page that hasn't answered, a hung one, no longer holds Back up.
+ */
+internal const val BACK_ANSWER_WAIT_MS = 1_000L
+
+/** The system's Back, offered to the page in [tabId] at [askedAt] (the clock's time) and not answered yet. */
+private class BackOffer(val tabId: String, val askedAt: Long)
+
 class BrowserViewModel(
     private val engine: BrowserEngine,
     private val repository: BrowserStateRepository,
@@ -1017,18 +1026,77 @@ class BrowserViewModel(
         syncSessions()
     }
 
+    /** The system's Back offered to a page and not answered yet, if any; see [goBack]. */
+    private var backOffer: BackOffer? = null
+
+    /** The pane of a system Back waiting for the page's answer to the one before it, if any. */
+    private var backWaitingPane: Int? = null
+
     /**
      * Back in the pane's tab: its history, or, at the first page of a tab a page opened, closing
      * it and showing the tab that opened it again (see [BrowserUiState.canNavigateBack]).
+     *
+     * With [pageFirst] (the system's Back: the key and the gesture) the page is offered it first,
+     * and the above happens only when the page has nothing of its own to close, such as a
+     * `<dialog>` or a popover. The page answers later: a Back pressed meanwhile waits for that
+     * answer and is then offered in turn, so it is neither lost nor done twice. One waits at most;
+     * further presses meanwhile are dropped. A page that hasn't answered within
+     * [BACK_ANSWER_WAIT_MS] holds Back up no longer: the next press goes back without asking it.
+     * The toolbar's arrow, `Alt+Left`, the page menu and the touchpad's swipe go back at once, as
+     * on a desktop.
      */
-    fun goBack(paneIndex: Int = _uiState.value.activePaneIndex) {
-        val state = _uiState.value
-        val tab = state.tabForPane(paneIndex) ?: return
-        if (!tab.canGoBack && state.canNavigateBack(tab)) {
+    fun goBack(paneIndex: Int = _uiState.value.activePaneIndex, pageFirst: Boolean = false) {
+        if (pageFirst) {
+            offerBackToPage(paneIndex)
+            return
+        }
+        _uiState.value.tabForPane(paneIndex)?.let(::navigateBack)
+    }
+
+    private fun navigateBack(tab: BrowserTab) {
+        if (!tab.canGoBack && _uiState.value.canNavigateBack(tab)) {
             closeReturningToOpener(tab.id)
             return
         }
         engine.getSession(tab.id)?.goBack()
+    }
+
+    private fun offerBackToPage(paneIndex: Int) {
+        val state = _uiState.value
+        val unanswered = backOffer
+        if (unanswered != null) {
+            val tabStillOpen = state.tabs.any { it.id == unanswered.tabId }
+            if (tabStillOpen && clock() - unanswered.askedAt in 0 until BACK_ANSWER_WAIT_MS) {
+                backWaitingPane = paneIndex
+                return
+            }
+            // That page never answered (it hangs) or its tab is gone: an answer that still comes is
+            // ignored, and the page isn't asked again for this press
+            backOffer = null
+            backWaitingPane = null
+            val tab = state.tabForPane(paneIndex) ?: return
+            if (tab.id == unanswered.tabId) {
+                navigateBack(tab)
+                return
+            }
+        }
+        val tab = state.tabForPane(paneIndex) ?: return
+        val session = engine.getSession(tab.id) ?: return navigateBack(tab)
+        val offer = BackOffer(tab.id, clock())
+        backOffer = offer
+        session.handleBack(
+            onHandled = { backAnswered(offer, handled = true) },
+            onUnhandled = { backAnswered(offer, handled = false) }
+        )
+    }
+
+    private fun backAnswered(offer: BackOffer, handled: Boolean) {
+        if (backOffer !== offer) return
+        backOffer = null
+        if (!handled) _uiState.value.tabs.firstOrNull { it.id == offer.tabId }?.let(::navigateBack)
+        val waiting = backWaitingPane ?: return
+        backWaitingPane = null
+        offerBackToPage(waiting)
     }
 
     /**

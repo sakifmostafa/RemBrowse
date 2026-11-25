@@ -61,6 +61,40 @@ class FakeSessionHandle(
     override fun exitFullScreen() { exitFullScreenCount++ }
     override fun print() { printCount++ }
 
+    /** How many times Back was offered to the page. */
+    var handleBackCount = 0
+
+    /** True when the page has something of its own open that Back closes (a dialog or popover). */
+    var pageTakesBack = false
+
+    /**
+     * True to keep Back offered to the page waiting for [answerBack], as the real engine's answer
+     * comes later; otherwise the page answers at once, with [pageTakesBack].
+     */
+    var answersBackLater = false
+    private val unansweredBacks = ArrayDeque<Pair<() -> Unit, () -> Unit>>()
+
+    /** Back offered to the page and not answered yet. */
+    val unansweredBackCount: Int get() = unansweredBacks.size
+
+    override fun handleBack(onHandled: () -> Unit, onUnhandled: () -> Unit) {
+        handleBackCount++
+        when {
+            answersBackLater -> unansweredBacks.addLast(onHandled to onUnhandled)
+            pageTakesBack -> onHandled()
+            else -> onUnhandled()
+        }
+    }
+
+    /**
+     * The page answers the oldest Back still waiting: [handled] when it closed something of its
+     * own. An engine error answers as not handled.
+     */
+    fun answerBack(handled: Boolean) {
+        val (onHandled, onUnhandled) = unansweredBacks.removeFirst()
+        if (handled) onHandled() else onUnhandled()
+    }
+
     /** Every find in page asked of this page: (query, backwards, matchCase). */
     val finds = mutableListOf<Triple<String, Boolean, Boolean>>()
     var findClearCount = 0

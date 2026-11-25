@@ -253,6 +253,83 @@ class BackNavigationUiTest {
         assertEquals("Neither page went back in its history", 0, goBackCount(opener))
     }
 
+    // --- The page is offered Back first: its own dialog or popover closes before it is left ---
+
+    @Test
+    fun aPageWithADialogOpen_backClosesIt_andTheNextBackGoesBack() {
+        val tab = launchOnAPageWithHistory()
+        val page = engine.sessions.getValue(tab)
+        page.pageTakesBack = true
+
+        pressBack()
+        assertEquals(1, page.handleBackCount)
+        assertEquals("The page closed its dialog and stays", 0, goBackCount(tab))
+
+        page.pageTakesBack = false
+        pressBack()
+        assertEquals(2, page.handleBackCount)
+        assertEquals(1, goBackCount(tab))
+    }
+
+    @Test
+    fun backPressedTwiceBeforeThePageAnswers_closesTheDialog_thenGoesBack_once() {
+        val tab = launchOnAPageWithHistory()
+        val page = engine.sessions.getValue(tab)
+        page.answersBackLater = true
+
+        pressBack()
+        pressBack()
+        assertEquals("The second waits for the first answer", 1, page.handleBackCount)
+
+        composeRule.runOnUiThread { page.answerBack(handled = true) }
+        composeRule.waitForIdle()
+        assertEquals(2, page.handleBackCount)
+        assertEquals(0, goBackCount(tab))
+
+        composeRule.runOnUiThread { page.answerBack(handled = false) }
+        composeRule.waitForIdle()
+        assertEquals(1, goBackCount(tab))
+        assertEquals(0, page.unansweredBackCount)
+    }
+
+    @Test
+    fun whatTheBrowserShowsInFront_closesBeforeThePageIsAsked() {
+        val tab = launchOnAPageWithHistory()
+        val page = engine.sessions.getValue(tab)
+        page.pageTakesBack = true
+        composeRule.runOnUiThread {
+            browserVm.openFindInPage()
+            chrome.showTabSwitcher = true
+        }
+        composeRule.waitForIdle()
+
+        pressBack()
+        composeRule.onNodeWithTag("tab_switcher").assertDoesNotExist()
+        pressBack()
+        assertNull(browserVm.findInPage.value)
+        assertEquals("Not asked yet", 0, page.handleBackCount)
+
+        pressBack()
+        assertEquals(1, page.handleBackCount)
+        assertEquals(0, goBackCount(tab))
+    }
+
+    @Test
+    fun keyboardUp_backPutsItAway_beforeThePageIsAsked() {
+        val tab = launchOnAPageWithHistory()
+        val page = engine.sessions.getValue(tab)
+        page.pageTakesBack = true
+        keyboardUpFor()
+
+        assertBackPutsTheKeyboardAwayFirst(
+            untouched = { assertEquals(0, page.handleBackCount) },
+            actedOn = {
+                assertEquals(1, page.handleBackCount)
+                assertEquals(0, goBackCount(tab))
+            }
+        )
+    }
+
     @Test
     fun addressBarFocused_backStillGoesBackInThePage() {
         // With the on-screen keyboard up, Android gives Back to the keyboard first (checked on a

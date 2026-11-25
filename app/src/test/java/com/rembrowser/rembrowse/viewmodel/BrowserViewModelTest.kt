@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
+import com.rembrowser.rembrowse.fakes.FakeSessionHandle
 import com.rembrowser.rembrowse.fakes.TrackedInputStream
 import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
@@ -1867,6 +1868,172 @@ class BrowserViewModelTest {
 
         assertTrue(viewModel.uiState.value.tabs.any { it.id == userTab })
         assertEquals(1, engine.sessions.getValue(userTab).goBackCount)
+    }
+
+    // --- The system's Back: the page is offered it first (its dialog or popover closes) ---
+
+    /** The active tab, on a second page of its own; returns its session. */
+    private fun pageWithHistory(): FakeSessionHandle {
+        val tabId = viewModel.uiState.value.activeTabId!!
+        val session = engine.sessions.getValue(tabId)
+        session.simulatePageLoad("https://example.com/second", "Second", canGoBack = true)
+        return session
+    }
+
+    @Test
+    fun systemBack_aPageThatClosesItsDialog_staysWhereItIs() {
+        val session = pageWithHistory()
+        session.pageTakesBack = true
+
+        viewModel.goBack(pageFirst = true)
+
+        assertEquals(1, session.handleBackCount)
+        assertEquals("The page took Back: it doesn't go back", 0, session.goBackCount)
+    }
+
+    @Test
+    fun systemBack_aPageWithNothingToClose_goesBack() {
+        val session = pageWithHistory()
+
+        viewModel.goBack(pageFirst = true)
+
+        assertEquals(1, session.handleBackCount)
+        assertEquals(1, session.goBackCount)
+    }
+
+    @Test
+    fun systemBack_goesBackOnlyOnceThePageHasAnswered_andAFailedAnswerGoesBack() {
+        // The engine answers later; an error answers as "not handled" (GeckoBackOfferTest)
+        val session = pageWithHistory()
+        session.answersBackLater = true
+
+        viewModel.goBack(pageFirst = true)
+        assertEquals(1, session.unansweredBackCount)
+        assertEquals("Nothing yet", 0, session.goBackCount)
+
+        session.answerBack(handled = false)
+        assertEquals(1, session.goBackCount)
+    }
+
+    @Test
+    fun systemBack_inAPageOpenedTab_closesItsDialogFirst_thenTheTab() {
+        val (openerId, popupId) = pageOpensATab()
+        val popup = engine.sessions.getValue(popupId)
+        popup.pageTakesBack = true
+
+        viewModel.goBack(pageFirst = true)
+        assertEquals(popupId, viewModel.uiState.value.activeTabId)
+
+        popup.pageTakesBack = false
+        viewModel.goBack(pageFirst = true)
+        assertTrue(viewModel.uiState.value.tabs.none { it.id == popupId })
+        assertEquals(openerId, viewModel.uiState.value.activeTabId)
+        assertEquals(0, engine.sessions.getValue(openerId).goBackCount)
+    }
+
+    @Test
+    fun systemBack_pressedTwiceBeforeTheAnswer_closesTheDialog_thenGoesBack() {
+        val session = pageWithHistory()
+        session.answersBackLater = true
+
+        viewModel.goBack(pageFirst = true)
+        viewModel.goBack(pageFirst = true)
+        assertEquals("The second waits for the page's answer", 1, session.handleBackCount)
+
+        session.answerBack(handled = true)
+        assertEquals("Then it is offered in turn", 2, session.handleBackCount)
+        assertEquals(0, session.goBackCount)
+
+        session.answerBack(handled = false)
+        assertEquals(1, session.goBackCount)
+        assertEquals(0, session.unansweredBackCount)
+    }
+
+    @Test
+    fun systemBack_pressedTwiceWithNothingToClose_goesBackTwice_neverMore() {
+        val session = pageWithHistory()
+        session.answersBackLater = true
+
+        viewModel.goBack(pageFirst = true)
+        viewModel.goBack(pageFirst = true)
+        session.answerBack(handled = false)
+        assertEquals(1, session.goBackCount)
+        session.answerBack(handled = false)
+        assertEquals(2, session.goBackCount)
+        assertEquals(2, session.handleBackCount)
+        assertEquals(0, session.unansweredBackCount)
+    }
+
+    @Test
+    fun systemBack_pressedOftenBeforeTheAnswer_onlyOneWaits() {
+        val session = pageWithHistory()
+        session.answersBackLater = true
+
+        repeat(4) { viewModel.goBack(pageFirst = true) }
+        session.answerBack(handled = false)
+        session.answerBack(handled = false)
+
+        assertEquals(2, session.handleBackCount)
+        assertEquals(2, session.goBackCount)
+        assertEquals(0, session.unansweredBackCount)
+    }
+
+    @Test
+    fun systemBack_aPageThatNeverAnswers_holdsBackUpNoLonger_andItsLateAnswerIsIgnored() {
+        var now = 1_000_000L
+        engine = FakeBrowserEngine()
+        repository = FakeBrowserStateRepository()
+        viewModel = BrowserViewModel(
+            engine = engine,
+            repository = repository,
+            idGenerator = { "tab-${++idCounter}" },
+            clock = { now }
+        )
+        val session = pageWithHistory()
+        session.answersBackLater = true
+
+        viewModel.goBack(pageFirst = true)
+        now += BACK_ANSWER_WAIT_MS
+        viewModel.goBack(pageFirst = true)
+        assertEquals("Not asked again", 1, session.handleBackCount)
+        assertEquals("Went back at once", 1, session.goBackCount)
+
+        session.answerBack(handled = false)
+        assertEquals("The late answer is ignored", 1, session.goBackCount)
+
+        // The page is asked again next time
+        viewModel.goBack(pageFirst = true)
+        assertEquals(2, session.handleBackCount)
+    }
+
+    @Test
+    fun systemBack_anAnswerFromATabClosedMeanwhile_goesNowhere_andTheWaitingBackGoesToTheTabNowShown() {
+        val first = pageWithHistory()
+        first.answersBackLater = true
+        val firstId = first.tabId
+        viewModel.goBack(pageFirst = true)
+        val second = engine.sessions.getValue(viewModel.openNewTab("https://other.example/"))
+        second.simulatePageLoad("https://other.example/next", "Next", canGoBack = true)
+        viewModel.goBack(pageFirst = true)
+        viewModel.closeTab(firstId)
+
+        first.answerBack(handled = false)
+
+        assertEquals(0, first.goBackCount)
+        assertEquals(1, second.handleBackCount)
+        assertEquals(1, second.goBackCount)
+    }
+
+    @Test
+    fun toolbarBack_altLeft_andTheTouchpadSwipe_goBackWithoutAskingThePage() {
+        val session = pageWithHistory()
+        session.pageTakesBack = true
+
+        viewModel.goBack()
+        viewModel.goBack(0)
+
+        assertEquals(0, session.handleBackCount)
+        assertEquals(2, session.goBackCount)
     }
 
     @Test

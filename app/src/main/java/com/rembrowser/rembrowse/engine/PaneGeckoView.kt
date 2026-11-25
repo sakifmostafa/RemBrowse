@@ -136,6 +136,20 @@ class PaneGeckoView(
         return language.startsWith("zh") || language.startsWith("ja") || language.startsWith("ko")
     }
 
+    /**
+     * From Android 13 a Back key (a keyboard's, or the three-button bar's) goes to the window's
+     * Back handlers before any view sees it, and is then passed on to the views anyway, its press
+     * before the handlers run. Compose takes that press as "leave this focus group" and moves the
+     * focus off the page, and the engine then can't close the page's own dialog when the page is
+     * offered Back: it closes only what the focused page has open. So the key stops here and the
+     * page keeps its focus. GeckoView never sends Back to the page. Before Android 13 Back
+     * arrives only as this key, and goes on to the window.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return true
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): PointerIcon? =
         if (chromeHasPointer()) null else super.onResolvePointerIcon(event, pointerIndex)
 

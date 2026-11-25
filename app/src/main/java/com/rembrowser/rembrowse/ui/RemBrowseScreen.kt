@@ -317,9 +317,10 @@ fun RemBrowseScreen(
     val backAtRootStays = remember(context) { PointerDevices.hasMouseOrTouchpad(context) }
     val keyboardUp = backHidesKeyboardFirst(imeVisible = WindowInsets.isImeVisible)
     BackHandler(enabled = backAtRootStays) { }
+    // The page gets Back first, so an open dialog or popover of its own closes before it is left
     val pageBackOn = !chrome.showTabSwitcher && browserState.canNavigateBack(browserState.activeTab)
     BackHandler(enabled = pageBackOn) {
-        browserViewModel.goBack()
+        browserViewModel.goBack(pageFirst = true)
     }
     val closeTabSwitcher = {
         chrome.showTabSwitcher = false
