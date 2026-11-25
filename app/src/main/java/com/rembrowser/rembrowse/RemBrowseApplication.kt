@@ -3,13 +3,19 @@ package com.rembrowser.rembrowse
 import android.app.Application
 import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
+import com.rembrowser.rembrowse.engine.GeckoEngineFetch
 import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
+import com.rembrowser.rembrowse.engine.iconImageLoader
+import java.io.IOException
 import org.mozilla.geckoview.GeckoRuntime
 
-class RemBrowseApplication : Application() {
+class RemBrowseApplication : Application(), SingletonImageLoader.Factory {
 
-    val geckoRuntime: GeckoRuntime by lazy {
+    private val runtimeOnce = lazy {
         GeckoBrowserEngine.createRuntime(applicationContext).also { runtime ->
             // Sites' notifications become Android ones, for as long as the runtime runs; a tap
             // comes back to MainActivity
@@ -23,11 +29,25 @@ class RemBrowseApplication : Application() {
         }
     }
 
+    val geckoRuntime: GeckoRuntime by runtimeOnce
+
     override fun onCreate() {
         super.onCreate()
         // Before anything is composed: the flags are read as input and focus events arrive
         keepComposeInputAsTested()
     }
+
+    /**
+     * The image loader for site and add-on icons, which fetches them through the engine (see
+     * iconImageLoader). Coil asks for it when the first icon is shown, which only the browser's
+     * window does. An icon never starts the engine: it uses the runtime the window started (before
+     * anything is drawn), and fails without one. So Gecko's own processes, which start this class
+     * too, can never create a runtime through it.
+     */
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        iconImageLoader(context, GeckoEngineFetch {
+            if (runtimeOnce.isInitialized()) geckoRuntime else throw IOException("The engine isn't running")
+        })
 }
 
 /**
