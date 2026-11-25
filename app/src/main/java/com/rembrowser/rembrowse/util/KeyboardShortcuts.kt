@@ -49,6 +49,12 @@ enum class ScreenCaptureKey {
     /** Enter: take the focused pane, or the tab switcher when it is open. */
     CAPTURE_FOCUSED,
 
+    /**
+     * P, alone: take the whole page, scrolled-out parts included, of the pane under the mouse, or
+     * of the focused pane (see [com.rembrowser.rembrowse.model.CaptureGeometry.wholePageTarget]).
+     */
+    CAPTURE_WHOLE_PAGE,
+
     /** Any other key is kept from the page and the terminal underneath while the overlay is up. */
     SWALLOW,
 
@@ -70,8 +76,29 @@ data class ShortcutHelp(
     val shortcut: BrowserShortcut
 )
 
+/**
+ * One key of the screenshot overlay as the system's Keyboard Shortcuts sheet lists it: [keyCode],
+ * pressed alone while the overlay is up, does [key] (checked against
+ * [KeyboardShortcuts.screenCaptureKey], so the sheet can't list a key that does something else).
+ */
+data class ScreenCaptureKeyHelp(val label: String, val keyCode: Int, val key: ScreenCaptureKey)
+
 /** Maps a hardware key press to a browser command. Pure so it can be unit tested on the JVM. */
 object KeyboardShortcuts {
+
+    /** The overlay's key for the whole page, as its button's tooltip names it. */
+    const val WHOLE_PAGE_KEY = "P"
+
+    /**
+     * The screenshot overlay's own keys, a group of their own after [HELP_GROUPS] in the sheet.
+     * The overlay has the keyboard while it is up, a terminal's included, so they are the same
+     * everywhere.
+     */
+    val SCREEN_CAPTURE_HELP: Pair<String, List<ScreenCaptureKeyHelp>> = "While taking a screenshot" to listOf(
+        ScreenCaptureKeyHelp("Capture the focused pane", KeyEvent.KEYCODE_ENTER, ScreenCaptureKey.CAPTURE_FOCUSED),
+        ScreenCaptureKeyHelp("Capture the whole page", KeyEvent.KEYCODE_P, ScreenCaptureKey.CAPTURE_WHOLE_PAGE),
+        ScreenCaptureKeyHelp("Cancel the screenshot", KeyEvent.KEYCODE_ESCAPE, ScreenCaptureKey.CANCEL)
+    )
 
     /**
      * What the system's Keyboard Shortcuts sheet lists, by group, in the More menu's words: the
@@ -296,11 +323,13 @@ object KeyboardShortcuts {
      * What a key press does while the screenshot overlay is up (see [ScreenCaptureKey]). Read
      * before the keyboard app, like the shortcuts. [isSystemKey] is `KeyEvent.isSystem`; a Back
      * key, a system key, passes on to the overlay's Back handler, which cancels it, as for the
-     * find bar ([escapeClosesFindBar]).
+     * find bar ([escapeClosesFindBar]). P takes the whole page only pressed alone
+     * ([noModifiers]): Ctrl+P and the rest are kept from the page like any other key.
      */
-    fun screenCaptureKey(keyCode: Int, isSystemKey: Boolean): ScreenCaptureKey = when {
+    fun screenCaptureKey(keyCode: Int, isSystemKey: Boolean, noModifiers: Boolean = true): ScreenCaptureKey = when {
         keyCode == KeyEvent.KEYCODE_ESCAPE -> ScreenCaptureKey.CANCEL
         keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER -> ScreenCaptureKey.CAPTURE_FOCUSED
+        keyCode == KeyEvent.KEYCODE_P && noModifiers -> ScreenCaptureKey.CAPTURE_WHOLE_PAGE
         isSystemKey -> ScreenCaptureKey.PASS
         else -> ScreenCaptureKey.SWALLOW
     }

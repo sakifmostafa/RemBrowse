@@ -91,6 +91,33 @@ object CaptureGeometry {
     fun focusedTarget(key: String?, regions: Collection<CaptureRegion>, window: PxRect): PxRect =
         regions.firstOrNull { it.key == key }?.bounds?.intersect(window) ?: window
 
+    /**
+     * The largest whole page taken, in pixels: 64 megapixels, 256 MB as a picture. A longer page
+     * is refused rather than copied, since its picture and the PNG made from it could run the app
+     * out of memory, and few places would take one that large anyway.
+     */
+    const val WHOLE_PAGE_MAX_PIXELS = 64_000_000L
+
+    /** Whether a whole page of [width] by [height] pixels is within [WHOLE_PAGE_MAX_PIXELS]. */
+    fun fitsWholePage(width: Int, height: Int): Boolean =
+        width > 0 && height > 0 && width.toLong() * height <= WHOLE_PAGE_MAX_PIXELS
+
+    /**
+     * Whose whole page the overlay's key takes: the region under the mouse ([hoveredKey]) when
+     * there is one, else the focused one; null unless that region is a pane showing a web page
+     * (one of [pageKeys]). Over the toolbar, which is no region, it is the focused pane's.
+     */
+    fun wholePageTarget(hoveredKey: String?, focusedKey: String?, pageKeys: Set<String>): String? =
+        (hoveredKey ?: focusedKey)?.takeIf { it in pageKeys }
+
+    /**
+     * The top of a whole page of [width] by [height] pixels, as wide as the page and [aspect]
+     * times wider than tall, or all of it when it is shorter than that: what the notice's small
+     * picture shows of it.
+     */
+    fun topOfPage(width: Int, height: Int, aspect: Float): PxRect =
+        PxRect(0, 0, width, (width / aspect).roundToInt().coerceIn(1, maxOf(1, height)))
+
     /** The selection's size as captured, in pixels: "640 × 480". */
     fun sizeLabel(rect: PxRect): String = "${rect.width} × ${rect.height}"
 

@@ -46,6 +46,7 @@ import com.rembrowser.rembrowse.data.ImageClipboard
 import com.rembrowser.rembrowse.data.GeckoImageClipboard
 import com.rembrowser.rembrowse.data.ScreenshotClipboard
 import com.rembrowser.rembrowse.data.AndroidDownloadStorage
+import com.rembrowser.rembrowse.data.DownloadTarget
 import com.rembrowser.rembrowse.data.AndroidUpdateInstaller
 import com.rembrowser.rembrowse.data.KeystoreSecretStore
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
@@ -63,9 +64,12 @@ import com.rembrowser.rembrowse.engine.GeckoExtensionManager
 import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
 import com.rembrowser.rembrowse.engine.PaneGeckoView
 import com.rembrowser.rembrowse.engine.WindowTouchpadInput
+import com.rembrowser.rembrowse.engine.WholePageShot
 import com.rembrowser.rembrowse.engine.WindowScreenshot
 import com.rembrowser.rembrowse.engine.asPageLayer
+import com.rembrowser.rembrowse.engine.captureWholePage
 import com.rembrowser.rembrowse.engine.usePageRendering
+import com.rembrowser.rembrowse.model.CaptureGeometry
 import com.rembrowser.rembrowse.model.DownloadItem
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PageRendering
@@ -78,6 +82,7 @@ import com.rembrowser.rembrowse.ui.RemBrowseScreen
 import com.rembrowser.rembrowse.ui.components.ChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.components.LocalChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.components.ScreenshotResult
+import com.rembrowser.rembrowse.ui.components.WHOLE_PAGE_THUMBNAIL_ASPECT
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.util.UrlResolver
 import com.rembrowser.rembrowse.util.keyboardShortcutGroups
@@ -88,9 +93,14 @@ import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
 import com.rembrowser.rembrowse.viewmodel.UpdatesViewModel
 import org.mozilla.geckoview.GeckoView
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import androidx.compose.ui.graphics.asImageBitmap
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.WeakHashMap
 import kotlin.coroutines.resume
 import kotlin.math.roundToInt
@@ -118,6 +128,9 @@ private const val UPDATES_DIR = "updates"
 
 /** The screenshot notice's picture is drawn 40dp high; it is made twice that, to stay sharp. */
 private const val SCREENSHOT_THUMBNAIL_DP = 80
+
+/** A saved whole page is named after when it was saved: "Screenshot 2026-11-25 at 14.03.22.png". */
+private val SCREENSHOT_FILE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd 'at' HH.mm.ss", Locale.ROOT)
 
 /**
  * Owns the engine sessions and view models for as long as the browser window exists.
@@ -418,6 +431,8 @@ class MainActivity : ComponentActivity() {
                             onOpenDownloadsFolder = ::openDownloadsFolder,
                             onCopyImage = holder.imageClipboard::copyImage,
                             onCaptureScreen = { area -> captureScreen(area) },
+                            onCaptureWholePage = { tabId -> copyWholePage(tabId) },
+                            onSaveScreenshot = { saveWholePage() },
                             onShowKeyboardShortcuts = ::requestShowKeyboardShortcuts,
                             onPickFiles = ::pickFilesFor,
                             updatesViewModel = holder.updates,
@@ -661,6 +676,8 @@ class MainActivity : ComponentActivity() {
      * Running out of memory for the pictures is a failed screenshot, not a crash.
      */
     private suspend fun captureScreen(area: PxRect): ScreenshotResult {
+        // Its copy takes the whole page's place on the clipboard, and its file
+        wholePageFile = null
         val settings = holder.browser.uiState.value.settings
         val pages = if (settings.pageRendering == PageRendering.DIRECT) {
             paneViewTabs.keys.toList().mapNotNull { it.asPageLayer() }
@@ -682,8 +699,8 @@ class MainActivity : ComponentActivity() {
                 ByteArrayOutputStream().also { taken.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
             }
             copied = suspendCancellableCoroutine { continuation ->
-                holder.screenshotClipboard.copyScreenshot(png, stillWanted = { job.isActive }) { done ->
-                    if (continuation.isActive) continuation.resume(done)
+                holder.screenshotClipboard.copyScreenshot(png, stillWanted = { job.isActive }) { file ->
+                    if (continuation.isActive) continuation.resume(file != null)
                 }
             }
             val picture = thumbnail
@@ -704,6 +721,112 @@ class MainActivity : ComponentActivity() {
             shot?.recycle()
             // The notice keeps the small picture of a screenshot that was copied
             if (!copied) thumbnail?.recycle()
+        }
+    }
+
+    /** The clipboard file of the whole page last copied, which the notice's Save puts in Downloads. */
+    private var wholePageFile: Uri? = null
+
+    /**
+     * Copies the whole page shown in [tabId], scrolled-out parts included, to the clipboard as a
+     * PNG, as [captureScreen] does for part of the window, and keeps its file's address for the
+     * notice's Save. The engine draws the page itself ([captureWholePage]). A page over
+     * [CaptureGeometry.WHOLE_PAGE_MAX_PIXELS] is refused as soon as its size is known, before
+     * anything is encoded; running out of memory for it is refused the same way, never a crash.
+     * The PNG and the notice's picture (the top of the page) are made off the main thread.
+     *
+     * Cancelled (given up on, or the notice's Cancel), it frees its pictures and never reaches the
+     * clipboard, however late the engine answers.
+     */
+    private suspend fun copyWholePage(tabId: String): ScreenshotResult {
+        wholePageFile = null
+        val view = paneViewTabs.entries.firstOrNull { it.value == tabId }?.key ?: return ScreenshotResult.Failed
+        val thumbnailHeight = (SCREENSHOT_THUMBNAIL_DP * resources.displayMetrics.density).roundToInt()
+        val job = currentCoroutineContext().job
+        var page: Bitmap? = null
+        var thumbnail: Bitmap? = null
+        var file: Uri? = null
+        return try {
+            val taken = when (val shot = view.captureWholePage(CaptureGeometry.WHOLE_PAGE_MAX_PIXELS)) {
+                is WholePageShot.Taken -> shot.picture.also { page = it }
+                WholePageShot.TooLong -> return ScreenshotResult.TooLong
+                WholePageShot.Failed -> return ScreenshotResult.Failed
+            }
+            val width = taken.width
+            val height = taken.height
+            val png = withContext(Dispatchers.Default) {
+                thumbnail = topOfPageThumbnail(taken, thumbnailHeight)
+                ByteArrayOutputStream().also { taken.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+            }
+            // Up to 256 MB: let go of before the file is written
+            taken.recycle()
+            page = null
+            file = suspendCancellableCoroutine { continuation ->
+                holder.screenshotClipboard.copyScreenshot(png, stillWanted = { job.isActive }) { copied ->
+                    if (continuation.isActive) continuation.resume(copied)
+                }
+            }
+            val picture = thumbnail
+            if (file != null && picture != null) {
+                wholePageFile = file
+                ScreenshotResult.Copied(picture.asImageBitmap(), width, height, wholePage = true)
+            } else {
+                ScreenshotResult.Failed
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "Not enough memory for the whole page", e)
+            ScreenshotResult.TooLong
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't take the whole page", e)
+            ScreenshotResult.Failed
+        } finally {
+            page?.recycle()
+            // The notice keeps the small picture of a page that was copied
+            if (file == null) thumbnail?.recycle()
+        }
+    }
+
+    /**
+     * The top of a whole [page] for the notice: as wide as the page and [WHOLE_PAGE_THUMBNAIL_ASPECT]
+     * times wider than tall (see [CaptureGeometry.topOfPage]), scaled to at most [height] pixels high.
+     */
+    private fun topOfPageThumbnail(page: Bitmap, height: Int): Bitmap {
+        val top = CaptureGeometry.topOfPage(page.width, page.height, WHOLE_PAGE_THUMBNAIL_ASPECT)
+        val scale = minOf(1f, height.toFloat() / top.height)
+        val matrix = Matrix().apply { setScale(scale, scale) }
+        val picture = Bitmap.createBitmap(page, 0, 0, top.width, top.height, matrix, true)
+        // A small page may come back as itself, which is recycled once encoded
+        return if (picture === page) page.copy(Bitmap.Config.ARGB_8888, false) else picture
+    }
+
+    /**
+     * Puts the whole page last copied in Downloads (the notice's Save), from its file on the
+     * clipboard, named after when it is saved. Once something else has been copied that file is
+     * gone, and nothing is saved.
+     */
+    private suspend fun saveWholePage(): ScreenshotResult {
+        val source = wholePageFile ?: return ScreenshotResult.NotSaved
+        val name = "Screenshot ${LocalDateTime.now().format(SCREENSHOT_FILE_TIME)}.png"
+        return withContext(Dispatchers.IO) {
+            var target: DownloadTarget? = null
+            try {
+                val input = contentResolver.openInputStream(source) ?: throw IOException("The screenshot's file is gone")
+                input.use {
+                    val created = AndroidDownloadStorage(applicationContext).create(name, "image/png").also { target = it }
+                    created.openOutput().use { output -> input.copyTo(output) }
+                    created.commit()
+                    ScreenshotResult.Saved(created.fileName)
+                }
+            } catch (e: CancellationException) {
+                target?.discard()
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Couldn't save the whole page in Downloads", e)
+                target?.discard()
+                ScreenshotResult.NotSaved
+            }
         }
     }
 

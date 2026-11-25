@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FindInPage
+import androidx.compose.material.icons.outlined.Height
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.ScreenshotMonitor
 import androidx.compose.material.icons.outlined.History
@@ -52,6 +53,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -138,6 +140,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.rembrowser.rembrowse.engine.PointerDevices
 import androidx.compose.ui.platform.LocalView
 import java.lang.ref.WeakReference
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -284,6 +287,14 @@ fun RemBrowseScreen(
      * which it must leave the clipboard alone. Without one, a screenshot fails.
      */
     onCaptureScreen: suspend (area: PxRect) -> ScreenshotResult = { ScreenshotResult.Failed },
+    /**
+     * Copies the whole page shown in the tab, scrolled-out parts included, to the clipboard, and
+     * says what became of it (too long, for one). Cancelled when given up on or cancelled from the
+     * notice, after which it must leave the clipboard alone. Without one, it fails.
+     */
+    onCaptureWholePage: suspend (tabId: String) -> ScreenshotResult = { ScreenshotResult.Failed },
+    /** Saves the whole page last copied in Downloads (the notice's Save), and says how it went. */
+    onSaveScreenshot: suspend () -> ScreenshotResult = { ScreenshotResult.NotSaved },
     /** Opens the system's Keyboard Shortcuts sheet, which lists the browser's shortcuts. */
     onShowKeyboardShortcuts: () -> Unit = {},
     paneViewport: @Composable (tab: BrowserTab, modifier: Modifier) -> Unit,
@@ -495,6 +506,12 @@ fun RemBrowseScreen(
         chrome.screenCapture.start()
         Unit
     }
+    // The panes showing a web page, whose whole page can be taken: not the start page, Settings,
+    // a terminal or a crashed page, which have no page for the engine to draw
+    val wholePageKeys = remember(browserState.tabs) {
+        browserState.tabs.filter { it.isWebPage && !it.crashed }.mapTo(HashSet()) { CaptureRegions.pane(it.id) }
+    }
+    val noticeScope = rememberCoroutineScope()
     val updatesState = updatesViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     val updateActions = remember(updatesViewModel) {
         updatesViewModel?.let { updates ->
@@ -907,9 +924,16 @@ fun RemBrowseScreen(
                         downloadsViewModel.clearMessage()
                     }
                 )
+                val capture = chrome.screenCapture
                 ScreenshotNoticeBar(
-                    notice = chrome.screenCapture.notice,
-                    onDismiss = chrome.screenCapture::dismissNotice
+                    notice = capture.notice,
+                    onDismiss = capture::dismissNotice,
+                    takingWholePage = capture.phase == ScreenCaptureState.Phase.CAPTURING && capture.wholePageTabId != null,
+                    onCancelWholePage = capture::cancelWholePage,
+                    saving = capture.notice?.let(capture::isSaving) == true,
+                    onSave = {
+                        if (capture.startSaving()) noticeScope.launch { capture.finishSaving(onSaveScreenshot()) }
+                    }
                 )
             }
         }
@@ -938,9 +962,21 @@ fun RemBrowseScreen(
                 CaptureRegions.TAB_SWITCHER
             } else {
                 browserState.activeTabId?.let(CaptureRegions::pane)
-            }
+            },
+            wholePageKeys = wholePageKeys
         )
-        ScreenCaptureState.Phase.CAPTURING -> screenCapture.area?.let { area ->
+        // The engine draws the page by itself: nothing of the window is copied, so the notice
+        // can say meanwhile that it is being taken
+        ScreenCaptureState.Phase.CAPTURING -> screenCapture.wholePageTabId?.let { tabId ->
+            val generation = screenCapture.generation
+            LaunchedEffect(generation) {
+                // A long page takes a while to draw and encode. Given up on after that, or when
+                // the notice's Cancel leaves this phase, which cancels the copy too.
+                val result = withTimeoutOrNull(WHOLE_PAGE_TIMEOUT_MILLIS) { onCaptureWholePage(tabId) }
+                    ?: ScreenshotResult.Failed
+                screenCapture.finish(result, generation)
+            }
+        } ?: screenCapture.area?.let { area ->
             val generation = screenCapture.generation
             LaunchedEffect(generation) {
                 // The overlay left with this phase. Two frames make sure the window has drawn
@@ -1038,6 +1074,15 @@ fun RemBrowseScreen(
                 "screenshot", "Take screenshot", Icons.Outlined.ScreenshotMonitor, "Ctrl+Alt+S",
                 keywords = listOf("screenshot", "capture", "snip"), action = takeScreenshot
             ),
+            // Only for a web page in the focused pane, straight to the clipboard without the overlay
+            browserState.activeTab?.takeIf { CaptureRegions.pane(it.id) in wholePageKeys }?.let { tab ->
+                PaletteCommand(
+                    "whole_page_screenshot", "Screenshot whole page", Icons.Outlined.Height,
+                    keywords = listOf("capture", "full", "long", "scrolling")
+                ) {
+                    chrome.screenCapture.captureWholePage(tab.id)
+                }
+            },
             PaletteCommand("history", "History", Icons.Outlined.History, "Ctrl+H", keywords = listOf("recent"), action = openHistory),
             PaletteCommand("downloads", "Downloads", Icons.Outlined.FileDownload, "Ctrl+J", keywords = listOf("files"), action = openDownloads),
             PaletteCommand("extensions", "Extensions", Icons.Outlined.Extension, keywords = listOf("addons"), action = openExtensions),
@@ -1173,6 +1218,9 @@ fun RemBrowseScreen(
 
 /** A screenshot that hasn't come back by then (the engine never answered) is given up. */
 private const val SCREENSHOT_TIMEOUT_MILLIS = 10_000L
+
+/** A whole page takes longer: the engine draws all of it, and up to 64 megapixels are encoded. */
+private const val WHOLE_PAGE_TIMEOUT_MILLIS = 60_000L
 
 
 /** How much the tab switcher shrinks and fades at the end of a Back gesture (to 90%, 70% opaque). */

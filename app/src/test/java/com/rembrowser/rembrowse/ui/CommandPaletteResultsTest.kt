@@ -102,6 +102,8 @@ class CommandPaletteResultsTest {
         PaletteCommand("find_in_page", "Find in page", icon, "Ctrl+F") {},
         PaletteCommand("print", "Print…", icon, "Ctrl+P", keywords = listOf("pdf")) {},
         PaletteCommand("screenshot", "Take screenshot", icon, "Ctrl+Alt+S", keywords = listOf("screenshot", "capture", "snip")) {},
+        // Listed with a web page in the focused pane
+        PaletteCommand("whole_page_screenshot", "Screenshot whole page", icon, keywords = listOf("capture", "full", "long", "scrolling")) {},
         PaletteCommand("history", "History", icon, "Ctrl+H", keywords = listOf("recent")) {},
         PaletteCommand("downloads", "Downloads", icon, "Ctrl+J", keywords = listOf("files")) {},
         PaletteCommand("extensions", "Extensions", icon, keywords = listOf("addons")) {},
@@ -147,8 +149,20 @@ class CommandPaletteResultsTest {
         listOf("she", "con", "add", "cap").forEach { typed -> assertEquals(typed, "go", rankedInGoTo(typed).first()) }
         assertEquals("go_to_address", ranked("add").first())
         assertEquals(listOf("new_terminal", "go"), ranked("shel").take(2))
-        assertEquals(listOf("screenshot", "go"), ranked("capt").take(2))
+        assertEquals(listOf("screenshot", "whole_page_screenshot", "go"), ranked("capt").take(3))
         assertEquals(listOf("settings", "go"), ranked("pref").take(2))
+    }
+
+    @Test
+    fun screenshotWholePage_isFoundByItsWords_andTakeScreenshotComesFirstForTheirShared() {
+        assertEquals(listOf("whole_page_screenshot", "go"), ranked("whole").take(2))
+        assertEquals(listOf("whole_page_screenshot", "go"), ranked("full").take(2))
+        assertEquals(listOf("whole_page_screenshot", "go"), ranked("scrolling").take(2))
+        assertEquals(listOf("whole_page_screenshot", "go"), ranked("screenshot whole").take(2))
+        // Both are screenshots: the shorter name first, then the other, then the search
+        assertEquals(listOf("screenshot", "whole_page_screenshot", "go"), ranked("screenshot").take(3))
+        // "page" names Find in page first, as the shorter
+        assertEquals(listOf("find_in_page", "whole_page_screenshot", "go"), ranked("page").take(3))
     }
 
     @Test

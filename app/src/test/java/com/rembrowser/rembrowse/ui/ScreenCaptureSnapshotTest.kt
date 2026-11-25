@@ -1,8 +1,10 @@
 package com.rembrowser.rembrowse.ui
 
+import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +24,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTouchInput
@@ -29,6 +32,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
@@ -52,6 +56,7 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assume.assumeTrue
@@ -63,9 +68,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Renders the screenshot overlay (with a selection, and lighting up a pane) and the notice after
- * it to PNG files, for design review, like [UiSnapshotTest]. Skipped unless a target directory is
- * given: `./gradlew testDebugUnitTest -Prembrowse.screenshots=build/ui-screenshots`
+ * Renders the screenshot overlay (with a selection, lighting up a pane, and its Whole page button)
+ * and the notices after it (a whole page's with Save, while one is taken, too long, saved) to PNG
+ * files, for design review, like [UiSnapshotTest]. Skipped unless a target directory is given:
+ * `./gradlew testDebugUnitTest -Prembrowse.screenshots=build/ui-screenshots`
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -81,6 +87,13 @@ class ScreenCaptureSnapshotTest {
     private val engine = FakeBrowserEngine()
     private val chrome = BrowserChromeState()
     private var copies = true
+
+    /** What the activity's whole-page copy answers; by default the page is copied. */
+    private var wholePage: suspend () -> ScreenshotResult = {
+        // The top of the page, 4:3, as the activity makes it
+        ScreenshotResult.Copied(sampleThumbnail(1600, 1200), 2560, 24_310, wholePage = true)
+    }
+    private var saved: ScreenshotResult = ScreenshotResult.Saved("Screenshot 2026-11-25 at 14.03.22.png")
 
     @Before
     fun setUp() {
@@ -135,6 +148,8 @@ class ScreenCaptureSnapshotTest {
                                 ScreenshotResult.Failed
                             }
                         },
+                        onCaptureWholePage = { wholePage() },
+                        onSaveScreenshot = { saved },
                         paneViewport = { tab, modifier -> SamplePage(tab, modifier) },
                         extensionPopupContent = {}
                     )
@@ -261,6 +276,116 @@ class ScreenCaptureSnapshotTest {
             moveTo(Offset(600f, 1000f))
         }
         save("capture-11-selection-phone-light")
+    }
+
+    private val wholePageButton get() = composeRule.onNodeWithTag("screen_capture_whole_page")
+
+    @Test
+    fun wholePageButtonWideLight() {
+        launch(dark = false)
+        startCapture()
+        save("capture-12-whole-page-button-wide-light")
+        // Its tooltip names the key
+        wholePageButton.performMouseInput { moveTo(center) }
+        composeRule.mainClock.advanceTimeBy(500)
+        save("capture-13-whole-page-tooltip-wide-light")
+    }
+
+    @Test
+    fun wholePageNoticeWideDark() {
+        launch(dark = true)
+        startCapture()
+        wholePageButton.performClick()
+        save("capture-14-whole-page-notice-wide-dark")
+    }
+
+    @Test
+    fun wholePageNoticeWideLight() {
+        launch(dark = false)
+        startCapture()
+        overlay.performKeyInput { pressKey(Key.P) }
+        save("capture-15-whole-page-notice-wide-light")
+        composeRule.onNodeWithTag("screenshot_notice_save").performClick()
+        save("capture-16-whole-page-saved-wide-light")
+    }
+
+    @Test
+    fun wholePageProgressWideDark() {
+        wholePage = { awaitCancellation() }
+        launch(dark = true)
+        startCapture()
+        wholePageButton.performClick()
+        // The loading indicator never stops: from here the clock is moved by hand, between the
+        // click's own work on the main thread and the frames that show what it did
+        composeRule.mainClock.autoAdvance = false
+        repeat(3) {
+            composeRule.waitForIdle()
+            composeRule.mainClock.advanceTimeBy(150)
+        }
+        save("capture-17-whole-page-progress-wide-dark")
+    }
+
+    @Test
+    fun wholePageProgressWideLightWithoutAnimations() {
+        // Remove animations: the loading indicator holds still, as an hourglass
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        try {
+            wholePage = { awaitCancellation() }
+            launch(dark = false)
+            startCapture()
+            wholePageButton.performClick()
+            save("capture-18-whole-page-progress-still-wide-light")
+        } finally {
+            Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        }
+    }
+
+    @Test
+    fun pageTooLongWideDark() {
+        wholePage = { ScreenshotResult.TooLong }
+        launch(dark = true)
+        startCapture()
+        wholePageButton.performClick()
+        save("capture-19-too-long-wide-dark")
+    }
+
+    @Test
+    fun saveFailedWideDark() {
+        saved = ScreenshotResult.NotSaved
+        launch(dark = true)
+        startCapture()
+        wholePageButton.performClick()
+        composeRule.onNodeWithTag("screenshot_notice_save").performClick()
+        save("capture-20-not-saved-wide-dark")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun wholePageButtonPhoneLight() {
+        launch(dark = false, layout = LayoutMode.SINGLE_1X1)
+        startCapture()
+        save("capture-21-whole-page-button-phone-light")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun wholePageNoticePhoneDark() {
+        launch(dark = true, layout = LayoutMode.SINGLE_1X1)
+        startCapture()
+        wholePageButton.performClick()
+        save("capture-22-whole-page-notice-phone-dark")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi", fontScale = 1.3f)
+    fun wholePageButtonPhoneLargeTextDark() {
+        launch(dark = true, layout = LayoutMode.SINGLE_1X1)
+        startCapture()
+        save("capture-23-whole-page-button-phone-font130-dark")
+        wholePage = { ScreenshotResult.TooLong }
+        wholePageButton.performClick()
+        save("capture-24-too-long-phone-font130-dark")
     }
 }
 

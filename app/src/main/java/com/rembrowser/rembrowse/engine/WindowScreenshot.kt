@@ -48,6 +48,66 @@ private suspend fun GeckoView.awaitPagePixels(): Bitmap? = suspendCancellableCor
     )
 }
 
+/** What became of asking the engine for a whole page ([captureWholePage]). */
+sealed interface WholePageShot {
+    /** The page, top to bottom; the caller recycles it. */
+    class Taken(val picture: Bitmap) : WholePageShot
+
+    /** Too long to take: over the pixel budget, or out of memory for its picture. */
+    data object TooLong : WholePageShot
+
+    /** The engine couldn't draw it (no page yet, or it went away). */
+    data object Failed : WholePageShot
+}
+
+/**
+ * The whole page in this view, scrolled-out parts included, drawn by the engine
+ * (`GeckoView.captureFullPage`, GeckoView 157 and later) at the screen's density. Frames from
+ * other sites, drawn by the compositor, should be in it as on screen (not yet checked on a
+ * device). Call it on the main thread.
+ *
+ * The engine reports the page's size only with the picture it has drawn, so a page over
+ * [maxPixels] is refused as soon as that arrives, before anything is copied or encoded, and the
+ * picture is let go of at once. A picture the engine has no memory for is refused the same way:
+ * the engine hands that failure back as an [OutOfMemoryError] rather than throwing it, and one
+ * larger than Android makes at all as a failure caused by an [IllegalArgumentException].
+ *
+ * Cancelling it frees the picture whenever it arrives.
+ */
+suspend fun GeckoView.captureWholePage(maxPixels: Long): WholePageShot = suspendCancellableCoroutine { continuation ->
+    fun finish(shot: WholePageShot) {
+        if (continuation.isActive) continuation.resume(shot)
+    }
+    val result = try {
+        captureFullPage()
+    } catch (e: RuntimeException) {
+        Log.w(TAG, "The whole page couldn't be asked for", e)
+        finish(WholePageShot.Failed)
+        return@suspendCancellableCoroutine
+    }
+    result.accept(
+        { bitmap ->
+            when {
+                bitmap == null -> finish(WholePageShot.Failed)
+                bitmap.width.toLong() * bitmap.height > maxPixels -> {
+                    bitmap.recycle()
+                    finish(WholePageShot.TooLong)
+                }
+                // A screenshot given up on meanwhile lets go of the picture at once
+                else -> continuation.resume(WholePageShot.Taken(bitmap)) { _, shot, _ ->
+                    (shot as? WholePageShot.Taken)?.picture?.recycle()
+                }
+            }
+        },
+        { error ->
+            Log.w(TAG, "The whole page couldn't be captured", error)
+            val tooLarge = error is OutOfMemoryError || error?.cause is OutOfMemoryError ||
+                error?.cause is IllegalArgumentException
+            finish(if (tooLarge) WholePageShot.TooLong else WholePageShot.Failed)
+        }
+    )
+}
+
 /**
  * Takes a screenshot of part of RemBrowse's own window, as it looks: pages, toolbar and rail. Not
  * other apps, so it needs no screen-recording permission.

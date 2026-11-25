@@ -174,8 +174,9 @@ internal class BrowserKeys(
     }
 
     /**
-     * While the screenshot overlay is up, Esc cancels it and Enter takes the focused pane, and no
-     * other key press reaches the page or terminal underneath (see [KeyboardShortcuts.screenCaptureKey]).
+     * While the screenshot overlay is up, Esc cancels it, Enter takes the focused pane and P its
+     * whole page, and no other key press reaches the page or terminal underneath (see
+     * [KeyboardShortcuts.screenCaptureKey]).
      * Read before the keyboard app, which may keep Esc for itself or turn it into Back. A press
      * taken here is followed by its release (see [takenKeys]), even after the overlay has gone.
      * Releases of keys held down from before (Ctrl and Alt of Ctrl+Alt+S) still go where they go.
@@ -183,7 +184,11 @@ internal class BrowserKeys(
     private fun interceptKeyForScreenCapture(event: KeyEvent): Boolean {
         val capture = chrome.screenCapture
         if (!capture.isSelecting || event.action != KeyEvent.ACTION_DOWN) return false
-        val action = KeyboardShortcuts.screenCaptureKey(keyCode = event.keyCode, isSystemKey = event.isSystem)
+        val action = KeyboardShortcuts.screenCaptureKey(
+            keyCode = event.keyCode,
+            isSystemKey = event.isSystem,
+            noModifiers = event.hasNoModifiers()
+        )
         if (action == ScreenCaptureKey.PASS) return false
         // A key held from before the overlay keeps repeating: kept from the page, but not taken,
         // so its release still reaches the page that saw it go down
@@ -194,6 +199,7 @@ internal class BrowserKeys(
             ScreenCaptureKey.CANCEL -> capture.cancel()
             // The overlay knows where the panes are, so it does the taking
             ScreenCaptureKey.CAPTURE_FOCUSED -> capture.requestFocusedCapture()
+            ScreenCaptureKey.CAPTURE_WHOLE_PAGE -> capture.requestWholePageCapture()
             else -> Unit
         }
         return true

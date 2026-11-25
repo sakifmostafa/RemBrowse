@@ -1,6 +1,8 @@
 package com.rembrowser.rembrowse.ui
 
+import android.app.Application
 import android.graphics.Bitmap
+import android.provider.Settings
 import android.view.View
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -16,8 +18,11 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -31,7 +36,9 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
@@ -94,6 +101,22 @@ class ScreenCaptureUiTest {
     private val requests = mutableListOf<PxRect>()
     private var copies = true
 
+    /** The tabs whose whole page the screen asked to be copied. */
+    private val wholePages = mutableListOf<String>()
+
+    /** The activity's part for a whole page: by default copied at once, 1280 by 24,000 pixels. */
+    private var wholePageCapturer: suspend (String) -> ScreenshotResult = { tabId ->
+        wholePages += tabId
+        ScreenshotResult.Copied(Bitmap.createBitmap(144, 80, Bitmap.Config.ARGB_8888).asImageBitmap(), 1280, 24_000, wholePage = true)
+    }
+
+    /** How many times the notice's Save asked for the whole page to be saved. */
+    private var saves = 0
+    private var saver: suspend () -> ScreenshotResult = {
+        saves++
+        ScreenshotResult.Saved("Screenshot 2026-11-25 at 14.03.22.png")
+    }
+
     /** The activity's part: by default the screenshot is copied at once. */
     private var capturer: suspend (PxRect) -> ScreenshotResult = { area ->
         requests += area
@@ -107,6 +130,14 @@ class ScreenCaptureUiTest {
     @After
     fun tearDown() {
         uiScope.cancel()
+        setAnimatorScale(1f)
+    }
+
+    /** Android's animator duration scale; 0 is Remove animations. */
+    private fun setAnimatorScale(scale: Float) {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, scale)
+        context.contentResolver.notifyChange(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), null)
     }
 
     private fun launch(viewport: @Composable (BrowserTab, Modifier) -> Unit = { _, modifier -> Box(modifier) }) {
@@ -121,6 +152,8 @@ class ScreenCaptureUiTest {
                         versionName = "test",
                         onPickLocalXpi = {},
                         onCaptureScreen = { area -> capturer(area) },
+                        onCaptureWholePage = { tabId -> wholePageCapturer(tabId) },
+                        onSaveScreenshot = { saver() },
                         paneViewport = viewport,
                         extensionPopupContent = { Box(it) }
                     )
@@ -131,13 +164,19 @@ class ScreenCaptureUiTest {
     }
 
     private fun loadPage(url: String = "https://example.com/", title: String = "Example") {
-        val tab = browserVm.uiState.value.activeTabId!!
+        loadPageIn(browserVm.uiState.value.activePaneIndex, url, title)
+    }
+
+    private fun loadPageIn(pane: Int, url: String = "https://example.com/", title: String = "Example") {
+        val tab = browserVm.uiState.value.paneTabIds[pane]
         composeRule.runOnUiThread {
-            browserVm.navigatePane(browserVm.uiState.value.activePaneIndex, url)
+            browserVm.navigatePane(pane, url)
             engine.sessions.getValue(tab).simulatePageLoad(url, title, canGoBack = false)
         }
         composeRule.waitForIdle()
     }
+
+    private val wholePageButton get() = composeRule.onNodeWithTag("screen_capture_whole_page")
 
     private fun startCapture() {
         composeRule.runOnUiThread { assertTrue(capture.start()) }
@@ -530,5 +569,232 @@ class ScreenCaptureUiTest {
         composeRule.waitForIdle()
 
         composeRule.runOnUiThread { assertTrue(page!!.isFocused) }
+    }
+
+    @Test
+    fun theWholePageButton_isOfferedForAWebPage_notTheStartPage_andTakesTheFocusedPanesPage() {
+        launch()
+        startCapture()
+        wholePageButton.assertDoesNotExist()
+        overlay.performKeyInput { pressKey(Key.Escape) }
+        composeRule.waitForIdle()
+
+        loadPage()
+        val tab = browserVm.uiState.value.activeTabId!!
+        startCapture()
+        wholePageButton.assertIsDisplayed()
+            .assertTextEquals("Whole page")
+            .assertHasClickAction()
+            .assertHeightIsEqualTo(48.dp)
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Focused))
+        wholePageButton.performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(tab), wholePages)
+        assertEquals("Nothing of the window is copied", emptyList<PxRect>(), requests)
+        overlay.assertDoesNotExist()
+        composeRule.onNodeWithText("Whole page copied").assertIsDisplayed()
+        composeRule.onNodeWithText("1280 × 24000 px").assertIsDisplayed()
+        composeRule.onNodeWithTag("screenshot_notice_save").assertIsDisplayed().assertTextEquals("Save")
+    }
+
+    @Test
+    fun theWholePageButtonsTooltip_namesItsKey() {
+        launch()
+        loadPage()
+        startCapture()
+        wholePageButton.performMouseInput { moveTo(center) }
+        // Inside the 1.5s a plain tooltip stays up
+        composeRule.mainClock.advanceTimeBy(500)
+        composeRule.onNodeWithText("Capture the whole page (P)").assertExists()
+    }
+
+    @Test
+    fun p_takesTheWholePageUnderTheMouse_elseTheFocusedPanes_butNeverAStartPage() {
+        launch()
+        composeRule.runOnUiThread { browserVm.setLayoutMode(LayoutMode.SPLIT_1X2) }
+        composeRule.waitForIdle()
+        loadPageIn(0)
+        val left = browserVm.uiState.value.paneTabIds[0]
+        val right = browserVm.uiState.value.paneTabIds[1]
+        val rightPane = windowBoundsOf("browser_pane_1")
+
+        // The right pane shows the start page: under the mouse, P takes nothing
+        startCapture()
+        var origin = overlayOrigin()
+        overlay.performMouseInput { moveTo(Offset(rightPane.left + 100f - origin.x, rightPane.top + 100f - origin.y)) }
+        overlay.performKeyInput { pressKey(Key.P) }
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), wholePages)
+        overlay.assertIsDisplayed()
+        overlay.performKeyInput { pressKey(Key.Escape) }
+        composeRule.waitForIdle()
+
+        loadPageIn(1, "https://news.example.com/", "News")
+        startCapture()
+        origin = overlayOrigin()
+        overlay.performMouseInput { moveTo(Offset(rightPane.left + 100f - origin.x, rightPane.top + 100f - origin.y)) }
+        overlay.performKeyInput { pressKey(Key.P) }
+        composeRule.waitForIdle()
+        assertEquals("The page under the mouse", listOf(right), wholePages)
+
+        // Over the toolbar, no pane is under the mouse: the focused one
+        composeRule.runOnUiThread { browserVm.focusPane(0) }
+        startCapture()
+        overlay.performMouseInput { moveTo(Offset(200f, 26f)) }
+        overlay.performKeyInput { pressKey(Key.P) }
+        composeRule.waitForIdle()
+        assertEquals(listOf(right, left), wholePages)
+    }
+
+    @Test
+    fun pReadByTheActivity_takesTheWholePageToo_andAScreenReaderHasItAsAnAction() {
+        launch()
+        loadPage()
+        val tab = browserVm.uiState.value.activeTabId!!
+        startCapture()
+        val actions = overlay.fetchSemanticsNode().config.getOrNull(SemanticsActions.CustomActions).orEmpty()
+        assertEquals(
+            listOf("Capture the focused pane", "Capture the whole window", "Capture the whole page"),
+            actions.map { it.label }
+        )
+
+        composeRule.runOnUiThread { capture.requestWholePageCapture() }
+        composeRule.waitForIdle()
+        assertEquals(listOf(tab), wholePages)
+
+        startCapture()
+        composeRule.runOnUiThread { actions.last().action() }
+        composeRule.waitForIdle()
+        assertEquals(listOf(tab, tab), wholePages)
+    }
+
+    @Test
+    fun aPageTooLongToTake_saysSoPlainly() {
+        wholePageCapturer = { tabId ->
+            wholePages += tabId
+            ScreenshotResult.TooLong
+        }
+        launch()
+        loadPage()
+        startCapture()
+        wholePageButton.performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("This page is too long to capture whole").assertIsDisplayed()
+        composeRule.onNodeWithText("Capture part of it with Ctrl+Alt+S").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Error", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("screenshot_notice_save").assertDoesNotExist()
+        assertEquals(ScreenCaptureState.Phase.IDLE, capture.phase)
+    }
+
+    @Test
+    fun theNoticesSave_putsTheWholePageInDownloads_andSaysWhere() {
+        launch()
+        loadPage()
+        startCapture()
+        wholePageButton.performClick()
+        composeRule.waitForIdle()
+
+        // A notice with a button stays longer than the 4 seconds of the others
+        composeRule.mainClock.advanceTimeBy(5_000)
+        composeRule.onNodeWithTag("screenshot_notice_save").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(1, saves)
+        composeRule.onNodeWithText("Saved to Downloads").assertIsDisplayed()
+        composeRule.onNodeWithText("Screenshot 2026-11-25 at 14.03.22.png").assertIsDisplayed()
+        composeRule.onNodeWithTag("screenshot_notice_save").assertDoesNotExist()
+
+        composeRule.mainClock.advanceTimeBy(4_500)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("screenshot_notice").assertDoesNotExist()
+    }
+
+    @Test
+    fun aSaveThatFails_saysSo() {
+        saver = {
+            saves++
+            ScreenshotResult.NotSaved
+        }
+        launch()
+        loadPage()
+        startCapture()
+        wholePageButton.performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("screenshot_notice_save").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Couldn't save the screenshot").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Error", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun whileAWholePageIsTaken_theNoticeSaysSo_stillWithAnimationsOff_andItsCancelGivesUpOnIt() {
+        // Remove animations: the loading indicator holds still (and the test needn't wait it out)
+        setAnimatorScale(0f)
+        var cancelled = 0
+        wholePageCapturer = { tabId ->
+            wholePages += tabId
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled++
+            }
+        }
+        launch()
+        loadPage()
+        startCapture()
+        wholePageButton.performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("screenshot_progress").assertIsDisplayed()
+        composeRule.onNodeWithText("Capturing the whole page…").assertIsDisplayed()
+        composeRule.onNodeWithTag("loading_indicator_still", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Cancel").assertIsDisplayed()
+        composeRule.onNodeWithTag("screenshot_progress_cancel").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(1, cancelled)
+        assertEquals(ScreenCaptureState.Phase.IDLE, capture.phase)
+        composeRule.onNodeWithTag("screenshot_progress").assertDoesNotExist()
+        composeRule.onNodeWithTag("screenshot_notice").assertDoesNotExist()
+    }
+
+    @Test
+    fun theCommandPalette_offersTheWholePage_onlyWithAWebPageInTheFocusedPane() {
+        launch()
+        composeRule.runOnUiThread { chrome.showCommandPalette = true }
+        composeRule.onNodeWithTag("command_palette_input").performTextInput("whole")
+        composeRule.onNodeWithTag("palette_whole_page_screenshot").assertDoesNotExist()
+        composeRule.runOnUiThread { chrome.showCommandPalette = false }
+        composeRule.waitForIdle()
+
+        loadPage()
+        val tab = browserVm.uiState.value.activeTabId!!
+        composeRule.runOnUiThread { chrome.showCommandPalette = true }
+        composeRule.onNodeWithTag("command_palette_input").performTextInput("whole")
+        composeRule.onNodeWithText("Screenshot whole page").assertIsDisplayed()
+        composeRule.onNodeWithTag("palette_whole_page_screenshot").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("command_palette").assertDoesNotExist()
+        // Straight to the clipboard, without the overlay
+        overlay.assertDoesNotExist()
+        assertEquals(listOf(tab), wholePages)
+        composeRule.onNodeWithText("Whole page copied").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h720dp-port-xhdpi")
+    fun onAPhone_theWholePageButtonGoesUnderTheHintsWords() {
+        launch()
+        loadPage()
+        startCapture()
+        val words = composeRule.onNodeWithText("Drag to capture an area · Tap a page to capture all of it", substring = true)
+            .fetchSemanticsNode().boundsInWindow
+        val button = wholePageButton.assertIsDisplayed().fetchSemanticsNode().boundsInWindow
+        assertTrue("Under the words: $button, $words", button.top >= words.bottom)
+        wholePageButton.assertHeightIsEqualTo(48.dp)
     }
 }

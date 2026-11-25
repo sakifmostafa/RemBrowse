@@ -14,14 +14,18 @@ fun ShortcutHelp.modifierState(): Int =
  * The browser's shortcuts as the system's Keyboard Shortcuts sheet (Meta+/ on a keyboard, or
  * Keyboard shortcuts in the command palette) takes them, one group per entry of
  * [KeyboardShortcuts.helpGroups]: with a terminal focused ([inTerminal]), the keys that reach the
- * browser there.
+ * browser there. Then the screenshot overlay's own keys ([overlayKeys]), pressed alone.
  */
 fun keyboardShortcutGroups(
     inTerminal: Boolean = false,
-    groups: List<Pair<String, List<ShortcutHelp>>> = KeyboardShortcuts.helpGroups(inTerminal)
+    groups: List<Pair<String, List<ShortcutHelp>>> = KeyboardShortcuts.helpGroups(inTerminal),
+    overlayKeys: Pair<String, List<ScreenCaptureKeyHelp>> = KeyboardShortcuts.SCREEN_CAPTURE_HELP
 ): List<KeyboardShortcutGroup> = groups.map { (title, items) ->
     KeyboardShortcutGroup(
         title,
         items.map { KeyboardShortcutInfo(it.label, it.keyCode, it.modifierState()) }
     )
-}
+} + KeyboardShortcutGroup(
+    overlayKeys.first,
+    overlayKeys.second.map { KeyboardShortcutInfo(it.label, it.keyCode, 0) }
+)

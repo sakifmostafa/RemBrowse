@@ -270,6 +270,40 @@ class KeyboardShortcutsTest {
     }
 
     @Test
+    fun whileTheScreenshotOverlayIsUp_pAlone_takesTheWholePage() {
+        fun key(code: Int, noModifiers: Boolean = true) =
+            KeyboardShortcuts.screenCaptureKey(code, isSystemKey = false, noModifiers = noModifiers)
+
+        assertEquals(ScreenCaptureKey.CAPTURE_WHOLE_PAGE, key(KeyEvent.KEYCODE_P))
+        assertEquals("P alone is the default", ScreenCaptureKey.CAPTURE_WHOLE_PAGE,
+            KeyboardShortcuts.screenCaptureKey(KeyEvent.KEYCODE_P, isSystemKey = false))
+        // Ctrl+P (print) and Shift+P are kept from the page, as every other key is
+        assertEquals(ScreenCaptureKey.SWALLOW, key(KeyEvent.KEYCODE_P, noModifiers = false))
+        // Enter and Esc don't care about modifiers, as before
+        assertEquals(ScreenCaptureKey.CAPTURE_FOCUSED, key(KeyEvent.KEYCODE_ENTER, noModifiers = false))
+        assertEquals(ScreenCaptureKey.CANCEL, key(KeyEvent.KEYCODE_ESCAPE, noModifiers = false))
+        assertEquals("P", KeyboardShortcuts.WHOLE_PAGE_KEY)
+    }
+
+    @Test
+    fun theSheetsScreenshotGroup_listsTheOverlaysKeys_andEachDoesWhatItSays() {
+        val (title, rows) = KeyboardShortcuts.SCREEN_CAPTURE_HELP
+        assertEquals("While taking a screenshot", title)
+        assertEquals(
+            listOf("Capture the focused pane", "Capture the whole page", "Cancel the screenshot"),
+            rows.map { it.label }
+        )
+        rows.forEach { help ->
+            assertEquals(
+                help.label,
+                help.key,
+                KeyboardShortcuts.screenCaptureKey(help.keyCode, isSystemKey = false, noModifiers = true)
+            )
+        }
+        assertEquals(KeyEvent.KEYCODE_P, rows.single { it.key == ScreenCaptureKey.CAPTURE_WHOLE_PAGE }.keyCode)
+    }
+
+    @Test
     fun everyShortcutInTheSystemSheet_pressesWhatItSays() {
         val all = KeyboardShortcuts.HELP_GROUPS.flatMap { it.second }
         all.forEach { help ->

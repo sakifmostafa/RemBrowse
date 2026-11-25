@@ -112,4 +112,37 @@ class ScreenCaptureGeometryTest {
         assertEquals(PxRect(10, 20, 110, 120), a.offset(10, 20))
         assertTrue(PxRect(5, 5, 5, 50).isEmpty)
     }
+
+    @Test
+    fun aWholePage_isTakenUpTo64Megapixels() {
+        assertEquals(64_000_000L, CaptureGeometry.WHOLE_PAGE_MAX_PIXELS)
+        assertTrue("A long article on a laptop", CaptureGeometry.fitsWholePage(2560, 20_000))
+        assertTrue("Exactly the budget", CaptureGeometry.fitsWholePage(2000, 32_000))
+        assertFalse("One row more", CaptureGeometry.fitsWholePage(2000, 32_001))
+        assertFalse("A 30,000 px page at twice the density", CaptureGeometry.fitsWholePage(2560, 60_000))
+        // Past what an Int can count, without overflowing
+        assertFalse(CaptureGeometry.fitsWholePage(100_000, 100_000))
+        assertFalse("Nothing to take", CaptureGeometry.fitsWholePage(0, 500))
+        assertFalse(CaptureGeometry.fitsWholePage(500, 0))
+    }
+
+    @Test
+    fun theWholePageKey_takesThePaneUnderTheMouse_elseTheFocusedOne_butOnlyAWebPage() {
+        val pages = setOf("pane:a", "pane:b")
+        assertEquals("pane:b", CaptureGeometry.wholePageTarget(hoveredKey = "pane:b", focusedKey = "pane:a", pageKeys = pages))
+        assertEquals("No mouse over a pane", "pane:a", CaptureGeometry.wholePageTarget(null, "pane:a", pages))
+        assertNull("Over a terminal: not the focused page either", CaptureGeometry.wholePageTarget("pane:t", "pane:a", pages))
+        assertNull("Over the tab switcher", CaptureGeometry.wholePageTarget("tab_switcher", "pane:a", pages))
+        assertNull("The focused pane shows the start page", CaptureGeometry.wholePageTarget(null, "pane:s", pages))
+        assertNull(CaptureGeometry.wholePageTarget(null, null, pages))
+    }
+
+    @Test
+    fun theNoticesPicture_showsTheTopOfAWholePage() {
+        // 4:3, as the notice shows it
+        val aspect = 4f / 3f
+        assertEquals(PxRect(0, 0, 1600, 1200), CaptureGeometry.topOfPage(1600, 24_000, aspect))
+        assertEquals("Rounded to a whole row", PxRect(0, 0, 1081, 811), CaptureGeometry.topOfPage(1081, 30_000, aspect))
+        assertEquals("A page shorter than that is shown whole", PxRect(0, 0, 1600, 400), CaptureGeometry.topOfPage(1600, 400, aspect))
+    }
 }

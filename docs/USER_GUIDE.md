@@ -51,9 +51,12 @@ On a phone-sized window the rail is replaced by a **tab counter** in the toolbar
 
 * **Drag** around any part of the window (pages, toolbar and tabs) to capture it; a label shows its size as you drag.
 * **Click** a page to capture all of it.
+* **Whole page**, the button beside the instructions (under them on a phone), captures the whole page in the focused pane, top to bottom, with the parts scrolled out of view. `P` does the same; with a mouse, it captures the page under the pointer instead. It is offered for web pages, not for the start page, Settings or a terminal. **Screenshot whole page** in the command palette captures the focused page's whole page without the overlay.
 * **Esc**, Back or a right-click cancels.
 
 The picture is copied to the clipboard straight away, and a small notice with a thumbnail confirms it. Paste it with `Ctrl+V` into a chat (Telegram, WhatsApp…) in RemBrowse or in any other app. Only RemBrowse's own window is captured, never other apps, and only the latest screenshot is kept on the device.
+
+A long page takes a moment: a notice says the whole page is being captured, and its **×** cancels it. Then the notice shows the top of the page and has **Save**, which also puts it in Downloads as a PNG named after the time ("Screenshot 2026-11-25 at 14.03.22.png"), since a long page is too large to paste into most sites. A page over 64 megapixels (about 25,000 pixels tall on a laptop's 2,560-pixel-wide page) is not captured: the notice says "This page is too long to capture whole", and you can drag over part of it instead.
 
 ### Printing (`Ctrl+P`)
 
@@ -177,7 +180,7 @@ Press `Ctrl+K` (or **More → Command palette**), then type:
 * words to **search the web**, or an address to **open it** (a command whose name or keyword starts with what you type, three letters or more, comes first, as in Go to address: `ter` + Enter opens a terminal);
 * part of a tab's title to **switch to that tab**;
 * part of a page's title or address to **open it again from your history** (up to five matches, below the open tabs);
-* a command name: new tab, close tab, find in page, print, take screenshot, split view, expand or collapse the tab rail (`rail`), bookmarks, history, downloads, extensions, keyboard shortcuts, settings.
+* a command name: new tab, close tab, find in page, print, take screenshot, screenshot whole page (with a web page in the focused pane), split view, expand or collapse the tab rail (`rail`), bookmarks, history, downloads, extensions, keyboard shortcuts, settings.
 
 Use ↑/↓ to move, Enter to run, Esc to close.
 
@@ -380,7 +383,7 @@ Some requests are answered without asking: sites may keep their data on the devi
 | `Ctrl + K` | Command palette |
 | `Ctrl + F` | Find in page (Esc closes it) |
 | `Ctrl + P` | Print or save as PDF |
-| `Ctrl + Alt + S` | Screenshot to the clipboard (drag an area, or click a page) |
+| `Ctrl + Alt + S` | Screenshot to the clipboard (drag an area, click a page, or `P` for the whole page) |
 | `Ctrl + click` / middle click | Open a link in a background tab (`Ctrl + Shift + click`: in front) |
 | `F3` / `Shift + F3` | Next / previous match |
 | `Ctrl + R` or `F5` | Reload / stop |
@@ -394,7 +397,7 @@ Some requests are answered without asking: sites may keep their data on the devi
 
 These work anywhere in the window, also while you are typing in a web page's text box.
 
-**The list on screen.** Android's Keyboard Shortcuts sheet (`Meta + /` on most keyboards) lists RemBrowse's shortcuts in five groups: Tabs, Navigation, Page, Split view and RemBrowse. It also opens from **More → Keyboard shortcuts** (shown when a keyboard is attached) and from **Keyboard shortcuts** in the command palette. While a terminal has the keyboard, it lists the keys that work there, such as `Ctrl + Shift + L` for the address bar (see below).
+**The list on screen.** Android's Keyboard Shortcuts sheet (`Meta + /` on most keyboards) lists RemBrowse's shortcuts in five groups: Tabs, Navigation, Page, Split view and RemBrowse, and the screenshot overlay's own keys (`Enter`, `P` and `Esc`) in a sixth, **While taking a screenshot**. It also opens from **More → Keyboard shortcuts** (shown when a keyboard is attached) and from **Keyboard shortcuts** in the command palette. While a terminal has the keyboard, it lists the keys that work there, such as `Ctrl + Shift + L` for the address bar (see below).
 
 **Moving around with the keyboard.** `Tab` and `Shift + Tab` move between the toolbar's buttons, the tabs in the rail, the cards in the tab switcher, the rows in Settings, History and Bookmarks, and the choices in dialogs; `Enter` presses the one with the focus. It is marked with Android's focus ring: two thin lines just inside its edge, the accent colour outside and a contrasting one inside, so it shows on any background. A control with an outline of its own (the **Split** button, the tabs and buttons on the rail, the cards in the tab switcher, the Settings sections, the command palette's rows) gets an accent ring just outside its outline instead, with a small gap, which shows even when the outline is already the accent colour. The ring shows only while you are using the keyboard; touching the screen hides it.
 

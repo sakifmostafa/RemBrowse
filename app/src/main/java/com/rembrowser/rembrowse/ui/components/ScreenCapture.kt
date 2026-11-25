@@ -11,7 +11,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -26,14 +28,22 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.HighlightAlt
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -105,17 +115,40 @@ object CaptureRegions {
     /** The tab switcher, drawn over the panes. */
     const val TAB_SWITCHER = "tab_switcher"
 
+    private const val PANE = "pane:"
+
     /** The pane showing [tabId]: its page, terminal or Settings. */
-    fun pane(tabId: String): String = "pane:$tabId"
+    fun pane(tabId: String): String = "$PANE$tabId"
+
+    /** The tab a pane's region [key] shows, or null for a region that is no pane. */
+    fun tabIdOf(key: String): String? = key.takeIf { it.startsWith(PANE) }?.removePrefix(PANE)
 }
 
-/** What became of a screenshot. */
+/** What became of a screenshot, or of saving one. */
 sealed interface ScreenshotResult {
-    /** It is on the clipboard: [width] by [height] pixels, with a small picture of it for the notice. */
-    class Copied(val thumbnail: ImageBitmap?, val width: Int, val height: Int) : ScreenshotResult
+    /**
+     * It is on the clipboard: [width] by [height] pixels, with a small picture of it for the
+     * notice. A [wholePage] (scrolled-out parts included) can be saved in Downloads from the notice
+     * too, and its picture is the top of the page.
+     */
+    class Copied(
+        val thumbnail: ImageBitmap?,
+        val width: Int,
+        val height: Int,
+        val wholePage: Boolean = false
+    ) : ScreenshotResult
 
     /** Nothing was copied. */
     data object Failed : ScreenshotResult
+
+    /** A whole page too long to take ([CaptureGeometry.WHOLE_PAGE_MAX_PIXELS]): nothing was copied. */
+    data object TooLong : ScreenshotResult
+
+    /** The whole page from the notice was saved in Downloads as [fileName]. */
+    class Saved(val fileName: String) : ScreenshotResult
+
+    /** The whole page from the notice couldn't be saved in Downloads. */
+    data object NotSaved : ScreenshotResult
 }
 
 /** The notice for [result]; [serial] tells one notice from the next, so each stays its full time. */
@@ -124,7 +157,8 @@ class ScreenshotNotice(val result: ScreenshotResult, val serial: Long)
 /**
  * The screenshot shortcut's state, kept with the browser chrome so the activity's keyboard
  * shortcut can start it: idle, choosing what to take (the overlay is up), or taking it (the
- * overlay is gone and the window is being copied). Main thread only.
+ * overlay is gone and the window is being copied, or the engine is drawing a whole page). Main
+ * thread only.
  */
 @Stable
 class ScreenCaptureState {
@@ -133,9 +167,20 @@ class ScreenCaptureState {
     var phase by mutableStateOf(Phase.IDLE)
         private set
 
-    /** The window pixels being taken, while [phase] is CAPTURING. */
+    /** The window pixels being taken, while [phase] is CAPTURING an area of the window. */
     var area by mutableStateOf<PxRect?>(null)
         private set
+
+    /** The tab whose whole page is being taken, while [phase] is CAPTURING a whole page. */
+    var wholePageTabId by mutableStateOf<String?>(null)
+        private set
+
+    /** Whether the whole page in the notice is being saved in Downloads (see [isSaving]). */
+    var saving by mutableStateOf(false)
+        private set
+
+    // The notice whose whole page is being saved
+    private var savingSerial = -1L
 
     /** The confirmation (or failure) of the last screenshot, until it leaves. */
     var notice by mutableStateOf<ScreenshotNotice?>(null)
@@ -145,6 +190,10 @@ class ScreenCaptureState {
 
     /** Counts requests to take the focused pane from outside the overlay (Enter, read by the activity). */
     var focusedCaptureRequests by mutableIntStateOf(0)
+        private set
+
+    /** Counts requests to take a whole page from outside the overlay (P, read by the activity). */
+    var wholePageRequests by mutableIntStateOf(0)
         private set
 
     // Written as panes are laid out and read only when the overlay is clicked, so a plain map:
@@ -171,6 +220,11 @@ class ScreenCaptureState {
         if (phase == Phase.SELECTING) focusedCaptureRequests++
     }
 
+    /** Asks the overlay to take a whole page, as P does: the pane under the mouse's, or the focused pane's. */
+    fun requestWholePageCapture() {
+        if (phase == Phase.SELECTING) wholePageRequests++
+    }
+
     /**
      * Counts the screenshots taken. A result is accepted only for the one under way, so one that
      * was given up on (it timed out) can't come back later as if it were the next.
@@ -183,7 +237,31 @@ class ScreenCaptureState {
         if (phase != Phase.SELECTING || area.isEmpty) return
         generation++
         this.area = area
+        wholePageTabId = null
         phase = Phase.CAPTURING
+    }
+
+    /**
+     * Takes the whole page shown in [tabId], scrolled-out parts included: from the overlay, which
+     * goes, or straight from the command palette. The engine draws the page by itself, so the
+     * notice can say meanwhile that it is being taken. False while another screenshot is being
+     * taken.
+     */
+    fun captureWholePage(tabId: String): Boolean {
+        if (phase == Phase.CAPTURING) return false
+        notice = null
+        generation++
+        area = null
+        wholePageTabId = tabId
+        phase = Phase.CAPTURING
+        return true
+    }
+
+    /** Gives up on the whole page being taken (the notice's Cancel): nothing is copied, and no notice follows. */
+    fun cancelWholePage() {
+        if (phase != Phase.CAPTURING || wholePageTabId == null) return
+        wholePageTabId = null
+        phase = Phase.IDLE
     }
 
     /**
@@ -193,6 +271,7 @@ class ScreenCaptureState {
     fun finish(result: ScreenshotResult, generation: Long): Boolean {
         if (phase != Phase.CAPTURING || generation != this.generation) return false
         area = null
+        wholePageTabId = null
         phase = Phase.IDLE
         notice = ScreenshotNotice(result, ++serial)
         return true
@@ -200,6 +279,35 @@ class ScreenCaptureState {
 
     fun dismissNotice() {
         notice = null
+    }
+
+    /**
+     * Starts saving the whole page in the notice in Downloads (its Save button). False, with
+     * nothing changed, when the notice holds no whole page or one is already being saved.
+     */
+    fun startSaving(): Boolean {
+        val current = notice ?: return false
+        if (saving || (current.result as? ScreenshotResult.Copied)?.wholePage != true) return false
+        saving = true
+        savingSerial = current.serial
+        return true
+    }
+
+    /** Whether [notice]'s whole page is the one being saved. */
+    fun isSaving(notice: ScreenshotNotice): Boolean = saving && notice.serial == savingSerial
+
+    /**
+     * The save is done: [result] says so in a notice of its own, in place of the one it came from
+     * (or of none, if that one has left). A notice of a later screenshot stays, and nothing is
+     * shown while another screenshot is being chosen or taken.
+     */
+    fun finishSaving(result: ScreenshotResult) {
+        if (!saving) return
+        saving = false
+        val current = notice
+        if (phase == Phase.IDLE && (current == null || current.serial == savingSerial)) {
+            notice = ScreenshotNotice(result, ++serial)
+        }
     }
 
     fun setRegion(key: String, bounds: PxRect, layer: Int = 0) {
@@ -266,13 +374,14 @@ internal fun screenCaptureHint(clicks: Boolean, hasKeyboard: Boolean): String = 
     if (hasKeyboard) add("Esc to cancel")
 }.joinToString(" · ")
 
-/** Where the overlay is in the window, and its hint; read by its gestures, so not state. */
+/** Where the overlay is in the window, its hint, and the region under the mouse; read by its gestures and keys, so not state. */
 private class OverlayFrame {
     var originX = 0
     var originY = 0
     var width = 0
     var height = 0
     var hint: PxRect? = null
+    var hoveredKey: String? = null
 
     val window: PxRect get() = PxRect(originX, originY, originX + width, originY + height)
 }
@@ -287,18 +396,23 @@ private class OverlayFrame {
  *   Settings), or the whole window over the toolbar and rail. With a mouse, the pane a click would
  *   take is lit up as the pointer moves over it.
  * - Esc, a right click or the hint's close button cancels; Enter takes the focused pane.
+ * - The whole page, scrolled-out parts included: the hint's Whole page button takes the focused
+ *   pane's, offered when that pane shows a web page; P takes the one under the mouse, else the
+ *   focused one (see [CaptureGeometry.wholePageTarget]).
  *
  * Call it over everything else in the window. It takes the keyboard focus while it is up (the
  * caller gives it back afterwards, see [FocusBeforeCapture]), and is announced to screen readers
  * as a pane with actions for each choice.
  *
  * @param focusedRegionKey what Enter takes: the tab switcher when it is open, else the active pane.
+ * @param wholePageKeys the panes (their region keys) that show a web page, whose whole page can be taken.
  */
 @Composable
 fun ScreenCaptureOverlay(
     state: ScreenCaptureState,
     focusedRegionKey: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    wholePageKeys: Set<String> = emptySet()
 ) {
     val colors = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -319,6 +433,18 @@ fun ScreenCaptureOverlay(
     val takeFocused = { take(CaptureGeometry.focusedTarget(latestFocusedKey, state.regions(), frame.window)) }
     val takeWindow = { take(frame.window) }
 
+    val latestPageKeys by rememberUpdatedState(wholePageKeys)
+    val wholePageOffered = focusedRegionKey != null && focusedRegionKey in wholePageKeys
+    val takeWholePageOf: (String?) -> Unit = { key ->
+        key?.let(CaptureRegions::tabIdOf)?.let { state.captureWholePage(it) }
+    }
+    // The button and screen readers: the focused pane's page
+    val takeFocusedWholePage = { takeWholePageOf(latestFocusedKey?.takeIf { it in latestPageKeys }) }
+    // P: the page under the mouse, else the focused one; nothing over a terminal or the start page
+    val takeWholePageByKey = {
+        takeWholePageOf(CaptureGeometry.wholePageTarget(frame.hoveredKey, latestFocusedKey, latestPageKeys))
+    }
+
     // The pages and terminals underneath keep their own cursors to themselves meanwhile
     val cursorClaim = LocalChromePointerIconClaim.current
     val claimant = remember { Any() }
@@ -327,10 +453,14 @@ fun ScreenCaptureOverlay(
         onDispose { cursorClaim.set(claimant, false) }
     }
 
-    // Enter, when the activity read it before it reached the overlay
+    // Enter and P, when the activity read them before they reached the overlay
     val requestsAtStart = remember { state.focusedCaptureRequests }
     LaunchedEffect(state.focusedCaptureRequests) {
         if (state.focusedCaptureRequests != requestsAtStart) takeFocused()
+    }
+    val wholePageRequestsAtStart = remember { state.wholePageRequests }
+    LaunchedEffect(state.wholePageRequests) {
+        if (state.wholePageRequests != wholePageRequestsAtStart) takeWholePageByKey()
     }
 
     val focus = remember { FocusRequester() }
@@ -370,11 +500,16 @@ fun ScreenCaptureOverlay(
                         val y = change.position.y + frame.originY
                         if (event.type == PointerEventType.Exit) {
                             hovered = null
+                            frame.hoveredKey = null
                             continue
                         }
                         if (!change.changedToDown()) {
                             // A mouse moving with nothing pressed: light up what a click would take
-                            if (!change.pressed) hovered = CaptureGeometry.regionAt(x, y, state.regions())?.bounds?.intersect(frame.window)
+                            if (!change.pressed) {
+                                val region = CaptureGeometry.regionAt(x, y, state.regions())
+                                frame.hoveredKey = region?.key
+                                hovered = region?.bounds?.intersect(frame.window)
+                            }
                             continue
                         }
                         // The hint's close button took it
@@ -406,6 +541,7 @@ fun ScreenCaptureOverlay(
                             if (!dragging && CaptureGeometry.isDrag(x, y, nx, ny, threshold)) {
                                 dragging = true
                                 hovered = null
+                                frame.hoveredKey = null
                             }
                             if (dragging) selection = CaptureGeometry.selection(x, y, nx, ny, frame.window)
                             moved.consume()
@@ -429,13 +565,17 @@ fun ScreenCaptureOverlay(
             // Before the focus target, so its keys pass through here
             .onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
-                when (KeyboardShortcuts.screenCaptureKey(key.keyCode, key.isSystem)) {
+                when (KeyboardShortcuts.screenCaptureKey(key.keyCode, key.isSystem, noModifiers = key.hasNoModifiers())) {
                     ScreenCaptureKey.CANCEL -> {
                         if (event.type == KeyEventType.KeyDown) cancel()
                         true
                     }
                     ScreenCaptureKey.CAPTURE_FOCUSED -> {
                         if (event.type == KeyEventType.KeyDown) takeFocused()
+                        true
+                    }
+                    ScreenCaptureKey.CAPTURE_WHOLE_PAGE -> {
+                        if (event.type == KeyEventType.KeyDown) takeWholePageByKey()
                         true
                     }
                     // Nothing reaches the page or terminal underneath while choosing
@@ -449,7 +589,7 @@ fun ScreenCaptureOverlay(
                 paneTitle = "Take screenshot"
                 // The hint itself is read from the pill; dragging has these actions instead
                 contentDescription = "Choose what to capture"
-                customActions = listOf(
+                customActions = listOfNotNull(
                     CustomAccessibilityAction("Capture the focused pane") {
                         takeFocused()
                         true
@@ -457,6 +597,14 @@ fun ScreenCaptureOverlay(
                     CustomAccessibilityAction("Capture the whole window") {
                         takeWindow()
                         true
+                    },
+                    if (wholePageOffered) {
+                        CustomAccessibilityAction("Capture the whole page") {
+                            takeFocusedWholePage()
+                            true
+                        }
+                    } else {
+                        null
                     }
                 )
                 dismiss(label = "Cancel screenshot") {
@@ -518,6 +666,7 @@ fun ScreenCaptureOverlay(
         CaptureHint(
             text = hint,
             onCancel = cancel,
+            onWholePage = if (wholePageOffered) takeFocusedWholePage else null,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -548,62 +697,116 @@ private fun DrawScope.drawCaptureOutline(rect: Rect, accent: Color, halo: Color,
     drawRect(accent, topLeft = accentRect.topLeft, size = accentRect.size, style = Stroke(accentWidth))
 }
 
-/** "Drag to capture an area · …", with a close button: a tonal pill like the find bar. */
+/**
+ * "Drag to capture an area · …", with the Whole page button when [onWholePage] is given, and a
+ * close button: a tonal pill like the find bar. Where the button doesn't fit beside the words
+ * (a phone-sized window), it goes under them.
+ */
 @Composable
-private fun CaptureHint(text: String, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+private fun CaptureHint(
+    text: String,
+    onCancel: () -> Unit,
+    onWholePage: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
     val colors = MaterialTheme.colorScheme
-    Surface(
-        modifier = modifier
-            .widthIn(max = 640.dp)
-            .pointerHoverIcon(PointerIcon.Default)
-            // A press on the hint is not the start of a selection
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        if (event.type == PointerEventType.Press) event.changes.forEach { it.consume() }
+    BoxWithConstraints(modifier = modifier) {
+        val buttonBelow = onWholePage != null && maxWidth < HintButtonBesideFrom
+        Surface(
+            modifier = Modifier
+                .widthIn(max = HintMaxWidth)
+                .pointerHoverIcon(PointerIcon.Default)
+                // A press on the hint is not the start of a selection
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Press) event.changes.forEach { it.consume() }
+                        }
                     }
                 }
-            }
-            .testTag("screen_capture_hint"),
-        shape = CircleShape,
-        color = colors.surfaceContainerHigh,
-        contentColor = colors.onSurface,
-        border = BorderStroke(1.dp, colors.outlineVariant),
-        shadowElevation = 6.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 44.dp)
-                .padding(start = 16.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .testTag("screen_capture_hint"),
+            // Two rows round off less, so the corners stay clear of the words
+            shape = if (buttonBelow) MaterialTheme.shapes.extraLarge else CircleShape,
+            color = colors.surfaceContainerHigh,
+            contentColor = colors.onSurface,
+            border = BorderStroke(1.dp, colors.outlineVariant),
+            shadowElevation = 6.dp
         ) {
-            Icon(
-                imageVector = Icons.Outlined.HighlightAlt,
-                contentDescription = null,
-                tint = colors.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+            Column(modifier = Modifier.padding(start = 16.dp, end = 4.dp)) {
+                Row(
+                    modifier = Modifier.heightIn(min = 44.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.HighlightAlt,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(vertical = 8.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (onWholePage != null && !buttonBelow) {
+                        WholePageButton(onClick = onWholePage)
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    VerticalDivider(modifier = Modifier.height(20.dp), color = colors.outlineVariant)
+                    RemIconButton(
+                        icon = Icons.Outlined.Close,
+                        label = "Cancel screenshot (Esc)",
+                        onClick = onCancel,
+                        size = 32.dp,
+                        iconSize = 18.dp,
+                        modifier = Modifier.testTag("screen_capture_cancel")
+                    )
+                }
+                if (onWholePage != null && buttonBelow) {
+                    // Its words in line with the hint's (the button's own padding is 12dp)
+                    WholePageButton(
+                        onClick = onWholePage,
+                        modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * "Whole page": takes the focused pane's whole page, scrolled-out parts included. A labelled
+ * Material text button, 48dp high, in the accent colour; its tooltip names the key (P) that does
+ * the same.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WholePageButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    // TooltipBox wraps its anchor in a box of its own, which would swallow the caller's padding
+    Box(modifier = modifier) {
+        TooltipBox(
+            // The hint is at the top of the window: below it there is room
+            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+            tooltip = { PlainTooltip { Text("Capture the whole page (${KeyboardShortcuts.WHOLE_PAGE_KEY})") } },
+            state = rememberTooltipState(),
+            focusable = false
+        ) {
+            TextButton(
+                onClick = onClick,
                 modifier = Modifier
-                    .weight(1f, fill = false)
-                    .padding(vertical = 8.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            VerticalDivider(modifier = Modifier.height(20.dp), color = colors.outlineVariant)
-            RemIconButton(
-                icon = Icons.Outlined.Close,
-                label = "Cancel screenshot (Esc)",
-                onClick = onCancel,
-                size = 32.dp,
-                iconSize = 18.dp,
-                modifier = Modifier.testTag("screen_capture_cancel")
-            )
+                    .height(WholePageButtonHeight)
+                    .testTag("screen_capture_whole_page"),
+                contentPadding = PaddingValues(horizontal = 12.dp)
+            ) {
+                Text(text = "Whole page", maxLines = 1)
+            }
         }
     }
 }
@@ -628,35 +831,74 @@ private fun SelectionSizeLabel(selection: PxRect) {
 }
 
 /**
+ * The notice's words for [result]: what happened, and a line under it (or none). [saving]: the
+ * whole page in it is being saved in Downloads.
+ */
+internal fun screenshotNoticeText(result: ScreenshotResult, saving: Boolean = false): Pair<String, String?> = when (result) {
+    is ScreenshotResult.Copied -> Pair(
+        if (result.wholePage) "Whole page copied" else "Screenshot copied",
+        if (saving) "Saving to Downloads…" else "${result.width} × ${result.height} px"
+    )
+    ScreenshotResult.Failed -> "Couldn't take the screenshot" to "Try again with Ctrl+Alt+S"
+    ScreenshotResult.TooLong -> "This page is too long to capture whole" to "Capture part of it with Ctrl+Alt+S"
+    is ScreenshotResult.Saved -> "Saved to Downloads" to result.fileName
+    ScreenshotResult.NotSaved -> "Couldn't save the screenshot" to null
+}
+
+/**
  * "Screenshot copied", with a small picture of it, over the bottom of the window like the download
  * notice; or a plain message when it failed, with the error icon (named "Error"). It leaves by
  * itself after a few seconds.
+ *
+ * A whole page ([ScreenshotResult.Copied.wholePage]) adds **Save**, which puts it in Downloads
+ * ([onSave]), since a long page is too large to paste into most places; its notice stays a little
+ * longer, and doesn't leave while it is being saved ([saving]). While a whole page is being taken
+ * ([takingWholePage], with no notice yet), it says so, with a Cancel button ([onCancelWholePage]).
  */
 @Composable
 fun ScreenshotNoticeBar(
     notice: ScreenshotNotice?,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    takingWholePage: Boolean = false,
+    onCancelWholePage: () -> Unit = {},
+    saving: Boolean = false,
+    onSave: () -> Unit = {}
 ) {
-    if (notice == null) return
+    if (notice == null) {
+        if (takingWholePage) WholePageProgress(onCancel = onCancelWholePage, modifier = modifier)
+        return
+    }
     val latestOnDismiss by rememberUpdatedState(onDismiss)
-    LaunchedEffect(notice.serial) {
-        delay(SCREENSHOT_NOTICE_MILLIS)
+    val result = notice.result
+    val copied = result as? ScreenshotResult.Copied
+    val saveable = copied?.wholePage == true
+    LaunchedEffect(notice.serial, saving) {
+        if (saving) return@LaunchedEffect
+        delay(if (saveable) SAVEABLE_NOTICE_MILLIS else SCREENSHOT_NOTICE_MILLIS)
         latestOnDismiss()
     }
-    val copied = notice.result as? ScreenshotResult.Copied
+    val (title, detail) = screenshotNoticeText(result, saving)
 
     NoticeSnackbar(
         testTag = "screenshot_notice",
         dismissLabel = "Dismiss",
         onDismiss = onDismiss,
         modifier = modifier,
-        dismissTestTag = "screenshot_notice_dismiss"
+        dismissTestTag = "screenshot_notice_dismiss",
+        actionLabel = if (saveable && !saving) "Save" else null,
+        actionTestTag = "screenshot_notice_save",
+        onAction = onSave
     ) {
-        if (copied != null) {
-            ScreenshotThumbnail(copied)
-        } else {
-            Icon(
+        when {
+            copied != null -> ScreenshotThumbnail(copied)
+            // The words say it was saved
+            result is ScreenshotResult.Saved -> Icon(
+                imageVector = Icons.Outlined.CheckCircle,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            else -> Icon(
                 imageVector = Icons.Outlined.ErrorOutline,
                 contentDescription = "Error",
                 modifier = Modifier.size(18.dp)
@@ -665,27 +907,65 @@ fun ScreenshotNoticeBar(
         Spacer(modifier = Modifier.width(12.dp))
         Column {
             Text(
-                text = if (copied != null) "Screenshot copied" else "Couldn't take the screenshot",
+                text = title,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = if (copied != null) "${copied.width} × ${copied.height} px" else "Try again with Ctrl+Alt+S",
-                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (detail != null) {
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
 
-/** The screenshot, small, at a fixed height and a width that follows its shape within limits. */
+/**
+ * "Capturing the whole page…" while the engine draws it and it is copied, which can take a few
+ * seconds for a long page; its close button gives up on it. Material's loading indicator, still
+ * with Remove animations on.
+ */
+@Composable
+private fun WholePageProgress(onCancel: () -> Unit, modifier: Modifier = Modifier) {
+    NoticeSnackbar(
+        testTag = "screenshot_progress",
+        dismissLabel = "Cancel",
+        onDismiss = onCancel,
+        modifier = modifier,
+        dismissTestTag = "screenshot_progress_cancel"
+    ) {
+        RemLoadingIndicator(
+            modifier = Modifier.size(20.dp),
+            color = MaterialTheme.colorScheme.inversePrimary
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "Capturing the whole page…",
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * The screenshot, small, at a fixed height and a width that follows its shape within limits. A
+ * whole page shows its top, as wide as the picture made of it.
+ */
 @Composable
 private fun ScreenshotThumbnail(copied: ScreenshotResult.Copied) {
     val colors = MaterialTheme.colorScheme
     val shape = MaterialTheme.shapes.extraSmall
-    val aspect = if (copied.height > 0) copied.width.toFloat() / copied.height else 1f
+    val picture = copied.thumbnail
+    val aspect = when {
+        copied.wholePage && picture != null && picture.height > 0 -> picture.width.toFloat() / picture.height
+        copied.height > 0 -> copied.width.toFloat() / copied.height
+        else -> 1f
+    }
     val width = (ThumbnailHeight * aspect).coerceIn(ThumbnailMinWidth, ThumbnailMaxWidth)
     Box(
         modifier = Modifier
@@ -696,12 +976,13 @@ private fun ScreenshotThumbnail(copied: ScreenshotResult.Copied) {
             .testTag("screenshot_thumbnail"),
         contentAlignment = Alignment.Center
     ) {
-        copied.thumbnail?.let { picture ->
+        picture?.let {
             // The text beside it says what it is
             Image(
-                bitmap = picture,
+                bitmap = it,
                 contentDescription = null,
-                contentScale = ContentScale.Fit,
+                contentScale = if (copied.wholePage) ContentScale.Crop else ContentScale.Fit,
+                alignment = Alignment.TopCenter,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -716,4 +997,19 @@ private val LabelGap = 8.dp
 private val ThumbnailHeight = 40.dp
 private val ThumbnailMinWidth = 28.dp
 private val ThumbnailMaxWidth = 72.dp
+
+/** How much wider than tall the picture of a whole page's top is (4:3), leaving room for the words beside it. */
+const val WHOLE_PAGE_THUMBNAIL_ASPECT = 4f / 3f
 private const val SCREENSHOT_NOTICE_MILLIS = 4_000L
+
+/** A notice with Save stays longer, to give time to reach the button. */
+private const val SAVEABLE_NOTICE_MILLIS = 8_000L
+
+/** The hint grows to fit the Whole page button beside its words. */
+private val HintMaxWidth = 720.dp
+
+/** Narrower than this, the Whole page button goes under the hint's words. */
+private val HintButtonBesideFrom = 600.dp
+
+/** A full touch target, as the hint's close button has. */
+private val WholePageButtonHeight = 48.dp

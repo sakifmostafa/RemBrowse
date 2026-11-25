@@ -32,12 +32,14 @@ fun interface ImageClipboard {
 /** Puts a screenshot of the window on the clipboard, for pasting into a page or another app. */
 fun interface ScreenshotClipboard {
     /**
-     * Copies [png] (a PNG image) to the clipboard, then calls [onDone] on the main thread with
-     * whether it is there. May be called on any thread; the file is written on a thread of its own.
-     * [stillWanted] is asked before the file replaces the last one and again, on the main thread,
-     * before the clipboard is touched: a screenshot given up on meanwhile changes nothing.
+     * Copies [png] (a PNG image) to the clipboard, then calls [onDone] on the main thread with the
+     * `content:` address of the file on the clipboard, or null when it isn't there. The file stays
+     * until something else is copied, so a whole page can be saved from it meanwhile. May be called
+     * on any thread; the file is written on a thread of its own. [stillWanted] is asked before the
+     * file replaces the last one and again, on the main thread, before the clipboard is touched: a
+     * screenshot given up on meanwhile changes nothing.
      */
-    fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Boolean) -> Unit)
+    fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Uri?) -> Unit)
 }
 
 /**
@@ -292,7 +294,7 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
     private val files = ClipboardImageFiles(appContext)
     private val pageImages = PageImageCopier(files, main)
 
-    override fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Boolean) -> Unit) {
+    override fun copyScreenshot(png: ByteArray, stillWanted: () -> Boolean, onDone: (Uri?) -> Unit) {
         Thread({
             val uri = try {
                 files.save(ClipboardImage(png, "image/png"), "screenshot", stillWanted)
@@ -308,7 +310,7 @@ class GeckoImageClipboard(context: Context, runtime: GeckoRuntime) : ImageClipbo
                     Log.w(TAG, "Couldn't put a screenshot on the clipboard", e)
                     false
                 }
-                onDone(copied)
+                onDone(uri.takeIf { copied })
             }
         }, "copy-screenshot").start()
     }
