@@ -773,8 +773,10 @@ class MainActivity : ComponentActivity() {
             // for it, say) is a failed screenshot, never a broken file on the clipboard.
             val png = withContext(Dispatchers.IO) {
                 thumbnail = topOfPageThumbnail(taken, thumbnailHeight)
+                // Noted here, not after: a cancel while it is written still has it to delete
                 holder.screenshotClipboard.writeScreenshot { taken.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            }.also { pending = it }
+                    .also { pending = it }
+            }
             // Up to 256 MB: let go of before the file goes on the clipboard
             taken.recycle()
             page = null

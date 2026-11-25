@@ -205,11 +205,16 @@ object CaptureGeometry {
      * the next one up: never less than the page.)
      */
     fun wholePageSource(css: Int, devicePixelRatio: Float): Int {
+        // Far past any page the engine draws, where the steps below could run past Int.MAX_VALUE
+        if (!(css.toDouble() * devicePixelRatio < MAX_SOURCE_SIDE)) return Int.MAX_VALUE
         var source = ceil(css * devicePixelRatio).toInt().coerceAtLeast(1)
         while ((source / devicePixelRatio).toInt() < css) source++
         while (source > 1 && ((source - 1) / devicePixelRatio).toInt() >= css) source--
         return source
     }
+
+    /** Beyond this many pixels a side, [wholePageSource] gives up working out the region. */
+    private const val MAX_SOURCE_SIDE = 1_000_000_000.0
 
     /**
      * Whose whole page the overlay's key takes: the region under the mouse ([hoveredKey]) when

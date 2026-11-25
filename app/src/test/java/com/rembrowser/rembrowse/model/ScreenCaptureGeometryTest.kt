@@ -258,6 +258,9 @@ class ScreenCaptureGeometryTest {
         // Zoomed out, an odd side has no exact region: the next one up, never less than the page
         assertEquals(491, CaptureGeometry.wholePageSource(981, 0.5f))
         assertEquals(1, CaptureGeometry.wholePageSource(1, 0.25f))
+        // A side too large to work out ends at once instead of counting past Int.MAX_VALUE
+        assertEquals(Int.MAX_VALUE, CaptureGeometry.wholePageSource(Int.MAX_VALUE / 2, 3f))
+        assertEquals(Int.MAX_VALUE, CaptureGeometry.wholePageSource(1000, Float.NaN))
         for (ratio in listOf(1.25f, 1.5f, 2.625f, 2.75f, 3f, 3.5f)) {
             for (css in listOf(1, 319, 412, 427, 980, 1281, 30_001, 250_000)) {
                 val source = CaptureGeometry.wholePageSource(css, ratio)
