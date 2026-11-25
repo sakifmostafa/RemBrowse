@@ -66,7 +66,7 @@ class EngineConfigTest {
         // Read with the real parser, not a stand-in: this is what the engine will see
         val prefs = EngineConfig.readWithEngineParser(file)!!
         assertEquals(
-            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "dom.webkitBlink.filesystem.enabled" to true, "browser.viewport.desktopWidth" to 320),
+            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "browser.viewport.desktopWidth" to 320),
             prefs
         )
         assertTrue("An integer, so it is written as a number preference", prefs["browser.viewport.desktopWidth"] is Int)
@@ -83,7 +83,7 @@ class EngineConfigTest {
         assertEquals(file.absolutePath, path)
         assertEquals(
             "The old file is replaced, not added to",
-            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "dom.webkitBlink.filesystem.enabled" to true),
+            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false),
             EngineConfig.readWithEngineParser(file)
         )
     }
@@ -134,13 +134,14 @@ class EngineConfigTest {
     }
 
     @Test
-    fun pastedFilesCanBeReadAsEntries_onPhonesAndLargeScreensAlike() {
-        // Telegram Web A calls item.webkitGetAsEntry() on every pasted file; Gecko hides it on Android.
-        assertEquals("dom.webkitBlink.filesystem.enabled", EngineConfig.FILE_ENTRIES_PREF)
+    fun pastedFileEntriesAreLeftToTheEngine_whichHasThemOnSinceFirefox161() {
+        // Telegram Web A calls item.webkitGetAsEntry() on every pasted file. Gecko hid it on
+        // Android until 161, so 0.14.0 to 0.15.0 turned it on here; 161's default is on
+        // everywhere (StaticPrefList.yaml), so the override is gone.
         for (width in listOf(360, 411, 600, 800, 1250)) {
             for (mouse in listOf(true, false)) {
                 val prefs = EngineConfig.prefsFor(width, hasMouseOrTouchpad = mouse)
-                assertEquals(true, prefs[EngineConfig.FILE_ENTRIES_PREF])
+                assertFalse(prefs.containsKey("dom.webkitBlink.filesystem.enabled"))
                 // Folder upload is a separate pref and stays at Gecko's default (off on Android).
                 assertFalse(prefs.containsKey("dom.webkitBlink.dirPicker.enabled"))
             }
@@ -157,12 +158,12 @@ class EngineConfigTest {
             assertFalse(EngineConfig.POINTER_PREF in EngineConfig.prefsFor(width))
         }
         assertEquals(
-            mapOf<String, Any>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "dom.webkitBlink.filesystem.enabled" to true, "ui.primaryPointerCapabilities" to 6),
+            mapOf<String, Any>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "ui.primaryPointerCapabilities" to 6),
             EngineConfig.prefsFor(411, hasMouseOrTouchpad = true)
         )
         assertEquals(
             mapOf<String, Any>(
-                "browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "dom.webkitBlink.filesystem.enabled" to true,
+                "browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false,
                 "browser.viewport.desktopWidth" to 320,
                 "ui.primaryPointerCapabilities" to 6
             ),
@@ -179,7 +180,7 @@ class EngineConfigTest {
         val prefs = EngineConfig.readWithEngineParser(file)!!
         assertEquals(
             mapOf<String, Any?>(
-                "browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "dom.webkitBlink.filesystem.enabled" to true,
+                "browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false,
                 "browser.viewport.desktopWidth" to 320,
                 "ui.primaryPointerCapabilities" to 6
             ),
@@ -192,7 +193,7 @@ class EngineConfigTest {
     fun prepare_withAMouseOnAPhone_hasThePointerPrefWithoutTheDesktopWidth() {
         EngineConfig.prepare(folder.root, smallestScreenWidthDp = 411, hasMouseOrTouchpad = true)
         assertEquals(
-            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "dom.webkitBlink.filesystem.enabled" to true, "ui.primaryPointerCapabilities" to 6),
+            mapOf<String, Any?>("browser.translations.enable" to false, "browser.navigation.requireUserInteraction" to false, "dom.suspend_inactive.enabled" to false, "ui.primaryPointerCapabilities" to 6),
             EngineConfig.readWithEngineParser(File(folder.root, "geckoview-config.yaml"))
         )
     }

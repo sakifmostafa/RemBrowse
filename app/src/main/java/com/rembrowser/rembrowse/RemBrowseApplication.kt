@@ -14,6 +14,12 @@ class RemBrowseApplication : Application() {
             // Sites' notifications become Android ones, for as long as the runtime runs; a tap
             // comes back to MainActivity
             runtime.webNotificationDelegate = GeckoSiteNotifications(applicationContext, MainActivity::class.java)
+            // Since GeckoView 150 the runtime no longer starts a content process by itself, so
+            // the first page would wait for one. Starting it here, while the window is still being
+            // built, keeps that wait out of a cold start (emulator, launch to the first page drawn:
+            // median 2.41 s with it, 2.86 s without). The runtime is first asked for on the main
+            // thread, as warmUp needs.
+            runtime.warmUp()
         }
     }
 

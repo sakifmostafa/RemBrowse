@@ -855,6 +855,9 @@ class GeckoBrowserEngine(
                 smallestScreenWidthDp = appContext.resources.configuration.smallestScreenWidthDp,
                 hasMouseOrTouchpad = PointerDevices.hasMouseOrTouchpad(appContext)
             )
+            // Site isolation is not set here: in GeckoView 161 each site's pages run in their own
+            // content process by default (fission.autostart is true; it was off on Android in
+            // 138), as on desktop Firefox. fissionEnabled(false) on this builder would turn it off.
             val settings = GeckoRuntimeSettings.Builder()
                 .apply { if (configFile != null) configFilePath(configFile) }
                 .extensionsProcessEnabled(true)
