@@ -1,9 +1,12 @@
 package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.data.BrowsingHistoryStore
+import com.rembrowser.rembrowse.data.SiteIconCache
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
 import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
+import com.rembrowser.rembrowse.model.BrowserSettings
 import com.rembrowser.rembrowse.model.HistoryEntry
+import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.SettingsSection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -22,12 +25,14 @@ class BrowsingHistoryTest {
     private val store = MemoryHistory()
     private var now = 1_000L
     private var ids = 0
+    private var iconClears = 0
     private val viewModel = BrowserViewModel(
         engine = engine,
         repository = FakeBrowserStateRepository(),
         idGenerator = { "tab-${++ids}" },
         historyStore = store,
-        clock = { now }
+        clock = { now },
+        siteIcons = SiteIconCache { iconClears++ }
     )
 
     private val tab get() = engine.sessions.getValue(viewModel.uiState.value.activeTabId!!)
@@ -109,6 +114,36 @@ class BrowsingHistoryTest {
         viewModel.clearHistory()
         assertTrue(viewModel.history.value.isEmpty())
         assertTrue(store.saved.isEmpty())
+    }
+
+    @Test
+    fun clearingTheHistory_forgetsTheSiteIconsKept() {
+        // Each icon is kept under its site's address: left behind, they'd still name the sites
+        tab.simulatePageLoad("https://one.example/", "One")
+        viewModel.removeHistoryEntry("https://one.example/")
+        assertEquals("Visiting and removing one page leave the icons", 0, iconClears)
+
+        viewModel.clearHistory()
+        assertEquals(1, iconClears)
+
+        // Also with nothing listed, as when history is off: the icons were still kept
+        viewModel.clearHistory()
+        assertEquals(2, iconClears)
+    }
+
+    @Test
+    fun withHistoryOff_theSiteIconsKeptLastTimeAreForgottenAtStart() {
+        fun clearsAtStart(keepHistory: Boolean): Int {
+            var clears = 0
+            BrowserViewModel(
+                FakeBrowserEngine(),
+                FakeBrowserStateRepository(PersistedBrowserState(settings = BrowserSettings(keepHistory = keepHistory))),
+                siteIcons = SiteIconCache { clears++ }
+            )
+            return clears
+        }
+        assertEquals(1, clearsAtStart(keepHistory = false))
+        assertEquals("Kept with the history", 0, clearsAtStart(keepHistory = true))
     }
 
     @Test

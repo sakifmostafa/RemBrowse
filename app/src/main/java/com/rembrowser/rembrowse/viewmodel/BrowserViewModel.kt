@@ -3,6 +3,8 @@ package com.rembrowser.rembrowse.viewmodel
 import com.rembrowser.rembrowse.data.BrowserStateRepository
 import com.rembrowser.rembrowse.data.BrowsingHistoryStore
 import com.rembrowser.rembrowse.data.NoBrowsingHistory
+import com.rembrowser.rembrowse.data.NoSiteIconCache
+import com.rembrowser.rembrowse.data.SiteIconCache
 import com.rembrowser.rembrowse.engine.BrowserEngine
 import com.rembrowser.rembrowse.engine.BrowserSessionHandle
 import com.rembrowser.rembrowse.engine.SessionEventListener
@@ -86,7 +88,12 @@ class BrowserViewModel(
      * The device is a phone (EngineConfig.isPhone): new tabs there ask for mobile sites until
      * the user chooses otherwise (see [forDevice]).
      */
-    private val isPhone: Boolean = false
+    private val isPhone: Boolean = false,
+    /**
+     * The site icons kept between launches. They name the sites visited, so they go when the
+     * history is cleared, and at each start while history is off (see [clearHistory]).
+     */
+    private val siteIcons: SiteIconCache = NoSiteIconCache
 ) {
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
@@ -365,6 +372,8 @@ class BrowserViewModel(
 
     init {
         restoreInitialState()
+        // With history off, the icons of the sites visited last time are not kept either
+        if (!_uiState.value.settings.keepHistory) siteIcons.clear()
     }
 
     private fun restoreInitialState() {
@@ -1339,8 +1348,13 @@ class BrowserViewModel(
         updateHistory { entries -> entries.filterNot { it.url == url } }
     }
 
+    /**
+     * Forgets every page visited, and the site icons kept with them: an icon is kept under its
+     * site's address, so the icons left behind would still say where the user had been.
+     */
     fun clearHistory() {
         updateHistory { emptyList() }
+        siteIcons.clear()
     }
 
     /**

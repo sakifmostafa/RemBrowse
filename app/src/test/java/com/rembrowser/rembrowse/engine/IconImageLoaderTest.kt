@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import coil3.ImageLoader
 import com.rembrowser.rembrowse.RemBrowseApplication
+import com.rembrowser.rembrowse.data.CoilSiteIconCache
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
 import coil3.request.ImageResult
@@ -34,7 +35,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * The image loader the app gives Coil (see RemBrowseApplication): web icons come through the
  * engine and nothing else, the runtime is not asked for until one is fetched, and a site without
- * an icon is asked once, its "not found" kept in the disk cache for the next start.
+ * an icon is asked once, its "not found" kept in the disk cache for the next start, until the
+ * icons are cleared with the browsing history.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -115,5 +117,30 @@ class IconImageLoaderTest {
         // A new loader, as after RemBrowse starts again: the disk cache answers
         assertTrue(load(iconImageLoader(context, engine), url) is ErrorResult)
         assertEquals(listOf(url), engine.sent.toList())
+    }
+
+    @Test
+    fun clearingTheSiteIconsForgetsThemOnDiskAndInMemory() {
+        val url = "https://visited-${UUID.randomUUID()}.test/favicon.ico"
+        val icon = png()
+        val engine = FakeEngine { answer(it.uri, 200, icon, "image/png") }
+        val loader = iconImageLoader(context, engine)
+        assertTrue(load(loader, url) is SuccessResult)
+        assertTrue("Kept in memory", loader.memoryCache!!.keys.isNotEmpty())
+        assertTrue("Kept on disk", loader.diskCache!!.size > 0)
+
+        var worked: Runnable? = null
+        CoilSiteIconCache({ loader }, worker = { worked = it }).clear()
+        assertTrue("Nothing is deleted on the caller's thread", loader.diskCache!!.size > 0)
+        worked!!.run()
+
+        assertTrue(loader.memoryCache!!.keys.isEmpty())
+        assertEquals(0L, loader.diskCache!!.size)
+        // Neither this loader nor one made after a restart has it: the site is asked again
+        assertTrue(load(loader, url) is SuccessResult)
+        assertEquals(listOf(url, url), engine.sent.toList())
+        CoilSiteIconCache({ loader }, worker = { it.run() }).clear()
+        assertTrue(load(iconImageLoader(context, engine), url) is SuccessResult)
+        assertEquals(listOf(url, url, url), engine.sent.toList())
     }
 }

@@ -48,6 +48,7 @@ import com.rembrowser.rembrowse.data.ScreenshotClipboard
 import com.rembrowser.rembrowse.data.AndroidDownloadStorage
 import com.rembrowser.rembrowse.data.DownloadTarget
 import com.rembrowser.rembrowse.data.AndroidUpdateInstaller
+import com.rembrowser.rembrowse.data.CoilSiteIconCache
 import com.rembrowser.rembrowse.data.KeystoreSecretStore
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.OkHttpUpdateSource
@@ -189,7 +190,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             engine = engine,
             repository = SharedPrefsBrowserStateRepository(application),
             historyStore = SharedPrefsBrowsingHistoryStore(application),
-            isPhone = EngineConfig.isPhone(application.resources.configuration.smallestScreenWidthDp)
+            isPhone = EngineConfig.isPhone(application.resources.configuration.smallestScreenWidthDp),
+            siteIcons = CoilSiteIconCache(application)
         )
         extensions = ExtensionsViewModel(
             extensionManager = extensionManager,
