@@ -72,6 +72,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.areAnyPressed
+import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
@@ -845,9 +848,11 @@ private fun ExtensionDataCollectionSection(
  * and leaves the page undimmed. On phone-sized windows it is centred.
  *
  * Beside the rail a press outside the popup closes it, and one on an extension button
- * ([buttonTargets]) is that button's click as well: another extension's opens its own popup in
- * place of this one, as on a desktop toolbar, and this extension's own button is left to decide
- * (it closes the popup once it has been seen, see ExtensionPopups).
+ * ([buttonTargets]) does there what it does on the rail: a click on another extension's button
+ * opens that extension's popup in place of this one, as on a desktop toolbar, and a click on
+ * this extension's own button is left to the button (it closes the popup once it has been seen,
+ * see ExtensionPopups); a right click or a long press closes the popup and opens the button's
+ * menu. Any other press there, such as a middle click, only closes the popup.
  */
 @Composable
 fun ExtensionPopupDialog(
@@ -899,9 +904,13 @@ fun ExtensionPopupDialog(
                     .fillMaxSize()
                     .onPlaced { bounds.window = it }
                     .pointerInput(bounds, buttonTargets) {
-                        closeOnTapOutside(bounds, buttonTargets) { button ->
+                        closeOnTapOutside(bounds, buttonTargets) { button, press ->
                             when {
-                                button == null -> dismiss()
+                                button == null || press == OutsidePress.OTHER -> dismiss()
+                                press == OutsidePress.MENU -> {
+                                    dismiss()
+                                    button.openMenu()
+                                }
                                 // Its own button: closes it, unless it is still appearing
                                 button.extensionId == extensionId -> button.click()
                                 else -> {
@@ -1041,22 +1050,59 @@ private class PopupBounds {
     }
 }
 
+/** What a press outside the popup was, as the rail's buttons read it. */
+internal enum class OutsidePress {
+    /** A click of the mouse's primary button, or a tap shorter than a long press. */
+    CLICK,
+
+    /** A right click, or a press held for a long press: a button's menu. */
+    MENU,
+
+    /** Anything else, such as a middle click, or a press let go off the button it began on. */
+    OTHER
+}
+
 /**
- * Answers a press outside the popup once it is let go, with the extension button it was on
- * ([buttons]), if any. The dialog closes itself by itself only for presses outside what it
- * shows, which here fills the window.
+ * Answers a press outside the popup, with the extension button it was on ([buttons]), if any,
+ * and what kind of press it was: once it is let go, or, for a long press on a button, once it
+ * has been held long enough, when the rail opens the button's menu. The dialog closes itself by
+ * itself only for presses outside what it shows, which here fills the window.
  */
 private suspend fun PointerInputScope.closeOnTapOutside(
     bounds: PopupBounds,
     buttons: ExtensionButtonTargets?,
-    onTapOutside: (button: ExtensionButtonTargets.Target?) -> Unit
+    onTapOutside: (button: ExtensionButtonTargets.Target?, press: OutsidePress) -> Unit
 ) {
+    fun buttonAt(position: Offset) = bounds.screenPosition(position)?.let { buttons?.at(it) }
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         if (down.position in bounds) return@awaitEachGesture
-        if (waitForUpOrCancellation() != null) {
-            val button = bounds.screenPosition(down.position)?.let { buttons?.at(it) }
-            onTapOutside(button)
+        val button = buttonAt(down.position)
+        val pressed = currentEvent.buttons
+        // A finger or a stylus presses no button; a mouse or touchpad click says which it is
+        if (pressed.areAnyPressed && !pressed.isPrimaryPressed) {
+            if (waitForUpOrCancellation() != null) {
+                onTapOutside(button, if (pressed.isSecondaryPressed) OutsidePress.MENU else OutsidePress.OTHER)
+            }
+            return@awaitEachGesture
+        }
+        var cancelled = false
+        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            waitForUpOrCancellation().also { if (it == null) cancelled = true }
+        }
+        when {
+            cancelled -> Unit
+            up == null -> {
+                // Held as long as a long press: on a button its menu opens now, as on the rail;
+                // anywhere else the popup closes once it is let go
+                if (button != null) {
+                    onTapOutside(button, OutsidePress.MENU)
+                } else if (waitForUpOrCancellation() != null) {
+                    onTapOutside(null, OutsidePress.OTHER)
+                }
+            }
+            button != null && buttonAt(up.position) === button -> onTapOutside(button, OutsidePress.CLICK)
+            else -> onTapOutside(button, OutsidePress.OTHER)
         }
     }
 }

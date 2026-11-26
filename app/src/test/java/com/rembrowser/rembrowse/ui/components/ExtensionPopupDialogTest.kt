@@ -25,7 +25,10 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
@@ -202,6 +205,7 @@ class ExtensionPopupDialogTest {
     // The rail's extension buttons under the popup's window, which fills the screen
 
     private val clicked = mutableListOf<String>()
+    private val menus = mutableListOf<String>()
 
     private fun showBesideButtons(shownNotices: MutableList<String> = mutableListOf(), idle: Boolean = true) {
         val targets = ExtensionButtonTargets()
@@ -215,7 +219,7 @@ class ExtensionPopupDialogTest {
                             Box(
                                 Modifier
                                     .size(48.dp)
-                                    .extensionButtonTarget(targets, id) { clicked += id }
+                                    .extensionButtonTarget(targets, id, onMenu = { menus += id }) { clicked += id }
                                     .testTag("button_$id")
                             )
                         }
@@ -234,12 +238,94 @@ class ExtensionPopupDialogTest {
         if (idle) composeRule.waitForIdle()
     }
 
-    /** Clicks the popup's window over the button of [extensionId]. At mdpi a dp is a pixel. */
-    private fun clickOverButton(extensionId: String) {
+    /** The centre of the button of [extensionId], where it is on the popup's window. At mdpi a dp is a pixel. */
+    private fun overButton(extensionId: String): Offset {
         val button = composeRule.onNodeWithTag("button_$extensionId").getBoundsInRoot()
-        val center = Offset((button.left + button.right).value / 2f, (button.top + button.bottom).value / 2f)
+        return Offset((button.left + button.right).value / 2f, (button.top + button.bottom).value / 2f)
+    }
+
+    /** Taps the popup's window over the button of [extensionId]. */
+    private fun clickOverButton(extensionId: String) {
+        val center = overButton(extensionId)
         composeRule.onNode(isDialog()).performTouchInput { click(center) }
         composeRule.waitForIdle()
+    }
+
+    /** Clicks the mouse's [button] on the popup's window over the button of [extensionId]. */
+    private fun mouseClickOverButton(extensionId: String, button: MouseButton) {
+        val center = overButton(extensionId)
+        composeRule.onNode(isDialog()).performMouseInput {
+            moveTo(center)
+            press(button)
+            release(button)
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun besideTheRail_aMouseClickOnAnotherExtensionsButton_clicksIt() {
+        showBesideButtons()
+
+        mouseClickOverButton("ubo@example", MouseButton.Primary)
+
+        assertEquals(1, dismissals)
+        assertEquals(listOf("ubo@example"), clicked)
+        assertEquals(emptyList<String>(), menus)
+    }
+
+    // A right click or a long press on a rail button opens its menu (Manage extensions), never
+    // its popup
+
+    @Test
+    fun besideTheRail_aRightClickOnAnotherExtensionsButton_closesItAndOpensThatButtonsMenu() {
+        showBesideButtons()
+
+        mouseClickOverButton("ubo@example", MouseButton.Secondary)
+
+        assertEquals(1, dismissals)
+        assertEquals(emptyList<String>(), clicked)
+        assertEquals(listOf("ubo@example"), menus)
+    }
+
+    @Test
+    fun besideTheRail_aLongPressOnAnotherExtensionsButton_closesItAndOpensThatButtonsMenu() {
+        showBesideButtons()
+
+        val center = overButton("ubo@example")
+        composeRule.onNode(isDialog()).performTouchInput { longClick(center) }
+        composeRule.waitForIdle()
+
+        assertEquals(1, dismissals)
+        assertEquals(emptyList<String>(), clicked)
+        assertEquals(listOf("ubo@example"), menus)
+    }
+
+    @Test
+    fun besideTheRail_aMiddleClickOnAnExtensionsButton_onlyCloses() {
+        showBesideButtons()
+
+        mouseClickOverButton("ubo@example", MouseButton.Tertiary)
+
+        assertEquals(1, dismissals)
+        assertEquals(emptyList<String>(), clicked)
+        assertEquals(emptyList<String>(), menus)
+    }
+
+    @Test
+    fun besideTheRail_aPressLetGoOffTheButton_onlyCloses() {
+        showBesideButtons()
+
+        val center = overButton("ubo@example")
+        composeRule.onNode(isDialog()).performTouchInput {
+            down(center)
+            moveTo(Offset(width - 20f, height / 2f))
+            up()
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(1, dismissals)
+        assertEquals(emptyList<String>(), clicked)
+        assertEquals(emptyList<String>(), menus)
     }
 
     @Test

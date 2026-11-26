@@ -26,6 +26,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -407,6 +408,30 @@ class RemBrowseUiTest {
         composeRule.onNodeWithContentDescription("Close ${DefaultAdBlocker.NAME}").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Close Proton VPN").assertDoesNotExist()
         composeRule.onNodeWithTag("rail_extension_${DefaultAdBlocker.ID}").assertIsSelected()
+    }
+
+    @Test
+    fun extensionButtons_underAnOpenPopup_aRightClickOpensTheButtonsMenuNotItsPopup() {
+        extensionManager.installedExtensions.value = listOf(
+            toolbarExtension("vpn@example", "Proton VPN"),
+            toolbarExtension(DefaultAdBlocker.ID, DefaultAdBlocker.NAME)
+        )
+        launch()
+        composeRule.onNodeWithTag("rail_extension_vpn@example").performClick()
+
+        val ubo = composeRule.onNodeWithTag("rail_extension_${DefaultAdBlocker.ID}").getUnclippedBoundsInRoot()
+        val center = Offset((ubo.left + ubo.right).value / 2f, (ubo.top + ubo.bottom).value / 2f)
+        composeRule.onNode(isDialog()).performMouseInput {
+            moveTo(center)
+            press(MouseButton.Secondary)
+            release(MouseButton.Secondary)
+        }
+        composeRule.waitForIdle()
+
+        // The popup closed, and uBlock Origin's menu opened, as a right click on the rail does
+        assertEquals(listOf("vpn@example"), extensionManager.triggeredActionIds)
+        composeRule.onNodeWithContentDescription("Close Proton VPN").assertDoesNotExist()
+        composeRule.onNodeWithText("Open ${DefaultAdBlocker.NAME}").assertIsDisplayed()
     }
 
     @Test
