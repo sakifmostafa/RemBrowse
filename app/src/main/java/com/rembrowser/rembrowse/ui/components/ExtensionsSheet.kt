@@ -843,6 +843,11 @@ private fun ExtensionDataCollectionSection(
  * An extension's popup. On windows wide enough for the tab rail it opens at the bottom-left,
  * beside the rail's extension buttons, the way a desktop toolbar popup drops from its button,
  * and leaves the page undimmed. On phone-sized windows it is centred.
+ *
+ * Beside the rail a press outside the popup closes it, and one on an extension button
+ * ([buttonTargets]) is that button's click as well: another extension's opens its own popup in
+ * place of this one, as on a desktop toolbar, and this extension's own button is left to decide
+ * (it closes the popup once it has been seen, see ExtensionPopups).
  */
 @Composable
 fun ExtensionPopupDialog(
@@ -852,7 +857,11 @@ fun ExtensionPopupDialog(
     icon: Bitmap? = null,
     anchorToRail: Boolean = false,
     /** The rail's width beside the page: wider while the rail is expanded there. */
-    railWidth: Dp = RemDimens.RailWidth
+    railWidth: Dp = RemDimens.RailWidth,
+    /** The rail's extension buttons, under the dialog's window. */
+    buttonTargets: ExtensionButtonTargets? = null,
+    /** Called once the popup has appeared. */
+    onShown: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     // Sized to what the popup's content asked for, as desktop Firefox does, within its limits
@@ -862,6 +871,10 @@ fun ExtensionPopupDialog(
         ?: PopupDefaultPageHeight
     val atDefaultSize = width == PopupDefaultWidth && pageHeight == PopupDefaultPageHeight
     val shown = rememberPopupShown(popup, atDefaultSize)
+    val shownNotice by rememberUpdatedState(onShown)
+    LaunchedEffect(popup.sessionId, shown) {
+        if (shown) shownNotice()
+    }
     // A short fade once it is shown, in place; hidden again at once for the next popup
     val alpha by animateFloatAsState(
         targetValue = if (shown) 1f else 0f,
@@ -869,6 +882,7 @@ fun ExtensionPopupDialog(
         label = "extension popup"
     )
     val dismiss by rememberUpdatedState(onDismiss)
+    val extensionId by rememberUpdatedState(popup.extensionId)
     val bounds = remember { PopupBounds() }
     Dialog(
         onDismissRequest = onDismiss,
@@ -884,7 +898,19 @@ fun ExtensionPopupDialog(
                 Modifier
                     .fillMaxSize()
                     .onPlaced { bounds.window = it }
-                    .pointerInput(bounds) { closeOnTapOutside(bounds) { dismiss() } }
+                    .pointerInput(bounds, buttonTargets) {
+                        closeOnTapOutside(bounds, buttonTargets) { button ->
+                            when {
+                                button == null -> dismiss()
+                                // Its own button: closes it, unless it is still appearing
+                                button.extensionId == extensionId -> button.click()
+                                else -> {
+                                    dismiss()
+                                    button.click()
+                                }
+                            }
+                        }
+                    }
                     // Above the on-screen keyboard, so it doesn't cover a field of the popup
                     .imePadding()
                     // The visible popup starts 4dp past the rail; at the bottom, its shadow margin
@@ -1004,6 +1030,9 @@ private class PopupBounds {
     var window: LayoutCoordinates? = null
     var popup: LayoutCoordinates? = null
 
+    /** [position], in the window's coordinates, on the screen. */
+    fun screenPosition(position: Offset): Offset? = window?.takeIf { it.isAttached }?.localToScreen(position)
+
     /** Whether [position], in the window's coordinates, is on the popup. */
     operator fun contains(position: Offset): Boolean {
         val window = window?.takeIf { it.isAttached } ?: return false
@@ -1013,14 +1042,22 @@ private class PopupBounds {
 }
 
 /**
- * Closes the popup when a press outside it is let go. The dialog does that by itself only for
- * presses outside what it shows, which here fills the window.
+ * Answers a press outside the popup once it is let go, with the extension button it was on
+ * ([buttons]), if any. The dialog closes itself by itself only for presses outside what it
+ * shows, which here fills the window.
  */
-private suspend fun PointerInputScope.closeOnTapOutside(bounds: PopupBounds, close: () -> Unit) {
+private suspend fun PointerInputScope.closeOnTapOutside(
+    bounds: PopupBounds,
+    buttons: ExtensionButtonTargets?,
+    onTapOutside: (button: ExtensionButtonTargets.Target?) -> Unit
+) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         if (down.position in bounds) return@awaitEachGesture
-        if (waitForUpOrCancellation() != null) close()
+        if (waitForUpOrCancellation() != null) {
+            val button = bounds.screenPosition(down.position)?.let { buttons?.at(it) }
+            onTapOutside(button)
+        }
     }
 }
 

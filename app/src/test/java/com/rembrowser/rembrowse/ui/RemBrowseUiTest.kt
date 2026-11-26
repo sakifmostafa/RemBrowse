@@ -24,6 +24,8 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -381,6 +383,30 @@ class RemBrowseUiTest {
         composeRule.onNodeWithTag("more_button").performClick()
         composeRule.onNodeWithTag("menu_extensions").assertIsDisplayed()
         composeRule.onNodeWithTag("menu_extension_vpn@example").assertDoesNotExist()
+    }
+
+    // An open popup's window covers the rail, so a press on a button there lands on the popup's
+    // window: it used to only close the popup, and the other one took a second click
+    @Test
+    fun extensionButtons_underAnOpenPopup_openTheirPopupInOneClick() {
+        extensionManager.installedExtensions.value = listOf(
+            toolbarExtension("vpn@example", "Proton VPN"),
+            toolbarExtension(DefaultAdBlocker.ID, DefaultAdBlocker.NAME)
+        )
+        launch()
+        composeRule.onNodeWithTag("rail_extension_vpn@example").performClick()
+        composeRule.onNodeWithContentDescription("Close Proton VPN").assertIsDisplayed()
+
+        // uBlock Origin's button, through the popup's window, which fills the screen
+        val ubo = composeRule.onNodeWithTag("rail_extension_${DefaultAdBlocker.ID}").getUnclippedBoundsInRoot()
+        val center = Offset((ubo.left + ubo.right).value / 2f, (ubo.top + ubo.bottom).value / 2f)
+        composeRule.onNode(isDialog()).performTouchInput { click(center) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("vpn@example", DefaultAdBlocker.ID), extensionManager.triggeredActionIds)
+        composeRule.onNodeWithContentDescription("Close ${DefaultAdBlocker.NAME}").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Close Proton VPN").assertDoesNotExist()
+        composeRule.onNodeWithTag("rail_extension_${DefaultAdBlocker.ID}").assertIsSelected()
     }
 
     @Test

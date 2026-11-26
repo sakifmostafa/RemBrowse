@@ -4,11 +4,15 @@ import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -16,10 +20,12 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
@@ -191,6 +197,95 @@ class ExtensionPopupDialogTest {
         dialog.performTouchInput { click(Offset(20f, height - 20f)) }
         composeRule.waitForIdle()
         assertEquals(2, dismissals)
+    }
+
+    // The rail's extension buttons under the popup's window, which fills the screen
+
+    private val clicked = mutableListOf<String>()
+
+    private fun showBesideButtons(shownNotices: MutableList<String> = mutableListOf(), idle: Boolean = true) {
+        val targets = ExtensionButtonTargets()
+        val popup = ExtensionPopupState("vpn@example", "Proton VPN", "popup-1")
+        composeRule.setContent {
+            RemBrowseTheme {
+                Box(Modifier.fillMaxSize()) {
+                    // At the foot of the rail, as in the browser
+                    Column(Modifier.align(Alignment.BottomStart)) {
+                        listOf("vpn@example", "ubo@example").forEach { id ->
+                            Box(
+                                Modifier
+                                    .size(48.dp)
+                                    .extensionButtonTarget(targets, id) { clicked += id }
+                                    .testTag("button_$id")
+                            )
+                        }
+                    }
+                    ExtensionPopupDialog(
+                        popup = popup,
+                        onDismiss = { dismissals++ },
+                        popupContent = { modifier -> Box(modifier.onGloballyPositioned { page = it.boundsInWindow() }) },
+                        anchorToRail = true,
+                        buttonTargets = targets,
+                        onShown = { shownNotices += popup.sessionId }
+                    )
+                }
+            }
+        }
+        if (idle) composeRule.waitForIdle()
+    }
+
+    /** Clicks the popup's window over the button of [extensionId]. At mdpi a dp is a pixel. */
+    private fun clickOverButton(extensionId: String) {
+        val button = composeRule.onNodeWithTag("button_$extensionId").getBoundsInRoot()
+        val center = Offset((button.left + button.right).value / 2f, (button.top + button.bottom).value / 2f)
+        composeRule.onNode(isDialog()).performTouchInput { click(center) }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun besideTheRail_aClickOnAnotherExtensionsButton_closesItAndClicksThatButton() {
+        showBesideButtons()
+
+        clickOverButton("ubo@example")
+
+        // Once: closed, and uBlock Origin's button clicked, which opens its popup in its place
+        assertEquals(1, dismissals)
+        assertEquals(listOf("ubo@example"), clicked)
+    }
+
+    @Test
+    fun besideTheRail_aClickOnItsOwnButton_isLeftToTheButton() {
+        showBesideButtons()
+
+        clickOverButton("vpn@example")
+
+        // The button decides: it closes a popup that has been seen, and leaves one appearing
+        assertEquals(0, dismissals)
+        assertEquals(listOf("vpn@example"), clicked)
+    }
+
+    @Test
+    fun besideTheRail_aClickElsewhere_onlyCloses() {
+        showBesideButtons()
+
+        composeRule.onNode(isDialog()).performTouchInput { click(Offset(width - 20f, height / 2f)) }
+        composeRule.waitForIdle()
+
+        assertEquals(1, dismissals)
+        assertEquals(emptyList<String>(), clicked)
+    }
+
+    @Test
+    fun onceItHasAppeared_itSaysSo() {
+        val notices = mutableListOf<String>()
+        composeRule.mainClock.autoAdvance = false
+        showBesideButtons(notices, idle = false)
+        composeRule.mainClock.advanceTimeByFrame()
+        assertEquals(emptyList<String>(), notices)
+
+        // It never reports a size here, so it appears after the wait
+        composeRule.mainClock.advanceTimeBy(POPUP_SIZE_WAIT_MS + 100)
+        assertEquals(listOf("popup-1"), notices)
     }
 
     private fun pageSize(): Pair<Dp, Dp> {
