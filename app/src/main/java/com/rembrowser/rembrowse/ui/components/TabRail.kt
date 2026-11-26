@@ -281,6 +281,8 @@ internal fun railExtensionSlots(railHeight: Dp): Int {
  *   surface, and Esc closes it ([onDismiss]). The screen dims the page behind it ([TabRailScrim]).
  * @param extensions extensions with a toolbar button, in the order they are shown.
  * @param openPopupExtensionId the extension whose popup is open, marked like a selected tab.
+ * @param extensionButtons where the extension buttons note themselves, so a click on one reaches
+ *   it under an open popup's window.
  * @param dragState when given, tab tiles can be dragged onto the panes; [onDropTab] gets the drop.
  * @param onOpenBookmark a pinned site was clicked: show its open tab, or open it.
  * @param onOpenBookmarkInNewTab "Open in new tab" from a pinned site's menu.
@@ -308,7 +310,8 @@ fun TabRail(
     extensions: List<InstalledExtension> = emptyList(),
     openPopupExtensionId: String? = null,
     onTriggerExtensionAction: (String) -> Unit = {},
-    onManageExtensions: () -> Unit = {}
+    onManageExtensions: () -> Unit = {},
+    extensionButtons: ExtensionButtonTargets? = null
 ) {
     val pinned = uiState.bookmarks.take(MAX_PINNED_SITES)
     val openPins = remember(pinned, uiState.tabs) { openBookmarkIds(pinned, uiState.tabs) }
@@ -652,7 +655,8 @@ fun TabRail(
                     openPopupExtensionId = openPopupExtensionId,
                     onTrigger = onTriggerExtensionAction,
                     onManage = onManageExtensions,
-                    lastFocus = lastFocus
+                    lastFocus = lastFocus,
+                    buttonTargets = extensionButtons
                 )
             }
         }
@@ -820,7 +824,8 @@ private fun RailExtensions(
     onTrigger: (String) -> Unit,
     onManage: () -> Unit,
     /** Given to the last button, the rail's last place (see TabRail). */
-    lastFocus: FocusRequester
+    lastFocus: FocusRequester,
+    buttonTargets: ExtensionButtonTargets?
 ) {
     val shown = if (extensions.size > slots) extensions.take(slots - 1) else extensions
     val overflow = extensions.drop(shown.size)
@@ -840,7 +845,8 @@ private fun RailExtensions(
                 popupOpen = extension.id == openPopupExtensionId,
                 onClick = { onTrigger(extension.id) },
                 onManage = onManage,
-                modifier = if (overflow.isEmpty() && index == shown.lastIndex) Modifier.focusRequester(lastFocus) else Modifier
+                modifier = if (overflow.isEmpty() && index == shown.lastIndex) Modifier.focusRequester(lastFocus) else Modifier,
+                buttonTargets = buttonTargets
             )
         }
         if (overflow.isNotEmpty()) {
@@ -851,7 +857,8 @@ private fun RailExtensions(
                 popupOpen = overflow.any { it.id == openPopupExtensionId },
                 onTrigger = onTrigger,
                 onManage = onManage,
-                modifier = Modifier.focusRequester(lastFocus)
+                modifier = Modifier.focusRequester(lastFocus),
+                buttonTargets = buttonTargets
             )
         }
     }
@@ -864,7 +871,8 @@ private fun RailExtensionItem(
     popupOpen: Boolean,
     onClick: () -> Unit,
     onManage: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    buttonTargets: ExtensionButtonTargets? = null
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val badge = extension.badgeText?.takeIf { it.isNotBlank() }
@@ -881,7 +889,9 @@ private fun RailExtensionItem(
             title = extension.name,
             showTitle = showTitle,
             titleTag = "rail_extension_title_${extension.id}",
-            modifier = modifier.testTag("rail_extension_${extension.id}")
+            modifier = modifier
+                .extensionButtonTarget(buttonTargets, extension.id, onClick)
+                .testTag("rail_extension_${extension.id}")
         ) {
             ExtensionIcon(
                 icon = extension.icon,
@@ -926,7 +936,8 @@ private fun RailExtensionsOverflow(
     popupOpen: Boolean,
     onTrigger: (String) -> Unit,
     onManage: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    buttonTargets: ExtensionButtonTargets? = null
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val label = if (showsAll) "Extensions" else "More extensions"
@@ -942,7 +953,9 @@ private fun RailExtensionsOverflow(
             title = label,
             showTitle = showTitle,
             titleTag = "rail_extensions_more_title",
-            modifier = modifier.testTag("rail_extensions_more")
+            modifier = modifier
+                .extensionButtonTarget(buttonTargets, extensionId = null) { showMenu = true }
+                .testTag("rail_extensions_more")
         ) {
             RailIcon(Icons.Outlined.Extension)
         }

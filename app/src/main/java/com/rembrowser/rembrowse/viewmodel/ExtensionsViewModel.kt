@@ -353,6 +353,11 @@ class ExtensionsViewModel(
         extensionManager.dismissPopup()
     }
 
+    /** The popup [sessionId] is on screen. */
+    fun popupShown(sessionId: String) {
+        extensionManager.popupShown(sessionId)
+    }
+
     /** Starts the daily add-on update check, for as long as [scope] lasts. */
     fun startAddonUpdates() {
         addonUpdater.start()

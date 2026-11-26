@@ -254,6 +254,13 @@ interface ExtensionManager {
     suspend fun uninstall(extensionId: String): Result<Unit>
     fun triggerBrowserAction(extensionId: String)
     fun dismissPopup()
+
+    /**
+     * The screen has shown the popup [sessionId] ([ExtensionPopupState.sessionId]): from now
+     * on a click on its extension's button closes it. Until then such a click leaves it to
+     * appear (see ExtensionPopups).
+     */
+    fun popupShown(sessionId: String) {}
     /**
      * Answers [prompt], the one whose dialog was answered: [allow] goes ahead;
      * [shareTechnicalData] is its checkbox for the optional technical and interaction data, when

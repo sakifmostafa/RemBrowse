@@ -95,6 +95,7 @@ import com.rembrowser.rembrowse.ui.components.UpdateNoticeBar
 import com.rembrowser.rembrowse.ui.components.DownloadPromptDialog
 import com.rembrowser.rembrowse.ui.components.DownloadsPanelActions
 import com.rembrowser.rembrowse.ui.components.ExtensionInstallPromptDialog
+import com.rembrowser.rembrowse.ui.components.ExtensionButtonTargets
 import com.rembrowser.rembrowse.ui.components.ExtensionPopupDialog
 import com.rembrowser.rembrowse.ui.components.ExtensionsPanelActions
 import com.rembrowser.rembrowse.ui.components.HistoryActions
@@ -612,6 +613,8 @@ fun RemBrowseScreen(
         val toolbarExtensions = remember(extensionsState.installedExtensions) {
             extensionsState.installedExtensions.filter { it.enabled && it.hasBrowserAction }
         }
+        // The rail's extension buttons, which an open popup's window covers
+        val extensionButtons = remember { ExtensionButtonTargets() }
         val showRail = !compact && !fullscreen
         val besidePage = WindowWidthClass.of(maxWidth) >= WindowWidthClass.Expanded
         SideEffect {
@@ -707,6 +710,7 @@ fun RemBrowseScreen(
                         closeTabRailOverlay()
                         openExtensions()
                     },
+                    extensionButtons = extensionButtons,
                     modifier = Modifier
                         .zIndex(1f)
                         .onFocusChanged { railHasFocus[0] = it.hasFocus }
@@ -943,15 +947,21 @@ fun RemBrowseScreen(
         TabDragGhost(dragState = tabDrag, tabs = browserState.tabs)
 
         extensionsState.activePopup?.let { popup ->
-            ExtensionPopupDialog(
-                popup = popup,
-                icon = extensionsState.installedExtensions.firstOrNull { it.id == popup.extensionId }?.icon,
-                // Beside the extension buttons when the rail shows them, like a toolbar popup
-                anchorToRail = !compact,
-                railWidth = railRoom,
-                onDismiss = extensionsViewModel::dismissPopup,
-                popupContent = extensionPopupContent
-            )
+            // A dialog of its own for each popup: one opened in place of another gets its own
+            // page view, on its own session
+            key(popup.sessionId) {
+                ExtensionPopupDialog(
+                    popup = popup,
+                    icon = extensionsState.installedExtensions.firstOrNull { it.id == popup.extensionId }?.icon,
+                    // Beside the extension buttons when the rail shows them, like a toolbar popup
+                    anchorToRail = !compact,
+                    railWidth = railRoom,
+                    onDismiss = extensionsViewModel::dismissPopup,
+                    popupContent = extensionPopupContent,
+                    buttonTargets = extensionButtons,
+                    onShown = { extensionsViewModel.popupShown(popup.sessionId) }
+                )
+            }
         }
     }
 

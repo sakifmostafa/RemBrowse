@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.ViewConfiguration
 import com.rembrowser.rembrowse.model.AddonUpdateResult
 import com.rembrowser.rembrowse.model.AddonUpdateTarget
 import com.rembrowser.rembrowse.model.ExtensionDataCollection
@@ -151,7 +152,8 @@ class GeckoExtensionManager(
     private val sessionActions = WeakHashMap<GeckoSession, MutableMap<String, WebExtension.Action>>()
     private var activeSession: GeckoSession? = null
 
-    private var activePopupSession: GeckoSession? = null
+    // The popup on screen and its session, and what a click on an extension's button does
+    private val popups = ExtensionPopups<GeckoSession>(ViewConfiguration.getDoubleTapTimeout().toLong())
 
     // Toolbar icons. GeckoView hands over a new Image with every action update, so the Image
     // last rendered only tells us that something *may* have changed (a VPN showing that it
@@ -183,8 +185,7 @@ class GeckoExtensionManager(
 
     override val pendingPrompt: StateFlow<ExtensionInstallPrompt?> = prompts.onShow
 
-    private val _activePopup = MutableStateFlow<ExtensionPopupState?>(null)
-    override val activePopup: StateFlow<ExtensionPopupState?> = _activePopup.asStateFlow()
+    override val activePopup: StateFlow<ExtensionPopupState?> = popups.state
 
     // The popup helper reports the size each desktop-style popup's content wants
     private val popupSizeMessages = object : WebExtension.MessageDelegate {
@@ -225,12 +226,10 @@ class GeckoExtensionManager(
 
     /** Sizes the open popup to what its content asked for; reports for other popups are stale. */
     private fun onPopupContentSize(size: PopupContentSize) {
-        val popup = _activePopup.value ?: return
-        if (popup.extensionId != size.extensionId) return
-        _activePopup.value = popup.copy(contentWidth = size.width, contentHeight = size.height)
+        popups.sized(size.extensionId, size.width, size.height)
     }
 
-    fun getPopupGeckoSession(): GeckoSession? = activePopupSession
+    fun getPopupGeckoSession(): GeckoSession? = popups.session
 
     /** The session that currently has browser focus; per-tab badges and popups follow it. */
     fun setActiveSession(session: GeckoSession) {
@@ -416,7 +415,7 @@ class GeckoExtensionManager(
                     rawExtensions[updated.id] = updated
                     registerDelegates(updated)
                 }
-                if (!enabled && _activePopup.value?.extensionId == extensionId) {
+                if (!enabled && popups.state.value?.extensionId == extensionId) {
                     dismissPopup()
                 }
                 refreshInstalled()
@@ -436,7 +435,7 @@ class GeckoExtensionManager(
                 iconBitmaps.remove(extensionId)
                 iconRendersPending.remove(extensionId)
                 sessionActions.values.forEach { it.remove(extensionId) }
-                if (_activePopup.value?.extensionId == extensionId) {
+                if (popups.state.value?.extensionId == extensionId) {
                     dismissPopup()
                 }
                 refreshInstalled()
@@ -485,7 +484,7 @@ class GeckoExtensionManager(
                         rawExtensions[updated.id] = updated
                         registerDelegates(updated)
                     }
-                    if (_activePopup.value?.extensionId == updated.id) dismissPopup()
+                    if (popups.state.value?.extensionId == updated.id) dismissPopup()
                     val version = updated.metaData.version.orEmpty()
                     Log.i(TAG, "Updated $extensionId to $version")
                     AddonUpdateResult.Updated(version)
@@ -513,6 +512,14 @@ class GeckoExtensionManager(
     }
 
     override fun triggerBrowserAction(extensionId: String) {
+        when (popups.click(extensionId, SystemClock.uptimeMillis())) {
+            ExtensionPopups.Click.IGNORE -> return
+            ExtensionPopups.Click.CLOSE -> {
+                dismissPopup()
+                return
+            }
+            ExtensionPopups.Click.TRIGGER -> Unit
+        }
         val action = effectiveAction(extensionId)
         if (action != null) {
             action.click()
@@ -526,11 +533,13 @@ class GeckoExtensionManager(
     }
 
     override fun dismissPopup() {
-        activePopupSession?.let { session ->
+        popups.close()?.let { session ->
             if (session.isOpen) session.close()
         }
-        activePopupSession = null
-        _activePopup.value = null
+    }
+
+    override fun popupShown(sessionId: String) {
+        popups.shown(sessionId)
     }
 
     override fun dismissPrompt(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean) {
@@ -579,12 +588,15 @@ class GeckoExtensionManager(
                 ext: WebExtension,
                 action: WebExtension.Action
             ): GeckoResult<GeckoSession> {
-                if (_activePopup.value?.extensionId == ext.id) {
-                    dismissPopup()
-                    return GeckoResult.fromValue(null)
+                return when (popups.toggle(ext.id)) {
+                    ExtensionPopups.Toggle.OPEN -> GeckoResult.fromValue(preparePopupSession(ext))
+                    ExtensionPopups.Toggle.CLOSE -> {
+                        dismissPopup()
+                        GeckoResult.fromValue(null)
+                    }
+                    // Still appearing: it stays, and the engine opens nothing more
+                    ExtensionPopups.Toggle.KEEP -> GeckoResult.fromValue(null)
                 }
-                val popupSession = preparePopupSession(ext)
-                return GeckoResult.fromValue(popupSession)
             }
         })
 
@@ -635,16 +647,17 @@ class GeckoExtensionManager(
         dismissPopup()
         val popupSession = GeckoSession()
         popupSession.contentDelegate = object : GeckoSession.ContentDelegate {
+            // The page asked to close (window.close()). A popup already replaced by another may
+            // still ask; that must not close the one now on screen.
             override fun onCloseRequest(session: GeckoSession) {
-                dismissPopup()
+                if (popups.isCurrent(session)) dismissPopup()
             }
         }
         popupSession.open(runtime)
-        activePopupSession = popupSession
-        _activePopup.value = ExtensionPopupState(
+        popups.open(
             extensionId = extension.id,
             extensionName = extension.metaData.name?.takeIf { it.isNotBlank() } ?: extension.id,
-            sessionId = "popup-${extension.id}"
+            session = popupSession
         )
         return popupSession
     }
