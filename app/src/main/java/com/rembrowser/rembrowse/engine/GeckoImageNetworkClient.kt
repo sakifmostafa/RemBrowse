@@ -39,12 +39,18 @@ import org.mozilla.geckoview.WebResponse
  *
  * Nothing here asks [engine] for anything until the first icon is fetched (Coil makes the
  * network client on first use too), so building the loader never starts the engine.
+ *
+ * [ioDispatcher] is where the client reads a response; tests pass a thread of their own.
  */
 @OptIn(ExperimentalCoilApi::class)
-internal fun iconImageLoader(context: PlatformContext, engine: EngineFetch): ImageLoader =
+internal fun iconImageLoader(
+    context: PlatformContext,
+    engine: EngineFetch,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+): ImageLoader =
     ImageLoader.Builder(context)
         .components {
-            add(NetworkFetcher.Factory(networkClient = { GeckoImageNetworkClient(engine) }))
+            add(NetworkFetcher.Factory(networkClient = { GeckoImageNetworkClient(engine, ioDispatcher = ioDispatcher) }))
         }
         .build()
 
