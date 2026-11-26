@@ -6,6 +6,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import com.rembrowser.rembrowse.engine.ExtensionProcessRecovery
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoEngineFetch
 import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
@@ -15,11 +16,17 @@ import org.mozilla.geckoview.GeckoRuntime
 
 class RemBrowseApplication : Application(), SingletonImageLoader.Factory {
 
-    private val runtimeOnce = lazy {
+    // Turns extensions back on after the engine stops restarting their process (see the class)
+    private val extensionProcessRecovery: ExtensionProcessRecovery = ExtensionProcessRecovery.forMainThread {
+        if (runtimeOnce.isInitialized()) geckoRuntime.webExtensionController else null
+    }
+
+    private val runtimeOnce: Lazy<GeckoRuntime> = lazy {
         GeckoBrowserEngine.createRuntime(applicationContext).also { runtime ->
             // Sites' notifications become Android ones, for as long as the runtime runs; a tap
             // comes back to MainActivity
             runtime.webNotificationDelegate = GeckoSiteNotifications(applicationContext, MainActivity::class.java)
+            ExtensionProcessRecovery.connect(runtime.webExtensionController, extensionProcessRecovery)
             // Since GeckoView 150 the runtime no longer starts a content process by itself, so
             // the first page would wait for one. Starting it here, while the window is still being
             // built, keeps that wait out of a cold start (emulator, launch to the first page drawn:
@@ -35,6 +42,8 @@ class RemBrowseApplication : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         // Before anything is composed: the flags are read as input and focus events arrive
         keepComposeInputAsTested()
+        // Before any window starts, so the recovery knows when one is on screen
+        ExtensionProcessRecovery.watchWindows(this, extensionProcessRecovery)
     }
 
     /**
