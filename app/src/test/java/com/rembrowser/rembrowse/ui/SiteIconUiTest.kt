@@ -53,6 +53,10 @@ class SiteIconUiTest {
 
     /** What the stand-in engine was asked for, in order. */
     private val asked = CopyOnWriteArrayList<String>()
+    private val events = CopyOnWriteArrayList<String>()
+
+    @org.junit.Before
+    fun clearTrace() { com.rembrowser.rembrowse.ui.components.SiteIconTrace.events.clear() }
 
     @After
     fun tearDown() {
@@ -71,7 +75,19 @@ class SiteIconUiTest {
             WebResponse.Builder(request.uri).statusCode(code).header("Content-Type", type)
                 .body(ByteArrayInputStream(body)).build()
         }
-        SingletonImageLoader.setUnsafe(iconImageLoader(context, engine))
+        val t0 = System.nanoTime()
+        fun ev(what: String) { events += "${(System.nanoTime() - t0) / 1_000_000}ms [${Thread.currentThread().name}] $what" }
+        val listener = object : coil3.EventListener() {
+            override fun onStart(request: coil3.request.ImageRequest) = ev("start ${request.data}")
+            override fun resolveSizeStart(request: coil3.request.ImageRequest, sizeResolver: coil3.size.SizeResolver) = ev("resolveSize ${request.data}")
+            override fun resolveSizeEnd(request: coil3.request.ImageRequest, size: coil3.size.Size) = ev("resolvedSize ${request.data} $size")
+            override fun fetchStart(request: coil3.request.ImageRequest, fetcher: coil3.fetch.Fetcher, options: coil3.request.Options) = ev("fetchStart ${request.data}")
+            override fun fetchEnd(request: coil3.request.ImageRequest, fetcher: coil3.fetch.Fetcher, options: coil3.request.Options, result: coil3.fetch.FetchResult?) = ev("fetchEnd ${request.data}")
+            override fun onCancel(request: coil3.request.ImageRequest) = ev("cancel ${request.data}")
+            override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) = ev("error ${request.data} ${result.throwable}")
+            override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) = ev("success ${request.data} ${result.dataSource}")
+        }
+        SingletonImageLoader.setUnsafe(iconImageLoader(context, engine).newBuilder().eventListener(listener).build())
     }
 
     private fun show(declared: Map<String, List<DeclaredSiteIcon>>) {
@@ -90,7 +106,38 @@ class SiteIconUiTest {
     private fun waitFor(what: String, done: () -> Boolean) {
         val deadline = System.currentTimeMillis() + 10_000
         while (!done()) {
+            if (System.currentTimeMillis() >= deadline) {
+                val dump = StringBuilder()
+                dump.append("TEST $what asked=$asked\n")
+                events.forEach { dump.append("EVENT $it\n") }
+                com.rembrowser.rembrowse.ui.components.SiteIconTrace.events.forEach { dump.append("UI $it\n") }
+                for ((t, st) in Thread.getAllStackTraces()) {
+                    dump.append("THREAD ${t.name} ${t.state}\n")
+                    st.take(25).forEach { dump.append("    at $it\n") }
+                }
+                java.io.File("/tmp/claude-1000/-home-mrremking-RemBrowse/af52660c-af46-41f4-b75e-956d279a9dd4/scratchpad/siteicon-dump-${System.nanoTime()}.txt").writeText(dump.toString())
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                val gsm = runCatching {
+                    val c = Class.forName("androidx.compose.ui.platform.GlobalSnapshotManager")
+                    val inst = c.getDeclaredField("INSTANCE").get(null)
+                    c.declaredFields.filter { it.name != "INSTANCE" }.joinToString { f -> f.isAccessible = true; "${f.name}=${f.get(inst)}" }
+                }.getOrElse { "reflect failed $it" }
+                val pending = runCatching { androidx.compose.runtime.snapshots.Snapshot.current.let { it.javaClass.name + " pending=" + (it as? androidx.compose.runtime.snapshots.MutableSnapshot)?.hasPendingChanges() } }.getOrElse { "$it" }
+                // Experiment: send the apply notifications ourselves, then keep running
+                androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+                var recovered = false
+                val until = System.currentTimeMillis() + 2000
+                while (System.currentTimeMillis() < until) {
+                    composeRule.mainClock.advanceTimeBy(16)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    Thread.sleep(10)
+                    if (done()) { recovered = true; break }
+                }
+                java.io.File("/tmp/claude-1000/-home-mrremking-RemBrowse/af52660c-af46-41f4-b75e-956d279a9dd4/scratchpad/siteicon-exp-${System.nanoTime()}.txt").writeText("what=$what gsm=[$gsm] snapshot=[$pending] recoveredAfterSendApply=$recovered asked=$asked\n")
+            }
             assertTrue("Timed out waiting: $what (asked $asked)", System.currentTimeMillis() < deadline)
+            if (events.isNotEmpty() && events.last().contains("LOOP").not() && System.currentTimeMillis() % 1000 < 12) events += "LOOP ${System.currentTimeMillis()}"
             composeRule.mainClock.advanceTimeBy(16)
             shadowOf(Looper.getMainLooper()).idle()
             Thread.sleep(10)

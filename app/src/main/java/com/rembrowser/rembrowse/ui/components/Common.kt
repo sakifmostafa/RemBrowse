@@ -442,6 +442,7 @@ fun SiteIcon(
     // The address being tried: each that fails gives way to the next
     var tried by remember(addresses) { mutableIntStateOf(0) }
     val address = addresses.getOrNull(tried)
+    SiteIconTrace.log("compose url=$url tried=$tried address=$address n=${addresses.size}")
     // Whether an icon of the site is on screen (otherwise its letter is), and its key in Coil's
     // memory cache. Kept while the page moves within the site.
     val origin = remember(url) { SiteOrigins.originOf(url) }
@@ -470,13 +471,15 @@ fun SiteIcon(
             AsyncImage(
                 model = request,
                 contentDescription = null,
-                onLoading = { state -> loadingBlank = state.painter == null },
+                onLoading = { state -> loadingBlank = state.painter == null; SiteIconTrace.log("onLoading $address") },
                 onSuccess = { state ->
+                    SiteIconTrace.log("onSuccess $address")
                     shown = true
                     shownKey = state.result.memoryCacheKey
                     loadingBlank = false
                 },
                 onError = { state ->
+                    SiteIconTrace.log("onError $address tried=$tried last=${addresses.lastIndex}")
                     if (BuildConfig.DEBUG) Log.d(SITE_ICON_TAG, "No icon at $address: ${state.result.throwable}")
                     if (tried < addresses.lastIndex) {
                         tried++
@@ -495,6 +498,11 @@ fun SiteIcon(
 }
 
 private const val SITE_ICON_TAG = "SiteIcon"
+
+object SiteIconTrace {
+    val events = java.util.concurrent.CopyOnWriteArrayList<String>()
+    fun log(s: String) { events += "${System.nanoTime() / 1_000_000} [${Thread.currentThread().name}] $s" }
+}
 
 /**
  * Miniature drawing of a pane layout, used wherever a layout is offered.

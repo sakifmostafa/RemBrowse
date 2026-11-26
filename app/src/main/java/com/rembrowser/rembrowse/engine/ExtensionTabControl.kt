@@ -30,8 +30,9 @@ import org.mozilla.geckoview.WebExtension
  * top: a request for one of the browser's tabs is allowed, and one for a session that is not a
  * tab (an extension's popup) is refused.
  * - `onCloseTab` closes the tab as the user closing it would ([closeTab]): its pane, in a split
- *   view too, takes another tab. The tab is closed just after Gecko has been answered, so the
- *   extension's `tabs.remove` settles before its tab goes.
+ *   view too, takes another tab. The close is posted to the main thread, and Gecko passes its
+ *   answer on through two posts of its own, so the tab goes (and `tabs.onRemoved` fires) just
+ *   before the extension's `tabs.remove` settles, as in desktop Firefox.
  * - `onUpdateTab` brings the tab to the front for `active: true` ([selectTab]). A new `url` is
  *   loaded by Gecko itself once allowed (`ext-tabs.js` calls `loadURIInTab` after asking), so it
  *   is not loaded a second time here; Gecko also handles the other properties it supports.
@@ -105,7 +106,7 @@ internal object GeckoExtensionTabs {
                     .onFailure { Log.w(TAG, "Couldn't let ${extension.id} control tabs", it) }
             },
             tabIdOf = engine::tabIdOf,
-            // After Gecko has had its answer, so the extension's tabs.remove settles first
+            // Posted, so Gecko's own call finishes first; tabs.remove settles just after the tab goes
             closeTab = { tabId -> mainHandler.post { closeTab(tabId) } },
             selectTab = selectTab
         )
