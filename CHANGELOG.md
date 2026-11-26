@@ -2,6 +2,14 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Fixed
+* **Extensions can close and switch to the tabs they open.** An extension that opened a tab, such as a sign-in or welcome page, could not close it again or bring a tab to the front: the engine asks the browser first, RemBrowse never answered, and the extension got "tabs.remove is not supported" or "tabs.update is not supported". RemBrowse now answers. A tab an extension closes goes as if you had closed it, and in a split view its pane takes another tab; a tab it brings to the front is selected, and a new address it gives the tab is loaded once. What an extension may do is still checked by the engine, as in Firefox; a request for anything that isn't one of your tabs, such as an extension's popup, is refused.
+
+### Testing
+Nine new unit tests check that every extension, built-in ones included, may ask about every tab, including tabs opened and extensions added later, that a tab is closed or selected only when it is one of the browser's tabs, and that a new address alone selects nothing. On an Android tablet emulator, a test extension opened a tab with `tabs.create`, brought it to the front and gave it a new address with `tabs.update` (both refused before; the new page was asked for once), and closed it with `tabs.remove`: the tab went, the tab that was open before was shown again, and the tabs were the same as before it started. Proton VPN's own code was checked too: it closes only its old welcome tabs this way, and ignores a failure.
+
 ## v0.16.1 (2026-11-25) — Add-ons that update themselves, and extensions that come back after Android stops them
 
 ### Added

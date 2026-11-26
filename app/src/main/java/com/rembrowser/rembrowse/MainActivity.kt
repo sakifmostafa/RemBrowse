@@ -67,6 +67,7 @@ import com.rembrowser.rembrowse.engine.DeviceScreen
 import com.rembrowser.rembrowse.engine.EngineConfig
 import com.rembrowser.rembrowse.engine.GeckoBrowserEngine
 import com.rembrowser.rembrowse.engine.GeckoExtensionManager
+import com.rembrowser.rembrowse.engine.GeckoExtensionTabs
 import com.rembrowser.rembrowse.engine.GeckoSiteNotifications
 import com.rembrowser.rembrowse.engine.PaneGeckoView
 import com.rembrowser.rembrowse.engine.WindowTouchpadInput
@@ -207,6 +208,14 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             historyStore = SharedPrefsBrowsingHistoryStore(application),
             isPhone = EngineConfig.isPhone(DeviceScreen.smallestWidthDp(application)),
             siteIcons = CoilSiteIconCache(application)
+        )
+        // Extensions' tabs.remove and tabs.update, on every tab (see ExtensionTabControl)
+        GeckoExtensionTabs.connect(
+            engine = engine,
+            installed = extensionManager.installedExtensions,
+            scope = viewModelScope,
+            closeTab = browser::closeTab,
+            selectTab = browser::selectTab
         )
         extensions = ExtensionsViewModel(
             extensionManager = extensionManager,
