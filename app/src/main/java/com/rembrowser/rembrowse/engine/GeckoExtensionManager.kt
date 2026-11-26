@@ -82,8 +82,15 @@ internal class ExtensionPromptQueue {
     private val _onShow = MutableStateFlow<ExtensionInstallPrompt?>(null)
     val onShow: StateFlow<ExtensionInstallPrompt?> = _onShow.asStateFlow()
 
+    // Set by declineAll: no window is left to show prompts in
+    private var closed = false
+
     fun add(prompt: ExtensionInstallPrompt) {
         waiting.addLast(prompt)
+        if (closed) {
+            decline(prompt)
+            return
+        }
         _onShow.value = waiting.firstOrNull()
     }
 
@@ -93,8 +100,26 @@ internal class ExtensionPromptQueue {
         val index = waiting.indexOfFirst { it === prompt }
         if (index < 0) return false
         waiting.removeAt(index)
-        _onShow.value = waiting.firstOrNull()
+        _onShow.value = if (closed) null else waiting.firstOrNull()
         return true
+    }
+
+    /**
+     * Declines every prompt still waiting, oldest first, and from now on each new one as it
+     * arrives, for when nobody is left to answer them. An unanswered prompt keeps Gecko's install
+     * or update waiting until the process ends, and while an update waits Gecko answers every
+     * later update check of that add-on with "no update".
+     */
+    fun declineAll() {
+        closed = true
+        _onShow.value = null
+        while (waiting.isNotEmpty()) decline(waiting.first())
+    }
+
+    private fun decline(prompt: ExtensionInstallPrompt) {
+        prompt.onDecision(false, false)
+        // Its decision normally takes it out; this makes sure, so declineAll always ends
+        remove(prompt)
     }
 
     /**
@@ -510,6 +535,15 @@ class GeckoExtensionManager(
 
     override fun dismissPrompt(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean) {
         prompts.answer(prompt, allow, shareTechnicalData)
+    }
+
+    /**
+     * For when the window goes away: declines every install, update and permission prompt still
+     * waiting, and any that arrives before a new window's manager takes over the prompts, so
+     * nothing in Gecko is left waiting on an answer nobody can give.
+     */
+    fun declineAllPrompts() {
+        prompts.declineAll()
     }
 
     private fun registerDelegates(extension: WebExtension) {
