@@ -30,12 +30,15 @@ import org.mozilla.geckoview.WebExtensionController
  * So the process is turned back on by itself, as follows:
  * - **No window on screen**: the ends are most likely Android taking memory back from an app in
  *   the background. Waits until a window is shown again, then turns it on at once.
- * - **A window on screen**: turns it on after [RETRY_DELAY_MS]. If it is turned off again within
- *   [RETRY_WINDOW_MS] of being turned on, the process really keeps failing, and it stays off until
- *   a window is next shown. A crash loop then costs one more burst of restarts each time the user
- *   comes back to RemBrowse, rather than one every half minute.
+ * - **A window on screen**: turns it on after a wait from [RETRY_DELAYS_MS]: 5 seconds the first
+ *   time. Each time it is turned off again within [STAYED_UP_MS] of being turned on, the process
+ *   really keeps failing, and the next wait is longer: 1, 5 and 15 minutes, then every 30 minutes.
+ *   Once it has stayed on for [STAYED_UP_MS], the waits start again from 5 seconds. A window can
+ *   stay on screen for hours on a laptop, so it never just waits for the next return to the app;
+ *   a crash loop costs one burst of restarts per retry, at most one every half hour.
+ * - A window shown again while it waits turns it on at once, as before.
  *
- * Main thread only: Gecko's delegate is called there (and [attach] posts it there to be sure),
+ * Main thread only: Gecko's delegate is called there (and [connect] posts it there to be sure),
  * and so are the window callbacks.
  */
 internal class ExtensionProcessRecovery(
@@ -51,6 +54,9 @@ internal class ExtensionProcessRecovery(
     private var spawningOff = false
     private var lastTurnedOnAt: Long? = null
     private var pendingRetry: Cancellable? = null
+
+    // How many times in a row it was turned off again soon after being turned on
+    private var quickFailures = 0
 
     /** Whether the engine has stopped starting the extension process and is waiting for this. */
     val isWaiting: Boolean get() = spawningOff
@@ -71,10 +77,10 @@ internal class ExtensionProcessRecovery(
     fun onSpawningDisabled() {
         spawningOff = true
         cancelRetry()
-        if (windowsShown == 0) return
         val last = lastTurnedOnAt
-        if (last != null && now() - last < RETRY_WINDOW_MS) return
-        pendingRetry = schedule(RETRY_DELAY_MS) {
+        quickFailures = if (last != null && now() - last < STAYED_UP_MS) quickFailures + 1 else 0
+        if (windowsShown == 0) return
+        pendingRetry = schedule(retryDelayMs(quickFailures)) {
             pendingRetry = null
             if (spawningOff && windowsShown > 0) turnOn()
         }
@@ -95,11 +101,19 @@ internal class ExtensionProcessRecovery(
     companion object {
         private const val TAG = "ExtensionProcess"
 
-        /** How long a window on screen waits before the process is turned back on. */
-        const val RETRY_DELAY_MS = 5_000L
+        /**
+         * How long a window on screen waits before the process is turned back on: the first entry
+         * the first time, the next one each time it is turned off again soon after ([STAYED_UP_MS]),
+         * and the last one from then on.
+         */
+        val RETRY_DELAYS_MS = listOf(5_000L, 60_000L, 5 * 60_000L, 15 * 60_000L, 30 * 60_000L)
 
-        /** Turned off again this soon after being turned on, it waits for a window to be shown. */
-        const val RETRY_WINDOW_MS = 10 * 60_000L
+        /** Turned on for this long without being turned off again, it counts as recovered. */
+        const val STAYED_UP_MS = 10 * 60_000L
+
+        /** The wait before the next try, after [quickFailures] quick failures in a row. */
+        fun retryDelayMs(quickFailures: Int): Long =
+            RETRY_DELAYS_MS[quickFailures.coerceIn(0, RETRY_DELAYS_MS.lastIndex)]
 
         /**
          * Watches [application]'s windows from now on. Call it from `Application.onCreate`, before

@@ -112,7 +112,7 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 * Tabs in the background keep running at a slower pace, as in a desktop browser, so a chat or mail app open in another tab keeps working (and Telegram open in several tabs no longer hangs). They stop drawing until you show them again. When Android closes a background tab to free memory, it is reloaded when you return to it, and tabs are restored after a restart.
 * While RemBrowse is minimised its pages keep running as long as it is the last app you used; once you use other apps, Android pauses RemBrowse until you come back.
 * If a tab's page crashes, it is reloaded for you. After repeated crashes it shows a **Reload** button instead.
-* Your extensions run in a process of their own. If Android keeps ending it, for example to free memory while RemBrowse is in the background, RemBrowse starts it again as soon as you come back, or after a few seconds if you are using RemBrowse at the time, so a VPN or ad blocker carries on. If it keeps stopping while you are using RemBrowse, it waits until you next come back.
+* Your extensions run in a process of their own. If Android keeps ending it, for example to free memory while RemBrowse is in the background, RemBrowse starts it again as soon as you come back, or after a few seconds if you are using RemBrowse at the time, so a VPN or ad blocker carries on. If it keeps stopping while you are using RemBrowse, it waits longer before each try (up to half an hour) until it stays up.
 * Each site's pages run in a process of their own, as in desktop Firefox and Chrome, so a page can't read another site's data through attacks such as Spectre. With several sites open, as in a split view, this takes more memory.
 
 ---

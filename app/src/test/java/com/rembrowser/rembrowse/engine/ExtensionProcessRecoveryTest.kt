@@ -1,7 +1,8 @@
 package com.rembrowser.rembrowse.engine
 
-import com.rembrowser.rembrowse.engine.ExtensionProcessRecovery.Companion.RETRY_DELAY_MS
-import com.rembrowser.rembrowse.engine.ExtensionProcessRecovery.Companion.RETRY_WINDOW_MS
+import com.rembrowser.rembrowse.engine.ExtensionProcessRecovery.Companion.RETRY_DELAYS_MS
+import com.rembrowser.rembrowse.engine.ExtensionProcessRecovery.Companion.STAYED_UP_MS
+import com.rembrowser.rembrowse.engine.ExtensionProcessRecovery.Companion.retryDelayMs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -40,10 +41,29 @@ class ExtensionProcessRecoveryTest {
 
     private val pending get() = scheduled.count { !it.cancelled }
 
+    /** Turned off while on screen: nothing happens until [delayMs] has passed, then it is turned on. */
+    private fun assertTurnedOnAfter(delayMs: Long) {
+        val before = turnedOn
+        recovery.onSpawningDisabled()
+        advance(delayMs - 1)
+        assertEquals("turned on before $delayMs ms", before, turnedOn)
+        advance(1)
+        assertEquals("not turned on after $delayMs ms", before + 1, turnedOn)
+    }
+
+    @Test
+    fun theWaitsGrowFrom5SecondsTo30Minutes() {
+        assertEquals(listOf(5_000L, 60_000L, 300_000L, 900_000L, 1_800_000L), RETRY_DELAYS_MS)
+        assertEquals(5_000L, retryDelayMs(0))
+        assertEquals(1_800_000L, retryDelayMs(4))
+        assertEquals(1_800_000L, retryDelayMs(40))
+        assertEquals(5_000L, retryDelayMs(-1))
+    }
+
     @Test
     fun inTheBackgroundItWaitsForAWindowThenTurnsItOnAtOnce() {
         recovery.onSpawningDisabled()
-        advance(RETRY_WINDOW_MS * 3)
+        advance(STAYED_UP_MS * 3)
         assertEquals(0, turnedOn)
         assertEquals(0, pending)
         assertTrue(recovery.isWaiting)
@@ -56,45 +76,42 @@ class ExtensionProcessRecoveryTest {
     @Test
     fun onScreenItTurnsItOnAfterAShortWait() {
         recovery.onWindowShown()
-        recovery.onSpawningDisabled()
-        advance(RETRY_DELAY_MS - 1)
-        assertEquals(0, turnedOn)
-        advance(1)
-        assertEquals(1, turnedOn)
+        assertTurnedOnAfter(5_000L)
         assertFalse(recovery.isWaiting)
     }
 
     @Test
-    fun turnedOffAgainSoonAfterItStaysOffUntilAWindowIsNextShown() {
+    fun turnedOffAgainSoonAfterOnScreenItRetriesWithGrowingWaits() {
+        // A window stays on screen the whole time, as on a laptop
         recovery.onWindowShown()
-        recovery.onSpawningDisabled()
-        advance(RETRY_DELAY_MS)
-        assertEquals(1, turnedOn)
-
-        // It keeps failing while the user is still here
-        advance(60_000)
-        recovery.onSpawningDisabled()
-        advance(RETRY_WINDOW_MS * 2)
-        assertEquals(1, turnedOn)
-        assertTrue(recovery.isWaiting)
-
-        // The user leaves and comes back
-        recovery.onWindowHidden()
-        recovery.onWindowShown()
-        assertEquals(2, turnedOn)
+        assertTurnedOnAfter(5_000L)
+        advance(30_000)
+        assertTurnedOnAfter(60_000L)
+        advance(30_000)
+        assertTurnedOnAfter(5 * 60_000L)
+        advance(30_000)
+        assertTurnedOnAfter(15 * 60_000L)
+        advance(30_000)
+        assertTurnedOnAfter(30 * 60_000L)
+        advance(30_000)
+        assertTurnedOnAfter(30 * 60_000L)
+        assertEquals(6, turnedOn)
     }
 
     @Test
-    fun turnedOffAgainLongAfterItTriesAgain() {
+    fun onceItStaysUpTheWaitsStartAgain() {
         recovery.onWindowShown()
-        recovery.onSpawningDisabled()
-        advance(RETRY_DELAY_MS)
-        assertEquals(1, turnedOn)
+        assertTurnedOnAfter(5_000L)
+        advance(30_000)
+        assertTurnedOnAfter(60_000L)
+        advance(30_000)
+        assertTurnedOnAfter(5 * 60_000L)
 
-        advance(RETRY_WINDOW_MS)
-        recovery.onSpawningDisabled()
-        advance(RETRY_DELAY_MS)
-        assertEquals(2, turnedOn)
+        // Up for ten minutes: recovered
+        advance(STAYED_UP_MS)
+        assertTurnedOnAfter(5_000L)
+        advance(STAYED_UP_MS - 1)
+        assertTurnedOnAfter(60_000L)
     }
 
     @Test
@@ -104,9 +121,25 @@ class ExtensionProcessRecoveryTest {
         assertEquals(1, turnedOn)
 
         advance(30_000)
+        assertTurnedOnAfter(60_000L)
+    }
+
+    @Test
+    fun aWindowShownDuringALongWaitTurnsItOnAtOnce() {
+        recovery.onWindowShown()
+        assertTurnedOnAfter(5_000L)
+        advance(30_000)
+        assertTurnedOnAfter(60_000L)
+        advance(30_000)
         recovery.onSpawningDisabled()
-        advance(RETRY_WINDOW_MS)
-        assertEquals(1, turnedOn)
+        assertEquals(1, pending)
+
+        recovery.onWindowHidden()
+        assertEquals(0, pending)
+        recovery.onWindowShown()
+        assertEquals(3, turnedOn)
+        advance(30 * 60_000L)
+        assertEquals(3, turnedOn)
     }
 
     @Test
@@ -117,11 +150,11 @@ class ExtensionProcessRecoveryTest {
 
         recovery.onWindowHidden()
         assertEquals(0, pending)
-        advance(RETRY_DELAY_MS * 2)
+        advance(60_000)
         assertEquals(0, turnedOn)
 
         recovery.onWindowShown()
-        advance(RETRY_DELAY_MS * 2)
+        advance(60_000)
         assertEquals(1, turnedOn)
     }
 
@@ -131,7 +164,7 @@ class ExtensionProcessRecoveryTest {
         recovery.onWindowShown()
         recovery.onSpawningDisabled()
         recovery.onWindowHidden()
-        advance(RETRY_DELAY_MS)
+        advance(5_000)
         assertEquals(1, turnedOn)
     }
 
@@ -142,13 +175,11 @@ class ExtensionProcessRecoveryTest {
         // An extra stop (an activity stopped before this was watching) must not count below zero
         recovery.onWindowHidden()
         recovery.onWindowShown()
-        advance(RETRY_WINDOW_MS)
+        advance(STAYED_UP_MS)
         assertEquals(0, turnedOn)
         assertFalse(recovery.isWaiting)
 
-        recovery.onSpawningDisabled()
-        advance(RETRY_DELAY_MS)
-        assertEquals(1, turnedOn)
+        assertTurnedOnAfter(5_000L)
     }
 
     @Test
@@ -156,7 +187,7 @@ class ExtensionProcessRecoveryTest {
         recovery.onWindowShown()
         recovery.onSpawningDisabled()
         recovery.onSpawningDisabled()
-        advance(RETRY_DELAY_MS)
+        advance(5_000)
         assertEquals(1, turnedOn)
         assertEquals(0, pending)
     }
