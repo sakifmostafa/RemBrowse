@@ -67,12 +67,16 @@ class IconImageLoaderTest {
             .body(ByteArrayInputStream(body))
             .build()
 
-    /** Loads [data] with [loader] off the main thread, running the main thread's queue meanwhile. */
+    /**
+     * Loads [data] with [loader] off the main thread, at its own size or [px] pixels across,
+     * running the main thread's queue meanwhile.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun load(loader: ImageLoader, data: Any): ImageResult {
+    private fun load(loader: ImageLoader, data: Any, px: Int? = null): ImageResult {
         val result = CompletableDeferred<ImageResult>()
         CoroutineScope(Dispatchers.IO).launch {
-            result.complete(loader.execute(ImageRequest.Builder(context).data(data).build()))
+            val request = ImageRequest.Builder(context).data(data).apply { if (px != null) size(px) }.build()
+            result.complete(loader.execute(request))
         }
         val deadline = System.currentTimeMillis() + 10_000
         while (!result.isCompleted && System.currentTimeMillis() < deadline) {
@@ -107,6 +111,32 @@ class IconImageLoaderTest {
         val result = load(iconImageLoader(context, engine), url)
         assertTrue("$result", result is SuccessResult)
         assertEquals(listOf(url), engine.sent.toList())
+    }
+
+    /** Loads [icon], served as a Windows icon, at its own size and at the tab rail's (55 pixels). */
+    private fun loadIco(icon: ByteArray): List<ImageResult> {
+        val engine = FakeEngine { answer(it.uri, 200, icon, "image/vnd.microsoft.icon") }
+        val url = "https://ico-${UUID.randomUUID()}.test/favicon.ico"
+        val loader = iconImageLoader(context, engine)
+        return listOf(load(loader, url), load(loader, url, px = 55))
+    }
+
+    @Test
+    fun anIcoOf16ColourImages_likeWikipedias_isDecodedAtItsLargest() {
+        val icon = TestIcons.wikipediaLikeIco()
+        assertEquals("The same layout as Wikipedia's 2,734 bytes", 2734, icon.size)
+        val (whole, sized) = loadIco(icon)
+        assertTrue("$whole", whole is SuccessResult)
+        assertEquals(48, (whole as SuccessResult).image.width)
+        assertTrue("$sized", sized is SuccessResult)
+    }
+
+    @Test
+    fun anIcoOfNineImagesEndingInAPng_likePumpFuns_isDecodedAtItsLargest() {
+        val (whole, sized) = loadIco(TestIcons.pumpFunLikeIco())
+        assertTrue("$whole", whole is SuccessResult)
+        assertEquals(256, (whole as SuccessResult).image.width)
+        assertTrue("$sized", sized is SuccessResult)
     }
 
     @Test

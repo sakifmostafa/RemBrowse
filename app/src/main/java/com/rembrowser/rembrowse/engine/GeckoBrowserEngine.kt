@@ -14,14 +14,17 @@ import com.rembrowser.rembrowse.data.PageImageClipboard
 import com.rembrowser.rembrowse.data.SharedPrefsSitePermissionStore
 import com.rembrowser.rembrowse.data.SitePermissionStore
 import com.rembrowser.rembrowse.data.UploadCache
+import com.rembrowser.rembrowse.model.DeclaredSiteIcon
 import com.rembrowser.rembrowse.model.PageContextMenu
 import com.rembrowser.rembrowse.model.PageMediaType
 import com.rembrowser.rembrowse.model.PagePrompt
 import com.rembrowser.rembrowse.model.PromptOption
 import com.rembrowser.rembrowse.model.SitePermissionEntry
 import com.rembrowser.rembrowse.model.SitePermissionKind
+import com.rembrowser.rembrowse.model.SiteIcons
 import com.rembrowser.rembrowse.model.SitePermissionState
 import com.rembrowser.rembrowse.util.ErrorPages
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
@@ -51,7 +54,8 @@ private const val CRASH_LOOP_WINDOW_MS = 10_000L
  * right click a page left to the browser on its background or text, where GeckoView itself
  * reports nothing, and a Ctrl+click or middle click on a link, which GeckoView ignores; and that
  * hands over a picture a page copies with `navigator.clipboard.write`, which GeckoView can't put
- * on Android's clipboard (see assets/extensions/page_menu/pageMenu.js). Its manifest version must
+ * on Android's clipboard; and that reports the icons a page names for itself, which GeckoView
+ * doesn't (see assets/extensions/page_menu/pageMenu.js). Its manifest version must
  * go up whenever the script changes: `ensureBuiltIn` keeps an installed copy of the same version.
  */
 internal const val PAGE_MENU_EXTENSION_ID = "page-menu@rembrowse"
@@ -740,6 +744,10 @@ class GeckoBrowserEngine(
                             linkOpenRequest(message)?.let {
                                 handle.listener.onOpenLinkRequested(handle.tabId, it.url, it.inForeground)
                             }
+                            // The page's address as the engine knows it, never as the page says
+                            declaredSiteIcons(message, sender.url, sender.isTopLevel)?.takeIf { it.isNotEmpty() }?.let {
+                                handle.listener.onSiteIconsDeclared(handle.tabId, sender.url, it)
+                            }
                             if (isPageImageCopy(message)) {
                                 // The page's promise settles with the answer: true once it is copied.
                                 // The picture is decoded and checked off this (the main) thread.
@@ -915,6 +923,48 @@ class GeckoBrowserEngine(
                 url.startsWith("http://", ignoreCase = true)
             if (!isWebAddress) return null
             return LinkOpenRequest(url = url, inForeground = json.optBoolean("foreground", false))
+        }
+
+        /** The most icons read from one page's list, and the longest address and `sizes` taken. */
+        private const val MAX_DECLARED_ICONS_READ = 16
+        private const val MAX_ICON_ADDRESS_LENGTH = 1024
+        private const val MAX_ICON_SIZES_LENGTH = 200
+
+        /**
+         * The icons that [message] from the page menu helper says the page at [pageUrl] names for
+         * itself, or null when it is not such a message, or it came from a frame inside the page
+         * (not [isTopLevel]: a frame's icons are another site's), or [pageUrl] is not a web page.
+         *
+         * The page wrote the list, so each icon is checked as the icon client checks a redirect
+         * from the page's own address ([GeckoImageNetworkClient.refuseRedirect]): a page on the
+         * internet may not have the browser fetch from this device or the local network, nor from
+         * another site except over https, nor from a port pages may not use. Only `rel` values
+         * "icon" and "apple-touch-icon" are kept, without user names or passwords in the address,
+         * and not SVG (by its `type` or its `.svg` path), which RemBrowse can't decode. At most
+         * [SiteIcons.MAX_ICONS_PER_SITE], in the page's order.
+         */
+        internal fun declaredSiteIcons(message: Any?, pageUrl: String?, isTopLevel: Boolean): List<DeclaredSiteIcon>? {
+            val json = message as? org.json.JSONObject ?: return null
+            if (json.optString("type") != "siteIcons" || !isTopLevel) return null
+            val page = pageUrl?.toHttpUrlOrNull() ?: return null
+            val list = json.optJSONArray("icons") ?: return null
+            val icons = mutableListOf<DeclaredSiteIcon>()
+            for (index in 0 until minOf(list.length(), MAX_DECLARED_ICONS_READ)) {
+                val entry = list.optJSONObject(index) ?: continue
+                val rel = entry.opt("rel") as? String
+                if (rel != "icon" && rel != "apple-touch-icon") continue
+                val isTouchIcon = rel == "apple-touch-icon"
+                val href = entry.opt("href") as? String ?: continue
+                if (href.length > MAX_ICON_ADDRESS_LENGTH) continue
+                val url = href.toHttpUrlOrNull() ?: continue
+                if (url.username.isNotEmpty() || url.password.isNotEmpty()) continue
+                val type = entry.opt("type") as? String ?: ""
+                if (type.contains("svg", ignoreCase = true) || url.encodedPath.endsWith(".svg", ignoreCase = true)) continue
+                if (GeckoImageNetworkClient.refuseRedirect(page, url) != null) continue
+                val sizes = (entry.opt("sizes") as? String)?.take(MAX_ICON_SIZES_LENGTH)?.let(SiteIcons::parseSizes).orEmpty()
+                icons += DeclaredSiteIcon(url = url.toString(), isTouchIcon = isTouchIcon, sizes = sizes)
+            }
+            return icons.distinctBy { it.url }.take(SiteIcons.MAX_ICONS_PER_SITE)
         }
 
         /** Whether [message] from the page menu helper hands over a picture a page copied. */

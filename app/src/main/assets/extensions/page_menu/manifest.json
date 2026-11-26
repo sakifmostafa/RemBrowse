@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "RemBrowse page menu",
-  "description": "Part of RemBrowse: tells RemBrowse when a page leaves a right click to the browser, so RemBrowse can show the page's context menu, and when a link is Ctrl+clicked or middle-clicked, so RemBrowse can open it in a new tab; and copies a picture to the clipboard when a page's own copy button asks for it, which the engine can't do on Android.",
-  "version": "1.2.1",
+  "description": "Part of RemBrowse: tells RemBrowse when a page leaves a right click to the browser, so RemBrowse can show the page's context menu, and when a link is Ctrl+clicked or middle-clicked, so RemBrowse can open it in a new tab; copies a picture to the clipboard when a page's own copy button asks for it, which the engine can't do on Android; and tells RemBrowse which icons the page names for itself, so it can show the site's icon.",
+  "version": "1.3.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "page-menu@rembrowse"

@@ -5,6 +5,7 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -73,11 +74,13 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -137,9 +140,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
 import coil3.compose.AsyncImage
+import coil3.memory.MemoryCache
+import coil3.request.ImageRequest
+import com.rembrowser.rembrowse.BuildConfig
 import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.BrowserTab
+import com.rembrowser.rembrowse.model.DeclaredSiteIcon
 import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.SiteIcons
+import com.rembrowser.rembrowse.model.SiteOrigins
 import com.rembrowser.rembrowse.model.TerminalUrls
 import com.rembrowser.rembrowse.ui.theme.RemDimens
 import com.rembrowser.rembrowse.util.UrlResolver
@@ -155,10 +164,16 @@ import android.view.ViewTreeObserver
 import android.view.View
 
 /**
- * Whether [SiteIcon] may fetch a site's `/favicon.ico`. Tests and previews turn this off so
- * they never touch the network; the monogram fallback is shown instead.
+ * Whether [SiteIcon] may fetch a site's icon. Tests and previews turn this off so they never
+ * touch the network; the monogram fallback is shown instead.
  */
 val LocalSiteIconsEnabled = staticCompositionLocalOf { true }
+
+/**
+ * The icons each site names for itself, by origin (BrowserViewModel.declaredSiteIcons), which
+ * [SiteIcon] tries before the site's `/favicon.ico`. Empty where nothing provides it.
+ */
+val LocalDeclaredSiteIcons = compositionLocalOf<Map<String, List<DeclaredSiteIcon>>> { emptyMap() }
 
 /**
  * Icon-only button with an accessible name, a hover/long-press tooltip and a 48dp touch target
@@ -383,8 +398,12 @@ internal fun glyphStyle(style: TextStyle): TextStyle {
 }
 
 /**
- * A site's icon: its favicon when one can be loaded, otherwise the first letter of its host.
- * Always decorative; the surrounding control carries the accessible name.
+ * A site's icon: one the site names for itself ([LocalDeclaredSiteIcons]), or else its
+ * `/favicon.ico`, when one can be loaded (see SiteIcons.addressesFor); otherwise the first
+ * letter of its host. Each address that fails gives way to the next. While another address
+ * loads, the icon last shown for the site stays (from Coil's memory cache), so a site changing
+ * its icon doesn't flash its letter. Always decorative; the surrounding control carries the
+ * accessible name.
  */
 @Composable
 fun SiteIcon(
@@ -413,14 +432,30 @@ fun SiteIcon(
         )
         return
     }
-    val faviconUrl = if (LocalSiteIconsEnabled.current) {
-        remember(url) { UrlResolver.faviconUrl(url) }
+    val declared = LocalDeclaredSiteIcons.current
+    val targetPx = with(LocalDensity.current) { size.roundToPx() }
+    val addresses = if (LocalSiteIconsEnabled.current) {
+        remember(url, declared, targetPx) { SiteIcons.addressesFor(url, declared, targetPx) }
     } else {
-        null
+        emptyList()
     }
-    var loaded by remember(faviconUrl) { mutableStateOf(false) }
+    // The address being tried: each that fails gives way to the next
+    var tried by remember(addresses) { mutableIntStateOf(0) }
+    val address = addresses.getOrNull(tried)
+    // Whether an icon of the site is on screen (otherwise its letter is), and its key in Coil's
+    // memory cache. Kept while the page moves within the site.
+    val origin = remember(url) { SiteOrigins.originOf(url) }
+    var shown by remember(origin) { mutableStateOf(false) }
+    var shownKey by remember(origin) { mutableStateOf<MemoryCache.Key?>(null) }
+    // A new address is loading and Coil no longer has the icon on screen to show meanwhile
+    var loadingBlank by remember(origin) { mutableStateOf(false) }
+    val context = LocalContext.current
+    // Built when the address changes: the icon on screen then stays until the new one is in
+    val request = remember(origin, address) {
+        address?.let { ImageRequest.Builder(context).data(it).placeholderMemoryCacheKey(shownKey).build() }
+    }
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
-        if (!loaded) {
+        if (!shown || loadingBlank) {
             Text(
                 text = UrlResolver.monogram(url, title),
                 style = glyphStyle(
@@ -430,12 +465,27 @@ fun SiteIcon(
                 maxLines = 1
             )
         }
-        if (faviconUrl != null) {
+        // Another site starts afresh, even at an address the last one shared (a common CDN icon)
+        if (request != null) key(origin) {
             AsyncImage(
-                model = faviconUrl,
+                model = request,
                 contentDescription = null,
-                onSuccess = { loaded = true },
-                onError = { loaded = false },
+                onLoading = { state -> loadingBlank = state.painter == null },
+                onSuccess = { state ->
+                    shown = true
+                    shownKey = state.result.memoryCacheKey
+                    loadingBlank = false
+                },
+                onError = { state ->
+                    if (BuildConfig.DEBUG) Log.d(SITE_ICON_TAG, "No icon at $address: ${state.result.throwable}")
+                    if (tried < addresses.lastIndex) {
+                        tried++
+                    } else {
+                        shown = false
+                        shownKey = null
+                        loadingBlank = false
+                    }
+                },
                 modifier = Modifier
                     .size(size)
                     .clip(RoundedCornerShape(4.dp))
@@ -443,6 +493,8 @@ fun SiteIcon(
         }
     }
 }
+
+private const val SITE_ICON_TAG = "SiteIcon"
 
 /**
  * Miniature drawing of a pane layout, used wherever a layout is offered.

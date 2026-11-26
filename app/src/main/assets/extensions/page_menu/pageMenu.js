@@ -231,3 +231,101 @@ function wrapClipboardWrite() {
 }
 
 wrapClipboardWrite();
+
+// The icons the page names for itself in its <head> (<link rel="icon">, "shortcut icon",
+// "apple-touch-icon"), for the app, which shows one of them as the site's icon on the tab rail,
+// the pinned sites and in lists, and tries the site's /favicon.ico only after them: many sites
+// keep their icon somewhere else, and some have no /favicon.ico at all. The app fetches the icon
+// itself, without the page's cookies, and only from addresses it allows.
+// Only the top page's icons are sent (a frame's belong to another site), once the document is
+// parsed and again when the page changes them (a web app marking unread messages on its icon),
+// at most once a second and only when they changed. A page that names none sends nothing.
+const ICON_RELS = ["icon", "apple-touch-icon", "apple-touch-icon-precomposed"];
+const MAX_ICONS = 16;
+const MAX_ICON_ADDRESS = 1024;
+const ICON_WAIT_MS = 1000;
+
+function declaredIcons() {
+  const icons = [];
+  for (const link of document.querySelectorAll("link[rel][href]")) {
+    const rels = (link.getAttribute("rel") || "").toLowerCase().split(/\s+/);
+    const found = ICON_RELS.find(rel => rels.includes(rel));
+    // An icon for another colour scheme or screen than this one (media="(prefers-color-scheme: dark)")
+    const media = link.getAttribute("media");
+    if (found && media && !window.matchMedia(media).matches) {
+      continue;
+    }
+    // The address as the page resolves it: absolute, against the page's base. An empty href
+    // would resolve to the page itself.
+    const href = link.getAttribute("href").trim() ? link.href : null;
+    if (!found || typeof href !== "string" || !/^https?:/i.test(href) || href.length > MAX_ICON_ADDRESS) {
+      continue;
+    }
+    icons.push({
+      rel: found === "icon" ? "icon" : "apple-touch-icon",
+      href,
+      sizes: (link.getAttribute("sizes") || "").slice(0, 200),
+      type: (link.getAttribute("type") || "").slice(0, 100)
+    });
+    if (icons.length >= MAX_ICONS) {
+      break;
+    }
+  }
+  return icons;
+}
+
+let sentIcons = "";
+let iconTimer = 0;
+let iconRetries = 0;
+
+// A page restored as RemBrowse starts can load before the app listens to it: a send that
+// fails is tried again a few times, a little later each time.
+const ICON_RETRIES = 3;
+
+function sendIcons() {
+  iconTimer = 0;
+  const icons = declaredIcons();
+  const sent = JSON.stringify(icons);
+  if (icons.length === 0 || sent === sentIcons) {
+    return;
+  }
+  sentIcons = sent;
+  browser.runtime.sendNativeMessage(NATIVE_APP, { type: "siteIcons", icons }).catch(() => {
+    if (sentIcons === sent) {
+      sentIcons = "";
+    }
+    if (iconRetries < ICON_RETRIES && !iconTimer) {
+      iconRetries++;
+      iconTimer = setTimeout(sendIcons, ICON_WAIT_MS * 2 * iconRetries);
+    }
+  });
+}
+
+function watchIcons() {
+  if (window !== window.top || !/^https?:$/.test(location.protocol)) {
+    return;
+  }
+  const start = () => {
+    sendIcons();
+    if (!document.head) {
+      return;
+    }
+    new MutationObserver(() => {
+      if (!iconTimer) {
+        iconTimer = setTimeout(sendIcons, ICON_WAIT_MS);
+      }
+    }).observe(document.head, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["href", "rel", "sizes", "type"]
+    });
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
+}
+
+watchIcons();

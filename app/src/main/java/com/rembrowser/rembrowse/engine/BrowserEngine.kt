@@ -2,6 +2,7 @@ package com.rembrowser.rembrowse.engine
 
 import com.rembrowser.rembrowse.model.AddonUpdateResult
 import com.rembrowser.rembrowse.model.AddonUpdateTarget
+import com.rembrowser.rembrowse.model.DeclaredSiteIcon
 import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
@@ -124,6 +125,12 @@ interface SessionEventListener {
      * otherwise in the background. [url] is always a web address (http or https).
      */
     fun onOpenLinkRequested(tabId: String, url: String, inForeground: Boolean) {}
+
+    /**
+     * The page at [pageUrl], in [tabId], names [icons] for itself (`<link rel="icon">` and
+     * `apple-touch-icon`): raster icons at addresses the icon client may fetch, never empty.
+     */
+    fun onSiteIconsDeclared(tabId: String, pageUrl: String, icons: List<DeclaredSiteIcon>) {}
 
     /**
      * The page in [tabId] was laid out for printing as the PDF at [pdfPath]: the Print command,
