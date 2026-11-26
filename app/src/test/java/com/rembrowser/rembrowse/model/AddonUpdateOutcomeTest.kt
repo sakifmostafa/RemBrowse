@@ -53,7 +53,7 @@ class AddonUpdateOutcomeTest {
             "Bitwarden" to AddonUpdateResult.Failed()
         )
         assertEquals(
-            "Updated uBlock Origin. Dark Reader will finish updating when it next restarts. " +
+            "Updated uBlock Origin. Dark Reader will finish updating the next time RemBrowse starts. " +
                 "Proton VPN wasn't updated, because you didn't allow its new permissions. " +
                 "Couldn't update Bitwarden. Try again later.",
             outcome.summary
@@ -70,7 +70,7 @@ class AddonUpdateOutcomeTest {
             "uBlock Origin" to AddonUpdateResult.Postponed
         )
         assertEquals(
-            "Dark Reader and uBlock Origin will finish updating when they next restart. " +
+            "Dark Reader and uBlock Origin will finish updating the next time RemBrowse starts. " +
                 "Proton VPN and Bitwarden weren't updated, because you didn't allow their new permissions.",
             outcome.summary
         )

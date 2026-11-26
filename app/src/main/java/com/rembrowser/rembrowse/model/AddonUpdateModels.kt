@@ -70,8 +70,7 @@ private fun checkedSummary(items: List<AddonUpdateItem>): String {
     val sentences = buildList {
         if (updated.isNotEmpty()) add("Updated ${namesInWords(updated)}.")
         if (postponed.isNotEmpty()) {
-            val restart = if (postponed.size > 1) "they next restart" else "it next restarts"
-            add("${namesInWords(postponed)} will finish updating when $restart.")
+            add("${namesInWords(postponed)} will finish updating the next time RemBrowse starts.")
         }
         if (declined.isNotEmpty()) {
             val plural = declined.size > 1

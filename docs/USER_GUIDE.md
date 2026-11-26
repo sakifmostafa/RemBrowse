@@ -279,7 +279,7 @@ Enabled extensions with a toolbar button appear at the bottom of the tab rail, w
 * **Update add-ons automatically** (on by default) switches the daily check off or on.
 * **Check for updates** checks every add-on straight away, whatever the switch says, and then says which add-ons were updated, which weren't and why, or that the check couldn't be made. Before that, and again after the next daily check, the line above the button says when add-ons were last checked.
 * An update that needs **new permissions** shows the permission review first. If you don't allow it, the add-on stays on its current version and the daily check doesn't ask about that version again; **Check for updates** asks again, and a later version is asked about as usual.
-* A few add-ons ask to finish an update when they next restart; **Check for updates** says so.
+* A few add-ons, such as uBlock Origin, wait to finish an update until RemBrowse next starts, as they do in desktop Firefox; **Check for updates** says so, and the list shows the new version after that start.
 * If addons.mozilla.org can't be reached while the device is online, the engine can't tell that apart from "no newer version", so the check says the add-ons are up to date; the next day's check tries again.
 
 You are also asked whenever an extension requests **additional permissions**.
