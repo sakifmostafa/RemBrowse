@@ -890,7 +890,7 @@ private fun RailExtensionItem(
             showTitle = showTitle,
             titleTag = "rail_extension_title_${extension.id}",
             modifier = modifier
-                .extensionButtonTarget(buttonTargets, extension.id, onClick)
+                .extensionButtonTarget(buttonTargets, extension.id, onMenu = { showMenu = true }, onClick = onClick)
                 .testTag("rail_extension_${extension.id}")
         ) {
             ExtensionIcon(
@@ -954,7 +954,7 @@ private fun RailExtensionsOverflow(
             showTitle = showTitle,
             titleTag = "rail_extensions_more_title",
             modifier = modifier
-                .extensionButtonTarget(buttonTargets, extensionId = null) { showMenu = true }
+                .extensionButtonTarget(buttonTargets, extensionId = null, onMenu = { showMenu = true }) { showMenu = true }
                 .testTag("rail_extensions_more")
         ) {
             RailIcon(Icons.Outlined.Extension)
