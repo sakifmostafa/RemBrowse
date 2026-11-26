@@ -263,7 +263,7 @@ Like any content blocker, uBlock Origin can read and change the pages you visit 
 
 Extensions are managed in **Settings → Extensions** (`rem://settings/extensions`). **More → Extensions** opens the same place.
 
-1. **Installed** — turn an extension on or off, open its popup or options, or remove it (you are asked to confirm).
+1. **Installed** — turn an extension on or off, open its popup or options, or remove it (you are asked to confirm). Above the list are the add-on updates (see below).
 2. **Firefox Add-ons** — search the catalog at addons.mozilla.org (uBlock Origin, Dark Reader, Bitwarden…). Select **Add**, review the permissions, then confirm. Add-ons you already have are marked **Added**.
 3. **From file** — paste an `https://` link to a `.xpi`, or choose a `.xpi` file already on the device.
 
@@ -273,7 +273,15 @@ Enabled extensions with a toolbar button appear at the bottom of the tab rail, w
 
 **VPN and proxy extensions.** Extensions such as Proton VPN work by taking control of the browser's proxy setting. Firefox's engine refuses that on Android; RemBrowse ships the engine with that refusal removed, so these extensions can connect. Extensions are also allowed in private browsing, which Firefox requires for this: RemBrowse has no private windows, so the permission exposes nothing, and an extension's "allow in private windows" hint can be ignored. Site and add-on icons are fetched through the browser engine's own network stack, as pages are, without your cookies for that site; notification icons are still fetched by RemBrowse itself.
 
-You are asked again whenever an update needs **new permissions** or an extension requests **additional permissions**.
+**Updates.** Add-ons keep themselves up to date, as in desktop Firefox. Shortly after RemBrowse starts, if a day has passed since the last check, and then once a day while it keeps running, every add-on you installed (on or off) is checked on addons.mozilla.org and a newer version is installed. Nothing is checked while RemBrowse is closed; without a connection, the check waits until there is one. RemBrowse's own built-in helpers come with the app and are never checked.
+
+* **Update add-ons automatically** (on by default) switches the daily check off or on.
+* **Check for updates** checks every add-on straight away, whatever the switch says, and then says which add-ons were updated, which weren't and why, or that the check couldn't be made. Before that, and again after the next daily check, the line above the button says when add-ons were last checked.
+* An update that needs **new permissions** shows the permission review first. If you don't allow it, the add-on stays on its current version and the daily check doesn't ask about that version again; **Check for updates** asks again, and a later version is asked about as usual.
+* A few add-ons ask to finish an update when they next restart; **Check for updates** says so.
+* If addons.mozilla.org can't be reached while the device is online, the engine can't tell that apart from "no newer version", so the check says the add-ons are up to date; the next day's check tries again.
+
+You are also asked whenever an extension requests **additional permissions**.
 
 **What an extension collects.** Under the permissions, the review lists the data the developer says the extension collects and sends them, in plain words ("Your location", "What you search for"), or says "The developer says this extension doesn't collect data". Extensions made before Firefox asked developers to say so show nothing there. Some extensions also ask to collect **technical and interaction data** (your device and browser versions, the extension's settings and how you use it) only if you agree: that one has its own checkbox, unticked, and the extension installs either way. Updates and additional permission requests list any new kinds of data the same way.
 

@@ -182,7 +182,9 @@ data class ExtensionsUiState(
     val activePopup: ExtensionPopupState? = null,
     val isInstallingAdBlocker: Boolean = false,
     /** Set only when the user asked for the ad blocker and it could not be installed. */
-    val adBlockerError: String? = null
+    val adBlockerError: String? = null,
+    /** The add-on update switch and the outcome of "Check for updates". */
+    val addonUpdates: AddonUpdatesUiState = AddonUpdatesUiState()
 ) {
     val adBlocker: InstalledExtension?
         get() = installedExtensions.firstOrNull { it.id == DefaultAdBlocker.ID }

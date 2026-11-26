@@ -543,6 +543,14 @@ class UiSnapshotTest {
     }
 
     @Test
+    fun extensionsInstalledLightAfterAnUpdateCheck() {
+        launch(settings = BrowserSettings(themeMode = ThemeMode.LIGHT), withExtensions = true)
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.EXTENSIONS) }
+        composeRule.onNodeWithTag("addon_update_check").performClick()
+        save("11d-extensions-update-check-light")
+    }
+
+    @Test
     fun extensionsFirefoxAddons() {
         launch(withExtensions = true)
         composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.EXTENSIONS) }

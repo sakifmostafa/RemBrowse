@@ -2,6 +2,14 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Added
+* **Add-ons update themselves.** Installed add-ons such as uBlock Origin and Proton VPN now get their new versions from addons.mozilla.org, as they do in desktop Firefox; until now they stayed on the version first installed. Shortly after RemBrowse starts, if a day has passed since the last check, and then once a day for as long as it keeps running, every add-on you installed is checked, switched on or off, and a newer version is installed. Nothing is checked while RemBrowse is closed, and a check made without a connection is tried again later. An update that asks for new permissions shows the usual review first; if you say no, the daily check doesn't ask about that version again. **Settings → Extensions → Installed** has **Update add-ons automatically** (on by default) and **Check for updates**, which checks straight away, asks again about any update you declined, and says what was updated, what wasn't, or that the check couldn't be made. The list and the extension buttons show the new version as soon as it is installed. RemBrowse's own built-in helpers come with the app and are not checked.
+
+### Known issues
+* **A check that can't reach addons.mozilla.org says the add-ons are up to date.** The engine reports an update check that failed the same way as one that found nothing new, so **Check for updates** can only tell that it failed when the device has no connection at all. The daily check tries again the next day either way.
+
 ## v0.16.0 (2026-11-25) — A browser engine a year and a half newer, each site in a process of its own and a screenshot of the whole page
 
 ### Added

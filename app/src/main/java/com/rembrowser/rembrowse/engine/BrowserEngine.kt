@@ -1,5 +1,7 @@
 package com.rembrowser.rembrowse.engine
 
+import com.rembrowser.rembrowse.model.AddonUpdateResult
+import com.rembrowser.rembrowse.model.AddonUpdateTarget
 import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
@@ -259,4 +261,18 @@ interface ExtensionManager {
      * never reaches the prompt after it.
      */
     fun dismissPrompt(prompt: ExtensionInstallPrompt, allow: Boolean, shareTechnicalData: Boolean = false)
+
+    /**
+     * Every installed add-on, switched on or off, with the browser's own built-in ones marked,
+     * for the update check. None by default: a manager without updates has nothing to check.
+     */
+    suspend fun addonUpdateTargets(): Result<List<AddonUpdateTarget>> = Result.success(emptyList())
+
+    /**
+     * Checks [extensionId] for a newer version and installs it. A new version that asks for more
+     * permissions goes through the usual review, unless it is [declinedVersion], which is declined
+     * again without asking. Never throws: a failure is [AddonUpdateResult.Failed].
+     */
+    suspend fun updateAddon(extensionId: String, declinedVersion: String? = null): AddonUpdateResult =
+        AddonUpdateResult.UpToDate
 }

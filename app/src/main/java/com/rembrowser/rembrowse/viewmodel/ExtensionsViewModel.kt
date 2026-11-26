@@ -1,8 +1,10 @@
 package com.rembrowser.rembrowse.viewmodel
 
+import com.rembrowser.rembrowse.data.AddonUpdatePreferences
 import com.rembrowser.rembrowse.data.AlreadyProvisionedDefaults
 import com.rembrowser.rembrowse.data.AmoApiClient
 import com.rembrowser.rembrowse.data.DefaultExtensionStore
+import com.rembrowser.rembrowse.data.InMemoryAddonUpdatePreferences
 import com.rembrowser.rembrowse.engine.ExtensionInstallCancelledException
 import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.model.AmoAddon
@@ -27,10 +29,16 @@ class ExtensionsViewModel(
     private val extensionManager: ExtensionManager,
     private val amoApiClient: AmoApiClient,
     private val scope: CoroutineScope,
-    private val defaults: DefaultExtensionStore = AlreadyProvisionedDefaults
+    private val defaults: DefaultExtensionStore = AlreadyProvisionedDefaults,
+    addonUpdatePreferences: AddonUpdatePreferences = InMemoryAddonUpdatePreferences(),
+    /** Whether the device has a network connection, for the add-on update check. */
+    isOnline: () -> Boolean = { true }
 ) {
     private val _uiState = MutableStateFlow(ExtensionsUiState())
     val uiState: StateFlow<ExtensionsUiState> = _uiState.asStateFlow()
+
+    /** Keeps installed add-ons up to date; its schedule runs from [startAddonUpdates]. */
+    private val addonUpdater = AddonUpdater(extensionManager, addonUpdatePreferences, scope, isOnline)
 
     // Only the newest catalog request may publish results; a slow earlier one is cancelled.
     private var catalogJob: Job? = null
@@ -51,6 +59,12 @@ class ExtensionsViewModel(
         extensionManager.activePopup
             .onEach { popup ->
                 _uiState.update { it.copy(activePopup = popup) }
+            }
+            .launchIn(scope)
+
+        addonUpdater.uiState
+            .onEach { updates ->
+                _uiState.update { it.copy(addonUpdates = updates) }
             }
             .launchIn(scope)
 
@@ -337,6 +351,21 @@ class ExtensionsViewModel(
 
     fun dismissPopup() {
         extensionManager.dismissPopup()
+    }
+
+    /** Starts the daily add-on update check, for as long as [scope] lasts. */
+    fun startAddonUpdates() {
+        addonUpdater.start()
+    }
+
+    /** "Check for updates" in Settings → Extensions. */
+    fun checkForAddonUpdates() {
+        addonUpdater.checkNow()
+    }
+
+    /** "Update add-ons automatically" in Settings → Extensions. */
+    fun setUpdateAddonsAutomatically(enabled: Boolean) {
+        addonUpdater.setUpdateAutomatically(enabled)
     }
 
     fun clearMessages() {

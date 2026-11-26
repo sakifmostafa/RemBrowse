@@ -9,6 +9,8 @@ import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.engine.SessionEventListener
 import com.rembrowser.rembrowse.engine.SessionNavigationUpdate
 import com.rembrowser.rembrowse.engine.SitePermissionAsk
+import com.rembrowser.rembrowse.model.AddonUpdateResult
+import com.rembrowser.rembrowse.model.AddonUpdateTarget
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
@@ -487,6 +489,7 @@ class FakeExtensionManager : ExtensionManager {
     var setEnabledFailureFor = mutableSetOf<String>()
 
     override suspend fun refreshInstalled(): Result<List<InstalledExtension>> {
+        refreshCount++
         return refreshResult ?: Result.success(installedExtensions.value)
     }
 
@@ -562,6 +565,49 @@ class FakeExtensionManager : ExtensionManager {
         lastTechnicalDataDecision = shareTechnicalData
         prompt.onDecision(allow, shareTechnicalData)
         pendingPrompt.value = null
+    }
+
+    /** Built-in add-ons, listed for the update check besides [installedExtensions] (which never shows them). */
+    var builtInAddonIds = listOf<String>()
+
+    /** When set, what addonUpdateTargets returns. */
+    var addonTargetsResult: Result<List<AddonUpdateTarget>>? = null
+
+    /** What updateAddon answers for an add-on; one with none is up to date. */
+    val addonUpdateResults = mutableMapOf<String, AddonUpdateResult>()
+
+    /** updateAddon throws this for these add-ons, which a real manager never does. */
+    val addonUpdateThrows = mutableMapOf<String, Throwable>()
+
+    /** When set, updates suspend until this is completed. */
+    var addonUpdateGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /** Updates of these add-ons suspend until theirs is completed, as one waiting on its review does. */
+    val addonUpdateGateFor = mutableMapOf<String, kotlinx.coroutines.CompletableDeferred<Unit>>()
+
+    /** Each updateAddon call: the add-on and the version it was told to decline without asking. */
+    val addonUpdateCalls = mutableListOf<Pair<String, String?>>()
+    var refreshCount = 0
+        private set
+
+    override suspend fun addonUpdateTargets(): Result<List<AddonUpdateTarget>> = addonTargetsResult
+        ?: Result.success(
+            installedExtensions.value.map { AddonUpdateTarget(it.id, it.name) } +
+                builtInAddonIds.map { AddonUpdateTarget(it, it, builtIn = true) }
+        )
+
+    override suspend fun updateAddon(extensionId: String, declinedVersion: String?): AddonUpdateResult {
+        addonUpdateCalls.add(extensionId to declinedVersion)
+        addonUpdateGate?.await()
+        addonUpdateGateFor[extensionId]?.await()
+        addonUpdateThrows[extensionId]?.let { throw it }
+        val result = addonUpdateResults[extensionId] ?: AddonUpdateResult.UpToDate
+        if (result is AddonUpdateResult.Updated) {
+            installedExtensions.value = installedExtensions.value.map {
+                if (it.id == extensionId) it.copy(version = result.version) else it
+            }
+        }
+        return result
     }
 }
 

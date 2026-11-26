@@ -1,9 +1,11 @@
 package com.rembrowser.rembrowse.viewmodel
 
+import com.rembrowser.rembrowse.data.InMemoryAddonUpdatePreferences
 import com.rembrowser.rembrowse.engine.ExtensionInstallCancelledException
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeDefaultExtensionStore
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
+import com.rembrowser.rembrowse.model.AddonUpdateResult
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ArchivedAdBlocker
 import com.rembrowser.rembrowse.model.DefaultAdBlocker
@@ -688,6 +690,38 @@ class ExtensionsViewModelTest {
 
             assertEquals(listOf(true to true, true to false, false to false), answers)
             assertNull(viewModel.uiState.value.pendingPrompt)
+        } finally {
+            vmScope.cancel()
+        }
+    }
+
+    @Test
+    fun addonUpdateControls_switchTheDailyCheckAndShowWhatACheckFound() = runTest {
+        val vmScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val preferences = InMemoryAddonUpdatePreferences()
+            extensionManager.installedExtensions.value = listOf(
+                InstalledExtension("uBlock0@raymondhill.net", "uBlock Origin", "1.61.2", "", enabled = true)
+            )
+            extensionManager.addonUpdateResults["uBlock0@raymondhill.net"] = AddonUpdateResult.Updated("1.62.0")
+            val viewModel = ExtensionsViewModel(
+                extensionManager,
+                amoApiClient,
+                vmScope,
+                addonUpdatePreferences = preferences
+            )
+            assertTrue(viewModel.uiState.value.addonUpdates.updateAutomatically)
+
+            viewModel.setUpdateAddonsAutomatically(false)
+            assertFalse(preferences.updateAutomatically)
+            assertFalse(viewModel.uiState.value.addonUpdates.updateAutomatically)
+
+            viewModel.checkForAddonUpdates()
+            val updates = viewModel.uiState.value.addonUpdates
+            assertFalse(updates.checking)
+            assertEquals("Updated uBlock Origin.", updates.outcome?.summary)
+            assertNotNull(updates.lastCheckedMillis)
+            assertEquals("1.62.0", viewModel.uiState.value.installedExtensions.single().version)
         } finally {
             vmScope.cancel()
         }

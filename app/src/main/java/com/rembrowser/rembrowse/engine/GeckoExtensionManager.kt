@@ -7,6 +7,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import com.rembrowser.rembrowse.model.AddonUpdateResult
+import com.rembrowser.rembrowse.model.AddonUpdateTarget
 import com.rembrowser.rembrowse.model.ExtensionDataCollection
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
 import com.rembrowser.rembrowse.model.ExtensionPopupState
@@ -249,6 +251,7 @@ class GeckoExtensionManager(
                 newOrigins: Array<String>,
                 newDataCollectionPermissions: Array<String>
             ): GeckoResult<AllowOrDeny> {
+                if (declineUpdateUnasked(extension)) return GeckoResult.fromValue(AllowOrDeny.DENY)
                 val result = GeckoResult<AllowOrDeny>()
                 enqueuePrompt(
                     extension,
@@ -415,6 +418,74 @@ class GeckoExtensionManager(
                 Unit
             }
         }
+
+    // Add-on updates being waited on, by extension id (main thread only); see updateAddon
+    private val updatesUnderway = HashMap<String, AddonUpdateUnderway>()
+
+    override suspend fun addonUpdateTargets(): Result<List<AddonUpdateTarget>> =
+        withContext(Dispatchers.Main.immediate) {
+            runCatching {
+                (controller.list().awaitResult() ?: emptyList()).map { ext ->
+                    AddonUpdateTarget(
+                        id = ext.id,
+                        name = ext.metaData.name?.takeIf { it.isNotBlank() } ?: ext.id,
+                        builtIn = ext.isBuiltIn || ext.id == POPUP_VIEWPORT_EXTENSION_ID
+                    )
+                }
+            }.onFailure { Log.w(TAG, "Couldn't list extensions to update", it) }
+        }
+
+    /**
+     * Asks Gecko to update [extensionId] (see GeckoAddonUpdates.kt for what it answers). The
+     * installed list is the caller's to refresh; the updated extension's delegates are set here,
+     * and its popup, which the update closed, is dismissed.
+     */
+    override suspend fun updateAddon(extensionId: String, declinedVersion: String?): AddonUpdateResult =
+        withContext(Dispatchers.Main.immediate) {
+            if (updatesUnderway.containsKey(extensionId)) {
+                Log.w(TAG, "$extensionId is already being updated")
+                return@withContext AddonUpdateResult.Failed()
+            }
+            val underway = AddonUpdateUnderway(declinedVersion)
+            updatesUnderway[extensionId] = underway
+            try {
+                val extension = rawExtensions[extensionId]
+                    ?: controller.list().awaitResult()?.firstOrNull { it.id == extensionId }
+                    ?: error("Extension $extensionId not found")
+                val updated = controller.update(extension).awaitResult()
+                if (updated == null) {
+                    AddonUpdateResult.UpToDate
+                } else {
+                    if (rawExtensions.containsKey(updated.id)) {
+                        rawExtensions[updated.id] = updated
+                        registerDelegates(updated)
+                    }
+                    if (_activePopup.value?.extensionId == updated.id) dismissPopup()
+                    val version = updated.metaData.version.orEmpty()
+                    Log.i(TAG, "Updated $extensionId to $version")
+                    AddonUpdateResult.Updated(version)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                val result = addonUpdateFailure((e as? WebExtension.InstallException)?.code, underway)
+                Log.w(TAG, "Update of $extensionId: $result", e)
+                result
+            } finally {
+                updatesUnderway.remove(extensionId)
+            }
+        }
+
+    /**
+     * For an update [updateAddon] is waiting on: notes the version on offer, and true when an
+     * automatic check was told the user already declined that version, so it isn't shown again.
+     */
+    private fun declineUpdateUnasked(extension: WebExtension): Boolean {
+        val underway = updatesUnderway[extension.id] ?: return false
+        val declineUnasked = underway.declineUnasked(extension.metaData.version)
+        if (declineUnasked) Log.i(TAG, "Not asking again about ${extension.id} ${extension.metaData.version}")
+        return declineUnasked
+    }
 
     override fun triggerBrowserAction(extensionId: String) {
         val action = effectiveAction(extensionId)

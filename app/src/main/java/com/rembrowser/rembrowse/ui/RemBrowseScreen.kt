@@ -571,7 +571,9 @@ fun RemBrowseScreen(
             onSetEnabled = extensionsViewModel::setExtensionEnabled,
             onUninstall = extensionsViewModel::uninstallExtension,
             onOpenAction = extensionsViewModel::triggerBrowserAction,
-            onClearMessages = extensionsViewModel::clearMessages
+            onClearMessages = extensionsViewModel::clearMessages,
+            onSetUpdateAddonsAutomatically = extensionsViewModel::setUpdateAddonsAutomatically,
+            onCheckForAddonUpdates = extensionsViewModel::checkForAddonUpdates
         )
     }
     val toggleSplitView = {

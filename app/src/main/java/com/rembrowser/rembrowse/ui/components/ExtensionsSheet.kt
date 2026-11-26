@@ -93,6 +93,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import coil3.compose.AsyncImage
+import com.rembrowser.rembrowse.model.AddonUpdatesUiState
 import com.rembrowser.rembrowse.model.AmoAddon
 import com.rembrowser.rembrowse.model.ExtensionDataCollection
 import com.rembrowser.rembrowse.model.ExtensionInstallPrompt
@@ -117,7 +118,9 @@ class ExtensionsPanelActions(
     val onSetEnabled: (String, Boolean) -> Unit,
     val onUninstall: (String) -> Unit,
     val onOpenAction: (String) -> Unit,
-    val onClearMessages: () -> Unit
+    val onClearMessages: () -> Unit,
+    val onSetUpdateAddonsAutomatically: (Boolean) -> Unit = {},
+    val onCheckForAddonUpdates: () -> Unit = {}
 )
 
 /**
@@ -178,6 +181,9 @@ fun ExtensionsPanel(
             when (uiState.selectedTab) {
                 ExtensionsTab.INSTALLED -> InstalledExtensionsList(
                     extensions = uiState.installedExtensions,
+                    addonUpdates = uiState.addonUpdates,
+                    onSetUpdateAddonsAutomatically = actions.onSetUpdateAddonsAutomatically,
+                    onCheckForAddonUpdates = actions.onCheckForAddonUpdates,
                     onSetEnabled = actions.onSetEnabled,
                     onUninstall = actions.onUninstall,
                     onOpenAction = actions.onOpenAction,
@@ -276,9 +282,58 @@ private fun EmptyState(
     }
 }
 
+/**
+ * Above the installed add-ons: the switch for the daily update check, how the last check asked
+ * for went (announced when it changes), and "Check for updates".
+ */
+@Composable
+private fun AddonUpdatesBlock(
+    state: AddonUpdatesUiState,
+    onSetUpdateAutomatically: (Boolean) -> Unit,
+    onCheckForUpdates: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val outcome = state.outcome
+    val lastChecked = state.lastCheckedMillis?.let(::lastCheckedText)
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        SwitchRow(
+            title = "Update add-ons automatically",
+            description = "Once a day RemBrowse installs new versions of your add-ons from addons.mozilla.org. " +
+                "An update that asks for new permissions waits for you to review it.",
+            checked = state.updateAutomatically,
+            onCheckedChange = onSetUpdateAutomatically,
+            testTag = "setting_update_addons"
+        )
+        Text(
+            text = when {
+                state.checking -> "Checking for updates…"
+                outcome != null -> outcome.summary
+                lastChecked != null -> withFullStop("Last checked $lastChecked")
+                else -> "See whether your add-ons have newer versions."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (!state.checking && outcome?.isError == true) colors.error else colors.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 12.dp, bottom = 8.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite }
+                .testTag("addon_update_status")
+        )
+        RemOutlinedButton(
+            onClick = onCheckForUpdates,
+            enabled = !state.checking,
+            modifier = Modifier.testTag("addon_update_check")
+        ) {
+            Text("Check for updates")
+        }
+    }
+}
+
 @Composable
 private fun InstalledExtensionsList(
     extensions: List<InstalledExtension>,
+    addonUpdates: AddonUpdatesUiState,
+    onSetUpdateAddonsAutomatically: (Boolean) -> Unit,
+    onCheckForAddonUpdates: () -> Unit,
     onSetEnabled: (String, Boolean) -> Unit,
     onUninstall: (String) -> Unit,
     onOpenAction: (String) -> Unit,
@@ -298,6 +353,14 @@ private fun InstalledExtensionsList(
     }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Scrolls away with the list, leaving it the room on a short window
+        item(key = "rembrowse:addon_updates") {
+            AddonUpdatesBlock(
+                state = addonUpdates,
+                onSetUpdateAutomatically = onSetUpdateAddonsAutomatically,
+                onCheckForUpdates = onCheckForAddonUpdates
+            )
+        }
         items(extensions, key = { it.id }) { ext ->
             ListCard {
                 Row(

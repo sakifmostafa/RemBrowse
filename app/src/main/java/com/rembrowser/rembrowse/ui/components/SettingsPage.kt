@@ -894,7 +894,7 @@ private fun UpdatesBlock(state: UpdatesUiState, actions: UpdateActions) {
 internal fun withFullStop(text: String): String = if (text.endsWith(".")) text else "$text."
 
 /** "today at 10:42", or "on 18 Nov 2026". */
-private fun lastCheckedText(millis: Long): String {
+internal fun lastCheckedText(millis: Long): String {
     val zone = ZoneId.systemDefault()
     val time = Instant.ofEpochMilli(millis).atZone(zone)
     val locale = Locale.getDefault()

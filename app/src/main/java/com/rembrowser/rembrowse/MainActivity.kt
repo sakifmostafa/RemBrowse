@@ -8,6 +8,8 @@ import android.app.UiModeManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color as AndroidColor
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -53,6 +55,7 @@ import com.rembrowser.rembrowse.data.CoilSiteIconCache
 import com.rembrowser.rembrowse.data.KeystoreSecretStore
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.OkHttpUpdateSource
+import com.rembrowser.rembrowse.data.SharedPrefsAddonUpdatePreferences
 import com.rembrowser.rembrowse.data.SharedPrefsBrowserStateRepository
 import com.rembrowser.rembrowse.data.SharedPrefsBrowsingHistoryStore
 import com.rembrowser.rembrowse.data.SharedPrefsDefaultExtensionStore
@@ -136,6 +139,16 @@ private const val SCREENSHOT_THUMBNAIL_DP = 80
 private val SCREENSHOT_FILE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd 'at' HH.mm.ss", Locale.ROOT)
 
 /**
+ * Whether Android has a network that reaches the internet, as far as it knows. When it can't
+ * say (some Android 11 builds throw here), the engine is left to find out.
+ */
+private fun hasNetworkConnection(application: Application): Boolean = runCatching {
+    val connectivity = application.getSystemService(ConnectivityManager::class.java) ?: return true
+    val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
+    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}.getOrDefault(true)
+
+/**
  * Owns the engine sessions and view models for as long as the browser window exists.
  *
  * Being an Android ViewModel, it survives activity re-creation, so live tabs are neither
@@ -201,7 +214,9 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
                 userAgent = "RemBrowse/${BuildConfig.VERSION_NAME} (Android; GeckoView)"
             ),
             scope = viewModelScope,
-            defaults = SharedPrefsDefaultExtensionStore(application)
+            defaults = SharedPrefsDefaultExtensionStore(application),
+            addonUpdatePreferences = SharedPrefsAddonUpdatePreferences(application),
+            isOnline = { hasNetworkConnection(application) }
         )
         downloads = DownloadsViewModel(
             storage = AndroidDownloadStorage(application),
@@ -227,6 +242,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             scope = viewModelScope
         )
         updates.onAppStarted()
+        // Add-ons are checked shortly after start (if a day has passed) and daily while the window lasts
+        extensions.startAddonUpdates()
 
         val mainHandler = Handler(Looper.getMainLooper())
         terminal = TerminalViewModel(
