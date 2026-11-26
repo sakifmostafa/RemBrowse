@@ -24,7 +24,7 @@ Or by hand:
   curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
   android sdk install platforms/android-37.2 build-tools/36.0.0 platform-tools
   ```
-* **The build tools themselves** are fetched by Gradle; nothing to install: Gradle 9.9.2 (the wrapper) and Android Gradle Plugin 9.5.2, which compiles the Kotlin code itself with Kotlin 2.4.21 (there is no separate Kotlin Android plugin; the version is pinned in the root `build.gradle.kts`). Both need a JDK 17 or newer to run. Gradle 9 writes its problems report (compiler warnings) to `build/reports/problems/` at the repository root; it is scratch output, not a release file, and `.gitignore` leaves it out.
+* **The build tools themselves** are fetched by Gradle; nothing to install: Gradle 9.9.2 (the wrapper) and Android Gradle Plugin 9.5.3, which compiles the Kotlin code itself with Kotlin 2.4.21 (there is no separate Kotlin Android plugin; the version is pinned in the root `build.gradle.kts`). Both need a JDK 17 or newer to run. Gradle 9 writes its problems report (compiler warnings) to `build/reports/problems/` at the repository root; it is scratch output, not a release file, and `.gitignore` leaves it out.
 * Ensure `local.properties` points to your Android SDK directory:
   ```properties
   sdk.dir=/home/droid/Android/Sdk
