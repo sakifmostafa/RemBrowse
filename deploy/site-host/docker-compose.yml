@@ -22,7 +22,7 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       # Not created when missing: Docker would make it owned by root, and publishing would fail
       - type: bind
-        source: ${REMBROWSE_WWW:-/home/user/RemBrowse/www}
+        source: ${REMBROWSE_WWW:-../../../www}
         target: /usr/share/nginx/html
         read_only: true
         bind:
