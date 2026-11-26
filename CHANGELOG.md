@@ -2,7 +2,7 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
-## Unreleased
+## v0.16.1 (2026-11-25) — Add-ons that update themselves, and extensions that come back after Android stops them
 
 ### Added
 * **Add-ons update themselves.** Installed add-ons such as uBlock Origin and Proton VPN now get their new versions from addons.mozilla.org, as they do in desktop Firefox; until now they stayed on the version first installed. Shortly after RemBrowse starts, if a day has passed since the last check, and then once a day for as long as it keeps running, every add-on you installed is checked, switched on or off, and a newer version is installed. Nothing is checked while RemBrowse is closed, and a check made without a connection is tried again later. An update that asks for new permissions shows the usual review first; if you say no, the daily check doesn't ask about that version again. **Settings → Extensions → Installed** has **Update add-ons automatically** (on by default) and **Check for updates**, which checks straight away, asks again about any update you declined, and says what was updated, what wasn't, or that the check couldn't be made. The list and the extension buttons show the new version as soon as it is installed. RemBrowse's own built-in helpers come with the app and are not checked.
@@ -12,8 +12,11 @@ All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented
 
 ### Known issues
 * **A check that can't reach addons.mozilla.org says the add-ons are up to date.** The engine reports an update check that failed the same way as one that found nothing new, so **Check for updates** can only tell that it failed when the device has no connection at all. The daily check tries again the next day either way.
+
 ### Testing
 Eleven new unit tests cover when the process is started again: on coming back, after 5 seconds on screen, the growing waits while a window stays on screen and their reset once it stays up, with two windows, and a wait cancelled by leaving. On an Android tablet emulator, with uBlock Origin, Proton VPN (signed out) and a test extension that sends pages through an authenticated proxy as a VPN extension does, the extension process was ended six times in a row. With RemBrowse minimised and a page asking its server every second, it was started again for each request until the engine gave up. Before the fix, back in RemBrowse, pages no longer went through the proxy and uBlock Origin's popup was empty; while the process was off, the test extension's own page got "Could not establish connection. Receiving end does not exist." from its background. After it, the process was back within a second of returning: pages went through the proxy again and uBlock Origin's popup showed its counts. On screen, it was back 5 seconds after the engine gave up, and after a second run a minute later, 60 seconds after, without leaving RemBrowse. Not tried: Proton VPN signed in, and a Googlebook.
+
+Add-on updates: 36 new automated tests cover when a check is due, built-in add-ons skipped, one add-on failing without stopping the others, a declined version not asked about again by the daily check, a check made offline not counted, the words of each outcome, the Settings rows (with renders in light and dark, and their 48 dp height), and a review still waiting when the window closes being declined. On the emulator with every change together: the first check ran 30 seconds after start and found uBlock Origin 1.77.2 over the installed 1.77.0; with 1.76.2 installed from a file, **Check for updates** downloaded 1.77.2 and said uBlock Origin would finish updating the next time RemBrowse starts, as uBlock Origin asks; after that start the list showed 1.77.2 and its popup worked. The extension process ended six times on screen came back 5 seconds after the engine gave up, and uBlock Origin's popup worked again. Not tried: an update that asks for new permissions, and a Googlebook.
 
 ## v0.16.0 (2026-11-25) — A browser engine a year and a half newer, each site in a process of its own and a screenshot of the whole page
 

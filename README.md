@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.16.0`)
+# RemBrowse (`v0.16.1`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a private, native browser made for Googlebook, where SSH is just another tab. It runs on Android laptops (Googlebook OS) and any Android device. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.16.0** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
+**Version 0.16.1** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
@@ -42,7 +42,7 @@ Requires Android 13 or newer (on Android 8 to 12, keep 0.15.0). If Android refus
 * **Uploads**: a page's upload button (Google Drive, Proton Drive, X…) opens the system file picker, for one file or several.
 * **Downloads**: files a page offers are saved to the device's Downloads folder. You are asked first, with the file's name, size and site; recent downloads are listed in Settings → Downloads (`Ctrl+J`).
 * **Ad blocking out of the box**: uBlock Origin is set up automatically on first launch and can be switched off or removed at any time (Settings → Privacy). Copies that came with AdGuard AdBlocker move to uBlock Origin once, with AdGuard kept but switched off.
-* **Real WebExtensions, managed in Settings**: browse and install add-ons from Firefox Add-ons (addons.mozilla.org), or install a signed `.xpi` from a link or a file. Permission requests are reviewed on install, on update and when an extension asks for more, with the data the developer says the extension collects. Extension buttons sit at the bottom of the tab rail with their icons and badges, and popups open beside them at full size, sized to their content as in desktop Firefox. VPN and proxy extensions can take control of the browser's proxy setting, which the stock Android engine refuses them.
+* **Real WebExtensions, managed in Settings**: browse and install add-ons from Firefox Add-ons (addons.mozilla.org), or install a signed `.xpi` from a link or a file. Installed add-ons update themselves once a day (Settings → Extensions has a switch and **Check for updates**). Permission requests are reviewed on install, on update and when an extension asks for more, with the data the developer says the extension collects. Extension buttons sit at the bottom of the tab rail with their icons and badges, and popups open beside them at full size, sized to their content as in desktop Firefox. VPN and proxy extensions can take control of the browser's proxy setting, which the stock Android engine refuses them.
 * **Built for a laptop**: freeform window resizing, hardware keyboard shortcuts, pointer hover states and resize cursors, touchpad right-clicks and two-finger scrolling that behave as on a desktop, with a compact layout for phone-sized windows.
 * **Private by default**: tracking protection that does not break sites, an optional enhanced level, each site's pages in a process of their own, no cloud backup of the browser profile, and only ordinary web links are accepted from other apps.
 
