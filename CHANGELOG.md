@@ -2,6 +2,11 @@
 
 All notable changes to **RemBrowse** (`com.rembrowser.rembrowse`) are documented in this file.
 
+## Unreleased
+
+### Changed
+* **Add-ons are checked for updates the first time RemBrowse starts after it is updated.** Until now the first check waited until a day had passed since the last one, so a RemBrowse update could leave add-ons such as uBlock Origin on an older version for up to a day. The check still runs shortly after RemBrowse starts, and then once a day while it keeps running; **Update add-ons automatically** still switches it off.
+
 ## v0.16.1 (2026-11-25) — Add-ons that update themselves, and extensions that come back after Android stops them
 
 ### Added

@@ -34,7 +34,8 @@ class AddonUpdaterTest {
         )
         builtInAddonIds = listOf("extension-popups@rembrowse", "page-menu@rembrowse")
     }
-    private val preferences = InMemoryAddonUpdatePreferences()
+    // As after a check made by this version of the app; the tests of a version change undo that
+    private val preferences = InMemoryAddonUpdatePreferences(lastCheckedVersionCode = APP_VERSION)
 
     private fun addon(id: String, name: String, enabled: Boolean = true) =
         InstalledExtension(id = id, name = name, version = "1.0", description = "", enabled = enabled)
@@ -42,13 +43,14 @@ class AddonUpdaterTest {
     /** Virtual time as the wall clock, from a fixed day. */
     private fun TestScope.now() = BASE_MILLIS + testScheduler.currentTime
 
-    private fun TestScope.updater(online: () -> Boolean = { true }) = AddonUpdater(
+    private fun TestScope.updater(online: () -> Boolean = { true }, appVersionCode: Int = APP_VERSION) = AddonUpdater(
         extensionManager = manager,
         preferences = preferences,
         scope = backgroundScope,
         isOnline = online,
         clock = { now() },
-        startDelayMillis = START_DELAY
+        startDelayMillis = START_DELAY,
+        appVersionCode = appVersionCode
     )
 
     private val checkedIds get() = manager.addonUpdateCalls.map { it.first }
@@ -121,6 +123,59 @@ class AddonUpdaterTest {
         assertTrue("A clock set back doesn't hold checks off", updater.isCheckDue())
         preferences.updateAutomatically = false
         assertFalse(updater.isCheckDue())
+    }
+
+    @Test
+    fun aCheckIsDueAfterRemBrowseWasUpdated_evenWithinADay_andNotAgainAfterThatCheck() = runTest {
+        preferences.lastCheckedMillis = now() - HOUR
+        preferences.lastCheckedVersionCode = APP_VERSION - 1
+        val updater = updater()
+        assertTrue("A new version of the app", updater.isCheckDue())
+
+        updater.start()
+        advanceTimeBy(START_DELAY + 1)
+        assertEquals("Checked at the first start after the update", 3, manager.addonUpdateCalls.size)
+        assertEquals(APP_VERSION, preferences.lastCheckedVersionCode)
+        assertFalse("Not due again within the day", updater.isCheckDue())
+
+        advanceTimeBy(2 * HOUR)
+        assertEquals(3, manager.addonUpdateCalls.size)
+    }
+
+    @Test
+    fun aCheckIsDueWhenNoVersionWasStored_asOnACopyUpdatedFromOneThatKeptNone() = runTest {
+        preferences.lastCheckedMillis = now() - HOUR
+        preferences.lastCheckedVersionCode = null
+        val updater = updater()
+        assertTrue(updater.isCheckDue())
+
+        updater.start()
+        advanceTimeBy(START_DELAY + 1)
+        assertEquals(3, manager.addonUpdateCalls.size)
+        assertEquals(APP_VERSION, preferences.lastCheckedVersionCode)
+        assertFalse(updater.isCheckDue())
+    }
+
+    @Test
+    fun aVersionChangeDoesNotOverrideTheSwitch_andACheckMadeOfflineStaysDue() = runTest {
+        preferences.lastCheckedMillis = now() - HOUR
+        preferences.lastCheckedVersionCode = APP_VERSION - 1
+        preferences.updateAutomatically = false
+        assertFalse(updater().isCheckDue())
+
+        preferences.updateAutomatically = true
+        var online = false
+        val updater = updater(online = { online })
+        updater.start()
+        advanceTimeBy(START_DELAY + 1)
+        assertTrue("Offline: nothing checked", manager.addonUpdateCalls.isEmpty())
+        assertEquals("Not counted as a check", APP_VERSION - 1, preferences.lastCheckedVersionCode)
+        assertTrue(updater.isCheckDue())
+
+        online = true
+        advanceTimeBy(HOUR)
+        assertEquals(3, manager.addonUpdateCalls.size)
+        assertEquals(APP_VERSION, preferences.lastCheckedVersionCode)
     }
 
     @Test
@@ -341,6 +396,7 @@ class AddonUpdaterTest {
 
     private companion object {
         const val BASE_MILLIS = 1_795_000_000_000L
+        const val APP_VERSION = 38
         const val HOUR = 60L * 60 * 1000
         const val START_DELAY = 30_000L
     }

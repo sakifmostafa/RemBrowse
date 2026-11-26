@@ -30,6 +30,7 @@ class AddonUpdatePreferencesTest {
         val preferences = SharedPrefsAddonUpdatePreferences(context)
         assertTrue(preferences.updateAutomatically)
         assertNull(preferences.lastCheckedMillis)
+        assertNull("No version stored: an install updated from 0.16.1 reads as changed", preferences.lastCheckedVersionCode)
         assertEquals(emptyMap<String, String>(), preferences.declinedUpdates)
     }
 
@@ -38,19 +39,23 @@ class AddonUpdatePreferencesTest {
         SharedPrefsAddonUpdatePreferences(context).apply {
             updateAutomatically = false
             lastCheckedMillis = 1_795_000_000_000L
+            lastCheckedVersionCode = 38
             declinedUpdates = mapOf("vpn@proton.ch" to "2.0.1", "{b9db16a4-6edc-47ec-a1f4-b86292ed211d}" to "5.0")
         }
         val later = SharedPrefsAddonUpdatePreferences(context)
         assertEquals(false, later.updateAutomatically)
         assertEquals(1_795_000_000_000L, later.lastCheckedMillis)
+        assertEquals(38, later.lastCheckedVersionCode)
         assertEquals(
             mapOf("vpn@proton.ch" to "2.0.1", "{b9db16a4-6edc-47ec-a1f4-b86292ed211d}" to "5.0"),
             later.declinedUpdates
         )
 
         later.lastCheckedMillis = null
+        later.lastCheckedVersionCode = null
         later.declinedUpdates = emptyMap()
         assertNull(SharedPrefsAddonUpdatePreferences(context).lastCheckedMillis)
+        assertNull(SharedPrefsAddonUpdatePreferences(context).lastCheckedVersionCode)
         assertEquals(emptyMap<String, String>(), SharedPrefsAddonUpdatePreferences(context).declinedUpdates)
     }
 

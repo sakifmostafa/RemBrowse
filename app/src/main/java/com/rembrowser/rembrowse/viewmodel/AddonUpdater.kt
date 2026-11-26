@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.viewmodel
 
+import com.rembrowser.rembrowse.BuildConfig
 import com.rembrowser.rembrowse.data.AddonUpdatePreferences
 import com.rembrowser.rembrowse.engine.ExtensionManager
 import com.rembrowser.rembrowse.model.AddonUpdateItem
@@ -26,7 +27,8 @@ import kotlinx.coroutines.sync.withLock
  * Keeps the user's add-ons up to date, as desktop Firefox does.
  *
  * While RemBrowse runs ([start]), add-ons are checked shortly after it starts if the last check
- * was a day ago or more, and every day after that, unless the switch is off. Nothing is scheduled
+ * was a day ago or more, or RemBrowse itself was updated since the last check, and every day
+ * after that, unless the switch is off. Nothing is scheduled
  * while the app is closed. [checkNow] checks at once, whatever the switch says.
  *
  * Every add-on the user installed is checked, switched on or off, all at once, so one waiting
@@ -44,7 +46,9 @@ class AddonUpdater(
     private val isOnline: () -> Boolean = { true },
     private val clock: () -> Long = System::currentTimeMillis,
     /** How long after [start] the first check waits, to stay clear of the browser starting up. */
-    private val startDelayMillis: Long = START_DELAY_MILLIS
+    private val startDelayMillis: Long = START_DELAY_MILLIS,
+    /** RemBrowse's own version code; a check is also due the first time it differs from the last one's. */
+    private val appVersionCode: Int = BuildConfig.VERSION_CODE
 ) {
     private val _uiState = MutableStateFlow(
         AddonUpdatesUiState(
@@ -98,6 +102,8 @@ class AddonUpdater(
     /** Whether an automatic check should run now. */
     internal fun isCheckDue(): Boolean {
         if (!preferences.updateAutomatically) return false
+        // Updated since the last check, or no version stored (a copy updated from one that kept none)
+        if (preferences.lastCheckedVersionCode != appVersionCode) return true
         val last = preferences.lastCheckedMillis ?: return true
         val now = clock()
         // A clock set back would otherwise hold off checks until it caught up
@@ -141,6 +147,7 @@ class AddonUpdater(
         if (stillDeclined != declined) preferences.declinedUpdates = stillDeclined
         val now = clock()
         preferences.lastCheckedMillis = now
+        preferences.lastCheckedVersionCode = appVersionCode
         // A later automatic check makes what the last one asked for said out of date
         _uiState.update { it.copy(lastCheckedMillis = now, outcome = if (automatic) null else it.outcome) }
         return AddonUpdateOutcome.Checked(items)
