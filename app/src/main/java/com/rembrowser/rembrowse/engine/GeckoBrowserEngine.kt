@@ -441,6 +441,7 @@ class GeckoBrowserEngine(
         installDelegates(geckoSession, handle, listener)
         listenForPageMenus(handle)
         sessions[tabId] = handle
+        onGeckoSessionCreated?.invoke(geckoSession)
 
         if (adopt) {
             // Gecko opens this session and loads the page itself once we return it.
@@ -770,6 +771,15 @@ class GeckoBrowserEngine(
     override fun getSession(tabId: String): BrowserSessionHandle? = sessions[tabId]
 
     fun getGeckoSession(tabId: String): GeckoSession? = sessions[tabId]?.session
+
+    /** Told about each tab's session as it is created, after its own delegates (see ExtensionTabControl). */
+    var onGeckoSessionCreated: ((GeckoSession) -> Unit)? = null
+
+    /** Every tab's session. */
+    fun geckoSessions(): List<GeckoSession> = sessions.values.map { it.session }
+
+    /** The tab whose page [session] shows, or null when it is not one of the browser's tabs (an extension's popup). */
+    fun tabIdOf(session: GeckoSession): String? = sessions.entries.firstOrNull { it.value.session === session }?.key
 
     fun attachSessionToView(tabId: String, geckoView: GeckoView) {
         val handle = sessions[tabId] ?: return
