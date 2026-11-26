@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.engine
 
 import com.rembrowser.rembrowse.data.ClipboardImages
+import com.rembrowser.rembrowse.model.DeclaredSiteIcon
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -145,7 +146,7 @@ class BuiltInExtensionAssetsTest {
     @Test
     fun pageMenu_versionWasBumpedSoInstalledCopiesUpdate() {
         // Versions already shipped: an installed copy of the same version keeps its old script
-        assertFalse(pageMenuManifest.getString("version") in listOf("1.0.0", "1.1.0"))
+        assertFalse(pageMenuManifest.getString("version") in listOf("1.0.0", "1.1.0", "1.2.0", "1.2.1"))
     }
 
     private val pageMenuSource by lazy {
@@ -239,6 +240,133 @@ class BuiltInExtensionAssetsTest {
         assertNull(GeckoBrowserEngine.pageImageCopyData(data))
         assertNull(GeckoBrowserEngine.pageImageCopyData(null))
         assertFalse(GeckoBrowserEngine.isPageImageCopy(JSONArray().put("copyImage")))
+    }
+
+    @Test
+    fun pageMenu_scriptSendsTheTopPagesDeclaredIcons_whenTheyChange() {
+        val source = pageMenuSource
+        assertTrue(source.contains("sendNativeMessage(NATIVE_APP, { type: \"siteIcons\", icons })"))
+        // A frame's icons are another site's
+        assertTrue(source.contains("if (window !== window.top || !/^https?:\$/.test(location.protocol)) {"))
+        assertTrue(source.contains("const ICON_RELS = [\"icon\", \"apple-touch-icon\", \"apple-touch-icon-precomposed\"];"))
+        // Web addresses only, as the page resolves them
+        assertTrue(source.contains("!/^https?:/i.test(href)"))
+        // Again when the page changes them, at most once a second, and only when they changed
+        assertTrue(source.contains("attributeFilter: [\"href\", \"rel\", \"sizes\", \"type\"]"))
+        assertTrue(source.contains("const ICON_WAIT_MS = 1000;"))
+        assertTrue(source.contains("if (icons.length === 0 || sent === sentIcons) {"))
+        // An icon for the other colour scheme is left out
+        assertTrue(source.contains("if (found && media && !window.matchMedia(media).matches) {"))
+        // A send the app wasn't listening for yet is tried again, a few times
+        assertTrue(source.contains("const ICON_RETRIES = 3;"))
+        assertTrue(source.contains("if (iconRetries < ICON_RETRIES && !iconTimer) {"))
+    }
+
+    private fun siteIcons(vararg icons: JSONObject, type: Any? = "siteIcons"): JSONObject =
+        JSONObject().apply {
+            if (type != null) put("type", type)
+            put("icons", JSONArray().apply { icons.forEach { put(it) } })
+        }
+
+    private fun link(href: Any?, rel: Any? = "icon", sizes: Any? = null, linkType: Any? = null): JSONObject =
+        JSONObject().apply {
+            if (href != null) put("href", href)
+            if (rel != null) put("rel", rel)
+            if (sizes != null) put("sizes", sizes)
+            if (linkType != null) put("type", linkType)
+        }
+
+    @Test
+    fun declaredSiteIcons_readsIconsAndTouchIcons_withTheirSizes() {
+        val icons = GeckoBrowserEngine.declaredSiteIcons(
+            siteIcons(
+                link("https://discord.com/assets/favicon.ico"),
+                link("https://discord.com/apple.png", rel = "apple-touch-icon", sizes = "180x180"),
+                link("https://cdn.example/icon-192.png", sizes = "192x192 any", linkType = "image/png")
+            ),
+            pageUrl = "https://discord.com/channels/@me",
+            isTopLevel = true
+        )
+        assertEquals(
+            listOf(
+                DeclaredSiteIcon("https://discord.com/assets/favicon.ico"),
+                DeclaredSiteIcon("https://discord.com/apple.png", isTouchIcon = true, sizes = listOf(180)),
+                DeclaredSiteIcon("https://cdn.example/icon-192.png", sizes = listOf(192))
+            ),
+            icons
+        )
+    }
+
+    @Test
+    fun declaredSiteIcons_onlyFromTheTopPage_ofAWebPage_inTheRightMessage() {
+        val message = siteIcons(link("https://a.example/i.png"))
+        assertEquals(1, GeckoBrowserEngine.declaredSiteIcons(message, "https://a.example/", true)?.size)
+        assertNull("A frame's icons", GeckoBrowserEngine.declaredSiteIcons(message, "https://a.example/", false))
+        assertNull(GeckoBrowserEngine.declaredSiteIcons(message, "about:blank", true))
+        assertNull(GeckoBrowserEngine.declaredSiteIcons(message, "moz-extension://abc/page.html", true))
+        assertNull(GeckoBrowserEngine.declaredSiteIcons(message, null, true))
+        assertNull(GeckoBrowserEngine.declaredSiteIcons(siteIcons(link("https://a.example/i.png"), type = "pageMenu"), "https://a.example/", true))
+        assertNull(GeckoBrowserEngine.declaredSiteIcons("siteIcons", "https://a.example/", true))
+        assertNull(GeckoBrowserEngine.declaredSiteIcons(JSONObject().put("type", "siteIcons"), "https://a.example/", true))
+        // Not taken for the other messages
+        assertFalse(GeckoBrowserEngine.isPageMenuMessage(message))
+        assertNull(GeckoBrowserEngine.linkOpenRequest(message))
+        assertNull(GeckoBrowserEngine.pageImageCopyData(message))
+    }
+
+    @Test
+    fun declaredSiteIcons_leavesOutWhatRemBrowseWontFetchOrCantDecode() {
+        val icons = GeckoBrowserEngine.declaredSiteIcons(
+            siteIcons(
+                link("https://a.example/ok.png"),
+                link("https://a.example/vector.svg"),
+                link("https://a.example/vector", linkType = "image/svg+xml"),
+                link("data:image/png;base64,iVBORw0KGgo="),
+                link("javascript:alert(1)"),
+                link("ftp://a.example/i.png"),
+                link("https://a.example/mask.png", rel = "mask-icon"),
+                link("https://a.example/no-rel.png", rel = null),
+                link(null),
+                link(42),
+                link("https://a.example/" + "x".repeat(1024)),
+                link("https://user:secret@a.example/i.png"),
+                // Into this device or the local network, from a site on the internet
+                link("https://192.168.1.1/router.png"),
+                link("http://localhost:8080/i.png"),
+                link("https://10.0.0.2/i.png"),
+                // To another site over plain http, or a port pages may not use
+                link("http://cdn.example/i.png"),
+                link("https://a.example:25/i.png"),
+                // The same address twice is tried once
+                link("https://a.example/ok.png")
+            ),
+            pageUrl = "https://a.example/page",
+            isTopLevel = true
+        )
+        assertEquals(listOf("https://a.example/ok.png"), icons?.map { it.url })
+    }
+
+    @Test
+    fun declaredSiteIcons_aPageOnTheLocalNetwork_mayUseItsOwnAddresses() {
+        val router = GeckoBrowserEngine.declaredSiteIcons(
+            siteIcons(link("http://192.168.1.1/icon.png"), link("http://192.168.1.1:8080/other.png")),
+            pageUrl = "http://192.168.1.1/admin",
+            isTopLevel = true
+        )
+        assertEquals(listOf("http://192.168.1.1/icon.png", "http://192.168.1.1:8080/other.png"), router?.map { it.url })
+        // A plain-http site may use its own address, as for its /favicon.ico
+        val plain = GeckoBrowserEngine.declaredSiteIcons(siteIcons(link("http://neverssl.com/i.png")), "http://neverssl.com/", true)
+        assertEquals(listOf("http://neverssl.com/i.png"), plain?.map { it.url })
+    }
+
+    @Test
+    fun declaredSiteIcons_readsAtMostSixteen_andKeepsAtMostEight() {
+        val many = (1..40).map { link("https://a.example/$it.png") }.toTypedArray()
+        val icons = GeckoBrowserEngine.declaredSiteIcons(siteIcons(*many), "https://a.example/", true)
+        assertEquals((1..8).map { "https://a.example/$it.png" }, icons?.map { it.url })
+        // Sixteen read: the seventeenth is never looked at, even when the first are refused
+        val refusedFirst = (1..16).map { link("https://192.168.0.$it/i.png") } + link("https://a.example/late.png")
+        assertEquals(emptyList<String>(), GeckoBrowserEngine.declaredSiteIcons(siteIcons(*refusedFirst.toTypedArray()), "https://a.example/", true)?.map { it.url })
     }
 
     private fun openLink(url: Any?, type: Any? = "openLink", foreground: Boolean? = null): JSONObject =

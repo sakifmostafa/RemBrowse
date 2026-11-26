@@ -52,6 +52,7 @@ import com.rembrowser.rembrowse.data.AndroidDownloadStorage
 import com.rembrowser.rembrowse.data.DownloadTarget
 import com.rembrowser.rembrowse.data.AndroidUpdateInstaller
 import com.rembrowser.rembrowse.data.CoilSiteIconCache
+import com.rembrowser.rembrowse.data.SharedPrefsDeclaredSiteIconStore
 import com.rembrowser.rembrowse.data.KeystoreSecretStore
 import com.rembrowser.rembrowse.data.OkHttpAmoApiClient
 import com.rembrowser.rembrowse.data.OkHttpUpdateSource
@@ -87,6 +88,7 @@ import com.rembrowser.rembrowse.ui.FullscreenWindowEffect
 import com.rembrowser.rembrowse.ui.RemBrowseScreen
 import com.rembrowser.rembrowse.ui.components.ChromePointerIconClaim
 import com.rembrowser.rembrowse.ui.components.LocalChromePointerIconClaim
+import com.rembrowser.rembrowse.ui.components.LocalDeclaredSiteIcons
 import com.rembrowser.rembrowse.ui.components.ScreenshotResult
 import com.rembrowser.rembrowse.ui.components.WHOLE_PAGE_THUMBNAIL_ASPECT
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
@@ -206,7 +208,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
             repository = SharedPrefsBrowserStateRepository(application),
             historyStore = SharedPrefsBrowsingHistoryStore(application),
             isPhone = EngineConfig.isPhone(DeviceScreen.smallestWidthDp(application)),
-            siteIcons = CoilSiteIconCache(application)
+            siteIcons = CoilSiteIconCache(application),
+            declaredIconStore = SharedPrefsDeclaredSiteIconStore(application)
         )
         extensions = ExtensionsViewModel(
             extensionManager = extensionManager,
@@ -440,7 +443,11 @@ class MainActivity : ComponentActivity() {
                 RemBrowseTheme(theme.colorScheme) {
                     val pageBackground = theme.pageBackground.toArgb()
                     SideEffect { pageBackgroundArgb = pageBackground }
-                    CompositionLocalProvider(LocalChromePointerIconClaim provides chromePointerIcon) {
+                    val declaredSiteIcons by holder.browser.declaredSiteIcons.collectAsStateWithLifecycle()
+                    CompositionLocalProvider(
+                        LocalChromePointerIconClaim provides chromePointerIcon,
+                        LocalDeclaredSiteIcons provides declaredSiteIcons
+                    ) {
                         RemBrowseScreen(
                             browserViewModel = holder.browser,
                             extensionsViewModel = holder.extensions,

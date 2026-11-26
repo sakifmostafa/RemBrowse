@@ -113,6 +113,7 @@ The menu opens where you clicked; select a row, or click anywhere else (or press
 * While RemBrowse is minimised its pages keep running as long as it is the last app you used; once you use other apps, Android pauses RemBrowse until you come back.
 * If a tab's page crashes, it is reloaded for you. After repeated crashes it shows a **Reload** button instead.
 * Your extensions run in a process of their own. If Android keeps ending it, for example to free memory while RemBrowse is in the background, RemBrowse starts it again as soon as you come back, or after a few seconds if you are using RemBrowse at the time, so a VPN or ad blocker carries on. If it keeps stopping while you are using RemBrowse, it waits longer before each try (up to half an hour) until it stays up.
+* **Site icons**: tabs, pinned sites, bookmarks and History show each site's icon: the one the site names for itself in its pages, sharp at the rail's size where the site has one, or else its `/favicon.ico`, or its first letter when neither loads. A pinned site shows the icon its pages name once you have visited the site. Sites whose only icon is an SVG drawing show their `/favicon.ico` or letter, as RemBrowse can't draw SVG icons. Icons are fetched through the browser engine without your cookies for that site, and never from your device or home network for a site on the internet.
 * Each site's pages run in a process of their own, as in desktop Firefox and Chrome, so a page can't read another site's data through attacks such as Spectre. With several sites open, as in a split view, this takes more memory.
 
 ---
@@ -228,8 +229,8 @@ Back, reload and bookmark do nothing on the settings page. Typing a web address 
 
 * **Open a page**: select it, or middle-click it. It opens in a new tab. Right-click or long-press it for **Open** and **Remove from history**.
 * **Search**: type in **Search history**; pages whose title or address contain every word you type are listed.
-* **Remove one page**: its **×** button. **Clear history** removes everything, after asking.
-* **Stop recording**: turn off **Keep browsing history**. What is already listed stays until you clear it.
+* **Remove one page**: its **×** button. **Clear history** removes everything, after asking, together with the site icons kept on this device and which icons sites named for themselves.
+* **Stop recording**: turn off **Keep browsing history**. What is already listed stays until you clear it. While it is off, the site icons kept from the last time are deleted each time RemBrowse starts.
 
 The start page, RemBrowse's own pages and extension pages are never recorded. History is kept only on this device.
 

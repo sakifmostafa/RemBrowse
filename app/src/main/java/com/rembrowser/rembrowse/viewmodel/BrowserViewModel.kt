@@ -2,7 +2,9 @@ package com.rembrowser.rembrowse.viewmodel
 
 import com.rembrowser.rembrowse.data.BrowserStateRepository
 import com.rembrowser.rembrowse.data.BrowsingHistoryStore
+import com.rembrowser.rembrowse.data.DeclaredSiteIconStore
 import com.rembrowser.rembrowse.data.NoBrowsingHistory
+import com.rembrowser.rembrowse.data.NoDeclaredSiteIcons
 import com.rembrowser.rembrowse.data.NoSiteIconCache
 import com.rembrowser.rembrowse.data.SiteIconCache
 import com.rembrowser.rembrowse.engine.BrowserEngine
@@ -14,6 +16,7 @@ import com.rembrowser.rembrowse.model.AccentColor
 import com.rembrowser.rembrowse.model.BookmarkItem
 import com.rembrowser.rembrowse.model.BrowserTab
 import com.rembrowser.rembrowse.model.BrowserUiState
+import com.rembrowser.rembrowse.model.DeclaredSiteIcon
 import com.rembrowser.rembrowse.model.DownloadRequest
 import com.rembrowser.rembrowse.model.DropZone
 import com.rembrowser.rembrowse.model.FindInPageState
@@ -31,6 +34,7 @@ import com.rembrowser.rembrowse.model.PersistedBrowserState
 import com.rembrowser.rembrowse.model.PrintPreview
 import com.rembrowser.rembrowse.model.SearchEngine
 import com.rembrowser.rembrowse.model.SettingsSection
+import com.rembrowser.rembrowse.model.SiteIcons
 import com.rembrowser.rembrowse.model.SiteOrigins
 import com.rembrowser.rembrowse.model.SitePermissionEntry
 import com.rembrowser.rembrowse.model.SitePermissionKind
@@ -93,7 +97,12 @@ class BrowserViewModel(
      * The site icons kept between launches. They name the sites visited, so they go when the
      * history is cleared, and at each start while history is off (see [clearHistory]).
      */
-    private val siteIcons: SiteIconCache = NoSiteIconCache
+    private val siteIcons: SiteIconCache = NoSiteIconCache,
+    /**
+     * The icons each site names for itself, kept between launches with the history and cleared
+     * with it, like [siteIcons].
+     */
+    private val declaredIconStore: DeclaredSiteIconStore = NoDeclaredSiteIcons
 ) {
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
@@ -101,6 +110,19 @@ class BrowserViewModel(
     /** Pages visited, most recent first; one entry per address (see [HistoryEntry]). */
     private val _history = MutableStateFlow(historyStore.load())
     val history: StateFlow<List<HistoryEntry>> = _history.asStateFlow()
+
+    /**
+     * The icons each site's pages name for themselves (`<link rel="icon">` and the like), by
+     * origin, the sites heard from last at the end. SiteIcon tries them before `/favicon.ico`.
+     */
+    private val _declaredSiteIcons = MutableStateFlow(declaredIconStore.load())
+    val declaredSiteIcons: StateFlow<Map<String, List<DeclaredSiteIcon>>> = _declaredSiteIcons.asStateFlow()
+
+    /**
+     * What [declaredIconStore] holds: the sites heard from while history was on. Sites heard
+     * from while it was off are shown, but never saved, also after history is turned back on.
+     */
+    private var savedSiteIcons = _declaredSiteIcons.value
 
     // Kept apart from uiState: typing in the find bar should not recompose the whole screen
     private val _findInPage = MutableStateFlow<FindInPageState?>(null)
@@ -317,6 +339,18 @@ class BrowserViewModel(
             }
         }
 
+        override fun onSiteIconsDeclared(tabId: String, pageUrl: String, icons: List<DeclaredSiteIcon>) {
+            if (_uiState.value.tabs.none { it.id == tabId }) return
+            val origin = SiteOrigins.originOf(pageUrl) ?: return
+            _declaredSiteIcons.value = SiteIcons.withSite(_declaredSiteIcons.value, origin, icons)
+            // With history off they are kept for this run only, like the history itself
+            if (!_uiState.value.settings.keepHistory) return
+            val saved = SiteIcons.withSite(savedSiteIcons, origin, icons)
+            if (saved === savedSiteIcons) return
+            savedSiteIcons = saved
+            declaredIconStore.save(saved)
+        }
+
         override fun onCaptureDevicesChanged(tabId: String, devices: Set<SitePermissionKind>, pageOrigin: String?) {
             if (devices.isEmpty()) captures.remove(tabId) else captures[tabId] = Capture(pageOrigin, devices)
         }
@@ -373,7 +407,10 @@ class BrowserViewModel(
     init {
         restoreInitialState()
         // With history off, the icons of the sites visited last time are not kept either
-        if (!_uiState.value.settings.keepHistory) siteIcons.clear()
+        if (!_uiState.value.settings.keepHistory) {
+            siteIcons.clear()
+            forgetDeclaredIcons()
+        }
     }
 
     private fun restoreInitialState() {
@@ -1355,6 +1392,14 @@ class BrowserViewModel(
     fun clearHistory() {
         updateHistory { emptyList() }
         siteIcons.clear()
+        forgetDeclaredIcons()
+    }
+
+    /** Forgets which icons the sites visited named for themselves, here and on the device. */
+    private fun forgetDeclaredIcons() {
+        _declaredSiteIcons.value = emptyMap()
+        savedSiteIcons = emptyMap()
+        declaredIconStore.save(emptyMap())
     }
 
     /**
