@@ -90,4 +90,71 @@ class ExtensionPromptAnswerTest {
         assertSame(second, queue.onShow.value)
         assertEquals(listOf(Triple("Same", true, false)), answered)
     }
+
+    @Test
+    fun whenTheWindowGoes_everyWaitingPromptIsDeclined_oldestFirst() {
+        val queue = ExtensionPromptQueue()
+        queued(queue, "Install")
+        queued(queue, "Update")
+        queued(queue, "Optional permissions")
+
+        queue.declineAll()
+
+        assertEquals(
+            listOf(
+                Triple("Install", false, false),
+                Triple("Update", false, false),
+                Triple("Optional permissions", false, false)
+            ),
+            answered
+        )
+        assertNull(queue.onShow.value)
+    }
+
+    @Test
+    fun afterTheWindowWent_aNewPromptIsDeclinedAtOnce_neverShown() {
+        val queue = ExtensionPromptQueue()
+        queue.declineAll()
+        val shown = mutableListOf<ExtensionInstallPrompt?>()
+        val late = queued(queue, "Late update")
+        shown += queue.onShow.value
+
+        assertEquals(listOf(Triple("Late update", false, false)), answered)
+        assertEquals(listOf<ExtensionInstallPrompt?>(null), shown)
+
+        // Its dialog's answer, should one still arrive, changes nothing
+        queue.answer(late, allow = true, shareTechnicalData = true)
+        assertEquals(listOf(Triple("Late update", false, false)), answered)
+    }
+
+    @Test
+    fun aDeclinedPromptIsAnsweredOnce_evenIfItsDialogStillAnswers() {
+        val queue = ExtensionPromptQueue()
+        val shownPrompt = queued(queue, "On show")
+
+        queue.declineAll()
+        queue.answer(shownPrompt, allow = true, shareTechnicalData = false)
+
+        assertEquals(listOf(Triple("On show", false, false)), answered)
+    }
+
+    @Test
+    fun aPromptWhoseDecisionKeepsItQueued_isStillTakenOut() {
+        val queue = ExtensionPromptQueue()
+        var decisions = 0
+        queue.add(
+            ExtensionInstallPrompt(
+                extensionId = "stubborn@example.com",
+                extensionName = "Stubborn",
+                version = "1.0",
+                permissions = emptyList(),
+                onDecision = { _, _ -> decisions++ }
+            )
+        )
+
+        queue.declineAll()
+
+        assertEquals(1, decisions)
+        assertNull(queue.onShow.value)
+    }
 }

@@ -294,6 +294,8 @@ class BrowserSessionHolder(application: Application) : AndroidViewModel(applicat
         downloads.shutdown()
         browser.shutdown()
         extensionManager.dismissPopup()
+        // Their dialogs went with the window; left unanswered, Gecko would wait on them for good
+        extensionManager.declineAllPrompts()
     }
 }
 
