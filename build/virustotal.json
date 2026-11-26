@@ -1,24 +1,24 @@
 {
-  "versionName": "0.16.0",
-  "scannedAt": "2026-11-25T08:44:41Z",
+  "versionName": "0.16.1",
+  "scannedAt": "2026-11-26T03:55:05Z",
   "files": {
     "RemBrowse-arm64-v8a.apk": {
-      "sha256": "cc79471cb5aecd5e28b698c0dd0218fc1f1f6f09b9353111527da835cbb1bb3f",
-      "url": "https://www.virustotal.com/gui/file/cc79471cb5aecd5e28b698c0dd0218fc1f1f6f09b9353111527da835cbb1bb3f",
+      "sha256": "f5d8ff560939b6f1336dd3458d9a3b23994594ce51f4fa4615e4746f66f62798",
+      "url": "https://www.virustotal.com/gui/file/f5d8ff560939b6f1336dd3458d9a3b23994594ce51f4fa4615e4746f66f62798",
       "malicious": 0,
       "suspicious": 0,
       "harmless": 0,
-      "undetected": 60,
-      "engines": 60
+      "undetected": 58,
+      "engines": 58
     },
     "RemBrowse-x86_64.apk": {
-      "sha256": "878869416f48b015730e12b9b3a09f502baa65ab1eccd29cbbf02f557507b6d7",
-      "url": "https://www.virustotal.com/gui/file/878869416f48b015730e12b9b3a09f502baa65ab1eccd29cbbf02f557507b6d7",
+      "sha256": "22bcdab8e1281231089791fc60e940a10f032db772d1c2ec11e27432e806ea57",
+      "url": "https://www.virustotal.com/gui/file/22bcdab8e1281231089791fc60e940a10f032db772d1c2ec11e27432e806ea57",
       "malicious": 0,
       "suspicious": 0,
       "harmless": 0,
-      "undetected": 60,
-      "engines": 60
+      "undetected": 64,
+      "engines": 64
     }
   }
 }
