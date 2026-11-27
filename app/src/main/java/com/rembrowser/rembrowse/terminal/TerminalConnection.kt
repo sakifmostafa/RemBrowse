@@ -141,8 +141,10 @@ class TerminalConnection(
     private var cellWidth = DEFAULT_CELL_WIDTH
     private var cellHeight = DEFAULT_CELL_HEIGHT
 
-    // When the user last typed, pasted, clicked or scrolled in this terminal
-    // (SystemClock.uptimeMillis); null until they have, since this connection was made
+    // When the user last typed, pasted, clicked or scrolled in this terminal, by
+    // SystemClock.elapsedRealtime, which keeps counting while the device sleeps (uptimeMillis stops,
+    // so input just before the screen went off would let a copy through minutes later); null until
+    // they have, since this connection was made
     private var lastUserInputAt: Long? = null
 
     val isConnected: Boolean get() = _status.value is TerminalStatus.Connected
@@ -154,6 +156,9 @@ class TerminalConnection(
         rememberPassword = false
         // Input sent to the last server doesn't let the next one copy
         lastUserInputAt = null
+        // Nothing half received from the last server (an escape sequence, an OSC that never
+        // ended) swallows the next one's output; the screen and its history stay
+        emulator.resetParser()
         _status.value = TerminalStatus.Connecting(spec.label)
         val request = SshConnectRequest(
             hostname = spec.hostname,
@@ -286,7 +291,7 @@ class TerminalConnection(
      * answers that way, so the view marks those.
      */
     fun markUserInput() {
-        lastUserInputAt = SystemClock.uptimeMillis()
+        lastUserInputAt = SystemClock.elapsedRealtime()
     }
 
     /** The view's size changed: the screen reflows and the server is told. */
@@ -317,7 +322,7 @@ class TerminalConnection(
         if (text.isNullOrEmpty()) return
         val copy = onProgramCopy ?: return
         val last = lastUserInputAt
-        if (last == null || SystemClock.uptimeMillis() - last > PROGRAM_COPY_WINDOW_MS) {
+        if (last == null || SystemClock.elapsedRealtime() - last > PROGRAM_COPY_WINDOW_MS) {
             Log.i(TAG, "A program's copy of ${text.length} characters was dropped: no recent input in its terminal")
             return
         }
