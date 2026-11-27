@@ -475,6 +475,27 @@ class TerminalScreenViewTest {
     }
 
     @Test
+    fun theKeyboardsOwnSelectAllCopyAndPaste_workInTheTerminal() {
+        val shell = connected()
+        shell.print("hello keyboard\r\n")
+        main.drain()
+        val input = view.onCreateInputConnection(android.view.inputmethod.EditorInfo())
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+
+        assertTrue(input.performContextMenuAction(android.R.id.selectAll))
+        assertTrue("Select all selects", view.selection != null)
+        assertTrue(input.performContextMenuAction(android.R.id.copy))
+        assertTrue(clipboard.primaryClip!!.getItemAt(0).text.toString().contains("hello keyboard"))
+        assertEquals("Copying sends nothing to the shell", "", shell.typed())
+
+        clipboard.setPrimaryClip(ClipData.newPlainText("test", "echo pasted"))
+        shell.print("\u001b[?2004h")
+        main.drain()
+        assertTrue(input.performContextMenuAction(android.R.id.paste))
+        assertEquals("\u001b[200~echo pasted\u001b[201~", shell.typed())
+    }
+
+    @Test
     fun keyboardCommit_multiLineText_isPastedPlain_withoutBracketedPaste() {
         val shell = connected()
         commit("a\r\nb")

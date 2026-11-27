@@ -49,7 +49,9 @@ import kotlin.math.roundToInt
  *   user's input in this terminal ([programsCanCopy], [TerminalConnection.onCopyTextToClipboard]).
  * - **Wheel and two-finger scrolling** move through the history, or send arrow keys to full-screen
  *   programs that keep no history of their own (`less`, `man`).
- * - **Touchscreen**: drag to scroll, tap to type (opens the on-screen keyboard).
+ * - **Touchscreen** (and stylus): drag to scroll, tap to type (opens the on-screen keyboard),
+ *   long-press to select, with handles and the floating Copy, Paste and Select all toolbar
+ *   ([TouchSelection]). An on-screen keyboard's own Select all, Copy and Paste buttons work too.
  */
 @SuppressLint("ViewConstructor")
 class TerminalScreenView(context: Context) : View(context) {
@@ -380,6 +382,25 @@ class TerminalScreenView(context: Context) : View(context) {
                 return super.deleteSurroundingText(beforeLength, afterLength)
             }
 
+            // The keyboard's own Select all, Copy and Paste buttons (Gboard's text editing panel,
+            // some keyboards' clipboard) do what the terminal's menu does. Text can't be taken
+            // back out of a terminal, so Cut copies.
+            override fun performContextMenuAction(id: Int): Boolean = when (id) {
+                android.R.id.selectAll -> {
+                    selectAll()
+                    true
+                }
+                android.R.id.copy, android.R.id.cut -> {
+                    copySelection()
+                    true
+                }
+                android.R.id.paste, android.R.id.pasteAsPlainText -> {
+                    paste()
+                    true
+                }
+                else -> super.performContextMenuAction(id)
+            }
+
             private fun sendEditable() {
                 val content = editable ?: return
                 val text = content.toString()
@@ -552,6 +573,8 @@ class TerminalScreenView(context: Context) : View(context) {
             selection = null
             invalidate()
         }
+        // The toolbar of a long-press on blank space has no selection to clear: it goes too
+        touchSelection.end()
         followTyped(text)
         terminal.sendInput(text.toByteArray(StandardCharsets.UTF_8))
         updateSuggestion()

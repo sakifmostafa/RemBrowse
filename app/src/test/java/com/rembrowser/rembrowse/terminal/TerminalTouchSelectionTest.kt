@@ -382,6 +382,19 @@ class TerminalTouchSelectionTest {
     }
 
     @Test
+    fun typing_closesTheToolbarOfALongPressOnBlankSpace_too() {
+        val shell = connectedShowing("hello world\r\n")
+        longPressAndLift(center(40, 6))
+        assertNull("Nothing selected there", view.selection)
+        val toolbar = view.touchSelection.toolbar!!
+
+        view.onKeyDown(KeyEvent.KEYCODE_A, KeyEvent(0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A, 0))
+        assertEquals("a", shell.typed())
+        assertFalse(view.touchSelection.isActive)
+        assertEquals(listOf(toolbar), finished)
+    }
+
+    @Test
     fun aLongPressOnBlankSpace_selectsNothing_andOffersPasteAndSelectAll() {
         val shell = connectedShowing("hello world\r\n")
         clipboard().setPrimaryClip(ClipData.newPlainText("test", "uptime"))
