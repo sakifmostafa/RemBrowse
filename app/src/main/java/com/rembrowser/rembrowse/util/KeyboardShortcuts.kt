@@ -249,8 +249,9 @@ object KeyboardShortcuts {
          * loses swapping two letters and deleting a word with them (Alt+Backspace still deletes
          * a word). The other letter shortcuts move to Ctrl+Shift (Ctrl+Shift+N and Ctrl+Shift+W
          * too), as terminal apps do. Ctrl+Shift+T opens another terminal, here as everywhere
-         * else, and Ctrl+Alt+S takes a screenshot. Ctrl+Shift+C and V copy and paste in the
-         * terminal itself.
+         * else, and Ctrl+Alt+S takes a screenshot. Copy and paste stay with the terminal itself
+         * (TerminalScreenView): Ctrl+C copies a selection (with none it is the shell's), Ctrl+V
+         * pastes unless Settings give it to the program, and Ctrl+Shift+C and V always do.
          */
         inTerminal: Boolean = false
     ): BrowserShortcut? {

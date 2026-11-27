@@ -275,6 +275,20 @@ class TerminalViewModelTest {
     }
 
     @Test
+    fun theCopyAndPasteSettings_areSavedAsTheyChange() {
+        vm.setCopyOnSelect(false)
+        vm.setProgramsCanCopy(false)
+        vm.setCtrlVPastes(false)
+        val expected = TerminalSettings(copyOnSelect = false, programsCanCopy = false, ctrlVPastes = false)
+        assertEquals(expected, vm.uiState.value.settings)
+        assertEquals(expected, store.loadSettings())
+
+        vm.setProgramsCanCopy(true)
+        assertTrue(store.loadSettings().programsCanCopy)
+        assertFalse(store.loadSettings().copyOnSelect)
+    }
+
+    @Test
     fun commandsRun_areSuggestedFirst_mostRecentFirst() {
         assertEquals("A common command before any history", "git status", vm.suggestCommand("git st"))
         vm.recordCommand("git stash pop")

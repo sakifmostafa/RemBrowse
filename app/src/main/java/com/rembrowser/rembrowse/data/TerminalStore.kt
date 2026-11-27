@@ -35,7 +35,13 @@ data class TerminalSettings(
     /** Suggest how a command might end, from the history and common commands; Tab takes it. */
     val suggestions: Boolean = true,
     /** Remember the commands run, for suggestions. Kept on this device only. */
-    val rememberCommands: Boolean = true
+    val rememberCommands: Boolean = true,
+    /** Text selected with the mouse or touchpad is copied when the button is let go. */
+    val copyOnSelect: Boolean = true,
+    /** Programs (tmux, vim) may copy to the clipboard (OSC 52), only right after you type or click in their terminal. */
+    val programsCanCopy: Boolean = true,
+    /** Ctrl+V pastes; off, it goes to the program as ^V. */
+    val ctrlVPastes: Boolean = true
 ) {
     companion object {
         const val DEFAULT_FONT_SIZE_SP = 14
@@ -175,7 +181,10 @@ class SharedPrefsTerminalStore(context: Context) : TerminalStore {
         font = TerminalFont.fromNameOrDefault(prefs.getString("font", null)),
         cursorStyle = TerminalCursorStyle.fromNameOrDefault(prefs.getString("cursorStyle", null)),
         suggestions = prefs.getBoolean("suggestions", true),
-        rememberCommands = prefs.getBoolean("rememberCommands", true)
+        rememberCommands = prefs.getBoolean("rememberCommands", true),
+        copyOnSelect = prefs.getBoolean("copyOnSelect", true),
+        programsCanCopy = prefs.getBoolean("programsCanCopy", true),
+        ctrlVPastes = prefs.getBoolean("ctrlVPastes", true)
     )
 
     override fun saveSettings(settings: TerminalSettings) {
@@ -186,6 +195,9 @@ class SharedPrefsTerminalStore(context: Context) : TerminalStore {
             .putString("cursorStyle", settings.cursorStyle.name)
             .putBoolean("suggestions", settings.suggestions)
             .putBoolean("rememberCommands", settings.rememberCommands)
+            .putBoolean("copyOnSelect", settings.copyOnSelect)
+            .putBoolean("programsCanCopy", settings.programsCanCopy)
+            .putBoolean("ctrlVPastes", settings.ctrlVPastes)
             .apply()
     }
 

@@ -180,6 +180,9 @@ fun TerminalPage(
                 view.setAppearance(theme, cursorColor.toArgb(), settings.font, settings.cursorStyle)
                 view.suggest = if (settings.suggestions) terminal::suggestCommand else null
                 view.onCommandRun = terminal::recordCommand
+                view.copyOnSelect = settings.copyOnSelect
+                view.programsCanCopy = settings.programsCanCopy
+                view.ctrlVPastes = settings.ctrlVPastes
                 view.onContextMenu = { x, y -> menuAt = Offset(x, y) }
                 view.onReconnectRequested = { terminal.connect(tab.id, target) }
                 // Over the cards and banners drawn on top, and a divider's grab area, the
@@ -262,6 +265,7 @@ fun TerminalPage(
                 at = at,
                 canCopy = screen?.hasSelection == true,
                 connected = status is TerminalStatus.Connected,
+                ctrlVPastes = settings.ctrlVPastes,
                 onCopy = { screen?.copySelection() },
                 onPaste = { screen?.paste() },
                 onSelectAll = { screen?.selectAll() },
@@ -576,6 +580,8 @@ private fun BoxScope.TerminalMenu(
     at: Offset,
     canCopy: Boolean,
     connected: Boolean,
+    /** Ctrl+V pastes (Settings → Terminal); the Paste row names the keys that do. */
+    ctrlVPastes: Boolean,
     onCopy: () -> Unit,
     onPaste: () -> Unit,
     onSelectAll: () -> Unit,
@@ -597,14 +603,14 @@ private fun BoxScope.TerminalMenu(
         ) {
             RemMenuItem(
                 text = { Text("Copy") },
-                trailingIcon = { ShortcutHint("Ctrl+Shift+C") },
+                trailingIcon = { ShortcutHint("Ctrl+C") },
                 enabled = canCopy,
                 onClick = run(onCopy),
                 modifier = Modifier.testTag("terminal_menu_copy")
             )
             RemMenuItem(
                 text = { Text("Paste") },
-                trailingIcon = { ShortcutHint("Ctrl+Shift+V") },
+                trailingIcon = { ShortcutHint(if (ctrlVPastes) "Ctrl+V" else "Ctrl+Shift+V") },
                 enabled = connected,
                 onClick = run(onPaste),
                 modifier = Modifier.testTag("terminal_menu_paste")

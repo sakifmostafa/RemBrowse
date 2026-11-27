@@ -405,7 +405,10 @@ fun RemBrowseScreen(
                 onSetCursorStyle = terminal::setCursorStyle,
                 onSetSuggestions = terminal::setSuggestions,
                 onSetRememberCommands = terminal::setRememberCommands,
-                onClearCommandHistory = terminal::clearCommandHistory
+                onClearCommandHistory = terminal::clearCommandHistory,
+                onSetCopyOnSelect = terminal::setCopyOnSelect,
+                onSetProgramsCanCopy = terminal::setProgramsCanCopy,
+                onSetCtrlVPastes = terminal::setCtrlVPastes
             )
         }
     }

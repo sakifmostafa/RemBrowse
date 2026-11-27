@@ -266,6 +266,12 @@ class TerminalViewModel(
 
     fun setSuggestions(enabled: Boolean) = updateSettings { it.copy(suggestions = enabled) }
 
+    fun setCopyOnSelect(enabled: Boolean) = updateSettings { it.copy(copyOnSelect = enabled) }
+
+    fun setProgramsCanCopy(enabled: Boolean) = updateSettings { it.copy(programsCanCopy = enabled) }
+
+    fun setCtrlVPastes(enabled: Boolean) = updateSettings { it.copy(ctrlVPastes = enabled) }
+
     /** Whether commands are remembered; turning it off also forgets those already remembered. */
     fun setRememberCommands(enabled: Boolean) {
         updateSettings { it.copy(rememberCommands = enabled) }

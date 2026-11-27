@@ -62,7 +62,10 @@ class TerminalStoreTest {
             font = TerminalFont.FIRA_MONO,
             cursorStyle = TerminalCursorStyle.BAR,
             suggestions = false,
-            rememberCommands = false
+            rememberCommands = false,
+            copyOnSelect = false,
+            programsCanCopy = false,
+            ctrlVPastes = false
         )
         SharedPrefsTerminalStore(context).apply {
             saveSettings(settings)
@@ -76,6 +79,9 @@ class TerminalStoreTest {
     @Test
     fun aFreshStore_hasTheDefaultLook_andAnUnknownThemeFallsBack() {
         assertEquals(TerminalSettings(), SharedPrefsTerminalStore(context).loadSettings())
+        TerminalSettings().let {
+            assertTrue("Copy and paste start on", it.copyOnSelect && it.programsCanCopy && it.ctrlVPastes)
+        }
         context.getSharedPreferences("terminal", 0).edit()
             .putString("theme", "NO_SUCH_THEME")
             .putString("font", "COMIC_SANS")

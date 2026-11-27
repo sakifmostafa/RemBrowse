@@ -366,4 +366,17 @@ class TerminalUiTest {
         waitFor { !terminalVm.uiState.value.settings.suggestions }
         composeRule.runOnUiThread { terminalVm.setTheme(TerminalThemePreset.DEFAULT) }
     }
+
+    @Test
+    fun theCopyAndPasteSwitches_areSetInSettings() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TERMINAL) }
+        listOf("terminal_copy_on_select", "terminal_programs_copy", "terminal_ctrl_v_pastes").forEach { tag ->
+            composeRule.onNodeWithTag(tag).performScrollTo().assertIsOn().performClick()
+        }
+        waitFor {
+            terminalVm.uiState.value.settings.let { !it.copyOnSelect && !it.programsCanCopy && !it.ctrlVPastes }
+        }
+        composeRule.onNodeWithTag("terminal_ctrl_v_pastes").performScrollTo().assertIsOff()
+    }
 }

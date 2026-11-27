@@ -7,6 +7,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Typeface
 import android.text.InputType
+import android.util.Log
 import android.view.InputDevice
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
@@ -18,6 +19,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import com.rembrowser.rembrowse.R
 import com.rembrowser.rembrowse.model.TerminalCursorStyle
 import com.rembrowser.rembrowse.model.TerminalFont
@@ -35,11 +37,16 @@ import kotlin.math.roundToInt
  * Shows a [TerminalConnection]'s screen and sends it what is typed.
  *
  * - **Keyboard**: every key goes to the shell, Ctrl and Alt combinations included (the browser's
- *   own shortcuts move to Ctrl+Shift while a terminal has focus). Ctrl+Shift+C and Ctrl+Shift+V
- *   (and Shift+Insert) copy and paste; Shift+Page Up and Page Down scroll the history.
- * - **Mouse and touchpad**: drag to select, double-click for a word, triple-click for a line;
- *   right-click for the menu ([onContextMenu]). When the program asks for the mouse (vim, htop,
- *   tmux with `mouse on`), presses and the wheel go to it instead; Shift still selects.
+ *   own shortcuts move to Ctrl+Shift while a terminal has focus), apart from copy and paste:
+ *   Ctrl+C copies what is selected (with nothing selected it is the shell's), Ctrl+V pastes
+ *   ([ctrlVPastes]), and Ctrl+Shift+C or Ctrl+Insert and Ctrl+Shift+V or Shift+Insert always do.
+ *   Shift+Page Up and Page Down scroll the history.
+ * - **Mouse and touchpad**: drag to select, double-click for a word, triple-click for a line, each
+ *   copied when the button is let go ([copyOnSelect]); right-click for the menu ([onContextMenu]).
+ *   When the program asks for the mouse (vim, htop, tmux with `mouse on`), presses and the wheel
+ *   go to it instead; Shift still selects.
+ * - **A program's copy** (OSC 52, as tmux and vim send) goes on the clipboard right after the
+ *   user's input in this terminal ([programsCanCopy], [TerminalConnection.onCopyTextToClipboard]).
  * - **Wheel and two-finger scrolling** move through the history, or send arrow keys to full-screen
  *   programs that keep no history of their own (`less`, `man`).
  * - **Touchscreen**: drag to scroll, tap to type (opens the on-screen keyboard).
@@ -52,6 +59,7 @@ class TerminalScreenView(context: Context) : View(context) {
         set(value) {
             if (field === value) return
             field?.onScreenChanged = null
+            field?.onProgramCopy = null
             field = value
             topRow = 0
             selection = null
@@ -60,6 +68,7 @@ class TerminalScreenView(context: Context) : View(context) {
             value?.setCursorStyle(cursorStyle.emulatorStyle)
             resetLine()
             value?.onScreenChanged = ::onScreenUpdated
+            value?.onProgramCopy = ::copyFromProgram
             updateSize()
             invalidate()
         }
@@ -69,6 +78,18 @@ class TerminalScreenView(context: Context) : View(context) {
 
     /** Enter on a terminal that has disconnected: the screen offers to connect again. */
     var onReconnectRequested: (() -> Unit)? = null
+
+    /**
+     * Whether a program (tmux, vim) may put what it copies on the clipboard (OSC 52). Even then,
+     * only right after the user's input in its terminal; see [TerminalConnection.onCopyTextToClipboard].
+     */
+    var programsCanCopy: Boolean = true
+
+    /** Whether Ctrl+V pastes. Off, it goes to the program as ^V (vim's block selection, nano's next page). */
+    var ctrlVPastes: Boolean = true
+
+    /** Whether text selected with the mouse or touchpad is copied as soon as the button is let go. */
+    var copyOnSelect: Boolean = true
 
     /** Text size in pixels. */
     var textSizePx: Float = 14f * resources.displayMetrics.scaledDensity
@@ -165,6 +186,10 @@ class TerminalScreenView(context: Context) : View(context) {
     private var lastClickCell: Cell? = null
     private var clickCount = 0
     private var mousePressedForProgram = false
+    // The button now down selects text (not a press for the program, nor a right click), and
+    // whether it has left the cell it went down on: a click that wobbles within its cell selects nothing
+    private var mouseSelecting = false
+    private var mouseDragged = false
 
     init {
         isFocusable = true
@@ -476,12 +501,27 @@ class TerminalScreenView(context: Context) : View(context) {
     /** Copy, paste and scrolling the history: the keys a terminal keeps for itself. */
     private fun handleViewShortcut(keyCode: Int, event: KeyEvent): Boolean {
         val ctrlShift = event.isCtrlPressed && event.isShiftPressed && !event.isAltPressed
+        val ctrl = event.isCtrlPressed && !event.isShiftPressed && !event.isAltPressed
         return when {
-            ctrlShift && keyCode == KeyEvent.KEYCODE_C -> {
+            ctrlShift && keyCode == KeyEvent.KEYCODE_C || ctrl && keyCode == KeyEvent.KEYCODE_INSERT -> {
                 copySelection()
                 true
             }
+            // Ctrl+C copies what is selected, as in other apps, and clears the selection, so the
+            // next Ctrl+C interrupts; with nothing selected it goes to the shell as usual. A selection
+            // that couldn't be copied (too long) stays, so pressing again can't interrupt by surprise.
+            ctrl && keyCode == KeyEvent.KEYCODE_C && selection != null -> {
+                val text = selectedText()
+                if (text == null || putOnClipboard(text)) clearSelection()
+                true
+            }
             ctrlShift && keyCode == KeyEvent.KEYCODE_V || event.isShiftPressed && !event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_INSERT -> {
+                paste()
+                true
+            }
+            // Never ^V while it pastes, even with nothing to paste: bash would take the next key,
+            // or the escape that starts the next paste, literally
+            ctrl && keyCode == KeyEvent.KEYCODE_V && ctrlVPastes -> {
                 paste()
                 true
             }
@@ -529,25 +569,43 @@ class TerminalScreenView(context: Context) : View(context) {
             MotionEvent.ACTION_DOWN -> {
                 requestFocus()
                 val secondary = event.buttonState and MotionEvent.BUTTON_SECONDARY != 0
+                mouseSelecting = false
+                mouseDragged = false
                 when {
                     toProgram -> {
                         mousePressedForProgram = true
                         val button = if (secondary) MOUSE_RIGHT_BUTTON else TerminalEmulator.MOUSE_LEFT_BUTTON
                         emulator.sendMouseEvent(button, cell.column + 1, cell.row - topRow + 1, true)
+                        connection?.markUserInput()
                     }
                     secondary -> onContextMenu?.invoke(event.x, event.y)
-                    else -> startSelection(cell, event.eventTime)
+                    else -> {
+                        startSelection(cell, event.eventTime)
+                        mouseSelecting = true
+                    }
                 }
             }
             MotionEvent.ACTION_MOVE -> when {
-                mousePressedForProgram -> emulator.sendMouseEvent(TerminalEmulator.MOUSE_LEFT_BUTTON_MOVED, cell.column + 1, cell.row - topRow + 1, true)
-                selectionAnchor != null -> extendSelection(cell)
+                mousePressedForProgram -> {
+                    emulator.sendMouseEvent(TerminalEmulator.MOUSE_LEFT_BUTTON_MOVED, cell.column + 1, cell.row - topRow + 1, true)
+                    connection?.markUserInput()
+                }
+                selectionAnchor != null -> {
+                    if (cell != selectionAnchor) mouseDragged = true
+                    if (mouseDragged) extendSelection(cell)
+                }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (mousePressedForProgram) {
                     mousePressedForProgram = false
                     emulator.sendMouseEvent(TerminalEmulator.MOUSE_LEFT_BUTTON, cell.column + 1, cell.row - topRow + 1, false)
+                    connection?.markUserInput()
                 }
+                // Copied as the button is let go, as tmux and ChromeOS's terminal do: a drag, or a
+                // word or line picked with a double or triple click. A plain click copies nothing.
+                val selected = mouseSelecting && (mouseDragged || clickCount > 1)
+                if (event.actionMasked == MotionEvent.ACTION_UP && selected && copyOnSelect) copySelection()
+                mouseSelecting = false
                 selectionAnchor = null
             }
         }
@@ -643,6 +701,8 @@ class TerminalScreenView(context: Context) : View(context) {
             emulator.isMouseTrackingActive -> {
                 val button = if (rows < 0) TerminalEmulator.MOUSE_WHEELUP_BUTTON else TerminalEmulator.MOUSE_WHEELDOWN_BUTTON
                 repeat(abs(rows)) { emulator.sendMouseEvent(button, 1, 1, true) }
+                // The arrow keys below count by themselves, through sendInput
+                connection?.markUserInput()
             }
             emulator.isAlternateBufferActive -> {
                 val key = if (rows < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
@@ -661,10 +721,32 @@ class TerminalScreenView(context: Context) : View(context) {
 
     // --- Selection, copy and paste ---
 
+    /** Copies what is selected. False when nothing is, or it couldn't be copied (the user is told why). */
     fun copySelection(): Boolean {
         val text = selectedText() ?: return false
-        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Terminal", text))
-        return true
+        return putOnClipboard(text)
+    }
+
+    /** A program's copy (OSC 52) that its terminal let through, if Settings let programs copy. */
+    private fun copyFromProgram(text: String) {
+        if (programsCanCopy) putOnClipboard(text)
+    }
+
+    /** Puts [text] on the clipboard. False, after a short message, when it is too long or the system refuses it. */
+    private fun putOnClipboard(text: String): Boolean {
+        if (text.length > MAX_COPY_CHARS) {
+            Toast.makeText(context, "This selection is too long to copy", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        return try {
+            context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Terminal", text))
+            true
+        } catch (e: RuntimeException) {
+            // The system refused the clip (a binder transaction too large, say): no crash for it
+            Log.w(TAG, "Couldn't copy ${text.length} characters", e)
+            Toast.makeText(context, "Couldn't copy the text", Toast.LENGTH_SHORT).show()
+            false
+        }
     }
 
     fun selectedText(): String? {
@@ -693,6 +775,8 @@ class TerminalScreenView(context: Context) : View(context) {
         suggestion = null
         invalidate()
         terminal.emulator.paste(text)
+        // It reaches the server through the emulator, so it doesn't count as input by itself
+        terminal.markUserInput()
     }
 
     /** Selects the whole history and screen. */
@@ -755,6 +839,17 @@ class TerminalScreenView(context: Context) : View(context) {
 
         /** Characters a double-click word stops at, besides spaces: brackets and quotes. */
         private const val WORD_STOPS = "()[]{}<>\"'`|;,"
+
+        /**
+         * The most text copied at once. The clip goes to the system in one binder transaction,
+         * and one over about 1 MB fails with an exception that would end the app. Text takes one
+         * to three bytes a character there, so 256K characters stays below that, while Select all
+         * over a full history (5,000 rows of a wide window) can be several times as much. A
+         * program's copy is never this long: the emulator keeps at most 100 KB of an OSC 52.
+         */
+        private const val MAX_COPY_CHARS = 256 * 1024
+
+        private const val TAG = "TerminalScreenView"
 
         /**
          * What a key press sends to the shell, or null when it is not for the shell (the view

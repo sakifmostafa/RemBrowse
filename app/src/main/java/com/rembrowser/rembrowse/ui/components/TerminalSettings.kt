@@ -86,7 +86,10 @@ data class TerminalSettingsActions(
     val onSetCursorStyle: (TerminalCursorStyle) -> Unit = {},
     val onSetSuggestions: (Boolean) -> Unit = {},
     val onSetRememberCommands: (Boolean) -> Unit = {},
-    val onClearCommandHistory: () -> Unit = {}
+    val onClearCommandHistory: () -> Unit = {},
+    val onSetCopyOnSelect: (Boolean) -> Unit = {},
+    val onSetProgramsCanCopy: (Boolean) -> Unit = {},
+    val onSetCtrlVPastes: (Boolean) -> Unit = {}
 )
 
 /**
@@ -191,6 +194,40 @@ fun TerminalSettingsSection(state: TerminalUiState, actions: TerminalSettingsAct
         TextButton(onClick = actions.onClearCommandHistory, modifier = Modifier.testTag("terminal_clear_history")) {
             Text("Forget remembered commands")
         }
+    }
+    SectionDivider()
+
+    // --- Copy and paste ---
+    GroupTitle("Copy and paste")
+    Spacer(Modifier.height(8.dp))
+    SettingsRows {
+        SwitchRow(
+            title = "Copy text when you select it",
+            description = "Drag over text with the mouse or touchpad, or double- or triple-click it, and it is copied " +
+                "as you let go. Select all copies nothing until you choose Copy.",
+            checked = state.settings.copyOnSelect,
+            onCheckedChange = actions.onSetCopyOnSelect,
+            testTag = "terminal_copy_on_select",
+            place = RowPlace(0, 3)
+        )
+        SwitchRow(
+            title = "Let programs copy",
+            description = "tmux, vim and other programs on the server can put what you copy in them on the clipboard, " +
+                "but only right after you type or click in that terminal. They can never read what you copied.",
+            checked = state.settings.programsCanCopy,
+            onCheckedChange = actions.onSetProgramsCanCopy,
+            testTag = "terminal_programs_copy",
+            place = RowPlace(1, 3)
+        )
+        SwitchRow(
+            title = "Ctrl+V pastes",
+            description = "Turn this off to send Ctrl+V to the program instead, for vim's block selection or nano's " +
+                "next page. Ctrl+Shift+V and Shift+Insert always paste.",
+            checked = state.settings.ctrlVPastes,
+            onCheckedChange = actions.onSetCtrlVPastes,
+            testTag = "terminal_ctrl_v_pastes",
+            place = RowPlace(2, 3)
+        )
     }
     SectionDivider()
 

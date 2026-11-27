@@ -297,6 +297,14 @@ class TerminalSnapshotTest {
     }
 
     @Test
+    fun settingsCopyAndPaste() {
+        launch()
+        composeRule.runOnUiThread { browserVm.openSettings(SettingsSection.TERMINAL) }
+        composeRule.onNodeWithTag("terminal_ctrl_v_pastes").performScrollTo()
+        save("t09c-settings-copy-paste")
+    }
+
+    @Test
     fun splitWithDocs() {
         launch(terminalUrl = "rem://terminal/host/homelab", split = true)
         printSession(connectHomelab())

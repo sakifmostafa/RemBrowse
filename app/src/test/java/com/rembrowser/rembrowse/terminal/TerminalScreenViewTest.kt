@@ -1,6 +1,7 @@
 package com.rembrowser.rembrowse.terminal
 
 import android.app.Application
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.SystemClock
 import android.view.InputDevice
@@ -16,6 +17,8 @@ import com.rembrowser.rembrowse.model.TerminalFont
 import com.rembrowser.rembrowse.model.TerminalThemePreset
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TextStyle
+import java.time.Duration
+import java.util.Base64
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -24,6 +27,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowSystemClock
+import org.robolectric.shadows.ShadowToast
 
 /** What the terminal view sends for keys, and how it selects, scrolls and copies. */
 @RunWith(AndroidJUnit4::class)
@@ -56,10 +61,10 @@ class TerminalScreenViewTest {
 
     private fun key(keyCode: Int, meta: Int = 0) = KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, meta)
 
-    private fun mouse(action: Int, x: Float, y: Float, buttons: Int, time: Long = SystemClock.uptimeMillis()): MotionEvent {
+    private fun mouse(action: Int, x: Float, y: Float, buttons: Int, time: Long = SystemClock.uptimeMillis(), meta: Int = 0): MotionEvent {
         val properties = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_MOUSE })
         val coords = arrayOf(MotionEvent.PointerCoords().apply { this.x = x; this.y = y })
-        return MotionEvent.obtain(time, time, action, 1, properties, coords, 0, buttons, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0)
+        return MotionEvent.obtain(time, time, action, 1, properties, coords, meta, buttons, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0)
     }
 
     @Test
@@ -559,5 +564,267 @@ class TerminalScreenViewTest {
     fun theCursor_isTheTextCursorOtherwise() {
         view.chromeHasPointer = { false }
         assertTrue(view.onResolvePointerIcon(hover(), 0) != null)
+    }
+
+    // --- Copy and paste ---
+
+    private val clipboard get() = context.getSystemService(ClipboardManager::class.java)
+
+    private fun clipText(): String? = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+
+    private fun copied(text: String) = clipboard.setPrimaryClip(ClipData.newPlainText("test", text))
+
+    private val ctrl = KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
+    private val shift = KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+
+    private fun pressKey(keyCode: Int, meta: Int = 0) = view.onKeyDown(keyCode, key(keyCode, meta))
+
+    /** What tmux sends when you copy in it (`set-clipboard` external or on). */
+    private fun osc52(text: String) = "\u001b]52;c;" + Base64.getEncoder().encodeToString(text.toByteArray(Charsets.UTF_8)) + "\u0007"
+
+    private fun FakeSshConnector.FakeShell.printed(text: String) {
+        print(text)
+        main.drain()
+    }
+
+    /** Drags the mouse over "world" in "hello world" on the first row. */
+    private fun dragOverWorld(meta: Int = 0) {
+        val time = SystemClock.uptimeMillis()
+        val cell = cellWidthOf()
+        view.onTouchEvent(mouse(MotionEvent.ACTION_DOWN, origin + 6.2f * cell, 12f, MotionEvent.BUTTON_PRIMARY, time, meta))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_MOVE, origin + 10.5f * cell, 12f, MotionEvent.BUTTON_PRIMARY, time + 50, meta))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_UP, origin + 10.5f * cell, 12f, 0, time + 60, meta))
+    }
+
+    @Test
+    fun aProgramsCopy_rightAfterAKeyPress_goesOnTheClipboard() {
+        val shell = connected()
+        // y in tmux's copy mode
+        pressKey(KeyEvent.KEYCODE_Y)
+        shell.printed(osc52("docker compose logs -f backup"))
+        assertEquals("docker compose logs -f backup", clipText())
+    }
+
+    @Test
+    fun aProgramsCopy_moreThan10sAfterTheLastInput_isDropped() {
+        val shell = connected()
+        copied("0x6b175474e89094c44da98b954eedeac495271d0f")
+        pressKey(KeyEvent.KEYCODE_Y)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(11))
+        shell.printed(osc52("0x0000000000000000000000000000000000000bad"))
+        assertEquals("0x6b175474e89094c44da98b954eedeac495271d0f", clipText())
+    }
+
+    @Test
+    fun withProgramsNotAllowedToCopy_theirCopyIsDropped() {
+        val shell = connected()
+        view.programsCanCopy = false
+        copied("mine")
+        pressKey(KeyEvent.KEYCODE_Y)
+        shell.printed(osc52("from tmux"))
+        assertEquals("mine", clipText())
+    }
+
+    @Test
+    fun anEmptyCopyOrAQuery_leavesTheClipboardAlone_andIsNotAnswered() {
+        val shell = connected()
+        copied("mine")
+        pressKey(KeyEvent.KEYCODE_Y)
+        shell.printed("\u001b]52;c;\u0007\u001b]52;c;?\u0007")
+        assertEquals("mine", clipText())
+        assertEquals("Only the key went to the server", "y", shell.typed())
+    }
+
+    @Test
+    fun aClickOrTheWheelSentToTmux_countsAsInput() {
+        val shell = connected()
+        shell.printed("\u001b[?1000h\u001b[?1006h")
+        val time = SystemClock.uptimeMillis()
+        view.onTouchEvent(mouse(MotionEvent.ACTION_DOWN, origin + 2.5f * cellWidthOf(), 12f, MotionEvent.BUTTON_PRIMARY, time))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_UP, origin + 2.5f * cellWidthOf(), 12f, 0, time + 40))
+        assertTrue("tmux got the click", shell.typed().contains("\u001b[<0;3;1M"))
+        shell.printed(osc52("selected in tmux"))
+        assertEquals("selected in tmux", clipText())
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(11))
+        view.scrollBy(-1)
+        shell.printed(osc52("after scrolling"))
+        assertEquals("after scrolling", clipText())
+    }
+
+    @Test
+    fun aPaste_countsAsInput() {
+        val shell = connected()
+        copied("echo hi")
+        pressKey(KeyEvent.KEYCODE_V, ctrl)
+        assertEquals("echo hi", shell.typed())
+        shell.printed(osc52("from vim"))
+        assertEquals("from vim", clipText())
+    }
+
+    @Test
+    fun withNoViewShowingTheTerminal_aCopyIsDropped() {
+        val shell = connected()
+        copied("mine")
+        pressKey(KeyEvent.KEYCODE_Y)
+        view.connection = null
+        shell.printed(osc52("from tmux"))
+        assertEquals("mine", clipText())
+    }
+
+    @Test
+    fun ctrlC_copiesASelectionAndClearsIt_sendingNothing_andWithoutOneInterrupts() {
+        val shell = connected()
+        view.copyOnSelect = false
+        shell.printed("hello world\r\n")
+        copied("mine")
+        dragOverWorld()
+        assertEquals("world", view.selectedText())
+        assertEquals("Not copied by the drag with copy on select off", "mine", clipText())
+
+        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        assertEquals("world", clipText())
+        assertNull(view.selection)
+        assertEquals("", shell.typed())
+
+        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        assertEquals("\u0003", shell.typed())
+    }
+
+    @Test
+    fun ctrlShiftC_andCtrlInsert_copy_andNeverReachTheProgram() {
+        val shell = connected()
+        view.copyOnSelect = false
+        shell.printed("hello world\r\n")
+        pressKey(KeyEvent.KEYCODE_C, ctrl or shift)
+        pressKey(KeyEvent.KEYCODE_INSERT, ctrl)
+        assertEquals("With nothing selected, nothing is sent either", "", shell.typed())
+
+        dragOverWorld()
+        pressKey(KeyEvent.KEYCODE_INSERT, ctrl)
+        assertEquals("world", clipText())
+        assertEquals("The selection stays", "world", view.selectedText())
+        assertEquals("", shell.typed())
+    }
+
+    @Test
+    fun ctrlV_pastes_bracketedWhenTheShellAsks_neverAsCtrlV() {
+        val shell = connected()
+        shell.printed("\u001b[?2004h")
+        copied("git pull --rebase")
+        pressKey(KeyEvent.KEYCODE_V, ctrl)
+        assertEquals("\u001b[200~git pull --rebase\u001b[201~", shell.typed())
+    }
+
+    @Test
+    fun ctrlV_withNothingToPaste_sendsNothing() {
+        val shell = connected()
+        clipboard.clearPrimaryClip()
+        pressKey(KeyEvent.KEYCODE_V, ctrl)
+        assertEquals("No ^V for bash to take the next key literally", "", shell.typed())
+    }
+
+    @Test
+    fun withCtrlVLeftToPrograms_itSendsCtrlV_andTheOtherPasteKeysStillPaste() {
+        val shell = connected()
+        view.ctrlVPastes = false
+        copied("ls")
+        pressKey(KeyEvent.KEYCODE_V, ctrl)
+        assertEquals("\u0016", shell.typed())
+        pressKey(KeyEvent.KEYCODE_V, ctrl or shift)
+        pressKey(KeyEvent.KEYCODE_INSERT, shift)
+        assertEquals("\u0016lsls", shell.typed())
+    }
+
+    @Test
+    fun aDrag_isCopiedAsTheButtonIsLetGo() {
+        val shell = connected()
+        shell.printed("hello world\r\n")
+        copied("mine")
+        dragOverWorld()
+        assertEquals("world", clipText())
+    }
+
+    @Test
+    fun aDoubleClick_copiesTheWord_andATripleClickTheLine() {
+        val shell = connected()
+        shell.printed("cd /var/log\r\n")
+        val x = origin + 4.5f * cellWidthOf()
+        val time = SystemClock.uptimeMillis()
+        view.onTouchEvent(mouse(MotionEvent.ACTION_DOWN, x, 12f, MotionEvent.BUTTON_PRIMARY, time))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_UP, x, 12f, 0, time + 30))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_DOWN, x, 12f, MotionEvent.BUTTON_PRIMARY, time + 120))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_UP, x, 12f, 0, time + 150))
+        assertEquals("/var/log", clipText())
+        view.onTouchEvent(mouse(MotionEvent.ACTION_DOWN, x, 12f, MotionEvent.BUTTON_PRIMARY, time + 240))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_UP, x, 12f, 0, time + 270))
+        assertEquals("cd /var/log", clipText())
+    }
+
+    @Test
+    fun aClick_evenOneThatWobblesWithinItsCell_selectsAndCopiesNothing() {
+        val shell = connected()
+        shell.printed("hello world\r\n")
+        copied("mine")
+        val cell = cellWidthOf()
+        val time = SystemClock.uptimeMillis()
+        view.onTouchEvent(mouse(MotionEvent.ACTION_DOWN, origin + 2.2f * cell, 12f, MotionEvent.BUTTON_PRIMARY, time))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_MOVE, origin + 2.7f * cell, 13f, MotionEvent.BUTTON_PRIMARY, time + 20))
+        view.onTouchEvent(mouse(MotionEvent.ACTION_UP, origin + 2.7f * cell, 13f, 0, time + 40))
+        assertNull(view.selection)
+        assertEquals("mine", clipText())
+        // So Ctrl+C still interrupts
+        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        assertEquals("\u0003", shell.typed())
+    }
+
+    @Test
+    fun withCopyOnSelectOff_aDragOnlySelects() {
+        val shell = connected()
+        view.copyOnSelect = false
+        shell.printed("hello world\r\n")
+        copied("mine")
+        dragOverWorld()
+        assertEquals("world", view.selectedText())
+        assertEquals("mine", clipText())
+    }
+
+    @Test
+    fun shiftDrag_overAProgramWithTheMouse_selectsAndCopies_withoutTellingTheProgram() {
+        val shell = connected()
+        shell.printed("hello world\r\n\u001b[?1000h\u001b[?1006h")
+        dragOverWorld(meta = shift)
+        assertEquals("world", clipText())
+        assertEquals("", shell.typed())
+    }
+
+    @Test
+    fun selectAll_waitsForCopy() {
+        val shell = connected()
+        shell.printed("hello world\r\n")
+        copied("mine")
+        view.selectAll()
+        assertEquals("mine", clipText())
+        assertTrue(view.copySelection())
+        assertTrue(clipText()!!.startsWith("hello world"))
+    }
+
+    @Test
+    fun aHugeSelection_isRefusedWithAMessage_notACrash() {
+        val shell = connected()
+        val line = "x".repeat(connection.emulator.mColumns) + "\r\n"
+        shell.printed(line.repeat(TerminalConnection.SCROLLBACK_ROWS + 100))
+        copied("mine")
+        view.selectAll()
+        assertTrue(view.selectedText()!!.length > 256 * 1024)
+
+        assertFalse(view.copySelection())
+        assertEquals("This selection is too long to copy", ShadowToast.getTextOfLatestToast())
+        assertEquals("mine", clipText())
+
+        // Ctrl+C keeps a selection it couldn't copy, so pressing it again doesn't interrupt
+        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        assertTrue(view.selection != null)
+        assertEquals("", shell.typed())
     }
 }

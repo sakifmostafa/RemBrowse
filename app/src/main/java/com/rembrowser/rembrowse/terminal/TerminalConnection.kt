@@ -1,5 +1,6 @@
 package com.rembrowser.rembrowse.terminal
 
+import android.os.SystemClock
 import android.util.Log
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalOutput
@@ -117,6 +118,13 @@ class TerminalConnection(
     /** Called on the main thread when the screen changed. Set by the view while it shows this terminal. */
     var onScreenChanged: (() -> Unit)? = null
 
+    /**
+     * Where a program's copy to the clipboard goes (OSC 52, which tmux, vim and others send when you
+     * copy in them), once [onCopyTextToClipboard] allows it. Set by the view while it shows this
+     * terminal; with none showing it, a copy is dropped.
+     */
+    var onProgramCopy: ((String) -> Unit)? = null
+
     /** The last connection asked for, for Reconnect. */
     var lastSpec: TerminalConnectSpec? = null
         private set
@@ -133,6 +141,10 @@ class TerminalConnection(
     private var cellWidth = DEFAULT_CELL_WIDTH
     private var cellHeight = DEFAULT_CELL_HEIGHT
 
+    // When the user last typed, pasted, clicked or scrolled in this terminal
+    // (SystemClock.uptimeMillis); null until they have, since this connection was made
+    private var lastUserInputAt: Long? = null
+
     val isConnected: Boolean get() = _status.value is TerminalStatus.Connected
 
     fun connect(spec: TerminalConnectSpec) {
@@ -140,6 +152,8 @@ class TerminalConnection(
         lastSpec = spec
         val thisAttempt = ++attempt
         rememberPassword = false
+        // Input sent to the last server doesn't let the next one copy
+        lastUserInputAt = null
         _status.value = TerminalStatus.Connecting(spec.label)
         val request = SshConnectRequest(
             hostname = spec.hostname,
@@ -253,13 +267,26 @@ class TerminalConnection(
         }
     }
 
-    /** Typed text or keys, as the terminal encodes them. */
+    /** Typed text or keys, as the terminal encodes them. Counts as the user's input ([markUserInput]). */
     fun sendInput(bytes: ByteArray) {
+        markUserInput()
         shell?.write(bytes)
     }
 
     fun sendInput(text: String) {
+        markUserInput()
         write(text)
+    }
+
+    /**
+     * The view sent the program something on the user's behalf: typing, a paste, a mouse press,
+     * drag or release, or scrolling. For [PROGRAM_COPY_WINDOW_MS] after it, the program may copy
+     * to the clipboard (see [onCopyTextToClipboard]). Typing through [sendInput] counts by itself;
+     * pastes and mouse reports reach the server through the emulator, which also sends its own
+     * answers that way, so the view marks those.
+     */
+    fun markUserInput() {
+        lastUserInputAt = SystemClock.uptimeMillis()
     }
 
     /** The view's size changed: the screen reflows and the server is told. */
@@ -282,10 +309,23 @@ class TerminalConnection(
         _title.value = newTitle?.takeIf { it.isNotBlank() }
     }
 
-    // A server may not read or replace the clipboard (OSC 52): a remote program could otherwise
-    // take whatever the user last copied, or plant something to be pasted elsewhere.
-    override fun onCopyTextToClipboard(text: String?) {}
+    // A program may copy to the clipboard (OSC 52), but only just after the user typed, clicked or
+    // scrolled in this terminal, the rule the web has for a page's clipboard.write: a server can't
+    // swap what the user copied (a crypto address, say) behind their back. It can't empty the
+    // clipboard either. A copy that is refused is dropped, and only its length logged.
+    override fun onCopyTextToClipboard(text: String?) {
+        if (text.isNullOrEmpty()) return
+        val copy = onProgramCopy ?: return
+        val last = lastUserInputAt
+        if (last == null || SystemClock.uptimeMillis() - last > PROGRAM_COPY_WINDOW_MS) {
+            Log.i(TAG, "A program's copy of ${text.length} characters was dropped: no recent input in its terminal")
+            return
+        }
+        copy(text)
+    }
 
+    // A program may never read the clipboard: the emulator ignores OSC 52 queries, and nothing
+    // asks for a paste here
     override fun onPasteTextFromClipboard() {}
 
     override fun onBell() {}
@@ -338,6 +378,10 @@ class TerminalConnection(
         private const val DEFAULT_CELL_HEIGHT = 18
         private const val ANSWER_TIMEOUT_MINUTES = 10L
         private val CANCELLED = Any()
+        private const val TAG = "TerminalConnection"
+
+        /** How long after the user's input in a terminal its program may copy to the clipboard. */
+        const val PROGRAM_COPY_WINDOW_MS = 10_000L
 
         fun labelOf(status: TerminalStatus): String = when (status) {
             TerminalStatus.Idle -> ""
