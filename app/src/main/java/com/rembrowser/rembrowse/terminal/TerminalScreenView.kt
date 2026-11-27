@@ -173,7 +173,12 @@ class TerminalScreenView(context: Context) : View(context) {
 
     /** What is selected, in screen cells (rows < 0 are in the history), or null. */
     var selection: TerminalSelection? = null
-        private set
+        private set(value) {
+            field = value
+            // However the selection goes (typing, a new size, another terminal, the mouse), touch
+            // selection's handles and toolbar go with it
+            if (value == null) touchSelection.end()
+        }
 
     // Scrolling by finger or touchpad: what is left over from whole rows
     private var scrollRemainder = 0f
@@ -252,6 +257,7 @@ class TerminalScreenView(context: Context) : View(context) {
         )
         drawSuggestion(canvas, terminal.emulator)
         canvas.restore()
+        touchSelection.draw(canvas)
     }
 
     /**
@@ -556,6 +562,9 @@ class TerminalScreenView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val terminal = connection ?: return false
         val isMouse = event.isFromSource(InputDevice.SOURCE_MOUSE) && event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE
+        // The mouse takes over: touch selection's handles and toolbar go (a right click keeps the
+        // selection itself, for the menu's Copy)
+        if (isMouse && event.actionMasked == MotionEvent.ACTION_DOWN) touchSelection.end()
         if (isMouse) return onMouseEvent(event, terminal.emulator)
         // A finger tap: type here
         if (onFingerEvent(event)) performClick()
@@ -633,8 +642,12 @@ class TerminalScreenView(context: Context) : View(context) {
         invalidate()
     }
 
-    /** Scrolls with a dragged finger. True when the finger was lifted without moving: a tap. */
+    /**
+     * A finger's event; true for a tap. Fingers and styluses on the screen go to [touchSelection]:
+     * a drag scrolls, a long-press selects. A touchpad's fingers only scroll, here.
+     */
     private fun onFingerEvent(event: MotionEvent): Boolean {
+        if (TouchSelection.isOnScreen(event)) return touchSelection.onTouchEvent(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 lastTouchY = event.y
@@ -819,6 +832,34 @@ class TerminalScreenView(context: Context) : View(context) {
     private fun lineAt(cell: Cell): TerminalSelection? {
         val columns = connection?.emulator?.mColumns ?: return null
         return TerminalSelection(0, cell.row, columns - 1, cell.row)
+    }
+
+    // --- Touch selection ---
+
+    /**
+     * Selecting with a finger or a stylus: a long-press, the handles and the floating toolbar.
+     * Internal for tests, which drive its gestures and toolbar.
+     */
+    internal val touchSelection = TouchSelection(this, object : TouchSelection.Host {
+        override fun select(selection: TerminalSelection?) {
+            this@TerminalScreenView.selection = selection
+            invalidate()
+        }
+
+        override fun wordAt(cell: Cell): TerminalSelection? = this@TerminalScreenView.wordAt(cell)
+
+        override fun scrollHistory(rows: Int) = this@TerminalScreenView.scrollHistory(rows)
+
+        override fun columnLeft(column: Int): Float = insetX + column * renderer.fontWidth
+
+        override fun rowTop(row: Int): Float =
+            insetY + renderer.fontLineSpacingAndAscent + (row - topRow) * renderer.fontLineSpacing.toFloat()
+    })
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        // The toolbar and a long-press still to come belong to the window this view just left
+        touchSelection.detached()
     }
 
     /** A screen cell: [row] counts from the live screen's top, negative in the history. */
