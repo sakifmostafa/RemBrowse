@@ -64,6 +64,8 @@ class TerminalScreenView(context: Context) : View(context) {
             field?.onProgramCopy = null
             field = value
             topRow = 0
+            // A long-press or a drag on the last terminal must not land on this one
+            touchSelection.reset()
             selection = null
             value?.emulator?.clearScrollCounter()
             value?.applyTheme()
@@ -339,7 +341,9 @@ class TerminalScreenView(context: Context) : View(context) {
         val scrolled = emulator.scrollCounter
         if (scrolled != 0) {
             if (topRow < 0) topRow -= scrolled
-            selection = selection?.shiftedUp(scrolled)
+            // Only when there is a selection: setting none would put away a long-press's toolbar
+            selection?.let { selection = it.shiftedUp(scrolled) }
+            touchSelection.scrolled(scrolled)
             emulator.clearScrollCounter()
         }
         clampTopRow()
@@ -901,7 +905,7 @@ class TerminalScreenView(context: Context) : View(context) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         // The toolbar and a long-press still to come belong to the window this view just left
-        touchSelection.detached()
+        touchSelection.reset()
     }
 
     /** A screen cell: [row] counts from the live screen's top, negative in the history. */

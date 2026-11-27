@@ -169,10 +169,25 @@ internal class TouchSelection(private val view: TerminalScreenView, private val 
         view.invalidate()
     }
 
-    /** The view left its window: no long-press may fire later, and the toolbar goes with it. */
-    fun detached() {
+    /**
+     * Ends touch selection and drops a gesture under way: a long-press still to come, a drag
+     * scrolling the history. The view left its window, or shows another terminal, which must not
+     * get what was meant for the last one.
+     */
+    fun reset() {
         resetGesture()
         end()
+    }
+
+    /**
+     * Output scrolled the screen up by [rows]. The view moves the selection up with its text; the
+     * anchors here go with it (the end a handle drag keeps, the long-pressed word, a long-press on
+     * blank space), or the next move of the finger would put them on other text.
+     */
+    fun scrolled(rows: Int) {
+        fixedEnd = fixedEnd?.let { it.copy(row = it.row - rows) }
+        pressedWord = pressedWord?.shiftedUp(rows)
+        pressedCell = pressedCell?.let { it.copy(row = it.row - rows) }
     }
 
     /** Draws the handles over the text, and keeps the toolbar beside the selection as it moves. */
