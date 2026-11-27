@@ -1,5 +1,18 @@
 package com.termux.terminal;
 
+/*
+ * Modified for RemBrowse (each change is marked "RemBrowse"):
+ * - An OSC whose text runs past its length limit is dropped up to its terminator (BEL or ST), and
+ *   not run (mOscOverflowed, skipRestOfOsc()). Termux ends the sequence there and prints the rest
+ *   as text, so a large OSC 52 copy filled the screen with base64.
+ * - setOscTypeVariables() takes the OSC's number at the ';' after it, as mOscType's documentation
+ *   says, instead of waiting for a ':'. OSC 52 has no ':', so it never got its own length limit
+ *   (100 KB) and was held to the default 16 KB.
+ * - The logs for a control string that ran too long or could not be kept, and for an OSC 52 that
+ *   could not be decoded, give lengths instead of the text, which for OSC 52 is what a program
+ *   copied.
+ */
+
 import android.util.Base64;
 
 import java.nio.charset.StandardCharsets;
@@ -311,6 +324,12 @@ public final class TerminalEmulator {
      * Can be enabled for OSC commands via {@link #setOscTypeVariables()}.
      */
     private boolean mIgnoreCrLfForOsc = false;
+
+    /**
+     * RemBrowse: the current OSC ran past its length limit, so the rest of it is dropped up to its
+     * terminator (BEL or ST) and it is not run. See {@link #skipRestOfOsc()}.
+     */
+    private boolean mOscOverflowed = false;
 
 
     /**
@@ -2639,14 +2658,22 @@ public final class TerminalEmulator {
     private void receiveOsc(final int b) {
         switch (b) {
             case 7: // Bell.
-                doOsc("\007");
+                if (mOscOverflowed) finishSequence(); // RemBrowse: not run
+                else doOsc("\007");
                 clearOscTypeVariables();
                 break;
             case 27: // Escape.
                 continueSequence(ESC_OSC__ESC);
                 break;
             default:
-                if (!collectTerminalControlArgs(b)) return;
+                if (mOscOverflowed) { // RemBrowse: dropped
+                    continueSequence(ESC_OSC);
+                    break;
+                }
+                if (!collectTerminalControlArgs(b)) {
+                    skipRestOfOsc(); // RemBrowse
+                    return;
+                }
                 if (mOscType == -1) {
                     setOscTypeVariables();
                 }
@@ -2660,17 +2687,31 @@ public final class TerminalEmulator {
     private void receiveOscEsc(final int b) {
         switch (b) {
             case '\\':
-                doOsc("\033\\");
+                if (mOscOverflowed) finishSequence(); // RemBrowse: not run
+                else doOsc("\033\\");
                 clearOscTypeVariables();
                 break;
             default:
                 // The ESC character was not followed by a \, so insert the ESC and
                 // the current character in arg buffer.
-                if (!collectTerminalControlArgs(27)) return;
-                if (!collectTerminalControlArgs(b)) return;
+                if (!mOscOverflowed && (!collectTerminalControlArgs(27) || !collectTerminalControlArgs(b))) {
+                    skipRestOfOsc(); // RemBrowse
+                    return;
+                }
                 continueSequence(ESC_OSC);
                 break;
         }
+    }
+
+    /**
+     * RemBrowse: the OSC being received ran past its length limit (or its text could not be kept).
+     * The rest of it, line breaks included, is dropped up to its terminator and it is not run,
+     * rather than printed on the screen as text.
+     */
+    private void skipRestOfOsc() {
+        mOscOverflowed = true;
+        mIgnoreCrLfForOsc = true;
+        continueSequence(ESC_OSC);
     }
 
     /**
@@ -2678,7 +2719,7 @@ public final class TerminalEmulator {
      */
     void setOscTypeVariables() {
         if (mOscType >= 0) return;
-        if (mTerminalControlArgs.indexOf(":") < 0) return;
+        if (mTerminalControlArgs.indexOf(";") < 0) return; // RemBrowse: was ":"
 
         int value = -1;
         int argsLength = mTerminalControlArgs.length();
@@ -2740,6 +2781,7 @@ public final class TerminalEmulator {
         mOscType = -1;
         mIsFastPathOsc = false;
         mIgnoreCrLfForOsc = false;
+        mOscOverflowed = false; // RemBrowse
     }
 
     /**
@@ -2853,7 +2895,8 @@ public final class TerminalEmulator {
                     String clipboardText = new String(Base64.decode(textParameter.substring(startIndex), Base64.DEFAULT), StandardCharsets.UTF_8);
                     mSession.onCopyTextToClipboard(clipboardText);
                 } catch (Exception e) {
-                    Logger.logError(mClient, LOG_TAG, "OSC Manipulate selection, invalid string '" + textParameter + "'");
+                    // RemBrowse: the length only, not what was copied
+                    Logger.logError(mClient, LOG_TAG, "OSC Manipulate selection, invalid string of length " + textParameter.length());
                 }
                 break;
             case 104:
@@ -3155,16 +3198,15 @@ public final class TerminalEmulator {
                 return true;
             } catch (Throwable t) {
                 if (t instanceof OutOfMemoryError) System.gc();
+                // RemBrowse: lengths only, not the text (an OSC 52's is what a program copied)
                 Logger.logError(mClient, LOG_TAG, "Terminal control args collect failed for" +
-                " char '" + (char) b + "' (numeric value=" + b + ") and" +
-                " args string '" + mTerminalControlArgs.substring(0, Math.min(100, mTerminalControlArgs.length())) + "...' with length " + mTerminalControlArgs.length() +
+                " args with length " + mTerminalControlArgs.length() +
                 ": " + t.getMessage());
             }
         } else {
+            // RemBrowse: lengths only, not the text
             Logger.logError(mClient, LOG_TAG, "Terminal control args input will" +
-                " overflow max args length " + mTerminalControlArgsMaxLength + " for" +
-                " char '" + (char) b + "' (numeric value=" + b + ") and" +
-                " args string '" + mTerminalControlArgs.substring(0, Math.min(100, mTerminalControlArgs.length())) + "...' with length " + mTerminalControlArgs.length());
+                " overflow max args length " + mTerminalControlArgsMaxLength);
         }
 
         clearTerminalControlArgs();

@@ -10,10 +10,13 @@ the Termux app is GPLv3 and none of it is included.
 
 What is included:
 
-- `terminal/`: `TerminalEmulator`, `TerminalBuffer`, `TerminalRow`, `TextStyle`, `TerminalColors`,
+- `terminal/`: `TerminalBuffer`, `TerminalRow`, `TextStyle`, `TerminalColors`,
   `TerminalColorScheme`, `KeyHandler`, `WcWidth`, `TerminalOutput`, `Logger`, and the inline image
-  support (`TerminalBitmap`, `TerminalSixel`, `ITermImage`, `AndroidUtils`), unchanged, and
-  `TerminalSessionClient`, trimmed (see the note at its top).
+  support (`TerminalBitmap`, `TerminalSixel`, `ITermImage`, `AndroidUtils`), unchanged;
+  `TerminalSessionClient`, trimmed (see the note at its top); and `TerminalEmulator`, with three
+  small changes (see the note at its top): an OSC longer than its limit, such as a large OSC 52
+  copy, is dropped up to its terminator instead of printed as text, OSC 52 gets the 100 KB limit
+  Termux meant for it, and the logs about such sequences give lengths, not what a program copied.
 - `view/TerminalRenderer.java`, with a public accessor for one font metric added (see its top).
 
 Not included: Termux's `TerminalSession` (a local process behind a pseudo-terminal, with native
