@@ -15,9 +15,15 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import android.graphics.PointF
+import android.os.SystemClock
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
+import java.util.concurrent.TimeUnit
 import com.rembrowser.rembrowse.data.TerminalSettings
 import com.rembrowser.rembrowse.model.TerminalCursorStyle
 import com.rembrowser.rembrowse.model.TerminalFont
@@ -385,5 +391,62 @@ class TerminalSnapshotTest {
         printSession(shell)
         type(shell, "sudo sys")
         save("t12-paper")
+    }
+
+    @Test
+    fun touchSelection() {
+        launch(terminalUrl = "rem://terminal/host/homelab")
+        printSession(connectHomelab())
+        selectByTouch("README.md")
+        save("t13-touch-selection")
+    }
+
+    @Test
+    fun touchSelectionPaper() {
+        launch(
+            settings = BrowserSettings(themeMode = ThemeMode.LIGHT),
+            terminalUrl = "rem://terminal/host/homelab",
+            terminalSettings = TerminalSettings(theme = TerminalThemePreset.PAPER)
+        )
+        printSession(connectHomelab())
+        selectByTouch("README.md")
+        save("t13b-touch-selection-paper")
+    }
+
+    /**
+     * A finger long-presses [word], then drags the end handle two rows down: a selection over
+     * three rows, with both handles showing.
+     */
+    private fun selectByTouch(word: String) {
+        val view = findTerminal(composeRule.activity.window.decorView)!!
+        val emulator = view.connection!!.emulator
+        val line = { row: Int -> emulator.screen.getSelectedText(0, row, emulator.mColumns - 1, row) }
+        val row = (0 until emulator.mRows).first { line(it).contains(word) }
+        val pressAt = view.touchSelection.cellCenter(TerminalScreenView.Cell(line(row).indexOf(word) + 1, row))
+        finger(view, MotionEvent.ACTION_DOWN, pressAt)
+        ShadowLooper.idleMainLooper(ViewConfiguration.getLongPressTimeout() + 100L, TimeUnit.MILLISECONDS)
+        finger(view, MotionEvent.ACTION_UP, pressAt)
+
+        val handle = view.touchSelection.handleCenter(start = false)!!
+        val twoRows = 2 * (view.touchSelection.cellCenter(TerminalScreenView.Cell(0, 1)).y - view.touchSelection.cellCenter(TerminalScreenView.Cell(0, 0)).y)
+        finger(view, MotionEvent.ACTION_DOWN, handle)
+        finger(view, MotionEvent.ACTION_MOVE, PointF(handle.x, handle.y + twoRows))
+        finger(view, MotionEvent.ACTION_UP, PointF(handle.x, handle.y + twoRows))
+        ShadowLooper.idleMainLooper()
+        composeRule.waitForIdle()
+    }
+
+    private var fingerDownAt = 0L
+
+    private fun finger(view: View, action: Int, at: PointF) {
+        composeRule.runOnUiThread {
+            val now = SystemClock.uptimeMillis()
+            if (action == MotionEvent.ACTION_DOWN) fingerDownAt = now
+            val properties = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER })
+            val coords = arrayOf(MotionEvent.PointerCoords().apply { x = at.x; y = at.y; pressure = 1f; size = 1f })
+            val event = MotionEvent.obtain(fingerDownAt, now, action, 1, properties, coords, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+            view.dispatchTouchEvent(event)
+            event.recycle()
+        }
     }
 }
