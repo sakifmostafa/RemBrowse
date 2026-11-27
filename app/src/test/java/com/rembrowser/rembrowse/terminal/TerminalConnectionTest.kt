@@ -232,4 +232,27 @@ class TerminalConnectionTest {
         server.shells.last().printed("Welcome back\r\n")
         assertTrue(terminal.emulator.screen.transcriptText.contains("Welcome back"))
     }
+
+    @Test
+    fun aNewConnection_dropsTheModesTheLastSessionLeftOn_andKeepsTheNormalScreen() {
+        val shell = connected()
+        shell.printed("before tmux\r\n")
+        // tmux takes the alternate screen and the mouse, and asks for bracketed paste; then the
+        // connection drops before it can give any of them back
+        shell.printed("\u001b[?1049h\u001b[?1000h\u001b[?1006h\u001b[?2004hinside tmux")
+        assertTrue(terminal.emulator.isAlternateBufferActive)
+        assertTrue(terminal.emulator.isMouseTrackingActive)
+        shell.end("Connection reset by peer")
+        main.drain()
+
+        terminal.reconnect()
+        main.drain()
+        val emulator = terminal.emulator
+        assertFalse("Back on the normal screen", emulator.isAlternateBufferActive)
+        assertFalse("The wheel and drags are the terminal's again", emulator.isMouseTrackingActive)
+        assertTrue("The normal screen and its history are still there", emulator.screen.transcriptText.contains("before tmux"))
+        val next = server.shells.last()
+        emulator.paste("ls")
+        assertEquals("A paste is plain until the new shell asks for brackets", "ls", next.typed())
+    }
 }

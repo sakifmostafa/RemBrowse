@@ -159,6 +159,13 @@ class TerminalConnection(
         // Nothing half received from the last server (an escape sequence, an OSC that never
         // ended) swallows the next one's output; the screen and its history stay
         emulator.resetParser()
+        // Nor do the modes its programs left on when the connection dropped: a tmux that never
+        // got to turn mouse reporting off would have the wheel type escape codes at the new
+        // prompt and drags select nothing, and its alternate screen, bracketed paste or
+        // line-drawing characters would stay too. The terminal leaves the alternate screen
+        // (only if it is on it) and makes a soft reset (DECSTR), which keeps the screen
+        emulator.append(SOFT_RESET, SOFT_RESET.size)
+        onScreenChanged?.invoke()
         _status.value = TerminalStatus.Connecting(spec.label)
         val request = SshConnectRequest(
             hostname = spec.hostname,
@@ -384,6 +391,9 @@ class TerminalConnection(
         private const val ANSWER_TIMEOUT_MINUTES = 10L
         private val CANCELLED = Any()
         private const val TAG = "TerminalConnection"
+
+        /** Back to the normal screen if on the alternate one, then a soft terminal reset (DECSTR). */
+        private val SOFT_RESET = "\u001b[?1049l\u001b[!p".toByteArray(Charsets.US_ASCII)
 
         /** How long after the user's input in a terminal its program may copy to the clipboard. */
         const val PROGRAM_COPY_WINDOW_MS = 10_000L

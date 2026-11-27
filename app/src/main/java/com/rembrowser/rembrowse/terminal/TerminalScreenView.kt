@@ -931,6 +931,13 @@ class TerminalScreenView(context: Context) : View(context) {
         touchSelection.reset()
     }
 
+    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        // Another pane took the focus (a page in a split, say): touch selection goes, as in
+        // Android's text fields, so its toolbar doesn't linger and Back goes to that pane
+        if (!gainFocus) endTouchSelection()
+    }
+
     /** A screen cell: [row] counts from the live screen's top, negative in the history. */
     data class Cell(val column: Int, val row: Int)
 

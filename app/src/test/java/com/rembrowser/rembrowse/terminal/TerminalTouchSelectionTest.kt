@@ -354,6 +354,24 @@ class TerminalTouchSelectionTest {
     }
 
     @Test
+    fun anotherPaneTakingTheFocus_putsTheSelectionAway() {
+        connectedShowing("hello world\r\n")
+        // A page beside the terminal, as in a split
+        val page = View(activity).apply { isFocusable = true; isFocusableInTouchMode = true }
+        (view.parent as FrameLayout).addView(page, FrameLayout.LayoutParams(100, 100))
+        page.requestFocus()
+        // A long-press makes the terminal the pane in use
+        longPressAndLift(center(1, 0))
+        assertTrue(view.hasFocus())
+        val toolbar = view.touchSelection.toolbar!!
+
+        page.requestFocus()
+        assertNull(view.selection)
+        assertFalse(view.touchSelection.isActive)
+        assertEquals("The toolbar closed", listOf(toolbar), finished)
+    }
+
+    @Test
     fun copy_putsTheSelectionOnTheClipboard_andClosesTheToolbar() {
         connectedShowing("cd /var/log\r\n")
         longPressAndLift(center(5, 0))

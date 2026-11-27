@@ -225,6 +225,9 @@ internal class TouchSelection(private val view: TerminalScreenView, private val 
 
     private val longPress = Runnable {
         if (gesture != Gesture.PRESSED) return@Runnable
+        // Selecting in a pane makes it the one in use: when another pane takes the focus back,
+        // touch selection goes (TerminalScreenView.onFocusChanged), and Back is this pane's meanwhile
+        if (!view.hasFocus()) view.requestFocus()
         val cell = view.cellAt(downX, downY)
         val word = host.wordAt(cell)
         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
