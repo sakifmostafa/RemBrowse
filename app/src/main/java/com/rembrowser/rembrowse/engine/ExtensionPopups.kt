@@ -132,14 +132,16 @@ internal class ExtensionPopups<S : Any>(private val doubleClickMs: Long) {
      * keyboard over the page. Taken as asked, every resize made to fit such content made it ask
      * for more again, and the popup crept up the screen to its largest size.
      *
-     * Such a change is still taken once right after the content changed by itself (the first
-     * report counts as that): a list whose rows appear one at a time can grow by a row just as
-     * the popup grows by the row before, which reads the same. So content sized from the viewport
-     * settles within two resizes of opening, or of a change of its own. Changes in the same
-     * viewport, such as a list opening, are always taken; only a run of equal steps, each measured
-     * just as the popup grew by the step before, can leave the popup a step short until the
-     * content next changes. A report that brings nothing new for a dimension (it is for the
-     * other one) leaves that dimension as it is.
+     * A page as long as its viewport (within 2 px) takes whatever it is given, so the popup keeps
+     * its size whatever the engine adds to the viewport. For one longer than its viewport, a
+     * change that only follows the viewport is still taken once right after the content changed
+     * by itself (the first report counts as that): a list whose rows appear one at a time can
+     * grow by a row just as the popup grows by the row before, which reads the same. So content
+     * sized from the viewport settles within two resizes of opening, or of a change of its own.
+     * Changes in the same viewport, such as a list opening, are always taken; only a run of equal
+     * steps, each measured just as the popup grew by the step before, can leave the popup a step
+     * short until the content next changes. A report that brings nothing new for a dimension (it
+     * is for the other one) leaves that dimension as it is.
      */
     fun sized(report: PopupContentSize) {
         val popup = _state.value ?: return
@@ -169,6 +171,16 @@ internal class ExtensionPopups<S : Any>(private val doubleClickMs: Long) {
             // length only followed the viewport, and taking it now would let it grow a step with
             // every such report.
             if (before != null && abs(length - before) <= FOLLOW_TOLERANCE_PX && sameViewport(lastViewport, viewport)) {
+                return current ?: length
+            }
+            // As long as its viewport, give or take rounding: the page takes whatever it is given,
+            // as Proton VPN's does once signed in, so the popup keeps the size it has. Taken as
+            // asked, its length would be the popup's plus whatever the engine adds to the viewport
+            // (a rounded density, a keyboard over the page).
+            if (before != null && fillsViewport(length, viewport)) {
+                last = length
+                lastViewport = viewport
+                lastChangedByItself = false
                 return current ?: length
             }
             val keep = before != null &&
@@ -211,6 +223,10 @@ internal class ExtensionPopups<S : Any>(private val doubleClickMs: Long) {
             return abs(viewportChange) >= MIN_CHANGE_PX &&
                 abs((now - before) - viewportChange) <= FOLLOW_TOLERANCE_PX
         }
+
+        /** Whether [length] is that of its [viewport], give or take rounding. */
+        fun fillsViewport(length: Int, viewport: Int?): Boolean =
+            viewport != null && abs(length - viewport) <= FOLLOW_TOLERANCE_PX
 
         /**
          * Whether two reports' viewports are the same, give or take what the helper ignores.

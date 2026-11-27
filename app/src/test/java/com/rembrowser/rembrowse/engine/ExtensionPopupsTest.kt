@@ -174,12 +174,22 @@ class ExtensionPopupsTest {
 
     @Test
     fun contentTwoPixelsTallerThanItsViewport_settlesToo() {
-        // The smallest change the helper reports, 2px, still counts as the viewport moving
+        // Within rounding of its viewport: it takes what it is given once the popup has a size
         open(vpn)
         sized(542, viewportHeight = 540)
         sized(544, viewportHeight = 542)
         sized(546, viewportHeight = 544)
-        assertEquals(544, height)
+        assertEquals(542, height)
+    }
+
+    @Test
+    fun contentThreePixelsTallerThanItsViewport_settlesAfterTwoResizes() {
+        // Just past rounding, it follows the viewport like any other page with a margin
+        open(vpn)
+        sized(543, viewportHeight = 540)
+        sized(546, viewportHeight = 543)
+        sized(549, viewportHeight = 546)
+        assertEquals(546, height)
     }
 
     @Test
@@ -277,7 +287,7 @@ class ExtensionPopupsTest {
     }
 
     @Test
-    fun onAScreenWhoseDensityTheEngineRounds_aPageFillingItsViewportSettles() {
+    fun onAScreenWhoseDensityTheEngineRounds_aPageFillingItsViewportKeepsItsSize() {
         // At 420 dpi Gecko puts 23 of its 60 units in a device pixel, so a popup H dp tall is
         // H * 1.00625 CSS px. Proton VPN signed in fills its viewport: each report was a few
         // pixels more than the popup, 565, 569, 573, 577... up to the largest popup.
@@ -285,9 +295,23 @@ class ExtensionPopupsTest {
         sized(565, viewportHeight = 543) // still loading, in the 540 dp default
         sized(565, viewportHeight = 569) // at 565 dp
         sized(569, viewportHeight = 569) // signed in, filling it
-        sized(573, viewportHeight = 573) // at 569 dp
-        sized(577, viewportHeight = 577) // at 573 dp
-        assertEquals(573, height)
+        assertEquals(565, height)
+    }
+
+    @Test
+    fun aPageFillingItsViewportUnderACountedKeyboard_neitherGrowsNorJumps() {
+        // Proton VPN signed in while a 48px keyboard is counted over the page: its viewport is
+        // the popup's height plus 48. A search that shortens the list shrinks the popup, and
+        // clearing it brings back a page that fills its viewport, not one 48px taller.
+        open(vpn)
+        sized(565, viewportHeight = 588) // still loading
+        sized(613, viewportHeight = 613) // signed in, filling it
+        assertEquals(565, height)
+        sized(564, viewportHeight = 613) // a search shortens the list
+        sized(564, viewportHeight = 612) // at 564 dp
+        assertEquals(564, height)
+        sized(612, viewportHeight = 612) // the search is cleared
+        assertEquals(564, height)
     }
 
     @Test
