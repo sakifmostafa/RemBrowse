@@ -216,7 +216,7 @@ Sections are listed down the left side (across the top on a phone-sized window):
 * **History** — the web pages you have visited, newest first, grouped by day. See [History](#history) below.
 * **Downloads** — whether to ask before saving a file, where files go, and your recent downloads. See [Downloads](#10-downloads).
 * **Extensions** — your installed extensions and the Firefox Add-ons catalog. See [Extensions](#9-extensions-xpi).
-* **Terminal** — your SSH hosts and keys, the servers you trust, and how terminals look and suggest commands. See [Terminal](#11-terminal).
+* **Terminal** — your SSH hosts and keys, the servers you trust, how terminals look and suggest commands, and how copy and paste work in them. See [Terminal](#11-terminal).
 * **About** — the version you have, and updates. See [Updates](#updates) below.
 
 Each section has an address, shown in the address bar: `rem://settings/appearance`, `rem://settings/search`, `rem://settings/tabs`, `rem://settings/privacy`, `rem://settings/history`, `rem://settings/downloads`, `rem://settings/extensions`, `rem://settings/terminal` and `rem://settings/about`. Typing one takes you straight there. If a website is open in the current tab, it stays open and Settings appear in a tab of their own. Websites and extensions cannot open these addresses.
@@ -328,8 +328,10 @@ The first time you connect to a server, RemBrowse shows its **key fingerprint** 
 
 ### Working in it
 
-* Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C`, `Ctrl+R`, `Ctrl+L`, `Ctrl+D`, Tab completion…), so most of the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard. `Ctrl+T` (new tab) and `Ctrl+W` (close the tab) stay the browser's, so delete the previous word with `Alt+Backspace`; see [Keyboard shortcuts](#13-keyboard-shortcuts).
-* **Select** by dragging, double-click a word or path, and copy with `Ctrl+Shift+C`. Paste with `Ctrl+Shift+V` or `Shift+Insert`. Right-click for **Copy**, **Paste**, **Select all**, and **Disconnect** or **Reconnect**.
+* Everything you type goes to the server. The shell keeps its own keys (`Ctrl+C` when nothing is selected, `Ctrl+R`, `Ctrl+L`, `Ctrl+D`, Tab completion…), so most of the browser's shortcuts move to `Ctrl+Shift` while a terminal has the keyboard. `Ctrl+T` (new tab) and `Ctrl+W` (close the tab) stay the browser's, so delete the previous word with `Alt+Backspace`; see [Keyboard shortcuts](#13-keyboard-shortcuts).
+* **Copy and paste** work as in other apps. Select by dragging with the mouse or touchpad, double-click a word or path, or triple-click a line, and it is copied as soon as you let go. `Ctrl+C` copies the selection too and clears it, so the next `Ctrl+C` interrupts the program as usual; with nothing selected, `Ctrl+C` goes straight to the program. `Ctrl+V` pastes. `Ctrl+Shift+C` or `Ctrl+Insert` and `Ctrl+Shift+V` or `Shift+Insert` always copy and paste. Right-click for **Copy**, **Paste**, **Select all**, and **Disconnect** or **Reconnect**.
+* **In tmux, vim and other programs that use the mouse**, a drag or a click goes to the program, which does the selecting. What it copies reaches the clipboard, as long as it comes within 10 seconds of you typing, clicking or scrolling in that terminal. tmux sends its copies when its `set-clipboard` option is `external` (the default) or `on`. A server can't change your clipboard at any other time, and can never read it. Hold **Shift** to select with RemBrowse instead, or for RemBrowse's right-click menu.
+* **Settings → Terminal → Copy and paste** turns each of these off: copying as you select, programs copying, and `Ctrl+V` pasting. With that last one off, `Ctrl+V` goes to the program, for vim's block selection or nano's next page.
 * **Scroll back** through earlier output with the mouse wheel, two fingers on the touchpad, or `Shift+Page Up` / `Shift+Page Down`. Typing returns to the bottom. In full-screen programs (`less`, `man`, `htop`, `vim`), the wheel scrolls the program instead.
 * The **bar above the terminal** shows the host and whether it is connected (green), connecting (yellow) or disconnected (red), with buttons for the theme and text size (one menu), disconnecting or reconnecting, and the terminal's settings.
 * When the connection ends, the last screen stays. Press **Enter** or **Reconnect** to connect again.
@@ -425,6 +427,7 @@ These work anywhere in the window, also while you are typing in a web page's tex
 | `Ctrl + Tab` / `Ctrl + Shift + Tab` | Next / previous tab |
 | `Ctrl + Shift + L` / `Ctrl + Shift + G` / `Ctrl + Shift + K` | Address bar / Go to address / command palette |
 | `Ctrl + Shift + ,` / `Ctrl + Shift + \` | Settings / toggle split view |
-| `Ctrl + Shift + C` / `Ctrl + Shift + V` (or `Shift + Insert`) | Copy / paste |
+| `Ctrl + C` (with text selected) / `Ctrl + V` | Copy / paste (`Ctrl + V` can go to the program instead, in Settings) |
+| `Ctrl + Shift + C` or `Ctrl + Insert` / `Ctrl + Shift + V` or `Shift + Insert` | Copy / paste, always |
 | `Shift + Page Up` / `Shift + Page Down` | Scroll back through earlier output |
 | `Tab` or `→` | Take the suggested command |
