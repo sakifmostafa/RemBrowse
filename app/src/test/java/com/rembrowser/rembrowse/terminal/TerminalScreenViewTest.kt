@@ -691,6 +691,72 @@ class TerminalScreenViewTest {
         assertEquals("\u0003", shell.typed())
     }
 
+    /** Ctrl+C as Android hands it on: a press at [down], and its key repeats after it. */
+    private fun ctrlC(down: Long, repeat: Int = 0) =
+        view.onKeyDown(KeyEvent.KEYCODE_C, KeyEvent(down, down + 500L * repeat, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_C, repeat, ctrl))
+
+    @Test
+    fun ctrlC_thatCopied_takesItsKeyRepeatsToo() {
+        val shell = connected()
+        view.copyOnSelect = false
+        shell.printed("hello world\r\n")
+        dragOverWorld()
+        ctrlC(down = 5_000)
+        ctrlC(down = 5_000, repeat = 1)
+        ctrlC(down = 5_000, repeat = 2)
+        assertEquals("world", clipText())
+        assertEquals("Held past the repeat delay, still nothing sent", "", shell.typed())
+
+        // The next press, with nothing selected, interrupts, and so do its own repeats
+        ctrlC(down = 9_000)
+        ctrlC(down = 9_000, repeat = 1)
+        assertEquals("\u0003\u0003", shell.typed())
+    }
+
+    @Test
+    fun ctrlC_withTheSelectionPushedOutOfSightByOutput_interrupts() {
+        val shell = connected()
+        shell.printed("hello world\r\n")
+        dragOverWorld()
+        // A dev server keeps printing: the selection moves up into the history with its text
+        shell.printed((1..100).joinToString("") { "GET /api/$it 200\r\n" })
+        assertTrue(view.selection != null)
+        copied("mine")
+
+        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        assertEquals("\u0003", shell.typed())
+        assertNull(view.selection)
+        assertEquals("mine", clipText())
+    }
+
+    @Test
+    fun ctrlC_withTheSelectionScrolledOutOfView_interrupts() {
+        val shell = connected()
+        shell.printed((1..200).joinToString("") { "line $it\r\n" })
+        dragOverWorld()
+        assertTrue(view.selection != null)
+        view.scrollBy(-3 * connection.emulator.mRows)
+        copied("mine")
+
+        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        assertEquals("\u0003", shell.typed())
+        assertNull(view.selection)
+        assertEquals("mine", clipText())
+    }
+
+    @Test
+    fun ctrlC_withTheSelectionPushedPastTheHistory_interrupts() {
+        val shell = connected()
+        shell.printed("hello world\r\n")
+        dragOverWorld()
+        shell.printed("x\r\n".repeat(TerminalConnection.SCROLLBACK_ROWS + 100))
+        assertTrue(view.selection != null)
+
+        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        assertEquals("\u0003", shell.typed())
+        assertNull(view.selection)
+    }
+
     @Test
     fun ctrlShiftC_andCtrlInsert_copy_andNeverReachTheProgram() {
         val shell = connected()
@@ -822,8 +888,10 @@ class TerminalScreenViewTest {
         assertEquals("This selection is too long to copy", ShadowToast.getTextOfLatestToast())
         assertEquals("mine", clipText())
 
-        // Ctrl+C keeps a selection it couldn't copy, so pressing it again doesn't interrupt
-        pressKey(KeyEvent.KEYCODE_C, ctrl)
+        // Ctrl+C keeps a selection it couldn't copy, so pressing it again doesn't interrupt, nor
+        // does holding it
+        ctrlC(down = 5_000)
+        ctrlC(down = 5_000, repeat = 1)
         assertTrue(view.selection != null)
         assertEquals("", shell.typed())
     }
