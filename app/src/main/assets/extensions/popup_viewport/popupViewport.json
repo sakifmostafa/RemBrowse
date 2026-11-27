@@ -22,7 +22,17 @@
             "properties": {
               "extensionId": { "type": "string" },
               "width": { "type": "integer" },
-              "height": { "type": "integer" }
+              "height": { "type": "integer" },
+              "viewportWidth": {
+                "type": "integer",
+                "optional": true,
+                "description": "The width of the viewport the popup was laid out in. Left out for a popup with a viewport tag of its own."
+              },
+              "viewportHeight": {
+                "type": "integer",
+                "optional": true,
+                "description": "The height of the viewport the popup was laid out in, which can be more than the popup's own height. Left out for a popup with a viewport tag of its own."
+              }
             }
           }
         ]

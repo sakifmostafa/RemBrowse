@@ -226,7 +226,7 @@ class GeckoExtensionManager(
 
     /** Sizes the open popup to what its content asked for; reports for other popups are stale. */
     private fun onPopupContentSize(size: PopupContentSize) {
-        popups.sized(size.extensionId, size.width, size.height)
+        popups.sized(size)
     }
 
     fun getPopupGeckoSession(): GeckoSession? = popups.session

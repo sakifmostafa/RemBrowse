@@ -19,6 +19,33 @@ class PopupContentSizeTest {
     }
 
     @Test
+    fun readsTheViewportItWasMeasuredIn() {
+        val size = PopupContentSize.parse(
+            message(
+                "type" to "popupSize",
+                "extensionId" to "vpn@proton.ch",
+                "width" to 420,
+                "height" to 556,
+                "viewportWidth" to 420,
+                "viewportHeight" to 540
+            )
+        )
+        assertEquals(PopupContentSize("vpn@proton.ch", 420, 556, 420, 540), size)
+    }
+
+    @Test
+    fun leavesOutAViewportThatIsMissingOrOutOfRange() {
+        fun parse(vararg viewport: Pair<String, Any>) = PopupContentSize.parse(
+            message("type" to "popupSize", "extensionId" to "a@b", "width" to 300, "height" to 300, *viewport)
+        )
+        val bare = PopupContentSize("a@b", 300, 300)
+        assertEquals(bare, parse("viewportHeight" to 540))
+        assertEquals(bare, parse("viewportWidth" to 0, "viewportHeight" to 540))
+        assertEquals(bare, parse("viewportWidth" to 420, "viewportHeight" to 50_000))
+        assertEquals(bare, parse("viewportWidth" to "wide", "viewportHeight" to 540))
+    }
+
+    @Test
     fun ignoresAnythingElse() {
         assertNull(PopupContentSize.parse(null))
         assertNull(PopupContentSize.parse("popupSize"))
