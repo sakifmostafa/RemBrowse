@@ -2,13 +2,13 @@
   <img src="docs/assets/rembrowse-logo.jpg" alt="RemBrowse" width="520">
 </p>
 
-# RemBrowse (`v0.16.1`)
+# RemBrowse (`v0.16.2`)
 
 **RemBrowse** (`com.rembrowser.rembrowse`) is a private, native browser made for Googlebook, where SSH is just another tab. It runs on Android laptops (Googlebook OS) and any Android device. It is written in Kotlin and Jetpack Compose on top of **Mozilla GeckoView**, and runs real Firefox **WebExtensions (`.xpi`)**.
 
 ## Download latest
 
-**Version 0.16.1** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
+**Version 0.16.2** — pick the file that matches your device's processor, open it on the device and confirm the install. Download it from [rembrowse.com](https://rembrowse.com/) or [GitHub Releases](https://github.com/sakifmostafa/RemBrowse/releases), where installed copies also get their updates. Every release is scanned by [VirusTotal](https://www.virustotal.com/); the reports are linked under each download and in each release.
 
 > **Updating from 0.08 or earlier:** from 0.09 on, RemBrowse is signed with a different key, so Android will not install it over 0.08 or older. Uninstall RemBrowse first; this removes its tabs, bookmarks and extensions. Updating from 0.09 works normally.
 
@@ -28,7 +28,7 @@ Requires Android 13 or newer (on Android 8 to 12, keep 0.15.0). If Android refus
 * **Fullscreen video**: a page's fullscreen button fills the whole screen, even from a split, and Back or Esc returns to the same layout.
 * **Tab switcher**: a searchable grid of every open tab.
 * **Right-click menus**: right-click a link, picture or the page itself, with a mouse or the touchpad, to open a link in a new tab or beside the page, copy a picture or an address, go back, reload, bookmark or find. Sites with their own menus keep them. Ctrl+click or middle-click a link to open it in a background tab (add Shift to open it in front).
-* **SSH terminal tabs**: open a terminal like a tab (`Ctrl+Shift+T` or **More → New terminal**), connect to a saved host or any `user@host`, and keep it beside your pages in a split. Hosts, keys (generate or import) and trusted servers live in Settings → Terminal, with passwords and private keys encrypted by the device's keystore. Seven themes (including a green-on-navy Midnight Green), two bundled coding fonts, cursor styles, and fish-style suggestions from your own commands and common ones, taken with Tab.
+* **SSH terminal tabs**: open a terminal like a tab (`Ctrl+Shift+T` or **More → New terminal**), connect to a saved host or any `user@host`, and keep it beside your pages in a split. Hosts, keys (generate or import) and trusted servers live in Settings → Terminal, with passwords and private keys encrypted by the device's keystore. Seven themes (including a green-on-navy Midnight Green), two bundled coding fonts, cursor styles, and fish-style suggestions from your own commands and common ones, taken with Tab. Copy and paste work as in other apps, in tmux and vim too: select with the mouse, a touchpad or a finger, `Ctrl+C` copies what you selected and `Ctrl+V` pastes.
 * **Find in page** (`Ctrl+F`): a floating bar on the page you are searching, with every match highlighted, a running count, next and previous, and match case.
 * **Screenshots** (`Ctrl+Alt+S`, or Take screenshot in the menu): drag around part of the window, click a page, or take the whole page from top to bottom, and the picture is on the clipboard, ready to paste into a chat (Telegram included: `Ctrl+V` in its message box attaches the picture).
 * **Print** (`Ctrl+P`, or Print… in the menu): RemBrowse's print screen shows the pages as they will print, then saves them as a PDF straight to Downloads or sends them to a printer. A page's own Print button opens it too, and a filled-in PDF form prints as filled in.
