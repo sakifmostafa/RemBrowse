@@ -470,6 +470,33 @@ class TerminalTouchSelectionTest {
     }
 
     @Test
+    fun theView_tellsWhenTouchSelectionShowsAndGoes_andEndingItLeavesOtherSelections() {
+        connectedShowing("hello world\r\n")
+        val changes = mutableListOf<Boolean>()
+        view.onTouchSelectionChange = { changes += it }
+
+        longPressAndLift(center(1, 0))
+        assertEquals(listOf(true), changes)
+        view.endTouchSelection()
+        assertEquals("However it ends, it says so once", listOf(true, false), changes)
+        assertNull(view.selection)
+        assertNull(view.touchSelection.toolbar)
+
+        // A long-press on blank space shows the toolbar alone, which counts too
+        longPress(center(40, 6))
+        touch(MotionEvent.ACTION_UP, center(40, 6))
+        assertEquals(listOf(true, false, true), changes)
+        tap(center(20, 3))
+        assertEquals(listOf(true, false, true, false), changes)
+
+        // A selection that isn't touch selection (the menu's Select all, the mouse) stays
+        view.selectAll()
+        view.endTouchSelection()
+        assertNotNull(view.selection)
+        assertEquals(listOf(true, false, true, false), changes)
+    }
+
+    @Test
     fun aNewSize_orAnotherTerminal_endsTouchSelection() {
         connectedShowing("hello world\r\n")
         longPressAndLift(center(1, 0))

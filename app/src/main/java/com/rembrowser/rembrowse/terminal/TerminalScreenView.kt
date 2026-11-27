@@ -877,7 +877,26 @@ class TerminalScreenView(context: Context) : View(context) {
 
         override fun rowTop(row: Int): Float =
             insetY + renderer.fontLineSpacingAndAscent + (row - topRow) * renderer.fontLineSpacing.toFloat()
+
+        override fun activeChanged(active: Boolean) {
+            onTouchSelectionChange?.invoke(active)
+        }
     })
+
+    /**
+     * Touch selection began showing (true: its handles, or the toolbar of a long-press on blank
+     * space) or ended (false), however it ended. TerminalPage passes it up, so that Back puts it
+     * away ([endTouchSelection]) before going on in the page or out of RemBrowse.
+     */
+    var onTouchSelectionChange: ((Boolean) -> Unit)? = null
+
+    /**
+     * Puts touch selection away, as a tap does: its selection, handles and toolbar go. A selection
+     * made with the mouse is not touch selection, and stays.
+     */
+    fun endTouchSelection() {
+        if (touchSelection.isActive) clearSelection()
+    }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()

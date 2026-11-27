@@ -58,11 +58,18 @@ internal class TouchSelection(private val view: TerminalScreenView, private val 
 
         /** Where [row] starts (counted from the live screen's top, negative in the history), in the view's pixels. */
         fun rowTop(row: Int): Float
+
+        /** Touch selection began showing ([active] true) or ended: Back puts it away while it shows. */
+        fun activeChanged(active: Boolean)
     }
 
     /** Whether touch selection is showing: the handles on what is selected, if anything, and the toolbar. */
     var isActive = false
-        private set
+        private set(value) {
+            if (field == value) return
+            field = value
+            host.activeChanged(value)
+        }
 
     /** The floating toolbar; null while touch selection is off, or where the window gives none. */
     var toolbar: ActionMode? = null

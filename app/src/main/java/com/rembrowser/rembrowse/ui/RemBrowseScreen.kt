@@ -51,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -452,6 +453,17 @@ fun RemBrowseScreen(
     // MainActivity.)
     val findBarBackOn = findInPage != null && !fullscreen && !chrome.showTabSwitcher
     BackHandler(enabled = findBarBackOn, onBack = findActions.onClose)
+    // A terminal's touch selection (its handles, and Android's text toolbar), with how to put it
+    // away, by tab. Back puts it away, as in Android's text fields, and does nothing else. Composed
+    // after the find bar's handler, so it comes before the find bar, fullscreen, the tab switcher
+    // and the page: the toolbar is a window of its own, in front of all of them. The rail open over
+    // the page and the screenshot overlay, composed after, still come first: they open over it.
+    // Normally one terminal at most: the window keeps one text toolbar, so a new one ends the other.
+    val terminalTouchSelections = remember { mutableStateMapOf<String, () -> Unit>() }
+    val terminalTouchSelectionOn = terminalTouchSelections.isNotEmpty()
+    BackHandler(enabled = terminalTouchSelectionOn) {
+        terminalTouchSelections.values.toList().forEach { end -> end() }
+    }
     // The expanded rail open over the page is in front of the tab switcher and the find bar, so
     // its Back, which closes it, is composed after theirs and comes first. Only the screenshot
     // overlay's and the keyboard's (below) come before it.
@@ -799,7 +811,10 @@ fun RemBrowseScreen(
                                             context,
                                             browserState.settings.accent,
                                             browserState.settings.useSystemColors
-                                        )
+                                        ),
+                                        onTouchSelection = { end ->
+                                            if (end != null) terminalTouchSelections[tab.id] = end else terminalTouchSelections.remove(tab.id)
+                                        }
                                     )
                                 } else {
                                 SettingsPage(
@@ -1029,7 +1044,7 @@ fun RemBrowseScreen(
     KeyboardFirstBackHandler(
         keyboardUp = keyboardUp,
         anotherBackHandlerOn = backAtRootStays || pageBackOn || chrome.showTabSwitcher || fullscreen ||
-            findBarBackOn || chrome.tabRailOverlayOpen || screenCapture.isSelecting
+            findBarBackOn || terminalTouchSelectionOn || chrome.tabRailOverlayOpen || screenCapture.isSelecting
     )
 
     // The commands of the palette (Ctrl+K) and Go to address (Ctrl+G), and the saved SSH hosts
