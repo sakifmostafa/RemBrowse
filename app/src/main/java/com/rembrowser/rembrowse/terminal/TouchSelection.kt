@@ -58,11 +58,18 @@ internal class TouchSelection(private val view: TerminalScreenView, private val 
 
         /** Where [row] starts (counted from the live screen's top, negative in the history), in the view's pixels. */
         fun rowTop(row: Int): Float
+
+        /** Touch selection began showing ([active] true) or ended: Back puts it away while it shows. */
+        fun activeChanged(active: Boolean)
     }
 
     /** Whether touch selection is showing: the handles on what is selected, if anything, and the toolbar. */
     var isActive = false
-        private set
+        private set(value) {
+            if (field == value) return
+            field = value
+            host.activeChanged(value)
+        }
 
     /** The floating toolbar; null while touch selection is off, or where the window gives none. */
     var toolbar: ActionMode? = null
@@ -162,10 +169,25 @@ internal class TouchSelection(private val view: TerminalScreenView, private val 
         view.invalidate()
     }
 
-    /** The view left its window: no long-press may fire later, and the toolbar goes with it. */
-    fun detached() {
+    /**
+     * Ends touch selection and drops a gesture under way: a long-press still to come, a drag
+     * scrolling the history. The view left its window, or shows another terminal, which must not
+     * get what was meant for the last one.
+     */
+    fun reset() {
         resetGesture()
         end()
+    }
+
+    /**
+     * Output scrolled the screen up by [rows]. The view moves the selection up with its text; the
+     * anchors here go with it (the end a handle drag keeps, the long-pressed word, a long-press on
+     * blank space), or the next move of the finger would put them on other text.
+     */
+    fun scrolled(rows: Int) {
+        fixedEnd = fixedEnd?.let { it.copy(row = it.row - rows) }
+        pressedWord = pressedWord?.shiftedUp(rows)
+        pressedCell = pressedCell?.let { it.copy(row = it.row - rows) }
     }
 
     /** Draws the handles over the text, and keeps the toolbar beside the selection as it moves. */

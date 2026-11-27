@@ -470,6 +470,121 @@ class TerminalTouchSelectionTest {
     }
 
     @Test
+    fun theView_tellsWhenTouchSelectionShowsAndGoes_andEndingItLeavesOtherSelections() {
+        connectedShowing("hello world\r\n")
+        val changes = mutableListOf<Boolean>()
+        view.onTouchSelectionChange = { changes += it }
+
+        longPressAndLift(center(1, 0))
+        assertEquals(listOf(true), changes)
+        view.endTouchSelection()
+        assertEquals("However it ends, it says so once", listOf(true, false), changes)
+        assertNull(view.selection)
+        assertNull(view.touchSelection.toolbar)
+
+        // A long-press on blank space shows the toolbar alone, which counts too
+        longPress(center(40, 6))
+        touch(MotionEvent.ACTION_UP, center(40, 6))
+        assertEquals(listOf(true, false, true), changes)
+        tap(center(20, 3))
+        assertEquals(listOf(true, false, true, false), changes)
+
+        // A selection that isn't touch selection (the menu's Select all, the mouse) stays
+        view.selectAll()
+        view.endTouchSelection()
+        assertNotNull(view.selection)
+        assertEquals(listOf(true, false, true, false), changes)
+    }
+
+    // --- Output that scrolls, and another terminal, while a finger is down ---
+
+    /** A full screen of "row N" lines, so that every new line scrolls it. */
+    private fun fullScreen(): FakeSshConnector.FakeShell = connectedShowing((1..40).joinToString("") { "row $it\r\n" })
+
+    private fun lineText(row: Int): String {
+        val emulator = connection.emulator
+        return emulator.screen.getSelectedText(0, row, emulator.mColumns - 1, row).trimEnd()
+    }
+
+    @Test
+    fun holdingAHandle_whileOutputScrolls_theEndThatStaysKeepsToItsText() {
+        val shell = fullScreen()
+        val line = 5
+        val text = lineText(line)
+        longPressAndLift(center(1, line))
+        assertEquals("row", view.selectedText())
+        val handle = view.touchSelection.handleCenter(start = false)!!
+        touch(MotionEvent.ACTION_DOWN, handle)
+        touch(MotionEvent.ACTION_MOVE, PointF(handle.x + 2 * cellWidth(), handle.y))
+        val held = view.selectedText()
+
+        // Three lines come in (tail -f, say) while the finger holds the handle
+        shell.print("new 1\r\nnew 2\r\nnew 3\r\n")
+        main.drain()
+        assertEquals("The selection went up with its text", held, view.selectedText())
+
+        // The finger moves on: the end that stays is still where that text went
+        touch(MotionEvent.ACTION_MOVE, PointF(handle.x + 3 * cellWidth(), handle.y))
+        val range = view.selection!!.normalized()
+        assertEquals(line - 3, range.startRow)
+        assertEquals(0, range.startColumn)
+        assertTrue(view.selectedText()!!, view.selectedText()!!.startsWith(text))
+        touch(MotionEvent.ACTION_UP, PointF(handle.x + 3 * cellWidth(), handle.y))
+    }
+
+    @Test
+    fun extendingFromALongPress_whileOutputScrolls_keepsTheLongPressedWord() {
+        val shell = fullScreen()
+        val line = 5
+        val text = lineText(line)
+        longPress(center(1, line))
+        assertEquals("row", view.selectedText())
+
+        shell.print("new 1\r\nnew 2\r\nnew 3\r\n")
+        main.drain()
+        // Still held where it was on the screen, which now shows a later line
+        touch(MotionEvent.ACTION_MOVE, center(2, line))
+        val range = view.selection!!.normalized()
+        assertEquals("From the long-pressed word, where its text went", line - 3, range.startRow)
+        assertEquals(0, range.startColumn)
+        assertTrue(view.selectedText()!!, view.selectedText()!!.startsWith(text))
+    }
+
+    @Test
+    fun aLongPressOnBlankSpace_keepsItsToolbar_whileOutputScrolls() {
+        val shell = fullScreen()
+        longPressAndLift(center(40, 5))
+        val toolbar = view.touchSelection.toolbar!!
+
+        shell.print("new 1\r\nnew 2\r\n")
+        main.drain()
+        assertTrue(view.touchSelection.isActive)
+        assertSame(toolbar, view.touchSelection.toolbar)
+        assertTrue("Paste and Select all still offered", finished.isEmpty())
+    }
+
+    @Test
+    fun aLongPressStillToCome_whenTheViewShowsAnotherTerminal_landsOnNeither() {
+        connectedShowing("hello world\r\n")
+        touch(MotionEvent.ACTION_DOWN, center(1, 0))
+
+        // Another terminal, with a word where the finger is
+        val other = TerminalConnection("other", connector, hostKeys, main::post) { it.run() }
+        other.connect(TerminalConnectSpec("server", "server", 22, "me", SshCredentials.Password("secret")))
+        main.drain()
+        connector.shells.last().print("other words\r\n")
+        main.drain()
+        view.connection = other
+        waitPastLongPress()
+        assertNull(view.selection)
+        assertFalse(view.touchSelection.isActive)
+        assertTrue("No toolbar", started.isEmpty())
+
+        touch(MotionEvent.ACTION_UP, center(1, 0))
+        assertFalse("Nor a tap: the keyboard stays down", keyboardShown())
+    }
+
+    @Test
     fun aNewSize_orAnotherTerminal_endsTouchSelection() {
         connectedShowing("hello world\r\n")
         longPressAndLift(center(1, 0))

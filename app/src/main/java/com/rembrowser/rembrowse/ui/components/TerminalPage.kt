@@ -127,7 +127,12 @@ fun TerminalPage(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     /** The cursor's colour: the accent, in its tone for dark backgrounds (terminals are always dark). */
-    cursorColor: Color = Color(TerminalTheme.DEFAULT_CURSOR)
+    cursorColor: Color = Color(TerminalTheme.DEFAULT_CURSOR),
+    /**
+     * The terminal's touch selection began showing, with how to put it away, or ended (null).
+     * RemBrowseScreen gives Back to it while it shows.
+     */
+    onTouchSelection: (end: (() -> Unit)?) -> Unit = {}
 ) {
     val target = remember(tab.url) { TerminalUrls.parse(tab.url) ?: TerminalTarget.Picker }
     val connection = remember(tab.id) { terminal.session(tab.id) }
@@ -188,6 +193,7 @@ fun TerminalPage(
                 // Over the cards and banners drawn on top, and a divider's grab area, the
                 // cursor is theirs, not the text cursor
                 view.chromeHasPointer = cursorClaim::isClaimed
+                view.onTouchSelectionChange = { showing -> onTouchSelection(if (showing) view::endTouchSelection else null) }
             },
             onRelease = { view -> view.connection = null },
             modifier = Modifier.fillMaxSize().testTag("terminal_screen")

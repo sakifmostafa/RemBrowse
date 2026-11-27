@@ -2,10 +2,15 @@ package com.rembrowser.rembrowse.ui
 
 import android.app.Application
 import android.hardware.input.InputManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
@@ -33,6 +38,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rembrowser.rembrowse.data.InMemorySecretStore
+import com.rembrowser.rembrowse.data.InMemoryTerminalStore
+import com.rembrowser.rembrowse.data.SecretStore
 import com.rembrowser.rembrowse.engine.PointerDevices
 import com.rembrowser.rembrowse.fakes.FakeAmoApiClient
 import com.rembrowser.rembrowse.fakes.FakeBrowserEngine
@@ -40,12 +48,20 @@ import com.rembrowser.rembrowse.fakes.FakeBrowserStateRepository
 import com.rembrowser.rembrowse.fakes.FakeDownloadHistoryStore
 import com.rembrowser.rembrowse.fakes.FakeDownloadStorage
 import com.rembrowser.rembrowse.fakes.FakeExtensionManager
+import com.rembrowser.rembrowse.fakes.FakeSshConnector
+import com.rembrowser.rembrowse.model.LayoutMode
+import com.rembrowser.rembrowse.model.SshAuthMethod
+import com.rembrowser.rembrowse.model.SshHost
 import com.rembrowser.rembrowse.model.TerminalTarget
+import com.rembrowser.rembrowse.terminal.TerminalScreenView
+import com.rembrowser.rembrowse.terminal.TerminalStatus
 import com.rembrowser.rembrowse.ui.components.LocalSiteIconsEnabled
 import com.rembrowser.rembrowse.ui.theme.RemBrowseTheme
 import com.rembrowser.rembrowse.viewmodel.BrowserViewModel
 import com.rembrowser.rembrowse.viewmodel.DownloadsViewModel
 import com.rembrowser.rembrowse.viewmodel.ExtensionsViewModel
+import com.rembrowser.rembrowse.viewmodel.TerminalViewModel
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -61,10 +77,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowInputDevice
 import org.robolectric.shadows.ShadowInputManager
+import org.robolectric.shadows.ShadowLooper
 import org.robolectric.util.ReflectionHelpers
 
 /**
@@ -100,13 +118,29 @@ class BackNavigationUiTest {
     /** How many times the keyboard was asked to go away */
     private var hideRequests = 0
 
+    // Terminals, for the tests of touch selection: one saved host, with its password saved
+    private val connector = FakeSshConnector()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val terminalVm = TerminalViewModel(
+        store = InMemoryTerminalStore(
+            hosts = listOf(SshHost("vps", "Web server", "203.0.113.24", 22, "deploy", SshAuthMethod.PASSWORD, hasSavedPassword = true))
+        ),
+        secrets = InMemorySecretStore().apply { put(SecretStore.hostPassword("vps"), "secret") },
+        connector = connector,
+        scope = uiScope,
+        postToMain = { mainHandler.post(it) },
+        onTabTitleChanged = browserVm::setTerminalTitle
+    )
+
     @After
     fun tearDown() {
+        terminalVm.closeAll()
         uiScope.cancel()
     }
 
+    /** Shows the screen; [terminals] shows terminal tabs (without it, they don't show). */
     @OptIn(ExperimentalLayoutApi::class)
-    private fun launch() {
+    private fun launch(terminals: TerminalViewModel? = null) {
         val imm = ApplicationProvider.getApplicationContext<Application>().getSystemService(InputMethodManager::class.java)
         shadowOf(imm).setSoftInputVisibilityHandler { visible -> if (!visible) hideRequests++ }
         composeRule.setContent {
@@ -122,6 +156,7 @@ class BackNavigationUiTest {
                         chrome = chrome,
                         versionName = "test",
                         onPickLocalXpi = {},
+                        terminalViewModel = terminals,
                         // A text field in the page, which takes the on-screen keyboard
                         paneViewport = { _, modifier ->
                             Box(modifier) {
@@ -149,8 +184,8 @@ class BackNavigationUiTest {
     }
 
     /** A page that has somewhere to go back to; returns its tab. */
-    private fun launchOnAPageWithHistory(): String {
-        launch()
+    private fun launchOnAPageWithHistory(terminals: TerminalViewModel? = null): String {
+        launch(terminals)
         val tab = browserVm.uiState.value.activeTabId!!
         composeRule.runOnUiThread {
             browserVm.navigatePane(0, "https://example.com/second")
@@ -680,6 +715,215 @@ class BackNavigationUiTest {
         } finally {
             Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
         }
+    }
+
+    // --- A terminal's touch selection: Back puts it away, and does nothing else ---
+    // These run with real text measurement (NATIVE graphics): without it a terminal has no cell
+    // size, so it never takes its view's size and every point is its first cell.
+
+    /**
+     * Opens a terminal on the saved host in pane [inPane] (the focused one by default), and waits
+     * until it is connected and shows "hello world"; returns its tab and its shell.
+     */
+    private fun openConnectedTerminal(inPane: Int? = null): Pair<String, FakeSshConnector.FakeShell> {
+        val tab = composeRule.runOnUiThread {
+            inPane?.let { browserVm.focusPane(it) }
+            browserVm.openTerminal(TerminalTarget.SavedHost("vps")).also { terminalVm.connect(it, TerminalTarget.SavedHost("vps")) }
+        }
+        composeRule.waitUntil(5_000) {
+            ShadowLooper.idleMainLooper()
+            terminalVm.session(tab).status.value is TerminalStatus.Connected
+        }
+        val shell = connector.shells.last()
+        composeRule.runOnUiThread { shell.print("hello world\r\n") }
+        ShadowLooper.idleMainLooper()
+        composeRule.waitForIdle()
+        return tab to shell
+    }
+
+    /** The terminal view showing [tab]. */
+    private fun terminalView(tab: String): TerminalScreenView =
+        terminalViews(composeRule.activity.window.decorView).single { it.connection === terminalVm.session(tab) }
+
+    private fun terminalViews(view: View): List<TerminalScreenView> = when (view) {
+        is TerminalScreenView -> listOf(view)
+        is ViewGroup -> (0 until view.childCount).flatMap { terminalViews(view.getChildAt(it)) }
+        else -> emptyList()
+    }
+
+    private var pointerDownAt = 0L
+
+    /** A finger on the screen at [cell] of [view], or with [mouseButtons], the mouse. */
+    private fun pointer(view: TerminalScreenView, action: Int, cell: TerminalScreenView.Cell, mouseButtons: Int? = null) {
+        val at = view.touchSelection.cellCenter(cell)
+        composeRule.runOnUiThread {
+            val now = SystemClock.uptimeMillis()
+            if (action == MotionEvent.ACTION_DOWN) pointerDownAt = now
+            val properties = arrayOf(
+                MotionEvent.PointerProperties().apply {
+                    id = 0
+                    toolType = if (mouseButtons != null) MotionEvent.TOOL_TYPE_MOUSE else MotionEvent.TOOL_TYPE_FINGER
+                }
+            )
+            val coords = arrayOf(MotionEvent.PointerCoords().apply { x = at.x; y = at.y; pressure = 1f; size = 1f })
+            val source = if (mouseButtons != null) InputDevice.SOURCE_MOUSE else InputDevice.SOURCE_TOUCHSCREEN
+            val event = MotionEvent.obtain(pointerDownAt, now, action, 1, properties, coords, 0, mouseButtons ?: 0, 1f, 1f, 0, 0, source, 0)
+            view.dispatchTouchEvent(event)
+            event.recycle()
+        }
+    }
+
+    /** A finger long-presses [cell] of [view] and lifts: touch selection, with its handles and Android's text toolbar. */
+    private fun longPress(view: TerminalScreenView, cell: TerminalScreenView.Cell) {
+        pointer(view, MotionEvent.ACTION_DOWN, cell)
+        ShadowLooper.idleMainLooper(ViewConfiguration.getLongPressTimeout() + 100L, TimeUnit.MILLISECONDS)
+        pointer(view, MotionEvent.ACTION_UP, cell)
+        composeRule.waitForIdle()
+        assertTrue("Touch selection shows", view.touchSelection.isActive)
+        assertNotNull("with the toolbar", view.touchSelection.toolbar)
+    }
+
+    /**
+     * A tap on the terminal with nothing selected brings up the keyboard, as on a device: the view
+     * asks Android for it, and its inset comes up.
+     */
+    private fun keyboardUpForTheTerminal(view: TerminalScreenView) {
+        pointer(view, MotionEvent.ACTION_DOWN, TerminalScreenView.Cell(20, 3))
+        pointer(view, MotionEvent.ACTION_UP, TerminalScreenView.Cell(20, 3))
+        composeRule.waitForIdle()
+        val imm = ApplicationProvider.getApplicationContext<Application>().getSystemService(InputMethodManager::class.java)
+        assertTrue("The terminal asked for the keyboard", shadowOf(imm).isSoftInputVisible)
+        setKeyboard(up = true)
+        assertTrue(imeVisible)
+    }
+
+    /** A double click on [cell] of [view]: the word there, selected the mouse's way. */
+    private fun doubleClick(view: TerminalScreenView, cell: TerminalScreenView.Cell) {
+        repeat(2) {
+            pointer(view, MotionEvent.ACTION_DOWN, cell, mouseButtons = MotionEvent.BUTTON_PRIMARY)
+            pointer(view, MotionEvent.ACTION_UP, cell, mouseButtons = 0)
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun aTerminalsTouchSelection_backPutsItAway_andStaysInTheTerminal() {
+        launch(terminalVm)
+        val (tab, shell) = openConnectedTerminal()
+        assertFalse("Nothing for Back to do on a phone yet: Android's, as before", backDispatcher!!.hasEnabledCallbacks())
+        val view = terminalView(tab)
+        longPress(view, TerminalScreenView.Cell(1, 0))
+        assertEquals("hello", view.selectedText())
+        assertTrue("RemBrowse's while it shows", backDispatcher!!.hasEnabledCallbacks())
+
+        pressBack()
+        assertNull(view.selection)
+        assertFalse(view.touchSelection.isActive)
+        assertNull("The toolbar closed", view.touchSelection.toolbar)
+        assertEquals("Still the tab shown", tab, browserVm.uiState.value.activeTabId)
+        assertTrue("and still connected", terminalVm.session(tab).status.value is TerminalStatus.Connected)
+        assertFalse(composeRule.activity.isFinishing)
+        assertEquals("Nothing typed", "", shell.typed())
+        assertFalse("The next Back is Android's again", backDispatcher!!.hasEnabledCallbacks())
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun aMouseSelection_isNotTouchSelection_andLeavesBackAsItWas() {
+        launch(terminalVm)
+        val (tab) = openConnectedTerminal()
+        val view = terminalView(tab)
+        doubleClick(view, TerminalScreenView.Cell(1, 0))
+        assertEquals("hello", view.selectedText())
+        assertFalse(view.touchSelection.isActive)
+        assertFalse("Android's, as before", backDispatcher!!.hasEnabledCallbacks())
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun inASplit_theTouchSelectionGoesBeforeThePageBesideItGoesBack() {
+        val page = launchOnAPageWithHistory(terminalVm)
+        composeRule.runOnUiThread { browserVm.setLayoutMode(LayoutMode.SPLIT_1X2) }
+        composeRule.waitForIdle()
+        val (terminal) = openConnectedTerminal(inPane = 1)
+        val view = terminalView(terminal)
+        longPress(view, TerminalScreenView.Cell(1, 0))
+        // The page beside it has the focus, and somewhere to go back to
+        composeRule.runOnUiThread { browserVm.focusPane(0) }
+        composeRule.waitForIdle()
+        assertEquals(page, browserVm.uiState.value.activeTabId)
+        assertTrue(view.touchSelection.isActive)
+
+        pressBack()
+        assertFalse(view.touchSelection.isActive)
+        assertEquals("The page waits its turn", 0, goBackCount(page))
+        pressBack()
+        assertEquals(1, goBackCount(page))
+        assertEquals(terminal, browserVm.uiState.value.paneTabIds[1])
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun twoTerminalsInASplit_backPutsAwayTheOneWhoseTouchSelectionShows() {
+        launch(terminalVm)
+        composeRule.runOnUiThread { browserVm.setLayoutMode(LayoutMode.SPLIT_1X2) }
+        composeRule.waitForIdle()
+        val (left) = openConnectedTerminal(inPane = 0)
+        val (right) = openConnectedTerminal(inPane = 1)
+        val leftView = terminalView(left)
+        val rightView = terminalView(right)
+        doubleClick(leftView, TerminalScreenView.Cell(7, 0))
+        assertEquals("world", leftView.selectedText())
+        longPress(rightView, TerminalScreenView.Cell(1, 0))
+
+        pressBack()
+        assertFalse(rightView.touchSelection.isActive)
+        assertNull(rightView.selection)
+        assertEquals("The mouse's selection beside it stays", "world", leftView.selectedText())
+        assertEquals(listOf(left, right), browserVm.uiState.value.paneTabIds)
+        assertFalse(composeRule.activity.isFinishing)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun keyboardUp_backPutsItAwayFirst_thenTheTouchSelection() {
+        launch(terminalVm)
+        val (tab) = openConnectedTerminal()
+        val view = terminalView(tab)
+        keyboardUpForTheTerminal(view)
+        longPress(view, TerminalScreenView.Cell(1, 0))
+        val asked = hideRequests
+
+        pressBack()
+        assertEquals("The first Back asked for the keyboard to go", asked + 1, hideRequests)
+        assertTrue("and left the selection", view.touchSelection.isActive)
+
+        // The inset still reads up: the next Back is the touch selection's
+        pressBack()
+        assertFalse(view.touchSelection.isActive)
+        assertNull(view.selection)
+        assertEquals(tab, browserVm.uiState.value.activeTabId)
+        assertFalse(composeRule.activity.isFinishing)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun keyboardUp_whenTheKeyboardGoes_theTerminalsNewSizeTakesTheSelectionWithIt() {
+        // As on a device: the inset goes, the terminal grows by the keyboard's height, and a new
+        // size clears a selection (its rows would point at other text), touch selection included
+        launch(terminalVm)
+        val (tab) = openConnectedTerminal()
+        val view = terminalView(tab)
+        keyboardUpForTheTerminal(view)
+        longPress(view, TerminalScreenView.Cell(1, 0))
+
+        pressBack()
+        assertTrue(view.touchSelection.isActive)
+        keyboardGoes()
+        assertFalse("Gone with the new size", view.touchSelection.isActive)
+        assertFalse("Back is Android's again, as before", backDispatcher!!.hasEnabledCallbacks())
+        assertEquals(tab, browserVm.uiState.value.activeTabId)
     }
 }
 
