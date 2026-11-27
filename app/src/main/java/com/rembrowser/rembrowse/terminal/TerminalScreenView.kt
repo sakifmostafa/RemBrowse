@@ -534,14 +534,8 @@ class TerminalScreenView(context: Context) : View(context) {
                 copySelection()
                 true
             }
-            // Ctrl+C copies what is selected, as in other apps, and clears the selection, so the
-            // next Ctrl+C interrupts; with nothing selected it goes to the shell as usual. A selection
-            // that couldn't be copied (too long) stays, so pressing again can't interrupt by surprise.
-            ctrl && keyCode == KeyEvent.KEYCODE_C && selection != null -> {
-                val text = selectedText()
-                if (text == null || putOnClipboard(text)) clearSelection()
-                true
-            }
+            // False: the shell's ^C
+            ctrl && keyCode == KeyEvent.KEYCODE_C -> ctrlCCopies(event)
             ctrlShift && keyCode == KeyEvent.KEYCODE_V || event.isShiftPressed && !event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_INSERT -> {
                 paste()
                 true
@@ -563,6 +557,35 @@ class TerminalScreenView(context: Context) : View(context) {
             else -> false
         }
     }
+
+    /**
+     * Whether Ctrl+C copies, as in other apps, instead of interrupting the program: only with a
+     * selection that is at least partly on screen and has text. It is copied and cleared, so the
+     * next Ctrl+C interrupts; one that couldn't be copied (too long) stays, so pressing again
+     * can't interrupt by surprise. The press's key repeats are taken too, or holding the keys a
+     * moment too long would interrupt right after the copy. A selection out of sight (output
+     * pushed it into the history, or the view scrolled away from it) is cleared instead, and the
+     * key goes to the program: a Ctrl+C meant to stop something must never just copy.
+     */
+    private fun ctrlCCopies(event: KeyEvent): Boolean {
+        if (event.repeatCount > 0) return event.downTime == ctrlCTakenPress
+        ctrlCTakenPress = null
+        val range = selection?.normalized() ?: return false
+        val rows = connection?.emulator?.mRows ?: return false
+        val onScreen = range.endRow >= topRow && range.startRow <= topRow + rows - 1
+        val text = if (onScreen) selectedText() else null
+        if (text == null) {
+            clearSelection()
+            return false
+        }
+        if (putOnClipboard(text)) clearSelection()
+        ctrlCTakenPress = event.downTime
+        return true
+    }
+
+    // The Ctrl+C press (its down time) taken for copying, whether or not the clipboard took the
+    // text: its key repeats are taken too
+    private var ctrlCTakenPress: Long? = null
 
     private fun sendToShell(text: String) {
         val terminal = connection ?: return

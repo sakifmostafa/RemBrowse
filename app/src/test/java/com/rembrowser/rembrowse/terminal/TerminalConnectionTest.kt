@@ -110,6 +110,16 @@ class TerminalConnectionTest {
     }
 
     @Test
+    fun aCopyArrivingAfterTheDeviceSlept_isDropped() {
+        val shell = connected()
+        terminal.sendInput("y")
+        // The screen goes off right after: uptime stops while the device sleeps, real time doesn't
+        ShadowSystemClock.simulateDeepSleep(Duration.ofMinutes(5))
+        shell.printed(osc52("planted while asleep"))
+        assertEquals(emptyList<String>(), copies)
+    }
+
+    @Test
     fun pastesAndMouseReports_countOnceTheViewMarksThem_butTheEmulatorsOwnAnswersDont() {
         val shell = connected()
         // The server asks where the cursor is; the emulator answers by itself
@@ -183,5 +193,43 @@ class TerminalConnectionTest {
         terminal.sendInput("y")
         shell.printed(osc52("fine"))
         assertEquals(listOf("fine"), copies)
+    }
+
+    @Test
+    fun anOverLongCopyThatNeverEnds_hidesWhatFollowsOnlyForSoLong() {
+        val shell = connected()
+        // As `printf '\e]52;c;'; head -c 120000 /dev/zero | base64 -w0` sends: no terminator
+        shell.printed("\u001b]52;c;" + "AAAA".repeat(40_000))
+        shell.printed("hidden\r\n")
+        assertFalse(terminal.emulator.screen.transcriptText.contains("hidden"))
+
+        // About a scrollback's worth more, and the terminal gives up on it
+        shell.printed("x".repeat(1_100_000) + "\r\nshown again\r\n")
+        val screen = terminal.emulator.screen.transcriptText
+        assertTrue(screen.takeLast(200), screen.contains("shown again"))
+        assertFalse("None of the copy itself", screen.contains("AAAA"))
+    }
+
+    @Test
+    fun aNewConnection_readsTheServerAfresh_andKeepsTheScreen() {
+        val shell = connected()
+        shell.printed("from the first server\r\n")
+        // The connection drops halfway through a long copy that never ended
+        shell.printed("\u001b]52;c;" + "AAAA".repeat(40_000))
+        shell.end("Connection reset by peer")
+        main.drain()
+        terminal.reconnect()
+        main.drain()
+        server.shells.last().printed("Welcome to Ubuntu\r\n")
+        val screen = terminal.emulator.screen.transcriptText
+        assertTrue(screen, screen.contains("from the first server"))
+        assertTrue(screen, screen.contains("Welcome to Ubuntu"))
+
+        // Nor does an escape sequence cut short take the next server's first letter
+        server.shells.last().printed("\u001b[")
+        terminal.reconnect()
+        main.drain()
+        server.shells.last().printed("Welcome back\r\n")
+        assertTrue(terminal.emulator.screen.transcriptText.contains("Welcome back"))
     }
 }

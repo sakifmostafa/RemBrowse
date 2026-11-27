@@ -4,7 +4,10 @@ package com.termux.terminal;
  * Modified for RemBrowse (each change is marked "RemBrowse"):
  * - An OSC whose text runs past its length limit is dropped up to its terminator (BEL or ST), and
  *   not run (mOscOverflowed, skipRestOfOsc()). Termux ends the sequence there and prints the rest
- *   as text, so a large OSC 52 copy filled the screen with base64.
+ *   as text, so a large OSC 52 copy filled the screen with base64. One that never ends is given
+ *   up after OSC_SKIP_MAX more code points (skipOscCodePoint()), so it can't hide all that follows.
+ * - resetParser() puts the parser back in its ground state without touching the screen, for a new
+ *   connection: nothing half received from the last one carries over.
  * - setOscTypeVariables() takes the OSC's number at the ';' after it, as mOscType's documentation
  *   says, instead of waiting for a ':'. OSC 52 has no ':', so it never got its own length limit
  *   (100 KB) and was held to the default 16 KB.
@@ -330,6 +333,21 @@ public final class TerminalEmulator {
      * terminator (BEL or ST) and it is not run. See {@link #skipRestOfOsc()}.
      */
     private boolean mOscOverflowed = false;
+
+    /** RemBrowse: how many code points of the OSC that ran past its limit have been dropped since. */
+    private int mOscSkipped = 0;
+
+    /**
+     * RemBrowse: how many code points an OSC that ran past its limit may still drop while waiting
+     * for its terminator, before it is taken never to end (a program cut off halfway, a script
+     * that forgot the terminator) and what follows is shown again. 1M is about as much text as the
+     * 5,000-row scrollback holds at 200 columns, so a program's copy (OSC 52) of up to about
+     * 800 KB of text, more than anyone copies out of a terminal, still vanishes whole rather than
+     * spilling base64 on the screen, while an OSC that never ends hides at most about a
+     * scrollback's worth of what follows. A BEL ends it sooner, and a prompt that sets the window
+     * title rings one.
+     */
+    private static final int OSC_SKIP_MAX = 1024 * 1024;
 
 
     /**
@@ -2667,7 +2685,7 @@ public final class TerminalEmulator {
                 break;
             default:
                 if (mOscOverflowed) { // RemBrowse: dropped
-                    continueSequence(ESC_OSC);
+                    skipOscCodePoint();
                     break;
                 }
                 if (!collectTerminalControlArgs(b)) {
@@ -2694,7 +2712,11 @@ public final class TerminalEmulator {
             default:
                 // The ESC character was not followed by a \, so insert the ESC and
                 // the current character in arg buffer.
-                if (!mOscOverflowed && (!collectTerminalControlArgs(27) || !collectTerminalControlArgs(b))) {
+                if (mOscOverflowed) { // RemBrowse: dropped
+                    skipOscCodePoint();
+                    break;
+                }
+                if (!collectTerminalControlArgs(27) || !collectTerminalControlArgs(b)) {
                     skipRestOfOsc(); // RemBrowse
                     return;
                 }
@@ -2710,8 +2732,22 @@ public final class TerminalEmulator {
      */
     private void skipRestOfOsc() {
         mOscOverflowed = true;
+        mOscSkipped = 0;
         mIgnoreCrLfForOsc = true;
         continueSequence(ESC_OSC);
+    }
+
+    /**
+     * RemBrowse: drops one more code point of an OSC that ran past its limit. After
+     * {@link #OSC_SKIP_MAX} of them the OSC is taken never to end, and what follows is shown again.
+     */
+    private void skipOscCodePoint() {
+        if (++mOscSkipped < OSC_SKIP_MAX) {
+            continueSequence(ESC_OSC);
+        } else {
+            clearOscTypeVariables();
+            finishSequence();
+        }
     }
 
     /**
@@ -2782,6 +2818,7 @@ public final class TerminalEmulator {
         mIsFastPathOsc = false;
         mIgnoreCrLfForOsc = false;
         mOscOverflowed = false; // RemBrowse
+        mOscSkipped = 0; // RemBrowse
     }
 
     /**
@@ -3558,6 +3595,21 @@ public final class TerminalEmulator {
 
         clearTerminalControlArgs();
         clearOscTypeVariables();
+        mITermImage = null;
+    }
+
+    /**
+     * RemBrowse: puts the parser back in its ground state, for the start of a new connection: no
+     * escape sequence, control string (OSC, DCS, APC) or UTF-8 character left half received from
+     * the last one. Unlike {@link #reset()}, the screen, the scrollback, the modes and the colours
+     * stay as they are.
+     */
+    public void resetParser() {
+        mEscapeState = ESC_NONE;
+        mUtf8Index = mUtf8ToFollow = 0;
+        clearTerminalControlArgs();
+        clearOscTypeVariables();
+        clearDcsTypeVariables();
         mITermImage = null;
     }
 

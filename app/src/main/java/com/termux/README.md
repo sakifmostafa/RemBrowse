@@ -13,10 +13,12 @@ What is included:
 - `terminal/`: `TerminalBuffer`, `TerminalRow`, `TextStyle`, `TerminalColors`,
   `TerminalColorScheme`, `KeyHandler`, `WcWidth`, `TerminalOutput`, `Logger`, and the inline image
   support (`TerminalBitmap`, `TerminalSixel`, `ITermImage`, `AndroidUtils`), unchanged;
-  `TerminalSessionClient`, trimmed (see the note at its top); and `TerminalEmulator`, with three
+  `TerminalSessionClient`, trimmed (see the note at its top); and `TerminalEmulator`, with a few
   small changes (see the note at its top): an OSC longer than its limit, such as a large OSC 52
-  copy, is dropped up to its terminator instead of printed as text, OSC 52 gets the 100 KB limit
-  Termux meant for it, and the logs about such sequences give lengths, not what a program copied.
+  copy, is dropped up to its terminator instead of printed as text, and given up after another
+  1M code points if it never ends; OSC 52 gets the 100 KB limit Termux meant for it;
+  `resetParser()` starts a new connection's output in the parser's ground state, keeping the
+  screen; and the logs about such sequences give lengths, not what a program copied.
 - `view/TerminalRenderer.java`, with a public accessor for one font metric added (see its top).
 
 Not included: Termux's `TerminalSession` (a local process behind a pseudo-terminal, with native
