@@ -82,9 +82,24 @@ class BuiltInExtensionAssetsTest {
         val event = schema.getJSONArray("events").getJSONObject(0)
         assertEquals("onPopupSize", event.getString("name"))
         val properties = event.getJSONArray("parameters").getJSONObject(0).getJSONObject("properties")
-        assertEquals(setOf("extensionId", "width", "height"), properties.keys().asSequence().toSet())
+        assertEquals(
+            setOf("extensionId", "width", "height", "viewportWidth", "viewportHeight"),
+            properties.keys().asSequence().toSet()
+        )
+        // A popup with its own viewport tag reports no viewport
+        assertTrue(properties.getJSONObject("viewportWidth").getBoolean("optional"))
+        assertTrue(properties.getJSONObject("viewportHeight").getBoolean("optional"))
         val script = File(dir, api.getJSONObject("child").getString("script")).readText()
         assertTrue(script.contains("onPopupSize: new ExtensionCommon.EventManager"))
+        // The viewport goes out under the names PopupContentSize reads
+        assertTrue(script.contains("report.viewportWidth = viewport.width"))
+        assertTrue(script.contains("report.viewportHeight = viewport.height"))
+    }
+
+    @Test
+    fun popupHelper_versionWasBumpedSoInstalledCopiesUpdate() {
+        // Versions already shipped: an installed copy of the same version keeps its old script
+        assertFalse(manifest.getString("version") in listOf("1.0.0", "1.1.0"))
     }
 
     private fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }

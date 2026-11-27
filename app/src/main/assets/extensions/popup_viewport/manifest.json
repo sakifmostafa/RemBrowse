@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "RemBrowse extension popups",
   "description": "Part of RemBrowse: lays out other extensions' popups at the size RemBrowse shows them, and tells RemBrowse how big they want to be.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "extension-popups@rembrowse"

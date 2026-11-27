@@ -23,6 +23,13 @@ const { setTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.
 // the popup to fit. Popups with a viewport tag of their own were made for Android's popup,
 // which fills the window: they report the size they already have, which keeps it, and lets
 // RemBrowse show the popup without waiting.
+//
+// Each report also carries the viewport the page was laid out in. Content sized from the
+// viewport (100vh, or 100% of a root as tall as the viewport) measures the viewport plus
+// whatever sits around it, such as the body's margin, so every resize made to fit it makes it
+// bigger again. RemBrowse compares reports and, but for one step right after the content
+// changed by itself, keeps the popup's size when a size changed only by as much as its viewport
+// did (ExtensionPopups.sized).
 
 const VIEWPORT = "width=device-width";
 
@@ -82,10 +89,36 @@ function preferredSize(win, doc) {
   return { width: Math.ceil(width), height: Math.ceil(height) };
 }
 
+/**
+ * The viewport [doc] is laid out in, in CSS pixels: what 100vh, and 100% of the root, are
+ * measured against. It can be taller than the popup on screen: Gecko adds the height of a
+ * keyboard reported over the page to it, taking the keyboard to cover the page's bottom. And on
+ * some screens its CSS pixel is a fraction smaller than Android's dp, since Gecko rounds the
+ * number of its units in a device pixel to a whole one.
+ */
+function viewportSize(doc) {
+  // In quirks mode the body answers for the viewport
+  const element = doc.compatMode === "BackCompat" ? doc.body : doc.documentElement;
+  if (!element || !(element.clientWidth > 0) || !(element.clientHeight > 0)) {
+    return null;
+  }
+  return { width: element.clientWidth, height: element.clientHeight };
+}
+
+/** Whether [size] differs from [before] (none yet counts) by enough to resize the popup. */
+function changed(size, before) {
+  return (
+    !before ||
+    Math.abs(before.width - size.width) >= MIN_CHANGE_PX ||
+    Math.abs(before.height - size.height) >= MIN_CHANGE_PX
+  );
+}
+
 /** Measures [doc] whenever it settles after a change, and reports new sizes. */
 function watchSize(win, doc, extensionId) {
   let pending = false;
   let last = null;
+  let lastViewport = null;
 
   const measure = () => {
     pending = false;
@@ -93,21 +126,29 @@ function watchSize(win, doc, extensionId) {
       if (!doc.defaultView) {
         return;
       }
-      const size = hasOwnViewport(doc)
+      const ownViewport = hasOwnViewport(doc);
+      const size = ownViewport
         ? { width: doc.documentElement.clientWidth, height: win.innerHeight }
         : preferredSize(win, doc);
-      if (
-        !size ||
-        !(size.width > 0 && size.height > 0) ||
-        (last &&
-          Math.abs(last.width - size.width) < MIN_CHANGE_PX &&
-          Math.abs(last.height - size.height) < MIN_CHANGE_PX)
-      ) {
+      if (!size || !(size.width > 0 && size.height > 0)) {
+        return;
+      }
+      // A popup with its own viewport tag already reports the size it has; for the others, a
+      // new viewport is reported even when the size stayed, so RemBrowse compares each size
+      // with the one measured just before it
+      const viewport = ownViewport ? null : viewportSize(doc);
+      if (!changed(size, last) && !(viewport && changed(viewport, lastViewport))) {
         return;
       }
       last = size;
+      lastViewport = viewport;
+      const report = { extensionId, width: size.width, height: size.height };
+      if (viewport) {
+        report.viewportWidth = viewport.width;
+        report.viewportHeight = viewport.height;
+      }
       for (const fire of sizeListeners) {
-        fire.async({ extensionId, width: size.width, height: size.height });
+        fire.async(report);
       }
     } catch (e) {
       Cu.reportError(e);
